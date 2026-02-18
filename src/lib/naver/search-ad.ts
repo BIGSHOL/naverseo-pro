@@ -29,9 +29,9 @@ export interface NaverKeywordResult {
 export async function getKeywordStats(
   hintKeywords: string
 ): Promise<NaverKeywordResult[]> {
-  const apiKey = process.env.NAVER_AD_API_KEY
-  const secretKey = process.env.NAVER_AD_SECRET_KEY
-  const customerId = process.env.NAVER_AD_CUSTOMER_ID
+  const apiKey = process.env.NAVER_AD_API_KEY?.trim()
+  const secretKey = process.env.NAVER_AD_SECRET_KEY?.trim()
+  const customerId = process.env.NAVER_AD_CUSTOMER_ID?.trim()
 
   if (!apiKey || !secretKey || !customerId) {
     throw new Error('네이버 검색광고 API 키가 설정되지 않았습니다.')
