@@ -242,10 +242,27 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <div className="border-t pt-4">
+          <div className="flex items-center gap-3 border-t pt-4">
             <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700">
               <LogOut className="h-4 w-4" />
               로그아웃
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/content/recalculate-seo', { method: 'POST' })
+                  const data = await res.json()
+                  setMessage({ type: 'success', text: data.message || 'SEO 점수가 업데이트되었습니다.' })
+                } catch {
+                  setMessage({ type: 'error', text: 'SEO 점수 재계산에 실패했습니다.' })
+                }
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+              SEO 점수 재계산
             </Button>
           </div>
         </CardContent>
