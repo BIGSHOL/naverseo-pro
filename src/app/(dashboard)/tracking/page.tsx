@@ -198,6 +198,9 @@ export default function TrackingPage() {
           <h1 className="text-2xl font-bold">순위 트래킹</h1>
           <p className="mt-1 text-muted-foreground">
             타겟 키워드의 네이버 블로그 검색 순위를 추적합니다
+            <span className="ml-1 text-xs text-muted-foreground/70">
+              (광고 제외 기준, 실제 검색 결과와 1~2위 차이가 있을 수 있습니다)
+            </span>
           </p>
         </div>
         <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2">
@@ -352,21 +355,16 @@ export default function TrackingPage() {
                   <div className="flex items-center justify-between gap-4">
                     {/* 순위 표시 */}
                     <div className="flex shrink-0 items-center gap-4">
-                      <div className="flex h-14 w-14 flex-col items-center justify-center rounded-lg bg-muted">
+                      <div className="flex h-14 min-w-14 items-center justify-center rounded-lg bg-muted px-3">
                         {kw.latest.rank_position !== null ? (
-                          <>
-                            <span className="text-xl font-bold">
-                              {kw.latest.rank_position}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">위</span>
-                          </>
+                          <span className="text-xl font-bold">
+                            {kw.latest.rank_position}
+                            <span className="text-sm font-normal text-muted-foreground">위</span>
+                          </span>
                         ) : (
-                          <>
-                            <span className="text-sm font-medium text-muted-foreground">
-                              100+
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">위</span>
-                          </>
+                          <span className="text-sm font-medium text-muted-foreground">
+                            100+위
+                          </span>
                         )}
                       </div>
 
