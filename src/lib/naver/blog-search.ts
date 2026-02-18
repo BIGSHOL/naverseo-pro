@@ -23,8 +23,8 @@ export async function searchNaverBlog(
   display: number = 100,
   start: number = 1
 ): Promise<NaverBlogSearchResponse> {
-  const clientId = process.env.NAVER_CLIENT_ID
-  const clientSecret = process.env.NAVER_CLIENT_SECRET
+  const clientId = process.env.NAVER_CLIENT_ID?.trim()
+  const clientSecret = process.env.NAVER_CLIENT_SECRET?.trim()
 
   if (!clientId || !clientSecret) {
     throw new Error('네이버 검색 API 키가 설정되지 않았습니다.')
@@ -91,9 +91,12 @@ export async function checkBlogRank(
 
       // 블로그 ID로 매칭 (가장 정확)
       if (blogId) {
+        // blog.naver.com/blogId 또는 blog.naver.com/blogId/ 뒤에 숫자(포스트ID)만 허용
+        // includes()는 "myblog"가 "myblog2"에도 매칭되므로 정규식으로 엄격 매칭
+        const blogIdPattern = new RegExp(`blog\\.naver\\.com/${matchTarget}(?:/[0-9]*)?(?:\\?|$)`, 'i')
         if (
-          itemLink.includes(`blog.naver.com/${matchTarget}`) ||
-          bloggerLink.includes(`blog.naver.com/${matchTarget}`)
+          blogIdPattern.test(itemLink) ||
+          blogIdPattern.test(bloggerLink)
         ) {
           return {
             rank: i + 1,
@@ -102,8 +105,13 @@ export async function checkBlogRank(
           }
         }
       } else {
-        // URL 매칭
-        if (itemLink.includes(matchTarget) || bloggerLink.includes(matchTarget)) {
+        // URL 전체 매칭 (호스트+경로 기준)
+        const normalizedItem = itemLink.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        const normalizedBlogger = bloggerLink.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        if (
+          normalizedItem.startsWith(matchTarget) ||
+          normalizedBlogger.startsWith(matchTarget)
+        ) {
           return {
             rank: i + 1,
             section: 'blog',
@@ -127,13 +135,27 @@ export function generateDemoRank(): {
   section: string | null
   totalResults: number
 } {
-  const hasRank = Math.random() > 0.3 // 70% 확률로 순위 있음
-  if (hasRank) {
+  const rand = Math.random()
+  // 현실적 분포: 40% 100위 밖, 25% 50~100위, 20% 10~50위, 15% 상위 10위
+  if (rand < 0.4) {
+    return { rank: null, section: null, totalResults: Math.floor(Math.random() * 50000) + 5000 }
+  } else if (rand < 0.65) {
     return {
-      rank: Math.floor(Math.random() * 50) + 1,
+      rank: Math.floor(Math.random() * 50) + 51,
       section: 'blog',
-      totalResults: Math.floor(Math.random() * 50000) + 1000,
+      totalResults: Math.floor(Math.random() * 50000) + 5000,
+    }
+  } else if (rand < 0.85) {
+    return {
+      rank: Math.floor(Math.random() * 40) + 11,
+      section: 'blog',
+      totalResults: Math.floor(Math.random() * 50000) + 5000,
+    }
+  } else {
+    return {
+      rank: Math.floor(Math.random() * 10) + 1,
+      section: 'blog',
+      totalResults: Math.floor(Math.random() * 50000) + 5000,
     }
   }
-  return { rank: null, section: null, totalResults: Math.floor(Math.random() * 50000) + 1000 }
 }

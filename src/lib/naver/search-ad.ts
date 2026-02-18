@@ -86,8 +86,14 @@ export async function getKeywordStats(
 function parseSearchCount(value: unknown): number {
   if (typeof value === 'number') return value
   if (typeof value === 'string') {
+    // "< 10" → 숫자 부분만 추출
     const num = parseInt(value.replace(/[^0-9]/g, ''), 10)
-    return isNaN(num) ? 5 : num // "< 10"이면 5로 추정
+    if (isNaN(num)) {
+      // 숫자가 전혀 없는 문자열 (예: "< 10"에서 공백 제거 후 빈 문자열)
+      if (value.includes('<')) return 5 // "< 10" 류 → 5로 추정
+      return 0
+    }
+    return num
   }
   return 0
 }
@@ -106,16 +112,24 @@ export function getCompetitionLabel(compIdx: string): string {
   }
 }
 
-// 키워드 점수 계산 (검색량 대비 경쟁도)
+// 키워드 점수 계산 (검색량 대비 경쟁도 - 블로그 SEO 관점)
+// 높은 점수 = 검색량 충분 + 경쟁 낮음 → 상위 노출 가능성 높은 키워드
 export function calculateKeywordScore(keyword: NaverKeywordResult): number {
   const totalSearch = keyword.monthlyPcQcCnt + keyword.monthlyMobileQcCnt
   if (totalSearch === 0) return 0
 
-  // 경쟁도 가중치: LOW=3, MEDIUM=2, HIGH=1
-  const compWeight =
-    keyword.compIdx === 'LOW' ? 3 : keyword.compIdx === 'MEDIUM' ? 2 : 1
+  // 검색량 점수 (0~50): 구간별 선형 매핑으로 롱테일도 공정하게 평가
+  let volumeScore: number
+  if (totalSearch >= 50000) volumeScore = 50
+  else if (totalSearch >= 10000) volumeScore = 40 + ((totalSearch - 10000) / 40000) * 10
+  else if (totalSearch >= 1000) volumeScore = 25 + ((totalSearch - 1000) / 9000) * 15
+  else if (totalSearch >= 100) volumeScore = 10 + ((totalSearch - 100) / 900) * 15
+  else volumeScore = (totalSearch / 100) * 10
 
-  // 점수 = log(총검색량) × 경쟁도가중치 × 10, 최대 100
-  const score = Math.min(100, Math.round(Math.log10(totalSearch + 1) * compWeight * 10))
-  return score
+  // 경쟁도 점수 (0~50): LOW가 블로그 노출에 유리
+  const compScore =
+    keyword.compIdx === 'LOW' ? 50 :
+    keyword.compIdx === 'MEDIUM' ? 30 : 10
+
+  return Math.min(100, Math.round(volumeScore + compScore))
 }

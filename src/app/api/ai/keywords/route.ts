@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callGemini, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gemini'
+import { callGemini, parseGeminiJson, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 
 // 데모 키워드 추천 (API 키 없을 때)
 function getDemoRecommendations(keyword: string) {
@@ -68,9 +68,7 @@ export async function POST(request: NextRequest) {
 
     const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 2048)
 
-    // JSON 파싱 (마크다운 코드블록 제거)
-    const jsonStr = response.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
-    const parsed = JSON.parse(jsonStr)
+    const parsed = parseGeminiJson<Record<string, unknown>>(response)
 
     return NextResponse.json({ ...parsed, isDemo: false })
   } catch (error) {

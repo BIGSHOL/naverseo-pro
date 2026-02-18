@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callGemini, CONTENT_SYSTEM_PROMPT } from '@/lib/ai/gemini'
+import { callGemini, parseGeminiJson, CONTENT_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 
 // 데모 콘텐츠 생성
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -58,48 +58,63 @@ ${keyword}를 진행할 때 주의해야 할 점들이 있습니다:
   }
 }
 
-// 간단한 SEO 점수 자동 계산 (AI 호출 없이 로컬 계산)
+// 간단한 SEO 점수 자동 계산 (AI 호출 없이 로컬 계산, 100점 만점)
 function calculateBasicSeoScore(keyword: string, title: string, content: string): number {
   let score = 0
+  const contentLength = content.length
 
   // 1. 제목 최적화 (20점)
   const titleHasKeyword = title.includes(keyword)
-  const titleLength = title.length
-  if (titleHasKeyword) score += 10
-  if (titleLength >= 15 && titleLength <= 50) score += 10
-  else if (titleLength >= 10) score += 5
+  const titleStartsWithKeyword = title.startsWith(keyword) || title.indexOf(keyword) <= 5
+  if (titleHasKeyword) score += titleStartsWithKeyword ? 12 : 8 // 제목 앞쪽 키워드 가산
+  if (title.length >= 15 && title.length <= 50) score += 8
+  else if (title.length >= 10) score += 4
 
-  // 2. 구조 (20점)
+  // 2. 구조 (20점) - 중복 가산 제거
+  const headingCount = (content.match(/^#{2,3}\s/gm) || []).length
   const hasH2 = content.includes('## ')
   const hasH3 = content.includes('### ')
-  const headingCount = (content.match(/^#{2,3}\s/gm) || []).length
-  if (hasH2) score += 8
-  if (hasH3) score += 4
-  if (headingCount >= 3) score += 8
-  else if (headingCount >= 1) score += 4
+  if (hasH2 && hasH3) score += 12       // H2 + H3 모두 사용
+  else if (hasH2) score += 8            // H2만 사용
+  if (headingCount >= 4) score += 8     // 소제목 4개 이상
+  else if (headingCount >= 2) score += 5
 
-  // 3. 키워드 밀도 (20점)
+  // 3. 키워드 배치 (20점) - 밀도 비율 기반
   const keywordCount = content.split(keyword).length - 1
-  const contentLength = content.length
-  if (keywordCount >= 3 && keywordCount <= 15) score += 15
-  else if (keywordCount >= 1) score += 8
-  if (contentLength > 0 && keywordCount / (contentLength / 100) < 3) score += 5
+  const words = content.length / 2 // 한국어 평균 단어 길이 추정
+  const density = words > 0 ? (keywordCount / words) * 100 : 0
+  // 적정 밀도: 0.5%~2.5% (100자당 0.5~2.5회)
+  if (density >= 0.5 && density <= 2.5) score += 15
+  else if (density > 0 && density < 0.5) score += 8  // 키워드 부족
+  else if (density > 2.5 && density <= 5) score += 8  // 약간 과다
+  else if (density > 5) score += 3                     // 키워드 스터핑
+  else if (keywordCount >= 1) score += 5               // 최소 포함
+  // 키워드가 본문 전반에 분포되어 있는지 (앞/중/뒤)
+  const third = Math.floor(contentLength / 3)
+  const inFirst = content.substring(0, third).includes(keyword)
+  const inLast = content.substring(third * 2).includes(keyword)
+  if (inFirst && inLast) score += 5
 
   // 4. 콘텐츠 품질 (20점)
-  if (contentLength >= 2000) score += 15
-  else if (contentLength >= 1000) score += 10
-  else if (contentLength >= 500) score += 5
+  if (contentLength >= 2500) score += 12
+  else if (contentLength >= 1500) score += 8
+  else if (contentLength >= 800) score += 4
   const hasImages = content.includes('[이미지')
-  if (hasImages) score += 5
+  if (hasImages) score += 4
+  const hasList = content.includes('- ') || content.includes('1. ')
+  if (hasList) score += 4
 
   // 5. 가독성 (20점)
   const paragraphs = content.split('\n\n').filter(p => p.trim()).length
-  if (paragraphs >= 5) score += 10
-  else if (paragraphs >= 3) score += 5
-  const hasList = content.includes('- ') || content.includes('1. ')
-  if (hasList) score += 5
+  if (paragraphs >= 6) score += 10
+  else if (paragraphs >= 3) score += 6
   const hasBold = content.includes('**')
   if (hasBold) score += 5
+  // 평균 문장 길이 체크 (짧은 문장이 가독성 높음)
+  const sentences = content.split(/[.!?。]\s/).length
+  const avgSentenceLen = sentences > 0 ? contentLength / sentences : contentLength
+  if (avgSentenceLen <= 80) score += 5
+  else if (avgSentenceLen <= 120) score += 3
 
   return Math.min(100, score)
 }
@@ -171,8 +186,7 @@ export async function POST(request: NextRequest) {
 
     const response = await callGemini(CONTENT_SYSTEM_PROMPT, userMessage, 4096)
 
-    const jsonStr = response.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
-    const parsed = JSON.parse(jsonStr)
+    const parsed = parseGeminiJson<{ title: string; content: string; tags: string[] }>(response)
 
     // DB에 저장
     const saved = await saveGeneratedContent(keyword.trim(), parsed.title, parsed.content)

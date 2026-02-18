@@ -23,23 +23,25 @@ interface SeoResult {
   isDemo: boolean
 }
 
+// 통일된 점수 기준: 80+ 우수(녹색), 60+ 양호(녹색), 40+ 보통(노란색), 40 미만 개선 필요(빨간색)
 function getScoreColor(score: number, max: number) {
   const pct = (score / max) * 100
-  if (pct >= 80) return 'text-green-600'
-  if (pct >= 50) return 'text-yellow-600'
+  if (pct >= 60) return 'text-green-600'
+  if (pct >= 40) return 'text-yellow-600'
   return 'text-red-600'
 }
 
 function getScoreBg(score: number) {
   if (score >= 80) return 'bg-green-500'
   if (score >= 60) return 'bg-yellow-500'
+  if (score >= 40) return 'bg-orange-500'
   return 'bg-red-500'
 }
 
 function getGradeLabel(score: number) {
-  if (score >= 90) return { label: '우수', icon: CheckCircle, color: 'text-green-600' }
-  if (score >= 70) return { label: '양호', icon: CheckCircle, color: 'text-green-600' }
-  if (score >= 50) return { label: '보통', icon: AlertTriangle, color: 'text-yellow-600' }
+  if (score >= 80) return { label: '우수', icon: CheckCircle, color: 'text-green-600' }
+  if (score >= 60) return { label: '양호', icon: CheckCircle, color: 'text-green-600' }
+  if (score >= 40) return { label: '보통', icon: AlertTriangle, color: 'text-yellow-600' }
   return { label: '개선 필요', icon: XCircle, color: 'text-red-600' }
 }
 

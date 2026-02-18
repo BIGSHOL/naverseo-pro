@@ -242,3 +242,15 @@ Query:
 8. 네이버 블로그 특유의 친근하고 읽기 쉬운 문체
 9. 마지막에 관련 태그 5~10개 추천
 ```
+
+
+## Skills
+
+커스텀 검증 및 유지보수 스킬은 `.claude/skills/`에 정의되어 있습니다.
+
+| Skill | Purpose |
+|-------|---------|
+| `verify-implementation` | 프로젝트의 모든 verify 스킬을 순차 실행하여 통합 검증 보고서를 생성합니다 |
+| `manage-skills` | 세션 변경사항을 분석하고, 검증 스킬을 생성/업데이트하며, CLAUDE.md를 관리합니다 |
+| `verify-api-routes` | API Route의 에러 처리, 입력 검증, 데모 폴백, 한국어 메시지, HTTP 상태 코드 검증 |
+| `verify-dashboard-pages` | 대시보드 페이지의 클라이언트 선언, 한국어 UI, shadcn/ui 사용, 로딩/에러 상태 검증 |

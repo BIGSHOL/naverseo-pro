@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown } from 'lucide-react'
+import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -79,6 +79,7 @@ export default function DashboardPage() {
   const [recentKeywords, setRecentKeywords] = useState<RecentKeyword[]>([])
   const [recentContent, setRecentContent] = useState<RecentContent[]>([])
   const [greeting, setGreeting] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -99,6 +100,8 @@ export default function DashboardPage() {
         setRecentContent(data.recentContent || [])
       } catch {
         // 로드 실패 시 기본값 유지
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -137,6 +140,15 @@ export default function DashboardPage() {
       color: 'text-orange-600 bg-orange-100',
     },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">로딩 중...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
