@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown, RefreshCw } from 'lucide-react'
+import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown, RefreshCw, Activity } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,12 @@ const quickActions = [
     description: '콘텐츠 SEO 점수를 확인하세요',
     href: '/seo-check',
     icon: BarChart3,
+  },
+  {
+    title: '블로그 지수',
+    description: '블로그 검색 노출 파워 측정',
+    href: '/blog-index',
+    icon: Activity,
   },
   {
     title: '순위 트래킹',
