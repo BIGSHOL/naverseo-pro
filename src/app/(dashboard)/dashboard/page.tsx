@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText } from 'lucide-react'
+import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,24 @@ const quickActions = [
     description: '콘텐츠 SEO 점수를 확인하세요',
     href: '/seo-check',
     icon: BarChart3,
+  },
+  {
+    title: '순위 트래킹',
+    description: '블로그 키워드 순위를 추적하세요',
+    href: '/tracking',
+    icon: TrendingUp,
+  },
+  {
+    title: '콘텐츠 캘린더',
+    description: '생성된 콘텐츠를 날짜별로 관리',
+    href: '/content/calendar',
+    icon: CalendarDays,
+  },
+  {
+    title: 'SEO 리포트',
+    description: '전체 SEO 활동 요약 리포트',
+    href: '/report',
+    icon: FileDown,
   },
 ]
 
@@ -188,10 +206,18 @@ export default function DashboardPage() {
           {recentContent.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileText className="h-4 w-4 text-purple-600" />
-                  최근 생성 콘텐츠
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <FileText className="h-4 w-4 text-purple-600" />
+                    최근 생성 콘텐츠
+                  </CardTitle>
+                  <Link href="/content/calendar">
+                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground">
+                      전체보기
+                      <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
