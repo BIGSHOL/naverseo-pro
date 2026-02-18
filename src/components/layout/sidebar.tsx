@@ -54,7 +54,7 @@ export function Sidebar() {
       }
     }
     load()
-  }, [])
+  }, [pathname])
 
   const planInfo = PLANS[plan]
   const kwLimit = parseLimit(planInfo.keywords)
