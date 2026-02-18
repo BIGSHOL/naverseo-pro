@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callClaude, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/claude'
+import { callGemini, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 
 // 데모 키워드 추천 (API 키 없을 때)
 function getDemoRecommendations(keyword: string) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키가 없으면 데모 데이터
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(getDemoRecommendations(keyword.trim()))
     }
 
@@ -66,9 +66,7 @@ export async function POST(request: NextRequest) {
   ]
 }`
 
-    const response = await callClaude(KEYWORD_SYSTEM_PROMPT, [
-      { role: 'user', content: userMessage },
-    ], 2048)
+    const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 2048)
 
     // JSON 파싱 (마크다운 코드블록 제거)
     const jsonStr = response.replace(/```json?\n?/g, '').replace(/```/g, '').trim()

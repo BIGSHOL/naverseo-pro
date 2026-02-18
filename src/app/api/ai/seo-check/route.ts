@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callClaude, SEO_ANALYSIS_PROMPT } from '@/lib/ai/claude'
+import { callGemini, SEO_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 
 interface SeoResult {
   totalScore: number
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키가 없으면 데모 분석
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({
         ...getDemoSeoResult(title || '', content),
         isDemo: true,
@@ -91,9 +91,7 @@ ${content.substring(0, 3000)}
   "strengths": ["강점 1", "강점 2"]
 }`
 
-    const response = await callClaude(SEO_ANALYSIS_PROMPT, [
-      { role: 'user', content: userMessage },
-    ], 2048)
+    const response = await callGemini(SEO_ANALYSIS_PROMPT, userMessage, 2048)
 
     const jsonStr = response.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
     const parsed = JSON.parse(jsonStr)

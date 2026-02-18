@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callClaude, CONTENT_SYSTEM_PROMPT } from '@/lib/ai/claude'
+import { callGemini, CONTENT_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 
 // 데모 콘텐츠 생성
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키가 없으면 데모 콘텐츠
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       const demo = generateDemoContent(keyword.trim(), tone)
       const contentId = await saveGeneratedContent(keyword.trim(), demo.title, demo.content)
       return NextResponse.json({ ...demo, contentId })
@@ -120,9 +120,7 @@ export async function POST(request: NextRequest) {
   "tags": ["태그1", "태그2", ...]
 }`
 
-    const response = await callClaude(CONTENT_SYSTEM_PROMPT, [
-      { role: 'user', content: userMessage },
-    ], 4096)
+    const response = await callGemini(CONTENT_SYSTEM_PROMPT, userMessage, 4096)
 
     const jsonStr = response.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
     const parsed = JSON.parse(jsonStr)

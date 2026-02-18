@@ -1,48 +1,31 @@
-// Claude API 유틸리티
+// Gemini AI 유틸리티 (Google Generative AI)
 
-interface ClaudeMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-interface ClaudeResponse {
-  content: { type: string; text: string }[]
-}
-
-export async function callClaude(
+export async function callGemini(
   systemPrompt: string,
-  messages: ClaudeMessage[],
+  userMessage: string,
   maxTokens: number = 4096
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
 
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.')
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      temperature: 0.7,
     },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250514',
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
-    }),
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('[Claude API] 오류:', response.status, errorText)
-    throw new Error(`Claude API 오류: ${response.status}`)
-  }
-
-  const data: ClaudeResponse = await response.json()
-  return data.content[0]?.text || ''
+  const result = await model.generateContent(userMessage)
+  const response = result.response
+  return response.text()
 }
 
 // 키워드 추천용 시스템 프롬프트

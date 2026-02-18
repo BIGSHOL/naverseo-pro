@@ -14,7 +14,7 @@
 - **언어**: TypeScript
 - **스타일링**: Tailwind CSS + shadcn/ui
 - **DB**: Supabase (PostgreSQL + Auth + Row Level Security)
-- **AI**: Anthropic Claude API (콘텐츠 생성/분석)
+- **AI**: Google Gemini Flash API (콘텐츠 생성/분석)
 - **결제**: 토스페이먼츠 (한국 결제) + Stripe (해외 결제)
 - **배포**: Vercel
 - **외부 API**: 네이버 검색광고 API, 네이버 데이터랩 API, 네이버 검색 API
@@ -151,8 +151,8 @@ NAVER_AD_CUSTOMER_ID=       # 검색광고 API 고객 ID
 NAVER_CLIENT_ID=            # 네이버 개발자 센터 클라이언트 ID
 NAVER_CLIENT_SECRET=        # 네이버 개발자 센터 시크릿
 
-# Anthropic
-ANTHROPIC_API_KEY=
+# Google Gemini
+GEMINI_API_KEY=
 
 # 결제
 TOSS_CLIENT_KEY=
