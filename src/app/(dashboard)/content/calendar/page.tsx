@@ -6,6 +6,10 @@ import {
   ChevronRight,
   FileText,
   RefreshCw,
+  Copy,
+  Check,
+  Eye,
+  X,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,6 +20,7 @@ interface ContentItem {
   id: string
   target_keyword: string
   title: string
+  content: string
   status: 'draft' | 'published' | 'archived'
   seo_score: number | null
   created_at: string
@@ -46,6 +51,8 @@ export default function ContentCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [viewingContent, setViewingContent] = useState<ContentItem | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const loadContents = useCallback(async () => {
     setLoading(true)
@@ -105,10 +112,21 @@ export default function ContentCalendarPage() {
     }
   }
 
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // 클립보드 실패 시 무시
+    }
+  }
+
   // 날짜별 콘텐츠 그룹핑
   const contentsByDate: Record<string, ContentItem[]> = {}
   for (const c of contents) {
-    const dateKey = new Date(c.created_at).toISOString().split('T')[0]
+    const d = new Date(c.created_at)
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     if (!contentsByDate[dateKey]) contentsByDate[dateKey] = []
     contentsByDate[dateKey].push(c)
   }
@@ -359,6 +377,27 @@ export default function ContentCalendarPage() {
                       )}
                     </div>
 
+                    <div className="mt-2 flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs"
+                        onClick={() => setViewingContent(c)}
+                      >
+                        <Eye className="h-3 w-3" />
+                        보기
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs"
+                        onClick={() => handleCopy(`${c.title}\n\n${c.content}`)}
+                      >
+                        <Copy className="h-3 w-3" />
+                        복사
+                      </Button>
+                    </div>
+
                     <p className="mt-1.5 text-[10px] text-muted-foreground">
                       {new Date(c.created_at).toLocaleTimeString('ko-KR', {
                         hour: '2-digit',
@@ -373,6 +412,46 @@ export default function ContentCalendarPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 콘텐츠 본문 보기 모달 */}
+      {viewingContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-lg bg-background shadow-xl">
+            <div className="flex items-center justify-between border-b p-4">
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-lg font-semibold">{viewingContent.title}</h3>
+                <p className="text-xs text-muted-foreground">
+                  키워드: {viewingContent.target_keyword}
+                  {viewingContent.seo_score !== null && ` · SEO ${viewingContent.seo_score}점`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 ml-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => handleCopy(`${viewingContent.title}\n\n${viewingContent.content}`)}
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  {copied ? '복사됨' : '전체 복사'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setViewingContent(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="overflow-y-auto p-4" style={{ maxHeight: 'calc(80vh - 80px)' }}>
+              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+                {viewingContent.content}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
