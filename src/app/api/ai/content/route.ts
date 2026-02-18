@@ -58,6 +58,52 @@ ${keyword}를 진행할 때 주의해야 할 점들이 있습니다:
   }
 }
 
+// 간단한 SEO 점수 자동 계산 (AI 호출 없이 로컬 계산)
+function calculateBasicSeoScore(keyword: string, title: string, content: string): number {
+  let score = 0
+
+  // 1. 제목 최적화 (20점)
+  const titleHasKeyword = title.includes(keyword)
+  const titleLength = title.length
+  if (titleHasKeyword) score += 10
+  if (titleLength >= 15 && titleLength <= 50) score += 10
+  else if (titleLength >= 10) score += 5
+
+  // 2. 구조 (20점)
+  const hasH2 = content.includes('## ')
+  const hasH3 = content.includes('### ')
+  const headingCount = (content.match(/^#{2,3}\s/gm) || []).length
+  if (hasH2) score += 8
+  if (hasH3) score += 4
+  if (headingCount >= 3) score += 8
+  else if (headingCount >= 1) score += 4
+
+  // 3. 키워드 밀도 (20점)
+  const keywordCount = content.split(keyword).length - 1
+  const contentLength = content.length
+  if (keywordCount >= 3 && keywordCount <= 15) score += 15
+  else if (keywordCount >= 1) score += 8
+  if (contentLength > 0 && keywordCount / (contentLength / 100) < 3) score += 5
+
+  // 4. 콘텐츠 품질 (20점)
+  if (contentLength >= 2000) score += 15
+  else if (contentLength >= 1000) score += 10
+  else if (contentLength >= 500) score += 5
+  const hasImages = content.includes('[이미지')
+  if (hasImages) score += 5
+
+  // 5. 가독성 (20점)
+  const paragraphs = content.split('\n\n').filter(p => p.trim()).length
+  if (paragraphs >= 5) score += 10
+  else if (paragraphs >= 3) score += 5
+  const hasList = content.includes('- ') || content.includes('1. ')
+  if (hasList) score += 5
+  const hasBold = content.includes('**')
+  if (hasBold) score += 5
+
+  return Math.min(100, score)
+}
+
 // Supabase에 생성된 콘텐츠 저장 + 사용량 증가
 async function saveGeneratedContent(keyword: string, title: string, content: string) {
   try {
@@ -67,19 +113,22 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 
     if (!user) return null
 
-    // 콘텐츠 저장
+    const seoScore = calculateBasicSeoScore(keyword, title, content)
+
+    // 콘텐츠 저장 (SEO 점수 포함)
     const { data } = await supabase.from('generated_content').insert({
       user_id: user.id,
       target_keyword: keyword,
       title,
       content,
       status: 'draft',
+      seo_score: seoScore,
     }).select('id').single()
 
     // 사용량 증가
     await supabase.rpc('increment_content_usage', { uid: user.id }).maybeSingle()
 
-    return data?.id || null
+    return { id: data?.id || null, seoScore }
   } catch {
     console.error('[Content] DB 저장 실패')
     return null
@@ -100,8 +149,8 @@ export async function POST(request: NextRequest) {
     // API 키가 없으면 데모 콘텐츠
     if (!process.env.GEMINI_API_KEY) {
       const demo = generateDemoContent(keyword.trim(), tone)
-      const contentId = await saveGeneratedContent(keyword.trim(), demo.title, demo.content)
-      return NextResponse.json({ ...demo, contentId })
+      const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content)
+      return NextResponse.json({ ...demo, contentId: saved?.id, seoScore: saved?.seoScore })
     }
 
     const relatedKeywords = additionalKeywords.length > 0
@@ -126,9 +175,9 @@ export async function POST(request: NextRequest) {
     const parsed = JSON.parse(jsonStr)
 
     // DB에 저장
-    const contentId = await saveGeneratedContent(keyword.trim(), parsed.title, parsed.content)
+    const saved = await saveGeneratedContent(keyword.trim(), parsed.title, parsed.content)
 
-    return NextResponse.json({ ...parsed, isDemo: false, contentId })
+    return NextResponse.json({ ...parsed, isDemo: false, contentId: saved?.id, seoScore: saved?.seoScore })
   } catch (error) {
     console.error('[AI Content] 오류:', error)
     return NextResponse.json(
