@@ -108,9 +108,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ keywords: resultsWithScore, isDemo: false })
   } catch (error) {
-    console.error('[Keywords API] 오류:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[Keywords API] 오류:', errorMessage)
     return NextResponse.json(
-      { error: '키워드 조회 중 오류가 발생했습니다.' },
+      { error: `키워드 조회 중 오류가 발생했습니다: ${errorMessage}` },
       { status: 500 }
     )
   }

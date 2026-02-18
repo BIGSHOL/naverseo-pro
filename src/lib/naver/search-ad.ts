@@ -63,11 +63,34 @@ export async function getKeywordStats(
   if (!response.ok) {
     const errorText = await response.text()
     console.error('[Naver API] 오류:', response.status, errorText)
-    throw new Error(`네이버 API 오류: ${response.status}`)
+    throw new Error(`네이버 API 오류: ${response.status} - ${errorText}`)
   }
 
   const data = await response.json()
-  return data.keywordList || []
+  const keywordList = data.keywordList || []
+
+  // 네이버 API는 검색량이 적으면 "< 10" 같은 문자열을 반환함 → 숫자로 변환
+  return keywordList.map((kw: Record<string, unknown>) => ({
+    relKeyword: kw.relKeyword as string,
+    monthlyPcQcCnt: parseSearchCount(kw.monthlyPcQcCnt),
+    monthlyMobileQcCnt: parseSearchCount(kw.monthlyMobileQcCnt),
+    monthlyAvePcClkCnt: parseSearchCount(kw.monthlyAvePcClkCnt),
+    monthlyAveMobileClkCnt: parseSearchCount(kw.monthlyAveMobileClkCnt),
+    monthlyAvePcCtr: typeof kw.monthlyAvePcCtr === 'number' ? kw.monthlyAvePcCtr : 0,
+    monthlyAveMobileCtr: typeof kw.monthlyAveMobileCtr === 'number' ? kw.monthlyAveMobileCtr : 0,
+    plAvgDepth: typeof kw.plAvgDepth === 'number' ? kw.plAvgDepth : 0,
+    compIdx: (kw.compIdx as string) || '-',
+  }))
+}
+
+// "< 10" 같은 문자열을 숫자로 안전하게 변환
+function parseSearchCount(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const num = parseInt(value.replace(/[^0-9]/g, ''), 10)
+    return isNaN(num) ? 5 : num // "< 10"이면 5로 추정
+  }
+  return 0
 }
 
 // 키워드 경쟁도를 한국어로 변환
