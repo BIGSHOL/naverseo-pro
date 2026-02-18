@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Wand2, Loader2, Copy, Check, Tag } from 'lucide-react'
+import { Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 
 export default function ContentPage() {
   const [keyword, setKeyword] = useState('')
@@ -19,6 +20,8 @@ export default function ContentPage() {
     content: string
     tags: string[]
     isDemo: boolean
+    contentId?: string
+    seoScore?: number
   } | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -152,65 +155,86 @@ export default function ContentPage() {
 
       {/* 생성 결과 */}
       {result && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>
-              <div className="flex items-center gap-2">
-                {result.isDemo && (
-                  <Badge variant="outline">데모</Badge>
-                )}
-                <Button variant="outline" size="sm" onClick={handleCopy}>
-                  {copied ? (
-                    <>
-                      <Check className="mr-1 h-3 w-3" />
-                      복사됨
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-1 h-3 w-3" />
-                      복사
-                    </>
+        <>
+          {/* 저장 확인 + SEO 점수 배너 */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-green-200 bg-green-50 p-4">
+            <div className="flex items-center gap-2 text-green-800">
+              <CheckCircle className="h-5 w-5 shrink-0" />
+              <span className="text-sm font-medium">콘텐츠가 자동 저장되었습니다</span>
+              {result.seoScore !== undefined && (
+                <Badge variant="outline" className="border-green-300 text-green-700">
+                  SEO 점수: {result.seoScore}점
+                </Badge>
+              )}
+            </div>
+            <Link href="/content/calendar">
+              <Button variant="outline" size="sm" className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100">
+                <CalendarDays className="h-4 w-4" />
+                콘텐츠 캘린더에서 보기
+              </Button>
+            </Link>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>
+                <div className="flex items-center gap-2">
+                  {result.isDemo && (
+                    <Badge variant="outline">데모</Badge>
                   )}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* 제목 */}
-            <div>
-              <Label className="text-xs text-muted-foreground">제목</Label>
-              <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
-            </div>
-
-            {/* 본문 */}
-            <div>
-              <Label className="text-xs text-muted-foreground">본문</Label>
-              <div className="mt-2 rounded-lg border bg-muted/30 p-4">
-                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                  {result.content}
+                  <Button variant="outline" size="sm" onClick={handleCopy}>
+                    {copied ? (
+                      <>
+                        <Check className="mr-1 h-3 w-3" />
+                        복사됨
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-1 h-3 w-3" />
+                        복사
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
-            </div>
-
-            {/* 태그 */}
-            {result.tags && result.tags.length > 0 && (
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* 제목 */}
               <div>
-                <Label className="text-xs text-muted-foreground">
-                  <Tag className="mr-1 inline h-3 w-3" />
-                  추천 태그
-                </Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {result.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      #{tag}
-                    </Badge>
-                  ))}
+                <Label className="text-xs text-muted-foreground">제목</Label>
+                <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
+              </div>
+
+              {/* 본문 */}
+              <div>
+                <Label className="text-xs text-muted-foreground">본문</Label>
+                <div className="mt-2 rounded-lg border bg-muted/30 p-4">
+                  <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                    {result.content}
+                  </div>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {/* 태그 */}
+              {result.tags && result.tags.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    <Tag className="mr-1 inline h-3 w-3" />
+                    추천 태그
+                  </Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {result.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        #{tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )
