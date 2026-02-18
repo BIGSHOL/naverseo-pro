@@ -270,7 +270,7 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={planKey}
-                    className={`relative rounded-lg border p-4 ${
+                    className={`relative flex flex-col rounded-lg border p-4 ${
                       isCurrent
                         ? 'border-primary bg-primary/5'
                         : planInfo.popular
@@ -307,7 +307,7 @@ export default function SettingsPage() {
                       ))}
                     </ul>
 
-                    <div className="mt-4">
+                    <div className="mt-auto pt-4">
                       {isCurrent ? (
                         <Button variant="outline" size="sm" className="w-full" disabled>
                           사용 중

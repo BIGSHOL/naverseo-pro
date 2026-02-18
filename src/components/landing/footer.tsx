@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Logo } from '@/components/layout/logo'
 
 export function Footer() {
@@ -7,18 +8,18 @@ export function Footer() {
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <Logo size="sm" />
           <div className="flex gap-6">
-            <a
-              href="#"
+            <Link
+              href="/terms"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               이용약관
-            </a>
-            <a
-              href="#"
+            </Link>
+            <Link
+              href="/privacy"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               개인정보처리방침
-            </a>
+            </Link>
             <a
               href="mailto:support@naverseo.pro"
               className="text-sm text-muted-foreground hover:text-foreground"
