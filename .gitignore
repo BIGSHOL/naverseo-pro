@@ -34,3 +34,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vercel (duplicate removed)
+.vercel
+
+# claude code
+.claude/
+
+# misc files
+nul
+naverseo-pro/
