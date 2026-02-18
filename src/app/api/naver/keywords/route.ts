@@ -95,7 +95,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const results = await getKeywordStats(keyword.trim())
+    const trimmed = keyword.trim()
+    const hasSpaces = /\s/.test(trimmed)
+    const results = await getKeywordStats(trimmed)
     resultsWithScore = results.map((kw) => ({
       ...kw,
       totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
@@ -104,9 +106,17 @@ export async function GET(request: NextRequest) {
     resultsWithScore.sort((a, b) => b.score - a.score)
 
     // DB에 저장
-    await saveKeywordResearch(keyword.trim(), resultsWithScore)
+    await saveKeywordResearch(trimmed, resultsWithScore)
 
-    return NextResponse.json({ keywords: resultsWithScore, isDemo: false })
+    return NextResponse.json({
+      keywords: resultsWithScore,
+      isDemo: false,
+      // 공백이 포함된 키워드는 네이버 API 제한으로 공백 제거 후 검색됨
+      ...(hasSpaces && {
+        searchedAs: trimmed.replace(/\s+/g, ''),
+        spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,
+      }),
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Keywords API] 오류:', errorMessage)

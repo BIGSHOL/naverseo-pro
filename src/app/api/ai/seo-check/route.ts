@@ -98,9 +98,10 @@ ${content.substring(0, 3000)}
 
     return NextResponse.json({ ...parsed, isDemo: false })
   } catch (error) {
-    console.error('[SEO Check] 오류:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[SEO Check] 오류:', errorMessage)
     return NextResponse.json(
-      { error: 'SEO 분석 중 오류가 발생했습니다.' },
+      { error: `SEO 분석 중 오류가 발생했습니다: ${errorMessage}` },
       { status: 500 }
     )
   }

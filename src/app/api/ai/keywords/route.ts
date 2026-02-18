@@ -74,9 +74,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ...parsed, isDemo: false })
   } catch (error) {
-    console.error('[AI Keywords] 오류:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[AI Keywords] 오류:', errorMessage)
     return NextResponse.json(
-      { error: 'AI 키워드 추천 중 오류가 발생했습니다.' },
+      { error: `AI 키워드 추천 중 오류가 발생했습니다: ${errorMessage}` },
       { status: 500 }
     )
   }

@@ -42,13 +42,12 @@ export async function getKeywordStats(
   const path = '/keywordstool'
   const signature = generateSignature(timestamp, method, path, secretKey)
 
-  const params = new URLSearchParams({
-    hintKeywords,
-    showDetail: '1',
-  })
+  // 네이버 API는 hintKeywords에 공백을 허용하지 않음 → 공백 제거
+  const cleanedKeywords = hintKeywords.replace(/\s+/g, '')
+  const queryString = `hintKeywords=${encodeURIComponent(cleanedKeywords)}&showDetail=1`
 
   const response = await fetch(
-    `https://api.searchad.naver.com${path}?${params.toString()}`,
+    `https://api.searchad.naver.com${path}?${queryString}`,
     {
       method,
       headers: {

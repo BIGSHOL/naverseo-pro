@@ -23,9 +23,17 @@ export async function callGemini(
     },
   })
 
-  const result = await model.generateContent(userMessage)
-  const response = result.response
-  return response.text()
+  try {
+    const result = await model.generateContent(userMessage)
+    const response = result.response
+    return response.text()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
+    }
+    throw err
+  }
 }
 
 // 키워드 추천용 시스템 프롬프트
