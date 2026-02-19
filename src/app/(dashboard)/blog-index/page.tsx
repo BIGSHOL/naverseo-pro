@@ -8,7 +8,6 @@ import {
   Target,
   Award,
   AlertCircle,
-  CheckCircle,
   Minus,
   FileText,
   Clock,
@@ -282,13 +281,6 @@ function getCategoryIcon(name: string) {
   }
 }
 
-function getRankBadge(rank: number | null) {
-  if (rank === null) return <span className="flex items-center gap-1 text-muted-foreground"><Minus className="h-3 w-3" />100+</span>
-  if (rank <= 10) return <span className="flex items-center gap-1 font-bold text-green-600"><CheckCircle className="h-3 w-3" />{rank}위</span>
-  if (rank <= 30) return <span className="font-medium text-blue-600">{rank}위</span>
-  if (rank <= 50) return <span className="font-medium text-yellow-600">{rank}위</span>
-  return <span className="text-muted-foreground">{rank}위</span>
-}
 
 function getDaysAgoBadge(daysAgo: number) {
   if (daysAgo === 0) return <Badge className="bg-green-100 text-green-700 text-[10px]">오늘</Badge>
@@ -384,9 +376,15 @@ export default function BlogIndexPage() {
               <p className="text-xs text-muted-foreground">네이버 블로그 주소를 입력하세요</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="keywords">테스트 키워드 (선택)</Label>
-              <Input id="keywords" placeholder="쉼표로 구분 (예: 맛집 추천, 여행 후기, 다이어트)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
-              <p className="text-xs text-muted-foreground">비워두면 기본 키워드 5개로 테스트합니다</p>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="keywords">테스트 키워드</Label>
+                <Badge className="bg-primary/10 text-primary text-[10px] font-medium">핵심 기능</Badge>
+              </div>
+              <Input id="keywords" placeholder="쉼표로 구분 (예: 침산동 수학, 강남 맛집, 다이어트 후기)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
+              <div className="rounded-md bg-blue-50 p-2.5 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                <p className="font-medium">실제 키워드 순위를 측정합니다</p>
+                <p className="mt-0.5 text-blue-600/70 dark:text-blue-400/70">내 블로그가 해당 키워드 검색에서 몇 위에 노출되는지 확인합니다. 비워두면 기본 키워드 5개로 테스트합니다.</p>
+              </div>
             </div>
             {error && (
               <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -577,86 +575,79 @@ export default function BlogIndexPage() {
             </Card>
           </div>
 
-          {/* ===== 2행: 벤치마크 비교 + 5축 카드 ===== */}
-          <div className="grid gap-4 lg:grid-cols-12">
-            {/* 벤치마크 비교 */}
-            {result.benchmark && (
-              <Card className="lg:col-span-4">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <BarChart3 className="h-4 w-4" />
-                    벤치마크 비교
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
+          {/* ===== 2행: 5축 상세 카드 (전체 너비) ===== */}
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {result.categories.map((cat) => {
+              const pct = Math.round((cat.score / cat.maxScore) * 100)
+              return (
+                <Card key={cat.name} className="overflow-hidden">
+                  <div className={`h-1 ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        {getCategoryIcon(cat.name)}
+                        <p className="text-xs font-medium">{cat.name}</p>
+                      </div>
+                      <Badge className={`text-[10px] ${getGradeColor(cat.grade)}`}>{cat.grade}</Badge>
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex items-end justify-between">
+                        <span className="text-xl font-bold">{cat.score}</span>
+                        <span className="text-[10px] text-muted-foreground">/{cat.maxScore}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+                        <div className={`h-full rounded-full ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
+                    </div>
+                    {cat.details[0] && (
+                      <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">{cat.details[0]}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* ===== 3행: 벤치마크 비교 (컴팩트 가로 레이아웃) ===== */}
+          {result.benchmark && (
+            <Card>
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4" />
+                  <p className="text-sm font-semibold">벤치마크 비교</p>
+                </div>
+                <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   <BenchmarkBar label="주간 포스팅" mine={result.benchmark.postingFrequency.mine} target={result.benchmark.postingFrequency.recommended} targetLabel="권장" max={Math.max(result.benchmark.postingFrequency.topBlogger, result.benchmark.postingFrequency.mine, 7)} />
                   <BenchmarkBar label="제목 길이" mine={result.benchmark.avgTitleLength.mine} target={result.benchmark.avgTitleLength.optimal} targetLabel="최적" max={50} />
                   <BenchmarkBar label="콘텐츠 깊이" mine={result.benchmark.avgContentLength.mine} target={result.benchmark.avgContentLength.recommended} targetLabel="권장" max={Math.max(200, result.benchmark.avgContentLength.mine)} />
                   <BenchmarkBar label="이미지 포함률 (%)" mine={result.benchmark.imageRate.mine} target={result.benchmark.imageRate.recommended} targetLabel="권장" max={100} />
                   <BenchmarkBar label="주제 집중도 (%)" mine={result.benchmark.topicFocus.mine} target={result.benchmark.topicFocus.recommended} targetLabel="권장" max={100} />
-
-                  {/* 포스팅 빈도 비교 차트 */}
-                  <div className="mt-2 rounded-lg bg-muted/50 p-2.5">
-                    <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">주간 포스팅 비교</p>
-                    <div className="flex items-end gap-2 h-14">
+                  {/* 포스팅 빈도 비교 미니 차트 */}
+                  <div className="rounded-lg bg-muted/50 p-2.5">
+                    <p className="mb-1 text-[10px] font-medium text-muted-foreground">주간 포스팅 비교</p>
+                    <div className="flex items-end gap-2 h-10">
                       {[
                         { label: '나', value: result.benchmark.postingFrequency.mine, color: 'bg-primary' },
                         { label: '권장', value: result.benchmark.postingFrequency.recommended, color: 'bg-muted-foreground/30' },
                         { label: '상위', value: result.benchmark.postingFrequency.topBlogger, color: 'bg-green-400' },
                       ].map((bar) => {
                         const maxVal = Math.max(result.benchmark!.postingFrequency.topBlogger, result.benchmark!.postingFrequency.mine, 7)
-                        const h = Math.max(8, (bar.value / maxVal) * 56)
+                        const h = Math.max(6, (bar.value / maxVal) * 40)
                         return (
                           <div key={bar.label} className="flex-1 flex flex-col items-center gap-0.5">
-                            <span className="text-[9px] font-bold">{bar.value}회</span>
+                            <span className="text-[8px] font-bold">{bar.value}회</span>
                             <div className={`w-full rounded-t ${bar.color}`} style={{ height: `${h}px` }} />
-                            <span className="text-[8px] text-muted-foreground">{bar.label}</span>
+                            <span className="text-[7px] text-muted-foreground">{bar.label}</span>
                           </div>
                         )
                       })}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 5축 상세 카드 */}
-            <div className={`${result.benchmark ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                {result.categories.map((cat) => {
-                  const pct = Math.round((cat.score / cat.maxScore) * 100)
-                  return (
-                    <Card key={cat.name} className="overflow-hidden">
-                      <div className={`h-1 ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            {getCategoryIcon(cat.name)}
-                            <p className="text-xs font-medium">{cat.name}</p>
-                          </div>
-                          <Badge className={`text-[10px] ${getGradeColor(cat.grade)}`}>{cat.grade}</Badge>
-                        </div>
-                        <div className="mt-2">
-                          <div className="flex items-end justify-between">
-                            <span className="text-xl font-bold">{cat.score}</span>
-                            <span className="text-[10px] text-muted-foreground">/{cat.maxScore}</span>
-                          </div>
-                          <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                            <div className={`h-full rounded-full ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                          </div>
-                          <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
-                        </div>
-                        {/* 세부 항목 1개만 미리보기 */}
-                        {cat.details[0] && (
-                          <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">{cat.details[0]}</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ===== 3행: 포스팅 지수 (개별 포스트 품질 테이블) ===== */}
           {result.recentPosts && result.recentPosts.length > 0 && (
@@ -766,48 +757,90 @@ export default function BlogIndexPage() {
             </CardContent>
           </Card>
 
-          {/* ===== 키워드별 순위 결과 ===== */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Award className="h-4 w-4" />
-                키워드별 순위 결과
-              </CardTitle>
+          {/* ===== 키워드별 실전 순위 ===== */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Award className="h-4 w-4 text-primary" />
+                  키워드 실전 순위
+                  <Badge className="bg-primary/10 text-primary text-[10px]">핵심 분석</Badge>
+                </CardTitle>
+                <p className="text-[10px] text-muted-foreground">네이버 블로그 검색 기준 100위 내 순위</p>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">#</th>
-                      <th className="pb-2 font-medium">키워드</th>
-                      <th className="pb-2 font-medium">순위</th>
-                      <th className="pb-2 font-medium">총 검색결과</th>
-                      <th className="pb-2 font-medium">상태</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.keywordResults.map((kr, i) => (
-                      <tr key={kr.keyword} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground">{i + 1}</td>
-                        <td className="py-2 font-medium">{kr.keyword}</td>
-                        <td className="py-2">{getRankBadge(kr.rank)}</td>
-                        <td className="py-2 text-muted-foreground">{kr.totalResults.toLocaleString()}건</td>
-                        <td className="py-2">
-                          {kr.rank === null ? <span className="text-xs text-red-500">미노출</span>
-                            : kr.rank <= 10 ? <span className="text-xs text-green-600 font-medium">상위 노출</span>
-                            : kr.rank <= 30 ? <span className="text-xs text-blue-600">중위 노출</span>
-                            : <span className="text-xs text-muted-foreground">하위 노출</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* 요약 카드 */}
+              <div className="mb-4 grid grid-cols-4 gap-2">
+                {(() => {
+                  const top = result.keywordResults.filter(kr => kr.rank !== null && kr.rank <= 10).length
+                  const mid = result.keywordResults.filter(kr => kr.rank !== null && kr.rank > 10 && kr.rank <= 30).length
+                  const low = result.keywordResults.filter(kr => kr.rank !== null && kr.rank > 30).length
+                  const none = result.keywordResults.filter(kr => kr.rank === null).length
+                  const total = result.keywordResults.length
+                  const exposureRate = total > 0 ? Math.round(((top + mid + low) / total) * 100) : 0
+                  return (
+                    <>
+                      <div className="rounded-lg bg-green-50 p-2.5 text-center dark:bg-green-950/30">
+                        <p className="text-lg font-bold text-green-600">{top}</p>
+                        <p className="text-[10px] text-green-600/70">상위 노출 (1~10위)</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-2.5 text-center dark:bg-blue-950/30">
+                        <p className="text-lg font-bold text-blue-600">{mid}</p>
+                        <p className="text-[10px] text-blue-600/70">중위 노출 (11~30위)</p>
+                      </div>
+                      <div className="rounded-lg bg-orange-50 p-2.5 text-center dark:bg-orange-950/30">
+                        <p className="text-lg font-bold text-orange-600">{none + low}</p>
+                        <p className="text-[10px] text-orange-600/70">하위/미노출</p>
+                      </div>
+                      <div className="rounded-lg bg-primary/5 p-2.5 text-center">
+                        <p className="text-lg font-bold text-primary">{exposureRate}%</p>
+                        <p className="text-[10px] text-muted-foreground">키워드 노출률</p>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
-              <div className="mt-2 flex gap-4 rounded-lg bg-muted/50 p-2.5 text-xs">
-                <div><span className="text-muted-foreground">상위: </span><span className="font-bold text-green-600">{result.keywordResults.filter(kr => kr.rank !== null && kr.rank <= 10).length}개</span></div>
-                <div><span className="text-muted-foreground">중위: </span><span className="font-bold text-blue-600">{result.keywordResults.filter(kr => kr.rank !== null && kr.rank > 10 && kr.rank <= 30).length}개</span></div>
-                <div><span className="text-muted-foreground">미노출: </span><span className="font-bold text-red-500">{result.keywordResults.filter(kr => kr.rank === null).length}개</span></div>
+
+              {/* 키워드별 시각적 순위 */}
+              <div className="space-y-2">
+                {result.keywordResults.map((kr) => {
+                  const rankPct = kr.rank !== null ? Math.max(2, 100 - kr.rank) : 0
+                  const barColor = kr.rank === null ? 'bg-red-200' : kr.rank <= 10 ? 'bg-green-500' : kr.rank <= 30 ? 'bg-blue-500' : kr.rank <= 50 ? 'bg-yellow-500' : 'bg-orange-400'
+                  return (
+                    <div key={kr.keyword} className="flex items-center gap-3 rounded-lg border p-2.5">
+                      {/* 키워드명 */}
+                      <div className="w-28 shrink-0">
+                        <p className="text-xs font-medium truncate">{kr.keyword}</p>
+                        <p className="text-[9px] text-muted-foreground">{kr.totalResults.toLocaleString()}건</p>
+                      </div>
+                      {/* 순위 바 */}
+                      <div className="flex-1">
+                        <div className="h-5 rounded-full bg-muted overflow-hidden">
+                          {kr.rank !== null ? (
+                            <div className={`h-full rounded-full ${barColor} flex items-center justify-end pr-2 transition-all`} style={{ width: `${rankPct}%` }}>
+                              <span className="text-[9px] font-bold text-white">{kr.rank}위</span>
+                            </div>
+                          ) : (
+                            <div className="h-full flex items-center pl-2">
+                              <span className="text-[9px] text-muted-foreground">100위 밖 (미노출)</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {/* 상태 뱃지 */}
+                      <div className="w-16 shrink-0 text-right">
+                        {kr.rank === null
+                          ? <Badge variant="outline" className="text-[9px] text-red-500 border-red-200">미노출</Badge>
+                          : kr.rank <= 10
+                          ? <Badge className="text-[9px] bg-green-500">상위</Badge>
+                          : kr.rank <= 30
+                          ? <Badge className="text-[9px] bg-blue-500">중위</Badge>
+                          : <Badge variant="outline" className="text-[9px]">하위</Badge>}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>

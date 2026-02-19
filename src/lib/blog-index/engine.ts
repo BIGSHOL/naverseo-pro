@@ -771,7 +771,7 @@ export function analyzeBlogIndex(
     words.forEach((w) => { wordFreqAll[w.toLowerCase()] = (wordFreqAll[w.toLowerCase()] || 0) + 1 })
   })
   const topWordCount = Object.values(wordFreqAll).sort((a, b) => b - a)[0] || 0
-  const topicFocusPct = posts.length > 0 ? Math.round((topWordCount / posts.length) * 100) : 0
+  const topicFocusPct = posts.length > 0 ? Math.min(100, Math.round((topWordCount / posts.length) * 100)) : 0
 
   // 최적화 수치 = totalScore를 0~100%로 표현 (가중 보정)
   const optimizationPct = Math.round(totalScore * 1.0)

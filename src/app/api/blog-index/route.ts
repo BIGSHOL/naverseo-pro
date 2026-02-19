@@ -96,12 +96,10 @@ function parseRssXml(xml: string, blogId: string): BlogPost[] {
     const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/)
     const link = linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`
 
-    // 설명 추출
+    // 설명 추출 (HTML 원본 보존 - 이미지 태그 감지에 필요)
     const descMatch = itemXml.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)
       || itemXml.match(/<description>([\s\S]*?)<\/description>/)
-    const rawDesc = descMatch ? descMatch[1].trim() : ''
-    // HTML 태그 제거
-    const description = rawDesc.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ').trim()
+    const description = descMatch ? descMatch[1].trim() : ''
 
     // 날짜 추출 (pubDate)
     const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/)
