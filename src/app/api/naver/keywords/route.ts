@@ -4,6 +4,7 @@ import {
   calculateKeywordScore,
   type NaverKeywordResult,
 } from '@/lib/naver/search-ad'
+import { checkKeywordLimit } from '@/lib/plan-check'
 
 // 데모 데이터 (API 키 없을 때 사용)
 function generateDemoData(keyword: string): NaverKeywordResult[] {
@@ -69,6 +70,24 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // 인증 체크
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // 플랜 사용량 체크
+    const planCheck = await checkKeywordLimit(supabase, user.id)
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { status: 403 }
+      )
+    }
+
     let resultsWithScore
 
     // 네이버 API 키가 없으면 데모 데이터 반환

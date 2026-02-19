@@ -9,6 +9,7 @@ import {
   analyzeSeo,
   type ContentGenerationRequest,
 } from '@/lib/content/engine'
+import { checkContentLimit } from '@/lib/plan-check'
 
 // 간단한 SEO 점수 계산 (DB 저장용, 100점 만점)
 function calculateBasicSeoScore(keyword: string, title: string, content: string): number {
@@ -49,6 +50,24 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 
 export async function POST(request: NextRequest) {
   try {
+    // 인증 체크
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // 플랜 사용량 체크
+    const planCheck = await checkContentLimit(supabase, user.id)
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { status: 403 }
+      )
+    }
+
     const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {

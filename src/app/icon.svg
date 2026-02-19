@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#03C75A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Magnifying Glass Lens -->
+  <circle cx="13" cy="13" r="10" />
+  <!-- Handle -->
+  <path d="M21 21 L29 29" />
+  <!-- Graph (Upward Trend) -->
+  <path d="M7 16 L10 16 L14 10 L17 14 L22 7" stroke-width="2" />
+</svg>

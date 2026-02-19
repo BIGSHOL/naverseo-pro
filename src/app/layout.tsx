@@ -19,6 +19,21 @@ export const metadata: Metadata = {
   description:
     '키워드 리서치, AI 콘텐츠 생성, SEO 점수 분석, 순위 트래킹까지. 네이버 블로그 SEO의 모든 것을 한 곳에서.',
   keywords: ['네이버 SEO', '블로그 SEO', 'AI 콘텐츠', '키워드 분석', '순위 트래킹'],
+  openGraph: {
+    title: 'NaverSEO Pro - 네이버 블로그 상위 노출의 비밀',
+    description: '키워드 분석부터 AI 글쓰기, SEO 점수 체크, 순위 트래킹까지. 블로그 운영자와 마케터를 위한 올인원 SEO 도구.',
+    type: 'website',
+    locale: 'ko_KR',
+    siteName: 'NaverSEO Pro',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NaverSEO Pro - 네이버 블로그 상위 노출의 비밀',
+    description: '키워드 분석부터 AI 글쓰기, SEO 점수 체크, 순위 트래킹까지. 블로그 운영자와 마케터를 위한 올인원 SEO 도구.',
+  },
+  icons: {
+    icon: '/icon.svg',
+  },
 }
 
 export default function RootLayout({

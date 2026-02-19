@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkTrackingAccess } from '@/lib/plan-check'
 
 // 기존 키워드 순위 재확인
 export async function POST(request: NextRequest) {
@@ -9,6 +10,15 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // 플랜 체크 (Free 플랜은 트래킹 불가)
+    const planCheck = await checkTrackingAccess(supabase, user.id)
+    if (!planCheck.allowed) {
+      return NextResponse.json(
+        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { status: 403 }
+      )
     }
 
     const { keyword, blogUrl } = await request.json()
