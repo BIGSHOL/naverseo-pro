@@ -2,12 +2,15 @@
  * 플랜별 기능 제한 체크 유틸리티
  *
  * 가격 정책:
- * | 플랜     | 키워드 조회 | AI 콘텐츠 | 순위 트래킹    |
- * |---------|-----------|---------|-------------|
- * | Free    | 10회/월    | 3편/월   | X           |
- * | Starter | 50회/월    | 10편/월  | 키워드 5개    |
- * | Pro     | 무제한     | 50편/월  | 키워드 30개   |
- * | Agency  | 무제한     | 200편/월 | 키워드 100개  |
+ * | 플랜     | 키워드 조회 | AI 콘텐츠 | 순위 트래킹    | 분석(일간)  |
+ * |---------|-----------|---------|-------------|-----------|
+ * | Free    | 10회/월    | 3편/월   | X           | 3회/일     |
+ * | Starter | 50회/월    | 10편/월  | 키워드 5개    | 10회/일    |
+ * | Pro     | 무제한     | 50편/월  | 키워드 30개   | 무제한      |
+ * | Agency  | 무제한     | 200편/월 | 키워드 100개  | 무제한      |
+ *
+ * 분석 = 블로그 지수 / 상위노출 분석 / 키워드 발굴 (외부 API 호출 기능)
+ * 일간 제한으로 다계정 악용 방지
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,12 +22,13 @@ export type PlanType = 'free' | 'starter' | 'pro' | 'agency'
  * 플랜별 기능 제한 설정
  * keywordsPerMonth: -1 = 무제한
  * trackingKeywords: 0 = 사용 불가
+ * analysisPerDay: -1 = 무제한
  */
 export const PLAN_LIMITS = {
-  free: { keywordsPerMonth: 10, contentPerMonth: 3, trackingKeywords: 0 },
-  starter: { keywordsPerMonth: 50, contentPerMonth: 10, trackingKeywords: 5 },
-  pro: { keywordsPerMonth: -1, contentPerMonth: 50, trackingKeywords: 30 },
-  agency: { keywordsPerMonth: -1, contentPerMonth: 200, trackingKeywords: 100 },
+  free: { keywordsPerMonth: 10, contentPerMonth: 3, trackingKeywords: 0, analysisPerDay: 3 },
+  starter: { keywordsPerMonth: 50, contentPerMonth: 10, trackingKeywords: 5, analysisPerDay: 10 },
+  pro: { keywordsPerMonth: -1, contentPerMonth: 50, trackingKeywords: 30, analysisPerDay: -1 },
+  agency: { keywordsPerMonth: -1, contentPerMonth: 200, trackingKeywords: 100, analysisPerDay: -1 },
 } as const
 
 export interface PlanCheckResult {
@@ -155,4 +159,76 @@ export async function checkTrackingCount(
     }
   }
   return { allowed: true, plan, limit, used }
+}
+
+/**
+ * 일간 분석 사용량 체크 (블로그 지수 / 상위노출 분석 / 키워드 발굴)
+ * 날짜가 바뀌면 자동 리셋
+ */
+export async function checkAnalysisLimit(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<PlanCheckResult> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('plan, analysis_used_today, analysis_reset_date')
+    .eq('id', userId)
+    .single()
+
+  const plan = (profile?.plan || 'free') as PlanType
+  const limit = PLAN_LIMITS[plan].analysisPerDay
+
+  // 무제한 플랜
+  if (limit === -1) {
+    return { allowed: true, plan, limit, used: 0 }
+  }
+
+  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  const resetDate = profile?.analysis_reset_date
+
+  // 날짜가 바뀌었으면 카운터 리셋
+  let used = profile?.analysis_used_today || 0
+  if (resetDate !== today) {
+    await supabase
+      .from('profiles')
+      .update({ analysis_used_today: 0, analysis_reset_date: today })
+      .eq('id', userId)
+    used = 0
+  }
+
+  if (used >= limit) {
+    return {
+      allowed: false, plan, limit, used,
+      message: `일간 분석 한도(${limit}회)를 초과했습니다. 내일 다시 이용하거나 플랜을 업그레이드해주세요.`,
+    }
+  }
+  return { allowed: true, plan, limit, used }
+}
+
+/**
+ * 분석 사용량 1 증가 (API 호출 성공 후 호출)
+ */
+export async function incrementAnalysisUsage(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('analysis_used_today, analysis_reset_date')
+    .eq('id', userId)
+    .single()
+
+  if (profile?.analysis_reset_date !== today) {
+    await supabase
+      .from('profiles')
+      .update({ analysis_used_today: 1, analysis_reset_date: today })
+      .eq('id', userId)
+  } else {
+    await supabase
+      .from('profiles')
+      .update({ analysis_used_today: (profile?.analysis_used_today || 0) + 1 })
+      .eq('id', userId)
+  }
 }

@@ -21,7 +21,7 @@ export function PricingSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <Badge variant="secondary" className="mb-4 px-4 py-1.5">
-            SEO 대행사 월 50~200만원 → 여기서 월 29,000원
+            전문 대행사 대비 최대 98% 비용 절감
           </Badge>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             블로그 글 1편에 <span className="text-primary">커피 한 잔 값</span>

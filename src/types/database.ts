@@ -8,6 +8,8 @@ export interface Profile {
   plan: Plan
   keywords_used_this_month: number
   content_generated_this_month: number
+  analysis_used_today: number
+  analysis_reset_date: string
   created_at: string
   updated_at: string
 }
@@ -79,6 +81,7 @@ export interface PlanInfo {
   keywords: string
   content: string
   tracking: string
+  analysis: string
   features: string[]
   popular?: boolean
 }
@@ -91,7 +94,8 @@ export const PLANS: Record<Plan, PlanInfo> = {
     keywords: '10회/월',
     content: '3편/월',
     tracking: 'X',
-    features: ['키워드 검색량 조회 10회/월', 'AI 콘텐츠 생성 3편/월', 'SEO 점수 체크'],
+    analysis: '3회/일',
+    features: ['키워드 검색량 조회 10회/월', 'AI 콘텐츠 생성 3편/월', 'SEO 점수 체크', '블로그 분석 3회/일'],
   },
   starter: {
     name: 'Starter',
@@ -100,8 +104,9 @@ export const PLANS: Record<Plan, PlanInfo> = {
     keywords: '50회/월',
     content: '10편/월',
     tracking: '키워드 5개',
+    analysis: '10회/일',
     popular: false,
-    features: ['키워드 검색량 조회 50회/월', 'AI 콘텐츠 생성 10편/월', '순위 트래킹 5개 키워드', 'SEO 점수 체크'],
+    features: ['키워드 검색량 조회 50회/월', 'AI 콘텐츠 생성 10편/월', '순위 트래킹 5개 키워드', 'SEO 점수 체크', '블로그 분석 10회/일'],
   },
   pro: {
     name: 'Pro',
@@ -110,8 +115,9 @@ export const PLANS: Record<Plan, PlanInfo> = {
     keywords: '무제한',
     content: '50편/월',
     tracking: '키워드 30개',
+    analysis: '무제한',
     popular: true,
-    features: ['키워드 검색량 무제한 조회', 'AI 콘텐츠 생성 50편/월', '순위 트래킹 30개 키워드', 'SEO 점수 체크', '우선 지원'],
+    features: ['키워드 검색량 무제한 조회', 'AI 콘텐츠 생성 50편/월', '순위 트래킹 30개 키워드', 'SEO 점수 체크', '블로그 분석 무제한', '우선 지원'],
   },
   agency: {
     name: 'Agency',
@@ -120,6 +126,7 @@ export const PLANS: Record<Plan, PlanInfo> = {
     keywords: '무제한',
     content: '200편/월',
     tracking: '키워드 100개',
-    features: ['키워드 검색량 무제한 조회', 'AI 콘텐츠 생성 200편/월', '순위 트래킹 100개 키워드', 'SEO 점수 체크', '전담 매니저 지원', 'API 접근'],
+    analysis: '무제한',
+    features: ['키워드 검색량 무제한 조회', 'AI 콘텐츠 생성 200편/월', '순위 트래킹 100개 키워드', 'SEO 점수 체크', '블로그 분석 무제한', '전담 매니저 지원', 'API 접근'],
   },
 }

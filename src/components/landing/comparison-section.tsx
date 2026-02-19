@@ -7,8 +7,8 @@ const comparisonItems = [
   { task: '블로그 글 작성', manual: '3~4시간/편', tool: 'AI 생성 10분/편' },
   { task: 'SEO 최적화 검토', manual: 'SEO 지식 필요', tool: '100점 만점 자동 분석' },
   { task: '순위 모니터링', manual: '매일 수동 검색', tool: '자동 트래킹 알림' },
-  { task: '경쟁사 분석', manual: '일일이 검색 비교', tool: 'AI 자동 분석 리포트' },
-  { task: '키워드 기회 발견', manual: '경험과 감에 의존', tool: 'AI 블루오션 자동 발굴' },
+  { task: '상위노출 분석', manual: '일일이 검색 비교', tool: 'AI 자동 분석 리포트' },
+  { task: '키워드 발굴', manual: '경험과 감에 의존', tool: 'AI 블루오션 자동 발굴' },
 ]
 
 const costComparison = [
@@ -22,13 +22,13 @@ const costComparison = [
     label: '프리랜서 고용',
     cost: '월 30~100만원',
     period: '연 360만~1,200만원',
-    cons: ['품질 편차 큼', '커뮤니케이션 비용', '이직/그만둘 수 있음'],
+    cons: ['품질 편차 큼', '커뮤니케이션 비용', '인력 이탈 리스크'],
   },
   {
     label: '직접 운영',
     cost: '월 60시간+ 투입',
     period: '시급 1만원 기준 월 60만원',
-    cons: ['본업에 집중 불가', '전문성 부족', '번아웃 위험'],
+    cons: ['본업에 집중 어려움', '전문성 한계', '지속 운영 부담'],
   },
 ]
 
@@ -41,10 +41,10 @@ export function ComparisonSection() {
             비용 비교
           </Badge>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            직접 하면 얼마나 들까요?
+            기존 방식의 실제 비용
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            같은 결과를 내는 데 드는 실제 비용을 비교해보세요
+            동일한 SEO 성과를 달성하는 데 드는 비용을 비교해보세요
           </p>
         </div>
 

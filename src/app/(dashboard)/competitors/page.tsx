@@ -121,7 +121,7 @@ export default function CompetitorsPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '경쟁사 분석에 실패했습니다.')
+        setError(data.error || '상위노출 분석에 실패했습니다.')
         return
       }
 
@@ -163,7 +163,7 @@ export default function CompetitorsPage() {
     <div className="space-y-6">
       {/* 헤더 */}
       <div>
-        <h1 className="text-2xl font-bold">경쟁사 분석</h1>
+        <h1 className="text-2xl font-bold">상위노출 분석</h1>
         <p className="mt-1 text-muted-foreground">
           키워드 상위 노출 블로그를 분석하여 콘텐츠 전략을 수립하세요
         </p>

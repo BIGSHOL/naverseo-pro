@@ -6,6 +6,7 @@ import {
   type BlogPost,
   type KeywordRankResult,
 } from '@/lib/blog-index/engine'
+import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 /**
  * 수집된 블로그 포스트 제목에서 검색용 키워드를 자동 추출
@@ -184,6 +185,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 일간 분석 제한 체크
+    const limitCheck = await checkAnalysisLimit(supabase, user.id)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
+        { status: 429 }
+      )
+    }
+
     const { blogUrl, testKeywords = [] } = await request.json()
 
     if (!blogUrl?.trim()) {
@@ -342,6 +352,9 @@ export async function POST(request: NextRequest) {
 
     // 5축 블로그 지수 분석 엔진 실행
     const result = analyzeBlogIndex(blogUrl.trim(), posts, keywordResults, isDemo, blogName)
+
+    // 분석 사용량 증가
+    await incrementAnalysisUsage(supabase, user.id)
 
     return NextResponse.json(result)
   } catch (error) {

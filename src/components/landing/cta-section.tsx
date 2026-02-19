@@ -3,10 +3,10 @@ import { ArrowRight, Check, Clock, Wand2, BarChart3, TrendingUp } from 'lucide-r
 import { Button } from '@/components/ui/button'
 
 const valuePoints = [
-  { icon: Clock, text: '글 작성 시간 95% 절감' },
-  { icon: Wand2, text: 'AI SEO 콘텐츠 자동 생성' },
-  { icon: BarChart3, text: '100점 만점 SEO 분석' },
-  { icon: TrendingUp, text: '네이버 순위 자동 추적' },
+  { icon: Clock, text: '콘텐츠 제작 시간 95% 절감' },
+  { icon: Wand2, text: 'AI 기반 SEO 콘텐츠 생성' },
+  { icon: BarChart3, text: '10개 항목 SEO 정밀 분석' },
+  { icon: TrendingUp, text: '네이버 검색 순위 자동 추적' },
 ]
 
 const trustSignals = [
@@ -21,12 +21,12 @@ export function CtaSection() {
     <section className="py-20 bg-primary/5">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
         <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          블로그 글 쓰느라 하루 종일 보내지 마세요
+          콘텐츠 제작이 아닌, 성과에 집중하세요
         </h2>
         <p className="mt-4 text-lg text-muted-foreground">
-          월 <span className="font-semibold text-foreground">29,000원</span>으로 SEO 전문가를 고용하세요.
+          월 <span className="font-semibold text-foreground">29,000원</span>으로 SEO 전문 도구를 도입하세요.
           <br className="hidden sm:block" />
-          매달 <span className="font-semibold text-foreground">50시간 이상</span> 절약하고, 상위 노출에 집중하세요.
+          매달 <span className="font-semibold text-foreground">50시간 이상</span>을 절약하고, 상위 노출 전략에 집중할 수 있습니다.
         </p>
 
         {/* 가치 요약 */}

@@ -117,7 +117,7 @@ export const SEO_ANALYSIS_PROMPT = `당신은 네이버 블로그 SEO 분석 전
 
 반드시 유효한 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이 순수 JSON만).`
 
-// 경쟁사 분석용 시스템 프롬프트
+// 상위노출 분석용 시스템 프롬프트
 export const COMPETITOR_ANALYSIS_PROMPT = `당신은 네이버 블로그 SEO 경쟁 분석 전문가입니다.
 네이버 블로그 검색 상위 노출 결과를 분석하여, 새로운 블로그 글이 상위에 노출되기 위한 전략을 수립합니다.
 
@@ -129,7 +129,7 @@ export const COMPETITOR_ANALYSIS_PROMPT = `당신은 네이버 블로그 SEO 경
 
 반드시 유효한 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이 순수 JSON만).`
 
-// 키워드 기회 발견용 시스템 프롬프트
+// 키워드 발굴용 시스템 프롬프트
 export const OPPORTUNITY_DISCOVERY_PROMPT = `당신은 네이버 블로그 SEO 키워드 전략가입니다.
 주어진 주제에서 블로그 상위 노출 가능성이 높은 "블루오션 키워드"를 발굴합니다.
 

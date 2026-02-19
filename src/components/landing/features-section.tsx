@@ -10,7 +10,7 @@ const coreFeatures = [
       '네이버 검색광고 API 연동으로 실시간 검색량, PC·모바일 비율, 경쟁도, 클릭률을 한 화면에서 확인. 감이 아닌 데이터로 키워드를 선택하세요.',
     color: 'bg-blue-500/10 text-blue-600',
     saving: '키워드 조사 1시간 → 30초',
-    detail: '네이버 광고센터 들어갈 필요 없음',
+    detail: '네이버 광고센터 없이 원클릭 조회',
   },
   {
     icon: Wand2,
@@ -28,7 +28,7 @@ const coreFeatures = [
       '제목, 키워드 밀도, 본문 길이, 소제목 구조 등 10가지 항목을 100점 만점으로 분석. 어디를 고치면 상위 노출되는지 바로 알 수 있습니다.',
     color: 'bg-primary/10 text-primary',
     saving: 'SEO 컨설팅 비용 절감',
-    detail: '건당 10~30만원 컨설팅을 무제한으로',
+    detail: '전문 컨설팅 수준의 진단을 무제한으로',
   },
   {
     icon: TrendingUp,
@@ -50,13 +50,13 @@ const bonusFeatures = [
   },
   {
     icon: Users,
-    title: '경쟁사 분석',
-    description: '상위 노출 블로그의 제목 패턴, 글 길이, 작성 주기를 분석. 이기는 콘텐츠 전략을 수립하세요.',
+    title: '상위노출 분석',
+    description: '상위 노출 블로그의 제목 패턴, 글 길이, 작성 주기를 분석. 데이터 기반 콘텐츠 전략을 수립하세요.',
     color: 'bg-rose-500/10 text-rose-600',
   },
   {
     icon: Lightbulb,
-    title: '키워드 기회 발견',
+    title: '키워드 발굴',
     description: 'AI가 경쟁은 낮고 검색량은 충분한 블루오션 키워드를 자동 발굴. 놓치고 있던 기회를 찾아드립니다.',
     color: 'bg-yellow-500/10 text-yellow-600',
   },
@@ -88,7 +88,7 @@ export function FeaturesSection() {
             <span className="text-primary"> AI가 대신합니다</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            SEO 대행사에 월 50~200만원 내지 마세요. 같은 일을 월 29,000원에.
+            대행사 월 50~200만원 수준의 SEO 업무를, 월 29,000원으로 직접 수행하세요.
           </p>
         </div>
 

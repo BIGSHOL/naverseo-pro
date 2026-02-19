@@ -97,10 +97,10 @@ function CircularProgress({ percent, size = 48, stroke = 4, color = '#3b82f6' }:
 
 const quickActions = [
   { title: '키워드 리서치', href: '/keywords', icon: Search, bg: 'bg-blue-100 text-blue-600' },
-  { title: '키워드 기회', href: '/opportunities', icon: Lightbulb, bg: 'bg-amber-100 text-amber-600' },
+  { title: '키워드 발굴', href: '/opportunities', icon: Lightbulb, bg: 'bg-amber-100 text-amber-600' },
   { title: 'AI 콘텐츠', href: '/content', icon: Wand2, bg: 'bg-purple-100 text-purple-600' },
   { title: 'SEO 체크', href: '/seo-check', icon: BarChart3, bg: 'bg-green-100 text-green-600' },
-  { title: '경쟁사 분석', href: '/competitors', icon: Users, bg: 'bg-rose-100 text-rose-600' },
+  { title: '상위노출 분석', href: '/competitors', icon: Users, bg: 'bg-rose-100 text-rose-600' },
   { title: '블로그 지수', href: '/blog-index', icon: Activity, bg: 'bg-cyan-100 text-cyan-600' },
   { title: '순위 트래킹', href: '/tracking', icon: TrendingUp, bg: 'bg-orange-100 text-orange-600' },
   { title: '캘린더', href: '/content/calendar', icon: CalendarDays, bg: 'bg-indigo-100 text-indigo-600' },
@@ -123,9 +123,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const hour = new Date().getHours()
-    if (hour < 12) setGreeting('좋은 아침이에요!')
-    else if (hour < 18) setGreeting('좋은 오후예요!')
-    else setGreeting('좋은 저녁이에요!')
+    if (hour < 12) setGreeting('좋은 아침입니다')
+    else if (hour < 18) setGreeting('좋은 오후입니다')
+    else setGreeting('좋은 저녁입니다')
 
     async function loadDashboard() {
       try {
@@ -360,136 +360,60 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ===== 섹션 3: 데이터 시각화 (2열) ===== */}
-      <div className="grid gap-4 lg:grid-cols-7">
-
-        {/* 좌: 주간 활동 차트 */}
-        <Card className="lg:col-span-4">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">주간 활동</CardTitle>
-          </CardHeader>
-          <CardContent className="relative">
-            {dailyActivity.every(d => d.keywords === 0 && d.content === 0) ? (
-              <div className="flex h-52 flex-col items-center justify-center text-center">
-                <Activity className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">최근 7일간 활동이 없습니다</p>
-                <Link href="/keywords">
-                  <Button variant="link" size="sm" className="mt-1 text-xs">
-                    키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={dailyActivity} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="kwGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
-                  <Area
-                    type="monotone" dataKey="keywords" name="키워드 조회"
-                    stroke="#3b82f6" fill="url(#kwGrad)" strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone" dataKey="content" name="콘텐츠 생성"
-                    stroke="#22c55e" fill="url(#ctGrad)" strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 우: 콘텐츠 현황 + 평균 SEO */}
-        <Card className="lg:col-span-3">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">콘텐츠 현황</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {contentStats.total === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center text-center">
-                <FileText className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">아직 생성된 콘텐츠가 없습니다</p>
-                <Link href="/content">
-                  <Button variant="link" size="sm" className="mt-1 text-xs">
-                    첫 콘텐츠 생성하기 <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <>
-                {/* 수평 스택 바 */}
-                <div>
-                  <div className="flex h-3 rounded-full overflow-hidden">
-                    {contentStats.draft > 0 && (
-                      <div className="bg-amber-400" style={{ width: `${(contentStats.draft / contentStats.total) * 100}%` }} />
-                    )}
-                    {contentStats.published > 0 && (
-                      <div className="bg-green-500" style={{ width: `${(contentStats.published / contentStats.total) * 100}%` }} />
-                    )}
-                    {contentStats.archived > 0 && (
-                      <div className="bg-gray-400" style={{ width: `${(contentStats.archived / contentStats.total) * 100}%` }} />
-                    )}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> 초안 {contentStats.draft}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-green-500" /> 발행 {contentStats.published}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> 보관 {contentStats.archived}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 평균 SEO 점수 */}
-                <div className="flex items-center gap-4 rounded-lg border p-4">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-full text-white text-xl font-bold shrink-0 ${
-                    contentStats.avgSeoScore >= 80 ? 'bg-green-500'
-                      : contentStats.avgSeoScore >= 60 ? 'bg-amber-500'
-                        : 'bg-red-500'
-                  }`}>
-                    {contentStats.avgSeoScore}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">평균 SEO 점수</p>
-                    <p className="text-xs text-muted-foreground">
-                      {contentStats.avgSeoScore >= 80 ? '훌륭합니다! 최적화가 잘 되어있어요'
-                        : contentStats.avgSeoScore >= 60 ? '좋아요! 조금만 더 개선하면 완벽해요'
-                          : '개선이 필요합니다. SEO 체크를 활용하세요'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 총 콘텐츠 */}
-                <p className="text-xs text-muted-foreground text-center">
-                  총 {contentStats.total}개 콘텐츠
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* ===== 섹션 3: 주간 활동 차트 ===== */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">주간 활동</CardTitle>
+        </CardHeader>
+        <CardContent className="relative">
+          {dailyActivity.every(d => d.keywords === 0 && d.content === 0) ? (
+            <div className="flex h-52 flex-col items-center justify-center text-center">
+              <Activity className="h-8 w-8 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">최근 7일간 활동이 없습니다</p>
+              <Link href="/keywords">
+                <Button variant="link" size="sm" className="mt-1 text-xs">
+                  키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={dailyActivity} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="kwGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                <RechartsTooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                />
+                <Legend iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
+                <Area
+                  type="monotone" dataKey="keywords" name="키워드 조회"
+                  stroke="#3b82f6" fill="url(#kwGrad)" strokeWidth={2}
+                />
+                <Area
+                  type="monotone" dataKey="content" name="콘텐츠 생성"
+                  stroke="#22c55e" fill="url(#ctGrad)" strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ===== 섹션 4: 오늘의 추천 ===== */}
       <Card className="border-l-4 border-l-primary border-primary/20 bg-primary/5">
@@ -530,19 +454,79 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ===== 섹션 5: 최근 활동 타임라인 ===== */}
+      {/* ===== 섹션 5: 콘텐츠 현황 + 최근 활동 통합 ===== */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">최근 활동</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">콘텐츠 현황</CardTitle>
+            {contentStats.total > 0 && (
+              <span className="text-xs text-muted-foreground">총 {contentStats.total}개</span>
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
-          {timelineItems.length === 0 ? (
+        <CardContent className="space-y-4">
+          {/* 콘텐츠 통계 요약 (상태 바 + 평균 SEO) */}
+          {contentStats.total > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              {/* 상태 바 */}
+              <div className="flex-1 min-w-0">
+                <div className="flex h-2.5 rounded-full overflow-hidden">
+                  {contentStats.draft > 0 && (
+                    <div className="bg-amber-400" style={{ width: `${(contentStats.draft / contentStats.total) * 100}%` }} />
+                  )}
+                  {contentStats.published > 0 && (
+                    <div className="bg-green-500" style={{ width: `${(contentStats.published / contentStats.total) * 100}%` }} />
+                  )}
+                  {contentStats.archived > 0 && (
+                    <div className="bg-gray-400" style={{ width: `${(contentStats.archived / contentStats.total) * 100}%` }} />
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" /> 초안 {contentStats.draft}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-green-500" /> 발행 {contentStats.published}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-gray-400" /> 보관 {contentStats.archived}
+                  </span>
+                </div>
+              </div>
+              {/* 평균 SEO 점수 */}
+              <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 shrink-0">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0 ${
+                  contentStats.avgSeoScore >= 80 ? 'bg-green-500'
+                    : contentStats.avgSeoScore >= 60 ? 'bg-amber-500'
+                      : 'bg-red-500'
+                }`}>
+                  {contentStats.avgSeoScore}
+                </div>
+                <div>
+                  <p className="text-xs font-medium">평균 SEO</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {contentStats.avgSeoScore >= 80 ? '최적화 우수'
+                      : contentStats.avgSeoScore >= 60 ? '개선 가능'
+                        : '개선 필요'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 구분선 */}
+          {contentStats.total > 0 && timelineItems.length > 0 && (
+            <div className="border-t" />
+          )}
+
+          {/* 최근 활동 타임라인 */}
+          {timelineItems.length === 0 && contentStats.total === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Clock className="h-8 w-8 text-muted-foreground/40 mb-2" />
+              <FileText className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">아직 활동 기록이 없습니다</p>
               <Link href="/keywords">
                 <Button variant="link" size="sm" className="mt-1 text-xs">
-                  첫 키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
+                  키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </Link>
             </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callGemini, parseGeminiJson, OPPORTUNITY_DISCOVERY_PROMPT } from '@/lib/ai/gemini'
 import { getKeywordStats, calculateKeywordScore } from '@/lib/naver/search-ad'
+import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 // === 타입 ===
 
@@ -81,6 +82,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
+    // 일간 분석 제한 체크
+    const limitCheck = await checkAnalysisLimit(supabase, user.id)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
+        { status: 429 }
+      )
+    }
+
     const { topic } = await request.json()
 
     if (!topic || topic.trim().length === 0) {
@@ -98,6 +108,7 @@ export async function POST(request: NextRequest) {
 
     if (!hasGeminiKey || !hasNaverAdKey) {
       const demoOpps = getDemoOpportunities(cleanTopic)
+      await incrementAnalysisUsage(supabase, user.id)
       return NextResponse.json({
         topic: cleanTopic,
         opportunities: demoOpps,
@@ -167,17 +178,18 @@ export async function POST(request: NextRequest) {
     allResults.sort((a, b) => b.score - a.score)
     const topOpportunities = allResults.slice(0, 20)
 
+    await incrementAnalysisUsage(supabase, user.id)
     return NextResponse.json({
       topic: cleanTopic,
       opportunities: topOpportunities,
-      summary: aiResult.summary || `"${cleanTopic}" 주제에서 ${topOpportunities.length}개의 키워드 기회를 발견했습니다.`,
+      summary: aiResult.summary || `"${cleanTopic}" 주제에서 ${topOpportunities.length}개의 블루오션 키워드를 발굴했습니다.`,
       isDemo: false,
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Opportunities] 오류:', errorMessage)
     return NextResponse.json(
-      { error: `키워드 기회 분석 중 오류가 발생했습니다: ${errorMessage}` },
+      { error: `키워드 발굴 분석 중 오류가 발생했습니다: ${errorMessage}` },
       { status: 500 }
     )
   }

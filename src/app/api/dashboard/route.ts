@@ -23,7 +23,7 @@ export async function GET() {
       // 프로필 정보
       supabase
         .from('profiles')
-        .select('plan, keywords_used_this_month, content_generated_this_month')
+        .select('plan, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date')
         .eq('id', user.id)
         .single(),
       // 최근 키워드 검색 (5개)
@@ -100,7 +100,7 @@ export async function GET() {
     const trackedKeywordsCount = uniqueKeywords.size
 
     return NextResponse.json({
-      profile: profile || { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0 },
+      profile: profile || { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       recentKeywords: recentKeywords || [],
       recentContent: recentContent || [],
       contentStats: { total: contentItems.length, draft, published, archived, avgSeoScore },
@@ -109,7 +109,7 @@ export async function GET() {
     })
   } catch {
     return NextResponse.json({
-      profile: { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0 },
+      profile: { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       recentKeywords: [],
       recentContent: [],
       contentStats: { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 },

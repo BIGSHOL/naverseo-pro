@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { callGemini, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 // === 타입 정의 ===
 
@@ -334,6 +335,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
+    // 일간 분석 제한 체크
+    const limitCheck = await checkAnalysisLimit(supabase, user.id)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
+        { status: 429 }
+      )
+    }
+
     const { keyword, includeAi = false } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
@@ -353,6 +363,7 @@ export async function POST(request: NextRequest) {
       const demoTitlePatterns = extractTitlePatterns(demoCompetitors, cleanKeyword)
       const demoAi = includeAi ? getDemoAiInsights(cleanKeyword) : null
 
+      await incrementAnalysisUsage(supabase, user.id)
       return NextResponse.json({
         keyword: cleanKeyword,
         competitors: demoCompetitors,
@@ -403,6 +414,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await incrementAnalysisUsage(supabase, user.id)
     return NextResponse.json({
       keyword: cleanKeyword,
       competitors,
@@ -416,7 +428,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Competitors] 오류:', errorMessage)
     return NextResponse.json(
-      { error: `경쟁사 분석 중 오류가 발생했습니다: ${errorMessage}` },
+      { error: `상위노출 분석 중 오류가 발생했습니다: ${errorMessage}` },
       { status: 500 }
     )
   }

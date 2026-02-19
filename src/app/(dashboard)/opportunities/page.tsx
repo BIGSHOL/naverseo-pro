@@ -137,7 +137,7 @@ export default function OpportunitiesPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || '키워드 기회 분석에 실패했습니다.')
+        setError(data.error || '키워드 발굴 분석에 실패했습니다.')
         return
       }
 
@@ -207,7 +207,7 @@ export default function OpportunitiesPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Lightbulb className="h-6 w-6 text-yellow-500" />
-          키워드 기회 발견
+          키워드 발굴
         </h1>
         <p className="mt-1 text-muted-foreground">
           주제를 입력하면 AI가 경쟁이 낮고 검색량이 충분한 블루오션 키워드를 찾아드립니다

@@ -24,10 +24,10 @@ import { PLANS, type Plan } from '@/types/database'
 const navItems = [
   { label: '대시보드', href: '/dashboard', icon: LayoutDashboard },
   { label: '키워드 리서치', href: '/keywords', icon: Search },
-  { label: '키워드 기회', href: '/opportunities', icon: Lightbulb },
+  { label: '키워드 발굴', href: '/opportunities', icon: Lightbulb },
   { label: 'AI 콘텐츠 생성', href: '/content', icon: Wand2 },
   { label: 'SEO 점수 체크', href: '/seo-check', icon: BarChart3 },
-  { label: '경쟁사 분석', href: '/competitors', icon: Users },
+  { label: '상위노출 분석', href: '/competitors', icon: Users },
   { label: '블로그 지수', href: '/blog-index', icon: Activity },
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
   { label: '콘텐츠 캘린더', href: '/content/calendar', icon: CalendarDays },
@@ -46,6 +46,7 @@ export function Sidebar() {
   const [plan, setPlan] = useState<Plan>('free')
   const [keywordsUsed, setKeywordsUsed] = useState(0)
   const [contentUsed, setContentUsed] = useState(0)
+  const [analysisUsed, setAnalysisUsed] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -56,6 +57,10 @@ export function Sidebar() {
         setPlan((data.profile?.plan || 'free') as Plan)
         setKeywordsUsed(data.profile?.keywords_used_this_month || 0)
         setContentUsed(data.profile?.content_generated_this_month || 0)
+        // 날짜가 오늘과 다르면 리셋된 것으로 간주
+        const today = new Date().toISOString().slice(0, 10)
+        const resetDate = data.profile?.analysis_reset_date || ''
+        setAnalysisUsed(resetDate === today ? (data.profile?.analysis_used_today || 0) : 0)
       } catch {
         // 로드 실패 시 기본값 유지
       }
@@ -66,9 +71,11 @@ export function Sidebar() {
   const planInfo = PLANS[plan]
   const kwLimit = parseLimit(planInfo.keywords)
   const ctLimit = parseLimit(planInfo.content)
+  const anLimit = parseLimit(planInfo.analysis)
 
   const kwPercent = kwLimit ? Math.min(100, (keywordsUsed / kwLimit) * 100) : 0
   const ctPercent = ctLimit ? Math.min(100, (contentUsed / ctLimit) * 100) : 0
+  const anPercent = anLimit ? Math.min(100, (analysisUsed / anLimit) * 100) : 0
 
   return (
     <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
@@ -141,6 +148,23 @@ export function Sidebar() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent><p>이번 달 AI 콘텐츠 생성 사용량입니다</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>블로그 분석</span>
+                      <span>{anLimit ? `${analysisUsed}/${anLimit}` : `${analysisUsed} (무제한)`}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-background">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: anLimit ? `${anPercent}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent><p>오늘의 블로그 분석 사용량입니다 (일간 제한)</p></TooltipContent>
               </Tooltip>
             </div>
           </div>
