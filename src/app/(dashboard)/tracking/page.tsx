@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { RankHistoryChart } from '@/components/charts/rank-history-chart'
 
 interface TrackingHistory {
@@ -280,39 +281,59 @@ export default function TrackingPage() {
 
       {/* 통계 카드 */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">트래킹 키워드</p>
-            <p className="mt-1 text-2xl font-bold">{totalKeywords}개</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">순위권 진입</p>
-            <p className="mt-1 text-2xl font-bold text-green-600">
-              {inRankCount}개
-              {totalKeywords > 0 && (
-                <span className="ml-1 text-sm font-normal text-muted-foreground">
-                  / {totalKeywords}
-                </span>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">TOP 10</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">{top10Count}개</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-sm text-muted-foreground">평균 순위</p>
-            <p className="mt-1 text-2xl font-bold">
-              {avgRank !== null ? `${avgRank}위` : '-'}
-            </p>
-          </CardContent>
-        </Card>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-help">
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">트래킹 키워드</p>
+                <p className="mt-1 text-2xl font-bold">{totalKeywords}개</p>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent><p>현재 순위를 추적 중인 키워드 수입니다</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-help">
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">순위권 진입</p>
+                <p className="mt-1 text-2xl font-bold text-green-600">
+                  {inRankCount}개
+                  {totalKeywords > 0 && (
+                    <span className="ml-1 text-sm font-normal text-muted-foreground">
+                      / {totalKeywords}
+                    </span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent><p>네이버 검색 100위 이내에 노출되는 키워드 수입니다</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-help">
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">TOP 10</p>
+                <p className="mt-1 text-2xl font-bold text-blue-600">{top10Count}개</p>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent><p>네이버 검색 1페이지(10위 이내)에 노출되는 키워드 수입니다</p></TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-help">
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">평균 순위</p>
+                <p className="mt-1 text-2xl font-bold">
+                  {avgRank !== null ? `${avgRank}위` : '-'}
+                </p>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent><p>순위권에 있는 키워드들의 평균 검색 순위입니다</p></TooltipContent>
+        </Tooltip>
       </div>
 
       {/* 키워드 목록 */}
@@ -363,36 +384,61 @@ export default function TrackingPage() {
                             <span className="text-sm font-normal text-muted-foreground">위</span>
                           </span>
                         ) : (
-                          <span className="text-sm font-medium text-muted-foreground">
-                            100+위
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sm font-medium text-muted-foreground cursor-help">
+                                100+위
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p>검색 결과 100위 이내에 노출되지 않습니다</p></TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
 
                       {/* 변동 */}
                       <div className="flex items-center gap-1">
                         {rankChange.direction === 'up' && (
-                          <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700">
-                            <TrendingUp className="h-3 w-3" />
-                            {rankChange.change !== null ? `${rankChange.change}↑` : '진입'}
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700">
+                                <TrendingUp className="h-3 w-3" />
+                                {rankChange.change !== null ? `${rankChange.change}↑` : '진입'}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent><p>이전 확인 대비 순위가 올라갔습니다</p></TooltipContent>
+                          </Tooltip>
                         )}
                         {rankChange.direction === 'down' && (
-                          <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700">
-                            <TrendingDown className="h-3 w-3" />
-                            {rankChange.change !== null ? `${rankChange.change}↓` : '이탈'}
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700">
+                                <TrendingDown className="h-3 w-3" />
+                                {rankChange.change !== null ? `${rankChange.change}↓` : '이탈'}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent><p>이전 확인 대비 순위가 내려갔습니다</p></TooltipContent>
+                          </Tooltip>
                         )}
                         {rankChange.direction === 'same' && (
-                          <Badge variant="outline" className="gap-1">
-                            <Minus className="h-3 w-3" />
-                            유지
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="gap-1">
+                                <Minus className="h-3 w-3" />
+                                유지
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent><p>이전 확인과 동일한 순위입니다</p></TooltipContent>
+                          </Tooltip>
                         )}
                         {rankChange.direction === 'new' && (
-                          <Badge variant="secondary" className="text-xs">
-                            NEW
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="text-xs">
+                                NEW
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent><p>첫 번째 순위 확인 결과입니다</p></TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </div>
@@ -419,25 +465,35 @@ export default function TrackingPage() {
 
                     {/* 액션 버튼 */}
                     <div className="flex shrink-0 gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCheck(kw.keyword, kw.blog_url)}
-                        disabled={isChecking}
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`}
-                        />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(kw.keyword, kw.blog_url)}
-                        disabled={isDeleting}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCheck(kw.keyword, kw.blog_url)}
+                            disabled={isChecking}
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`}
+                            />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>이 키워드의 최신 순위를 다시 확인합니다</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(kw.keyword, kw.blog_url)}
+                            disabled={isDeleting}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>이 키워드의 순위 추적을 중단합니다</p></TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
 

@@ -5,6 +5,7 @@ import { ArrowUpDown, ArrowDown, ArrowUp, Info, Wand2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import Link from 'next/link'
 
 export interface KeywordData {
@@ -26,23 +27,47 @@ interface KeywordResultsProps {
 type SortKey = 'totalSearch' | 'monthlyPcQcCnt' | 'monthlyMobileQcCnt' | 'compIdx' | 'score'
 type SortDir = 'asc' | 'desc'
 
+const COMP_TOOLTIPS: Record<string, string> = {
+  HIGH: '광고 경쟁이 치열합니다. 상위 노출 난이도가 높습니다',
+  MEDIUM: '적절한 경쟁 수준입니다. 양질의 콘텐츠로 승부 가능합니다',
+  LOW: '경쟁이 적어 상위 노출 가능성이 높습니다',
+}
+
 function getCompBadge(compIdx: string) {
-  switch (compIdx) {
-    case 'HIGH':
-      return <Badge variant="destructive" className="text-xs">높음</Badge>
-    case 'MEDIUM':
-      return <Badge variant="secondary" className="text-xs">보통</Badge>
-    case 'LOW':
-      return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
-    default:
-      return <Badge variant="outline" className="text-xs">-</Badge>
-  }
+  const badge = (() => {
+    switch (compIdx) {
+      case 'HIGH':
+        return <Badge variant="destructive" className="text-xs">높음</Badge>
+      case 'MEDIUM':
+        return <Badge variant="secondary" className="text-xs">보통</Badge>
+      case 'LOW':
+        return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
+      default:
+        return <Badge variant="outline" className="text-xs">-</Badge>
+    }
+  })()
+
+  const tip = COMP_TOOLTIPS[compIdx]
+  if (!tip) return badge
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
+  )
 }
 
 function getScoreColor(score: number): string {
   if (score >= 70) return 'text-green-600 bg-green-50'
   if (score >= 40) return 'text-yellow-600 bg-yellow-50'
   return 'text-red-600 bg-red-50'
+}
+
+function getScoreTooltip(score: number): string {
+  if (score >= 70) return '블로그 상위 노출 가능성이 높은 추천 키워드입니다'
+  if (score >= 40) return '경쟁에 따라 상위 노출 가능한 키워드입니다'
+  return '경쟁이 높거나 검색량이 부족한 키워드입니다'
 }
 
 function formatNumber(num: number): string {
@@ -94,10 +119,15 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
             검색 결과 ({keywords.length}개)
           </CardTitle>
           {isDemo && (
-            <Badge variant="outline" className="gap-1">
-              <Info className="h-3 w-3" />
-              데모 데이터
-            </Badge>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="gap-1 cursor-help">
+                  <Info className="h-3 w-3" />
+                  데모 데이터
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
+            </Tooltip>
           )}
         </div>
       </CardHeader>
@@ -107,36 +137,61 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
             <thead>
               <tr className="border-b text-left">
                 <th className="pb-3 pr-4 font-medium text-muted-foreground">키워드</th>
-                <th
-                  className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
-                  onClick={() => handleSort('totalSearch')}
-                >
-                  총 검색량<SortIcon columnKey="totalSearch" />
-                </th>
-                <th
-                  className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
-                  onClick={() => handleSort('monthlyPcQcCnt')}
-                >
-                  PC<SortIcon columnKey="monthlyPcQcCnt" />
-                </th>
-                <th
-                  className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
-                  onClick={() => handleSort('monthlyMobileQcCnt')}
-                >
-                  모바일<SortIcon columnKey="monthlyMobileQcCnt" />
-                </th>
-                <th
-                  className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
-                  onClick={() => handleSort('compIdx')}
-                >
-                  경쟁도<SortIcon columnKey="compIdx" />
-                </th>
-                <th
-                  className="cursor-pointer pb-3 pl-3 text-center font-medium text-muted-foreground whitespace-nowrap"
-                  onClick={() => handleSort('score')}
-                >
-                  추천 점수<SortIcon columnKey="score" />
-                </th>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
+                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
+                      onClick={() => handleSort('totalSearch')}
+                    >
+                      총 검색량<SortIcon columnKey="totalSearch" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>PC + 모바일 월간 검색량 합계입니다</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
+                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
+                      onClick={() => handleSort('monthlyPcQcCnt')}
+                    >
+                      PC<SortIcon columnKey="monthlyPcQcCnt" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>PC에서의 월간 검색 횟수입니다</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
+                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
+                      onClick={() => handleSort('monthlyMobileQcCnt')}
+                    >
+                      모바일<SortIcon columnKey="monthlyMobileQcCnt" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>모바일에서의 월간 검색 횟수입니다</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
+                      className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
+                      onClick={() => handleSort('compIdx')}
+                    >
+                      경쟁도<SortIcon columnKey="compIdx" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>검색 광고 기준 경쟁 정도입니다. 낮을수록 상위 노출에 유리합니다</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
+                      className="cursor-pointer pb-3 pl-3 text-center font-medium text-muted-foreground whitespace-nowrap"
+                      onClick={() => handleSort('score')}
+                    >
+                      추천 점수<SortIcon columnKey="score" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>검색량과 경쟁도를 종합한 블로그 상위 노출 추천 점수입니다 (0~100)</p></TooltipContent>
+                </Tooltip>
                 <th className="pb-3 pl-3 font-medium text-muted-foreground whitespace-nowrap">
                   액션
                 </th>
@@ -157,17 +212,27 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                   </td>
                   <td className="py-3 px-3 text-center">{getCompBadge(kw.compIdx)}</td>
                   <td className="py-3 pl-3 text-center">
-                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${getScoreColor(kw.score)}`}>
-                      {kw.score}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold cursor-help ${getScoreColor(kw.score)}`}>
+                          {kw.score}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{getScoreTooltip(kw.score)}</p></TooltipContent>
+                    </Tooltip>
                   </td>
                   <td className="py-3 pl-3 text-center">
-                    <Link href={`/content?keyword=${encodeURIComponent(kw.relKeyword)}`}>
-                      <Button variant="ghost" size="sm" className="gap-1 text-xs">
-                        <Wand2 className="h-3 w-3" />
-                        글쓰기
-                      </Button>
-                    </Link>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link href={`/content?keyword=${encodeURIComponent(kw.relKeyword)}`}>
+                          <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                            <Wand2 className="h-3 w-3" />
+                            글쓰기
+                          </Button>
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent><p>이 키워드로 SEO 최적화된 블로그 글을 AI가 작성합니다</p></TooltipContent>
+                    </Tooltip>
                   </td>
                 </tr>
               ))}

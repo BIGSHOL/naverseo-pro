@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { PLANS, type Plan } from '@/types/database'
 
 const navItems = [
@@ -107,30 +108,40 @@ export function Sidebar() {
             <p className="text-xs font-medium text-muted-foreground">현재 플랜</p>
             <p className="text-sm font-semibold">{planInfo.name}</p>
             <div className="mt-2 space-y-1">
-              <div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>키워드 조회</span>
-                  <span>{kwLimit ? `${keywordsUsed}/${kwLimit}` : `${keywordsUsed} (무제한)`}</span>
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-background">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: kwLimit ? `${kwPercent}%` : '0%' }}
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>콘텐츠 생성</span>
-                  <span>{ctLimit ? `${contentUsed}/${ctLimit}` : `${contentUsed} (무제한)`}</span>
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-background">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: ctLimit ? `${ctPercent}%` : '0%' }}
-                  />
-                </div>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>키워드 조회</span>
+                      <span>{kwLimit ? `${keywordsUsed}/${kwLimit}` : `${keywordsUsed} (무제한)`}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-background">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: kwLimit ? `${kwPercent}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent><p>이번 달 키워드 조회 사용량입니다</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>콘텐츠 생성</span>
+                      <span>{ctLimit ? `${contentUsed}/${ctLimit}` : `${contentUsed} (무제한)`}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-background">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: ctLimit ? `${ctPercent}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent><p>이번 달 AI 콘텐츠 생성 사용량입니다</p></TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>

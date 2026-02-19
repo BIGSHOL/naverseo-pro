@@ -32,12 +32,61 @@ export interface AnalysisCategory {
   details: string[]
 }
 
+export interface BlogLevelInfo {
+  tier: number           // 1~10
+  category: string       // 저품질 / 일반 / 준최적화 / 최적화
+  label: string          // Lv.1 저품질 위험 ~ Lv.10 파워블로그
+  description: string    // 상세 설명
+  color: string          // UI 색상 키 (red/orange/yellow/green 등)
+  nextTierScore: number | null  // 다음 등급까지 필요한 점수 (최고 등급이면 null)
+}
+
+export interface PostQuality {
+  score: number          // 0~10
+  tier: number           // 1~10 (전체 블로그 지수 등급 체계와 동일)
+  label: string          // "준최4", "최적1", "일반2" 등
+  category: string       // 저품질/일반/준최적화/최적화
+}
+
+export interface PostDetail {
+  title: string
+  link: string
+  daysAgo: number
+  date: string           // YYYY.MM.DD
+  charCount: number      // 설명문 기준 추정 글자수
+  hasImage: boolean      // 이미지 태그 포함 여부
+  titleLength: number
+  quality: PostQuality   // 개별 포스트 품질 지수
+}
+
+export interface BlogProfile {
+  blogId: string | null
+  blogName: string | null
+  blogUrl: string
+  totalPosts: number
+  categoryKeywords: string[]
+  estimatedStartDate: string | null
+  isActive: boolean
+  blogAgeDays: number | null    // 블로그 운영 일수 (분석 기간 기준)
+  postsPerWeek: number | null   // 주간 포스팅 수
+}
+
+export interface BenchmarkData {
+  // 나의 수치 vs 권장 수치
+  postingFrequency: { mine: number; recommended: number; topBlogger: number }  // 주간 포스팅 횟수
+  avgTitleLength: { mine: number; optimal: number }
+  avgContentLength: { mine: number; recommended: number }
+  imageRate: { mine: number; recommended: number }           // 이미지 포함률 %
+  topicFocus: { mine: number; recommended: number }          // 주제 집중도 %
+  optimizationPct: number                                     // 최적화 수치 (0~100)
+  categoryPercentile: number                                  // 전체 상위 X%
+}
+
 export interface BlogIndexResult {
   blogUrl: string
   blogId: string | null
   totalScore: number
-  level: string
-  levelDescription: string
+  level: BlogLevelInfo
   categories: AnalysisCategory[]
   keywordResults: KeywordRankResult[]
   postAnalysis: {
@@ -48,6 +97,9 @@ export interface BlogIndexResult {
     postingFrequency: string
     recentPostDays: number | null
   }
+  recentPosts: PostDetail[]
+  blogProfile: BlogProfile
+  benchmark: BenchmarkData
   recommendations: string[]
   isDemo: boolean
   checkedAt: string
@@ -456,13 +508,80 @@ function analyzeInfluence(
 
 // ===== 등급 및 추천 =====
 
-function determineLevelInfo(totalScore: number): { level: string; description: string } {
-  if (totalScore >= 85) return { level: '최적화', description: '네이버 검색에 최적화된 파워 블로그입니다' }
-  if (totalScore >= 70) return { level: '우수', description: '높은 검색 노출력을 보유하고 있습니다' }
-  if (totalScore >= 55) return { level: '양호', description: '성장 잠재력이 높은 블로그입니다' }
-  if (totalScore >= 40) return { level: '보통', description: '기본기가 갖춰져 있으나 개선이 필요합니다' }
-  if (totalScore >= 25) return { level: '성장 중', description: '꾸준한 노력으로 지수를 올릴 수 있습니다' }
-  return { level: '입문', description: '기초부터 차근차근 블로그를 키워보세요' }
+/**
+ * 10등급 블로그 지수 체계
+ *
+ * 4대 구간 × 2~3 세부 등급 = 총 10단계
+ *
+ * [저품질] 검색 노출이 거의 안 되거나 저품질 위험
+ *   Lv.1  저품질 위험 (0~12)
+ *   Lv.2  저품질 주의 (13~24)
+ *
+ * [일반] 기본적 블로그 활동은 하지만 SEO 최적화 부족
+ *   Lv.3  입문 (25~34)
+ *   Lv.4  일반 (35~44)
+ *   Lv.5  성장 중 (45~54)
+ *
+ * [준최적화] 검색 노출이 시작되며 상위 노출 가능성 있음
+ *   Lv.6  준최적화 (55~62)
+ *   Lv.7  양호 (63~69)
+ *   Lv.8  우수 (70~74)
+ *
+ * [최적화] 안정적 검색 노출, 파워 블로그 영역
+ *   Lv.9  최적화 (75~87)
+ *   Lv.10 파워블로그 (88~100)
+ */
+function determineLevelInfo(totalScore: number): BlogLevelInfo {
+  if (totalScore >= 88) return {
+    tier: 10, category: '최적화', label: 'Lv.10 파워블로그',
+    description: '최상위 검색 노출력을 가진 파워 블로그입니다. 현재 전략을 유지하세요.',
+    color: 'emerald', nextTierScore: null,
+  }
+  if (totalScore >= 75) return {
+    tier: 9, category: '최적화', label: 'Lv.9 최적화',
+    description: '네이버 검색에 최적화된 블로그입니다. 경쟁 키워드도 도전해보세요.',
+    color: 'green', nextTierScore: 88,
+  }
+  if (totalScore >= 70) return {
+    tier: 8, category: '준최적화', label: 'Lv.8 우수',
+    description: '안정적인 검색 노출력을 보유하고 있습니다. 최적화까지 거의 다 왔습니다.',
+    color: 'teal', nextTierScore: 75,
+  }
+  if (totalScore >= 63) return {
+    tier: 7, category: '준최적화', label: 'Lv.7 양호',
+    description: '키워드에 따라 상위 노출이 가능합니다. 콘텐츠 품질을 더 높여보세요.',
+    color: 'cyan', nextTierScore: 70,
+  }
+  if (totalScore >= 55) return {
+    tier: 6, category: '준최적화', label: 'Lv.6 준최적화',
+    description: '검색 노출이 시작되는 단계입니다. 주제 전문성과 활동성을 강화하세요.',
+    color: 'blue', nextTierScore: 63,
+  }
+  if (totalScore >= 45) return {
+    tier: 5, category: '일반', label: 'Lv.5 성장 중',
+    description: 'SEO 기본기가 갖춰지고 있습니다. 키워드 전략을 세워보세요.',
+    color: 'yellow', nextTierScore: 55,
+  }
+  if (totalScore >= 35) return {
+    tier: 4, category: '일반', label: 'Lv.4 일반',
+    description: '기본적인 활동은 하고 있으나 SEO 최적화가 부족합니다.',
+    color: 'amber', nextTierScore: 45,
+  }
+  if (totalScore >= 25) return {
+    tier: 3, category: '일반', label: 'Lv.3 입문',
+    description: '블로그를 시작한 단계입니다. 꾸준한 포스팅이 가장 중요합니다.',
+    color: 'orange', nextTierScore: 35,
+  }
+  if (totalScore >= 13) return {
+    tier: 2, category: '저품질', label: 'Lv.2 저품질 주의',
+    description: '블로그 활동이 매우 부족합니다. 주 3회 이상 양질의 글을 발행하세요.',
+    color: 'red', nextTierScore: 25,
+  }
+  return {
+    tier: 1, category: '저품질', label: 'Lv.1 저품질 위험',
+    description: '저품질 블로그로 분류될 위험이 높습니다. 콘텐츠 품질부터 개선하세요.',
+    color: 'red', nextTierScore: 13,
+  }
 }
 
 function generateRecommendations(categories: AnalysisCategory[]): string[] {
@@ -505,15 +624,61 @@ function generateRecommendations(categories: AnalysisCategory[]): string[] {
   return recommendations.slice(0, 5) // 최대 5개
 }
 
+// ===== 개별 포스트 품질 지수 =====
+
+function scorePost(title: string, descLength: number, hasImage: boolean): PostQuality {
+  let score = 0
+
+  // 제목 길이 (0~3점) - 15~40자가 최적
+  const titleLen = title.length
+  if (titleLen >= 15 && titleLen <= 40) score += 3
+  else if (titleLen >= 10 && titleLen <= 50) score += 2
+  else if (titleLen >= 5) score += 1
+
+  // 콘텐츠 길이 (0~4점) - 설명문 기준
+  if (descLength >= 200) score += 4
+  else if (descLength >= 150) score += 3
+  else if (descLength >= 100) score += 2
+  else if (descLength >= 50) score += 1
+
+  // 이미지 포함 (0~2점)
+  if (hasImage) score += 2
+
+  // 제목 키워드 포함 여부 (0~1점) - 숫자나 구체적 키워드
+  if (/\d+/.test(title) || /추천|후기|방법|비교|정리|가이드|리뷰|TOP/i.test(title)) {
+    score += 1
+  }
+
+  // score 0~10 → 등급 매핑
+  let tier: number
+  let category: string
+  let label: string
+
+  if (score >= 9) { tier = 10; category = '최적화'; label = '최적2' }
+  else if (score >= 8) { tier = 9; category = '최적화'; label = '최적1' }
+  else if (score >= 7) { tier = 8; category = '준최적화'; label = '준최3' }
+  else if (score >= 6) { tier = 7; category = '준최적화'; label = '준최2' }
+  else if (score >= 5) { tier = 6; category = '준최적화'; label = '준최1' }
+  else if (score >= 4) { tier = 5; category = '일반'; label = '일반3' }
+  else if (score >= 3) { tier = 4; category = '일반'; label = '일반2' }
+  else if (score >= 2) { tier = 3; category = '일반'; label = '일반1' }
+  else if (score >= 1) { tier = 2; category = '저품질'; label = '저품질2' }
+  else { tier = 1; category = '저품질'; label = '저품질1' }
+
+  return { score, tier, label, category }
+}
+
 // ===== 메인 분석 함수 =====
 
 export function analyzeBlogIndex(
   blogUrl: string,
   posts: BlogPost[],
   keywordResults: KeywordRankResult[],
-  isDemo: boolean
+  isDemo: boolean,
+  blogName?: string | null
 ): BlogIndexResult {
   const blogId = extractBlogId(blogUrl)
+  const now = new Date()
 
   // 5대 분석 실행
   const searchPower = analyzeSearchPower(keywordResults)
@@ -524,7 +689,7 @@ export function analyzeBlogIndex(
 
   const categories = [searchPower, contentQuality, topicAuthority, activity, influence]
   const totalScore = categories.reduce((sum, c) => sum + c.score, 0)
-  const { level, description } = determineLevelInfo(totalScore)
+  const level = determineLevelInfo(totalScore)
   const recommendations = generateRecommendations(categories)
 
   // 포스트 분석 요약
@@ -535,12 +700,114 @@ export function analyzeBlogIndex(
     ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
     : 0
 
+  // 개별 포스트 상세 데이터 생성 (품질 지수 포함)
+  const recentPosts: PostDetail[] = posts
+    .map((p) => {
+      const cleanTitle = stripHtml(p.title)
+      const cleanDesc = stripHtml(p.description)
+      const postDate = parsePostDate(p.postdate)
+      const daysAgo = !isNaN(postDate.getTime()) ? daysBetween(now, postDate) : -1
+      const dateStr = !isNaN(postDate.getTime())
+        ? `${postDate.getFullYear()}.${String(postDate.getMonth() + 1).padStart(2, '0')}.${String(postDate.getDate()).padStart(2, '0')}`
+        : '날짜 없음'
+      const hasImage = /<img\s/i.test(p.description) || /\.(jpg|jpeg|png|gif|webp)/i.test(p.description)
+      const quality = scorePost(cleanTitle, cleanDesc.length, hasImage)
+      return {
+        title: cleanTitle,
+        link: p.link,
+        daysAgo,
+        date: dateStr,
+        charCount: cleanDesc.length,
+        hasImage,
+        titleLength: cleanTitle.length,
+        quality,
+      }
+    })
+    .filter((p) => p.daysAgo >= 0)
+    .sort((a, b) => a.daysAgo - b.daysAgo)
+    .slice(0, 20)
+
+  // 블로그 프로필 생성
+  const sortedDates = posts
+    .map((p) => parsePostDate(p.postdate))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  const estimatedStartDate = sortedDates.length > 0
+    ? `${sortedDates[0].getFullYear()}.${String(sortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(sortedDates[0].getDate()).padStart(2, '0')}`
+    : null
+
+  const blogAgeDays = sortedDates.length > 0 ? daysBetween(now, sortedDates[0]) : null
+
+  // 주간 포스팅 수 계산
+  let postsPerWeek: number | null = null
+  if (sortedDates.length >= 2) {
+    const spanDays = daysBetween(sortedDates[sortedDates.length - 1], sortedDates[0]) || 1
+    postsPerWeek = Math.round((sortedDates.length / spanDays) * 7 * 10) / 10
+  }
+
+  const blogProfile: BlogProfile = {
+    blogId,
+    blogName: blogName || null,
+    blogUrl,
+    totalPosts: posts.length,
+    categoryKeywords: topicKeywords.slice(0, 5),
+    estimatedStartDate,
+    isActive: recentPostDays !== null && recentPostDays <= 30,
+    blogAgeDays,
+    postsPerWeek,
+  }
+
+  // 벤치마크 데이터 생성
+  const imageRate = recentPosts.length > 0
+    ? Math.round((recentPosts.filter(p => p.hasImage).length / recentPosts.length) * 100)
+    : 0
+
+  // 주제 집중도 계산 (최다 빈출 키워드가 전체 포스트 중 몇 %에 등장하는지)
+  const wordFreqAll: Record<string, number> = {}
+  posts.forEach((p) => {
+    const text = stripHtml(p.title) + ' ' + stripHtml(p.description)
+    const words = text.match(/[가-힣]{2,}|[a-zA-Z]{3,}/g) || []
+    words.forEach((w) => { wordFreqAll[w.toLowerCase()] = (wordFreqAll[w.toLowerCase()] || 0) + 1 })
+  })
+  const topWordCount = Object.values(wordFreqAll).sort((a, b) => b - a)[0] || 0
+  const topicFocusPct = posts.length > 0 ? Math.round((topWordCount / posts.length) * 100) : 0
+
+  // 최적화 수치 = totalScore를 0~100%로 표현 (가중 보정)
+  const optimizationPct = Math.round(totalScore * 1.0)
+
+  // 전체 상위 X% 추정 (점수 기반 시뮬레이션)
+  // 50점 = 상위 50%, 70점 = 상위 25%, 85점 = 상위 10%, 95점 = 상위 3%
+  let categoryPercentile: number
+  if (totalScore >= 95) categoryPercentile = 3
+  else if (totalScore >= 85) categoryPercentile = 10
+  else if (totalScore >= 75) categoryPercentile = 20
+  else if (totalScore >= 65) categoryPercentile = 30
+  else if (totalScore >= 55) categoryPercentile = 40
+  else if (totalScore >= 45) categoryPercentile = 50
+  else if (totalScore >= 35) categoryPercentile = 65
+  else if (totalScore >= 25) categoryPercentile = 80
+  else categoryPercentile = 95
+
+  const benchmark: BenchmarkData = {
+    postingFrequency: {
+      mine: postsPerWeek || 0,
+      recommended: 3,
+      topBlogger: 5,
+    },
+    avgTitleLength: { mine: avgTitleLength, optimal: 25 },
+    avgContentLength: { mine: avgDescLength, recommended: 150 },
+    imageRate: { mine: imageRate, recommended: 80 },
+    topicFocus: { mine: topicFocusPct, recommended: 60 },
+    optimizationPct,
+    categoryPercentile,
+  }
+
   return {
     blogUrl,
     blogId,
     totalScore,
     level,
-    levelDescription: description,
     categories,
     keywordResults,
     postAnalysis: {
@@ -551,6 +818,9 @@ export function analyzeBlogIndex(
       postingFrequency: frequency,
       recentPostDays,
     },
+    recentPosts,
+    blogProfile,
+    benchmark,
     recommendations,
     isDemo,
     checkedAt: new Date().toISOString(),

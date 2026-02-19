@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import Link from 'next/link'
 
 interface SeoCategory {
@@ -41,10 +42,10 @@ function getScoreBg(score: number) {
 }
 
 function getGradeLabel(score: number) {
-  if (score >= 80) return { label: '우수', icon: CheckCircle, color: 'text-green-600' }
-  if (score >= 60) return { label: '양호', icon: CheckCircle, color: 'text-green-600' }
-  if (score >= 40) return { label: '보통', icon: AlertTriangle, color: 'text-yellow-600' }
-  return { label: '개선 필요', icon: XCircle, color: 'text-red-600' }
+  if (score >= 80) return { label: '우수', icon: CheckCircle, color: 'text-green-600', tooltip: 'SEO 최적화가 매우 잘 되어 있습니다' }
+  if (score >= 60) return { label: '양호', icon: CheckCircle, color: 'text-green-600', tooltip: 'SEO 기본 요소가 잘 갖춰져 있습니다' }
+  if (score >= 40) return { label: '보통', icon: AlertTriangle, color: 'text-yellow-600', tooltip: '일부 SEO 요소의 개선이 필요합니다' }
+  return { label: '개선 필요', icon: XCircle, color: 'text-red-600', tooltip: 'SEO 핵심 요소의 보완이 필요합니다' }
 }
 
 export default function SeoCheckPage() {
@@ -159,15 +160,20 @@ export default function SeoCheckPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between text-lg">
             <span>콘텐츠 입력</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUrlInput(!showUrlInput)}
-            >
-              <Link2 className="mr-1.5 h-4 w-4" />
-              URL로 가져오기
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowUrlInput(!showUrlInput)}
+                >
+                  <Link2 className="mr-1.5 h-4 w-4" />
+                  URL로 가져오기
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>네이버 블로그 URL에서 제목과 본문을 자동으로 가져옵니다</p></TooltipContent>
+            </Tooltip>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -288,18 +294,35 @@ export default function SeoCheckPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`flex h-20 w-20 items-center justify-center rounded-full ${getScoreBg(result.totalScore)}`}>
-                    <span className="text-2xl font-bold text-white">{result.totalScore}</span>
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className={`flex h-20 w-20 items-center justify-center rounded-full cursor-help ${getScoreBg(result.totalScore)}`}>
+                        <span className="text-2xl font-bold text-white">{result.totalScore}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent><p>100점 만점 기준 네이버 SEO 최적화 점수입니다</p></TooltipContent>
+                  </Tooltip>
                   <div>
-                    <div className={`flex items-center gap-1 text-lg font-bold ${grade.color}`}>
-                      <grade.icon className="h-5 w-5" />
-                      {grade.label}
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className={`flex items-center gap-1 text-lg font-bold cursor-help ${grade.color}`}>
+                          <grade.icon className="h-5 w-5" />
+                          {grade.label}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{grade.tooltip}</p></TooltipContent>
+                    </Tooltip>
                     <p className="text-sm text-muted-foreground">100점 만점</p>
                   </div>
                 </div>
-                {result.isDemo && <Badge variant="outline">데모 분석</Badge>}
+                {result.isDemo && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="cursor-help">데모 분석</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
+                  </Tooltip>
+                )}
               </div>
             </CardContent>
           </Card>

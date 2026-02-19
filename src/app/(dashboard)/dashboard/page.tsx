@@ -5,6 +5,7 @@ import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, Cale
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import Link from 'next/link'
 import { PLANS, type Plan } from '@/types/database'
 
@@ -123,6 +124,7 @@ export default function DashboardPage() {
       limit: `/ ${planInfo.keywords}`,
       icon: Search,
       color: 'text-blue-600 bg-blue-100',
+      tooltip: '이번 달 키워드 검색량 조회 횟수입니다',
     },
     {
       title: 'AI 콘텐츠 생성',
@@ -130,6 +132,7 @@ export default function DashboardPage() {
       limit: `/ ${planInfo.content}`,
       icon: Wand2,
       color: 'text-purple-600 bg-purple-100',
+      tooltip: '이번 달 AI로 생성한 블로그 글 수입니다',
     },
     {
       title: 'SEO 체크',
@@ -137,6 +140,7 @@ export default function DashboardPage() {
       limit: '',
       icon: BarChart3,
       color: 'text-green-600 bg-green-100',
+      tooltip: '모든 플랜에서 무제한 사용 가능합니다',
     },
     {
       title: '순위 트래킹',
@@ -144,6 +148,7 @@ export default function DashboardPage() {
       limit: planInfo.tracking === 'X' ? '미지원' : `/ ${planInfo.tracking}`,
       icon: TrendingUp,
       color: 'text-orange-600 bg-orange-100',
+      tooltip: '플랜에 따라 추적 가능한 키워드 수가 다릅니다',
     },
   ]
 
@@ -165,33 +170,43 @@ export default function DashboardPage() {
             이번 달 사용량과 빠른 액션을 확인하세요
           </p>
         </div>
-        <Badge variant="outline" className="gap-1">
-          <Clock className="h-3 w-3" />
-          {planInfo.name} 플랜
-        </Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="gap-1 cursor-help">
+              <Clock className="h-3 w-3" />
+              {planInfo.name} 플랜
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent><p>현재 구독 중인 요금제입니다</p></TooltipContent>
+        </Tooltip>
       </div>
 
       {/* 사용량 통계 카드 */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className={`rounded-lg p-3 ${stat.color}`}>
-                <stat.icon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{stat.title}</p>
-                <p className="text-2xl font-bold">
-                  {stat.value}
-                  {stat.limit && (
-                    <span className="ml-1 text-sm font-normal text-muted-foreground">
-                      {stat.limit}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <Tooltip key={stat.title}>
+            <TooltipTrigger asChild>
+              <Card className="cursor-help">
+                <CardContent className="flex items-center gap-4 p-6">
+                  <div className={`rounded-lg p-3 ${stat.color}`}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{stat.title}</p>
+                    <p className="text-2xl font-bold">
+                      {stat.value}
+                      {stat.limit && (
+                        <span className="ml-1 text-sm font-normal text-muted-foreground">
+                          {stat.limit}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent><p>{stat.tooltip}</p></TooltipContent>
+          </Tooltip>
         ))}
       </div>
 

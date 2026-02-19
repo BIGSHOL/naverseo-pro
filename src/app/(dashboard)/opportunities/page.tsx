@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import Link from 'next/link'
 
 interface OpportunityItem {
@@ -31,23 +32,54 @@ type SortDir = 'asc' | 'desc'
 
 const EXAMPLE_TOPICS = ['캠핑', '다이어트', '인테리어', '육아', '요리', '부업', '여행', '운동']
 
+const COMP_TOOLTIPS: Record<string, string> = {
+  HIGH: '광고 경쟁이 치열합니다. 상위 노출 난이도가 높습니다',
+  MEDIUM: '적절한 경쟁 수준입니다. 양질의 콘텐츠로 승부 가능합니다',
+  LOW: '경쟁이 적어 상위 노출 가능성이 높습니다',
+}
+
+const CATEGORY_TOOLTIPS: Record<string, string> = {
+  '정보형': '지식/정보를 찾는 검색 의도입니다',
+  '비교형': '제품/서비스를 비교하려는 검색 의도입니다',
+  '구매형': '구매 결정 직전의 검색 의도입니다',
+  '경험형': '실제 경험/후기를 찾는 검색 의도입니다',
+}
+
 function getCompBadge(compIdx: string) {
-  switch (compIdx) {
-    case 'HIGH':
-      return <Badge variant="destructive" className="text-xs">높음</Badge>
-    case 'MEDIUM':
-      return <Badge variant="secondary" className="text-xs">보통</Badge>
-    case 'LOW':
-      return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
-    default:
-      return <Badge variant="outline" className="text-xs">-</Badge>
-  }
+  const badge = (() => {
+    switch (compIdx) {
+      case 'HIGH':
+        return <Badge variant="destructive" className="text-xs">높음</Badge>
+      case 'MEDIUM':
+        return <Badge variant="secondary" className="text-xs">보통</Badge>
+      case 'LOW':
+        return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
+      default:
+        return <Badge variant="outline" className="text-xs">-</Badge>
+    }
+  })()
+
+  const tip = COMP_TOOLTIPS[compIdx]
+  if (!tip) return badge
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
+  )
 }
 
 function getScoreColor(score: number): string {
   if (score >= 70) return 'text-green-600 bg-green-50'
   if (score >= 40) return 'text-yellow-600 bg-yellow-50'
   return 'text-red-600 bg-red-50'
+}
+
+function getScoreTooltip(score: number): string {
+  if (score >= 70) return '블로그 상위 노출 가능성이 높은 추천 키워드입니다'
+  if (score >= 40) return '경쟁에 따라 상위 노출 가능한 키워드입니다'
+  return '경쟁이 높거나 검색량이 부족한 키워드입니다'
 }
 
 function getCategoryBadge(category: string) {
@@ -57,10 +89,20 @@ function getCategoryBadge(category: string) {
     '구매형': 'bg-orange-100 text-orange-700',
     '경험형': 'bg-pink-100 text-pink-700',
   }
-  return (
+  const badge = (
     <Badge className={`text-xs ${colors[category] || 'bg-gray-100 text-gray-700'} hover:opacity-80`}>
       {category}
     </Badge>
+  )
+
+  const tip = CATEGORY_TOOLTIPS[category]
+  if (!tip) return badge
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -234,10 +276,15 @@ export default function OpportunitiesPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold">AI 분석 요약</h3>
                     {result.isDemo && (
-                      <Badge variant="outline" className="gap-1">
-                        <Info className="h-3 w-3" />
-                        데모 데이터
-                      </Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="gap-1 cursor-help">
+                            <Info className="h-3 w-3" />
+                            데모 데이터
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">{result.summary}</p>
@@ -260,24 +307,39 @@ export default function OpportunitiesPage() {
                     <tr className="border-b text-left">
                       <th className="pb-3 pr-4 font-medium text-muted-foreground">키워드</th>
                       <th className="pb-3 px-3 font-medium text-muted-foreground">카테고리</th>
-                      <th
-                        className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
-                        onClick={() => handleSort('monthlySearch')}
-                      >
-                        월간 검색량<SortIcon columnKey="monthlySearch" />
-                      </th>
-                      <th
-                        className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
-                        onClick={() => handleSort('compIdx')}
-                      >
-                        경쟁도<SortIcon columnKey="compIdx" />
-                      </th>
-                      <th
-                        className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
-                        onClick={() => handleSort('score')}
-                      >
-                        기회 점수<SortIcon columnKey="score" />
-                      </th>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <th
+                            className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
+                            onClick={() => handleSort('monthlySearch')}
+                          >
+                            월간 검색량<SortIcon columnKey="monthlySearch" />
+                          </th>
+                        </TooltipTrigger>
+                        <TooltipContent><p>네이버 기준 월간 총 검색 횟수입니다</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <th
+                            className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
+                            onClick={() => handleSort('compIdx')}
+                          >
+                            경쟁도<SortIcon columnKey="compIdx" />
+                          </th>
+                        </TooltipTrigger>
+                        <TooltipContent><p>검색 광고 기준 경쟁 정도입니다. 낮을수록 상위 노출에 유리합니다</p></TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <th
+                            className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
+                            onClick={() => handleSort('score')}
+                          >
+                            기회 점수<SortIcon columnKey="score" />
+                          </th>
+                        </TooltipTrigger>
+                        <TooltipContent><p>검색량 대비 경쟁이 낮을수록 높은 점수를 받습니다 (0~100)</p></TooltipContent>
+                      </Tooltip>
                       <th className="pb-3 px-3 font-medium text-muted-foreground hidden lg:table-cell">추천 이유</th>
                       <th className="pb-3 pl-3 font-medium text-muted-foreground">액션</th>
                     </tr>
@@ -292,20 +354,30 @@ export default function OpportunitiesPage() {
                         </td>
                         <td className="py-3 px-3 text-center">{getCompBadge(opp.compIdx)}</td>
                         <td className="py-3 px-3 text-center">
-                          <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${getScoreColor(opp.score)}`}>
-                            {opp.score}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold cursor-help ${getScoreColor(opp.score)}`}>
+                                {opp.score}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent><p>{getScoreTooltip(opp.score)}</p></TooltipContent>
+                          </Tooltip>
                         </td>
                         <td className="py-3 px-3 text-xs text-muted-foreground max-w-[250px] hidden lg:table-cell">
                           {opp.reason}
                         </td>
                         <td className="py-3 pl-3">
-                          <Link href={`/content?keyword=${encodeURIComponent(opp.keyword)}`}>
-                            <Button variant="ghost" size="sm" className="gap-1 text-xs">
-                              <Wand2 className="h-3 w-3" />
-                              글쓰기
-                            </Button>
-                          </Link>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Link href={`/content?keyword=${encodeURIComponent(opp.keyword)}`}>
+                                <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                                  <Wand2 className="h-3 w-3" />
+                                  글쓰기
+                                </Button>
+                              </Link>
+                            </TooltipTrigger>
+                            <TooltipContent><p>이 키워드로 SEO 최적화된 블로그 글을 AI가 작성합니다</p></TooltipContent>
+                          </Tooltip>
                         </td>
                       </tr>
                     ))}
