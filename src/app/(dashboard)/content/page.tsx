@@ -1,7 +1,23 @@
 'use client'
 
-import { useState } from 'react'
-import { Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import {
+  Wand2,
+  Loader2,
+  Copy,
+  Check,
+  Tag,
+  CalendarDays,
+  CheckCircle,
+  BarChart3,
+  FileText,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
+  AlertCircle,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,21 +25,88 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 
+interface SeoCategory {
+  name: string
+  score: number
+  maxScore: number
+  details: string
+}
+
+interface SeoAnalysisResult {
+  totalScore: number
+  grade: string
+  categories: SeoCategory[]
+  strengths: string[]
+  improvements: string[]
+}
+
+interface ReadabilityResult {
+  score: number
+  grade: string
+  avgSentenceLength: number
+  totalCharacters: number
+  totalParagraphs: number
+  boldCount: number
+  listCount: number
+  headingCount: number
+  imageCount: number
+  details: string[]
+}
+
+interface ContentResult {
+  title: string
+  content: string
+  tags: string[]
+  metaDescription?: string
+  contentType?: string
+  contentTypeName?: string
+  seoAnalysis?: SeoAnalysisResult
+  readabilityAnalysis?: ReadabilityResult
+  isDemo: boolean
+  contentId?: string
+  seoScore?: number
+}
+
+function getScoreColor(score: number) {
+  if (score >= 80) return 'text-green-600'
+  if (score >= 60) return 'text-blue-600'
+  if (score >= 40) return 'text-yellow-600'
+  return 'text-red-600'
+}
+
+function getScoreBgColor(score: number) {
+  if (score >= 80) return 'bg-green-500'
+  if (score >= 60) return 'bg-blue-500'
+  if (score >= 40) return 'bg-yellow-500'
+  return 'bg-red-500'
+}
+
+function getGradeBadgeColor(grade: string) {
+  if (grade.startsWith('S') || grade.startsWith('A')) return 'bg-green-100 text-green-700'
+  if (grade.startsWith('B')) return 'bg-blue-100 text-blue-700'
+  if (grade.startsWith('C')) return 'bg-yellow-100 text-yellow-700'
+  return 'bg-red-100 text-red-700'
+}
+
 export default function ContentPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [keyword, setKeyword] = useState('')
   const [tone, setTone] = useState('친근하고 정보적인')
   const [additionalKeywords, setAdditionalKeywords] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState<{
-    title: string
-    content: string
-    tags: string[]
-    isDemo: boolean
-    contentId?: string
-    seoScore?: number
-  } | null>(null)
+  const [result, setResult] = useState<ContentResult | null>(null)
   const [copied, setCopied] = useState(false)
+  const [showSeoDetail, setShowSeoDetail] = useState(false)
+
+  // URL param에서 키워드 프리필
+  useEffect(() => {
+    const kwParam = searchParams.get('keyword')
+    if (kwParam) {
+      setKeyword(kwParam)
+    }
+  }, [searchParams])
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,6 +115,7 @@ export default function ContentPage() {
     setLoading(true)
     setError('')
     setResult(null)
+    setShowSeoDetail(false)
 
     try {
       const res = await fetch('/api/ai/content', {
@@ -71,9 +155,9 @@ export default function ContentPage() {
 
   const toneOptions = [
     '친근하고 정보적인',
-    '전문적이고 신뢰감 있는',
-    '캐주얼하고 유머러스한',
-    '간결하고 실용적인',
+    '전문적인',
+    '재미있는',
+    '솔직한',
   ]
 
   return (
@@ -161,20 +245,205 @@ export default function ContentPage() {
             <div className="flex items-center gap-2 text-green-800">
               <CheckCircle className="h-5 w-5 shrink-0" />
               <span className="text-sm font-medium">콘텐츠가 자동 저장되었습니다</span>
+              {result.contentTypeName && (
+                <Badge variant="secondary" className="text-xs">
+                  {result.contentTypeName}
+                </Badge>
+              )}
               {result.seoScore !== undefined && (
                 <Badge variant="outline" className="border-green-300 text-green-700">
-                  SEO 점수: {result.seoScore}점
+                  SEO {result.seoScore}점
                 </Badge>
               )}
             </div>
-            <Link href="/content/calendar">
-              <Button variant="outline" size="sm" className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100">
-                <CalendarDays className="h-4 w-4" />
-                콘텐츠 캘린더에서 보기
+            <div className="flex gap-2">
+              <Link href="/content/calendar">
+                <Button variant="outline" size="sm" className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100">
+                  <CalendarDays className="h-4 w-4" />
+                  캘린더
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-100"
+                onClick={() => {
+                  if (result) {
+                    sessionStorage.setItem('naverseo-workflow:content-body', result.content)
+                    sessionStorage.setItem('naverseo-workflow:content-title', result.title)
+                    sessionStorage.setItem('naverseo-workflow:content-keyword', keyword)
+                    router.push('/seo-check?keyword=' + encodeURIComponent(keyword))
+                  }
+                }}
+              >
+                <BarChart3 className="h-4 w-4" />
+                SEO 상세 체크
               </Button>
-            </Link>
+            </div>
           </div>
 
+          {/* SEO 분석 + 가독성 카드 */}
+          {result.seoAnalysis && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* SEO 분석 요약 */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium">SEO 점수</span>
+                    </div>
+                    <Badge className={getGradeBadgeColor(result.seoAnalysis.grade)}>
+                      {result.seoAnalysis.grade}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-end gap-1">
+                    <span className={`text-3xl font-bold ${getScoreColor(result.seoAnalysis.totalScore)}`}>
+                      {result.seoAnalysis.totalScore}
+                    </span>
+                    <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-muted">
+                    <div
+                      className={`h-full rounded-full ${getScoreBgColor(result.seoAnalysis.totalScore)}`}
+                      style={{ width: `${result.seoAnalysis.totalScore}%` }}
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 w-full text-xs"
+                    onClick={() => setShowSeoDetail(!showSeoDetail)}
+                  >
+                    {showSeoDetail ? (
+                      <><ChevronUp className="mr-1 h-3 w-3" /> 접기</>
+                    ) : (
+                      <><ChevronDown className="mr-1 h-3 w-3" /> 상세 보기 (10개 항목)</>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 가독성 분석 */}
+              {result.readabilityAnalysis && (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-purple-600" />
+                        <span className="text-sm font-medium">가독성</span>
+                      </div>
+                      <Badge className={getGradeBadgeColor(result.readabilityAnalysis.grade)}>
+                        {result.readabilityAnalysis.grade}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex items-end gap-1">
+                      <span className={`text-3xl font-bold ${getScoreColor(result.readabilityAnalysis.score)}`}>
+                        {result.readabilityAnalysis.score}
+                      </span>
+                      <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>
+                        <span className="font-medium">{result.readabilityAnalysis.totalCharacters.toLocaleString()}</span>자
+                      </div>
+                      <div>
+                        소제목 <span className="font-medium">{result.readabilityAnalysis.headingCount}</span>개
+                      </div>
+                      <div>
+                        볼드 <span className="font-medium">{result.readabilityAnalysis.boldCount}</span>개
+                      </div>
+                      <div>
+                        이미지 <span className="font-medium">{result.readabilityAnalysis.imageCount}</span>개
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* SEO 상세 분석 (토글) */}
+          {showSeoDetail && result.seoAnalysis && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">SEO 분석 상세 (10개 항목)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 세부 항목 */}
+                <div className="space-y-2">
+                  {result.seoAnalysis.categories.map((cat) => {
+                    const pct = Math.round((cat.score / cat.maxScore) * 100)
+                    return (
+                      <div key={cat.name} className="flex items-center gap-3">
+                        <span className="w-24 shrink-0 text-sm">{cat.name}</span>
+                        <div className="flex-1">
+                          <div className="h-2 rounded-full bg-muted">
+                            <div
+                              className={`h-full rounded-full ${getScoreBgColor(pct)}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
+                          {cat.score}/{cat.maxScore}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* 강점 / 개선점 */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {result.seoAnalysis.strengths.length > 0 && (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <p className="mb-2 text-xs font-medium text-green-700">강점</p>
+                      <ul className="space-y-1">
+                        {result.seoAnalysis.strengths.map((s, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs text-green-700">
+                            <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {result.seoAnalysis.improvements.length > 0 && (
+                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                      <p className="mb-2 text-xs font-medium text-yellow-700">개선점</p>
+                      <ul className="space-y-1">
+                        {result.seoAnalysis.improvements.map((s, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
+                            <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 메타 설명 */}
+          {result.metaDescription && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">검색 결과 미리보기</span>
+                </div>
+                <div className="rounded border bg-white p-3">
+                  <p className="text-sm font-medium text-blue-700">{result.title}</p>
+                  <p className="mt-1 text-xs text-green-700">blog.naver.com</p>
+                  <p className="mt-0.5 text-xs text-gray-600">{result.metaDescription}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 생성된 콘텐츠 */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

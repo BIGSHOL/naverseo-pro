@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpDown, ArrowDown, ArrowUp, Info } from 'lucide-react'
+import { ArrowUpDown, ArrowDown, ArrowUp, Info, Wand2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export interface KeywordData {
   relKeyword: string
@@ -135,6 +137,9 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 >
                   추천 점수<SortIcon columnKey="score" />
                 </th>
+                <th className="pb-3 pl-3 font-medium text-muted-foreground whitespace-nowrap">
+                  액션
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -155,6 +160,14 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                     <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${getScoreColor(kw.score)}`}>
                       {kw.score}
                     </span>
+                  </td>
+                  <td className="py-3 pl-3 text-center">
+                    <Link href={`/content?keyword=${encodeURIComponent(kw.relKeyword)}`}>
+                      <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                        <Wand2 className="h-3 w-3" />
+                        글쓰기
+                      </Button>
+                    </Link>
                   </td>
                 </tr>
               ))}

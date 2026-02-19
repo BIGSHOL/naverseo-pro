@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { RankHistoryChart } from '@/components/charts/rank-history-chart'
 
 interface TrackingHistory {
   id: string
@@ -440,30 +441,10 @@ export default function TrackingPage() {
                     </div>
                   </div>
 
-                  {/* 순위 히스토리 (최근 7개) */}
+                  {/* 순위 히스토리 차트 */}
                   {kw.history.length > 1 && (
                     <div className="mt-3 border-t pt-3">
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">
-                        최근 순위 변동
-                      </p>
-                      <div className="flex gap-2 overflow-x-auto">
-                        {kw.history.slice(0, 7).map((h) => (
-                          <div
-                            key={h.id}
-                            className="flex shrink-0 flex-col items-center rounded-md border px-3 py-1.5"
-                          >
-                            <span className="text-sm font-semibold">
-                              {h.rank_position !== null ? `${h.rank_position}위` : '100+'}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {new Date(h.checked_at).toLocaleDateString('ko-KR', {
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                      <RankHistoryChart history={kw.history} keyword={kw.keyword} />
                     </div>
                   )}
                 </CardContent>

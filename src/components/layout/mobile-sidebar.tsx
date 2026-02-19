@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, LayoutDashboard, Search, Wand2, BarChart3, TrendingUp, CalendarDays, FileDown, Settings, Activity } from 'lucide-react'
+import { Menu, LayoutDashboard, Search, Wand2, BarChart3, TrendingUp, CalendarDays, FileDown, Settings, Activity, Users, Lightbulb } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Logo } from '@/components/layout/logo'
@@ -12,8 +12,10 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { label: '대시보드', href: '/dashboard', icon: LayoutDashboard },
   { label: '키워드 리서치', href: '/keywords', icon: Search },
+  { label: '키워드 기회', href: '/opportunities', icon: Lightbulb },
   { label: 'AI 콘텐츠 생성', href: '/content', icon: Wand2 },
   { label: 'SEO 점수 체크', href: '/seo-check', icon: BarChart3 },
+  { label: '경쟁사 분석', href: '/competitors', icon: Users },
   { label: '블로그 지수', href: '/blog-index', icon: Activity },
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
   { label: '콘텐츠 캘린더', href: '/content/calendar', icon: CalendarDays },

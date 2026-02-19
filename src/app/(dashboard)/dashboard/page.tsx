@@ -212,7 +212,15 @@ export default function DashboardPage() {
                   {recentKeywords.map((kw) => (
                     <li key={kw.id} className="flex items-center justify-between text-sm">
                       <span className="font-medium">{kw.seed_keyword}</span>
-                      <span className="text-xs text-muted-foreground">{timeAgo(kw.created_at)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{timeAgo(kw.created_at)}</span>
+                        <Link href={`/content?keyword=${encodeURIComponent(kw.seed_keyword)}`}>
+                          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs text-primary">
+                            <Wand2 className="h-3 w-3" />
+                            글쓰기
+                          </Button>
+                        </Link>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -245,9 +253,17 @@ export default function DashboardPage() {
                         <p className="truncate font-medium">{c.title}</p>
                         <p className="text-xs text-muted-foreground">{c.target_keyword}</p>
                       </div>
-                      <Badge variant="secondary" className="ml-2 shrink-0 text-xs">
-                        {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
-                      </Badge>
+                      <div className="ml-2 flex items-center gap-2 shrink-0">
+                        <Link href={`/seo-check?keyword=${encodeURIComponent(c.target_keyword)}`}>
+                          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
+                            <BarChart3 className="h-3 w-3" />
+                            SEO
+                          </Button>
+                        </Link>
+                        <Badge variant="secondary" className="text-xs">
+                          {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                        </Badge>
+                      </div>
                     </li>
                   ))}
                 </ul>

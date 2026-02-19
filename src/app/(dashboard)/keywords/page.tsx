@@ -6,7 +6,8 @@ import { KeywordResults, type KeywordData } from '@/components/keywords/keyword-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Search, TrendingUp, BarChart3, Sparkles, Loader2 } from 'lucide-react'
+import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2 } from 'lucide-react'
+import Link from 'next/link'
 
 interface AiRecommendation {
   keyword: string
@@ -238,14 +239,26 @@ export default function KeywordsPage() {
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{rec.reason}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-xs"
-                      onClick={() => handleSearch(rec.keyword)}
-                    >
-                      검색
-                    </Button>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleSearch(rec.keyword)}
+                      >
+                        검색
+                      </Button>
+                      <Link href={`/content?keyword=${encodeURIComponent(rec.keyword)}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-primary"
+                        >
+                          <Wand2 className="mr-1 h-3 w-3" />
+                          글쓰기
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 
 interface SeoCategory {
   name: string
@@ -46,12 +48,72 @@ function getGradeLabel(score: number) {
 }
 
 export default function SeoCheckPage() {
+  const searchParams = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<SeoResult | null>(null)
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [blogUrl, setBlogUrl] = useState('')
+  const [fetchingUrl, setFetchingUrl] = useState(false)
+  const [fetchSource, setFetchSource] = useState('')
+
+  // URL param + sessionStorage에서 프리필
+  useEffect(() => {
+    const kwParam = searchParams.get('keyword')
+    if (kwParam) {
+      setKeyword(kwParam)
+    }
+
+    const storedContent = sessionStorage.getItem('naverseo-workflow:content-body')
+    const storedTitle = sessionStorage.getItem('naverseo-workflow:content-title')
+    const storedKeyword = sessionStorage.getItem('naverseo-workflow:content-keyword')
+
+    if (storedContent) {
+      setContent(storedContent)
+      sessionStorage.removeItem('naverseo-workflow:content-body')
+    }
+    if (storedTitle) {
+      setTitle(storedTitle)
+      sessionStorage.removeItem('naverseo-workflow:content-title')
+    }
+    if (storedKeyword) {
+      if (!kwParam) setKeyword(storedKeyword)
+      sessionStorage.removeItem('naverseo-workflow:content-keyword')
+    }
+  }, [searchParams])
+
+  const handleFetchBlog = async () => {
+    if (!blogUrl.trim() || fetchingUrl) return
+
+    setFetchingUrl(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/naver/blog-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: blogUrl.trim() }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || '블로그 글을 가져오는데 실패했습니다.')
+        return
+      }
+
+      if (data.title) setTitle(data.title)
+      if (data.content) setContent(data.content)
+      if (data.source) setFetchSource(data.source)
+      setShowUrlInput(false)
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setFetchingUrl(false)
+    }
+  }
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,9 +157,65 @@ export default function SeoCheckPage() {
       {/* 입력 폼 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">콘텐츠 입력</CardTitle>
+          <CardTitle className="flex items-center justify-between text-lg">
+            <span>콘텐츠 입력</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUrlInput(!showUrlInput)}
+            >
+              <Link2 className="mr-1.5 h-4 w-4" />
+              URL로 가져오기
+            </Button>
+          </CardTitle>
         </CardHeader>
         <CardContent>
+          {showUrlInput && (
+            <div className="mb-4 rounded-md border border-dashed p-4 space-y-3">
+              <Label>네이버 블로그 URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://blog.naver.com/blogid/123456789"
+                  value={blogUrl}
+                  onChange={(e) => setBlogUrl(e.target.value)}
+                  disabled={fetchingUrl}
+                />
+                <Button
+                  type="button"
+                  onClick={handleFetchBlog}
+                  disabled={fetchingUrl || !blogUrl.trim()}
+                >
+                  {fetchingUrl ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    '가져오기'
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                네이버 블로그 글 URL을 입력하면 제목과 본문을 자동으로 가져옵니다
+              </p>
+            </div>
+          )}
+
+          {fetchSource && (
+            <div className="mb-4 flex items-center gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <ExternalLink className="h-3 w-3" />
+                URL에서 가져옴
+              </Badge>
+              <a
+                href={fetchSource}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground hover:underline truncate max-w-[300px]"
+              >
+                {fetchSource}
+              </a>
+            </div>
+          )}
+
           <form onSubmit={handleAnalyze} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -251,6 +369,18 @@ export default function SeoCheckPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* 워크플로우 액션 */}
+          {keyword && (
+            <div className="flex flex-wrap gap-3">
+              <Link href={`/content?keyword=${encodeURIComponent(keyword)}`}>
+                <Button variant="outline" className="gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  이 키워드로 콘텐츠 다시 생성
+                </Button>
+              </Link>
+            </div>
+          )}
         </>
       )}
     </div>
