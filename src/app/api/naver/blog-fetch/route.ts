@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   parseNaverBlogUrl,
   buildPostViewUrl,
+  buildMobilePostViewUrl,
   extractTitle,
   extractContent,
   htmlToPlainText,
@@ -11,7 +12,7 @@ import {
 
 function getDemoData() {
   return {
-    title: '네이버 블로그 SEO 최적화 완벽 가이드 2025',
+    title: '네이버 블로그 SEO 최적화 완벽 가이드 2026',
     content: `안녕하세요, 오늘은 네이버 블로그 SEO 최적화에 대해 자세히 알아보겠습니다.
 
 네이버 블로그를 운영하면서 가장 중요한 것 중 하나가 바로 SEO(검색엔진 최적화)입니다. 네이버의 C-Rank와 D.I.A. 알고리즘을 이해하고, 이에 맞춰 콘텐츠를 최적화하면 검색 상위 노출을 달성할 수 있습니다.
@@ -44,6 +45,56 @@ function getDemoData() {
   }
 }
 
+// === 공통 fetch 함수 ===
+
+const FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Cache-Control': 'no-cache',
+}
+
+async function fetchHtml(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
+    const response = await fetch(url, {
+      headers: FETCH_HEADERS,
+      signal: controller.signal,
+      redirect: 'follow',
+    })
+
+    clearTimeout(timeout)
+
+    if (!response.ok) {
+      console.error(`[BlogFetch] HTTP ${response.status} for ${url}`)
+      return null
+    }
+
+    return await response.text()
+  } catch (err) {
+    console.error(`[BlogFetch] fetch 실패 (${url}):`, err)
+    return null
+  }
+}
+
+/**
+ * HTML에서 본문을 추출하고 충분한 내용인지 확인
+ */
+function tryExtractContent(html: string): { title: string; content: string } | null {
+  const title = extractTitle(html)
+  const rawContent = extractContent(html)
+  const content = htmlToPlainText(rawContent)
+
+  // 본문이 충분하면 성공
+  if (content.length >= 50) {
+    return { title, content }
+  }
+
+  return null
+}
+
 // === API 핸들러 ===
 
 export async function POST(request: NextRequest) {
@@ -68,56 +119,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // PostView URL 생성 (iframe 없는 직접 접근 URL)
-    const postViewUrl = buildPostViewUrl(parsed.blogId, parsed.postNo)
+    // 1차 시도: 모바일 URL (SSR 콘텐츠가 더 완전함)
+    const mobileUrl = buildMobilePostViewUrl(parsed.blogId, parsed.postNo)
+    console.log(`[BlogFetch] 1차 시도 (모바일): ${mobileUrl}`)
 
-    let html: string
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000)
+    let html = await fetchHtml(mobileUrl)
+    let extracted = html ? tryExtractContent(html) : null
 
-      const response = await fetch(postViewUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-        },
-        signal: controller.signal,
-      })
+    // 2차 시도: 데스크톱 PostView URL
+    if (!extracted) {
+      const desktopUrl = buildPostViewUrl(parsed.blogId, parsed.postNo)
+      console.log(`[BlogFetch] 2차 시도 (데스크톱): ${desktopUrl}`)
 
-      clearTimeout(timeout)
+      html = await fetchHtml(desktopUrl)
+      extracted = html ? tryExtractContent(html) : null
+    }
 
-      if (!response.ok) {
-        console.error(`[BlogFetch] HTTP ${response.status} for ${postViewUrl}`)
-        // fetch 실패 시 데모 데이터 반환
-        return NextResponse.json(getDemoData())
+    // 3차 시도: 원본 URL 직접 fetch
+    if (!extracted && cleanUrl !== mobileUrl) {
+      console.log(`[BlogFetch] 3차 시도 (원본 URL): ${cleanUrl}`)
+
+      html = await fetchHtml(cleanUrl)
+      extracted = html ? tryExtractContent(html) : null
+    }
+
+    // 모든 시도 실패
+    if (!extracted) {
+      // html은 있지만 본문 추출 실패 → 비공개/삭제 가능성
+      if (html) {
+        return NextResponse.json(
+          { error: '블로그 글 내용을 가져올 수 없습니다. 비공개 글이거나, 본문이 이미지 위주인 경우 직접 텍스트를 붙여넣어 주세요.' },
+          { status: 422 }
+        )
       }
-
-      html = await response.text()
-    } catch (fetchError) {
-      console.error('[BlogFetch] fetch 실패:', fetchError)
-      // 네트워크 오류 시 데모 데이터 반환
+      // 네트워크 오류
       return NextResponse.json(getDemoData())
     }
 
-    // 제목 추출
-    const title = extractTitle(html)
-
-    // 본문 추출
-    const rawContent = extractContent(html)
-    const content = htmlToPlainText(rawContent)
-
-    // 비공개/삭제 글 체크 (본문이 너무 짧은 경우)
-    if (content.length < 50) {
-      return NextResponse.json(
-        { error: '블로그 글 내용을 가져올 수 없습니다. 비공개 글이거나 삭제된 글일 수 있습니다.' },
-        { status: 422 }
-      )
-    }
-
     return NextResponse.json({
-      title,
-      content,
+      title: extracted.title,
+      content: extracted.content,
       source: `https://blog.naver.com/${parsed.blogId}/${parsed.postNo}`,
       isDemo: false,
     })
