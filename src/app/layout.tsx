@@ -15,6 +15,7 @@ const geistMono = localFont({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.naverseopro.com'),
   title: 'NaverSEO Pro - AI 기반 네이버 블로그 SEO 올인원 도구',
   description:
     '키워드 리서치, AI 콘텐츠 생성, SEO 점수 분석, 순위 트래킹까지. 네이버 블로그 SEO의 모든 것을 한 곳에서.',

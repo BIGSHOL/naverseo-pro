@@ -10,9 +10,9 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navLinks = [
-    { label: '기능', href: '#features' },
-    { label: '가격', href: '#pricing' },
-    { label: 'FAQ', href: '#faq' },
+    { label: '기능', href: '/#features' },
+    { label: '가격', href: '/#pricing' },
+    { label: 'FAQ', href: '/#faq' },
   ]
 
   return (
