@@ -9,10 +9,19 @@ import { Button } from '@/components/ui/button'
 import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2 } from 'lucide-react'
 import Link from 'next/link'
 
+interface AiSearchData {
+  totalSearch: number
+  monthlyPcQcCnt: number
+  monthlyMobileQcCnt: number
+  compIdx: string
+  score: number
+}
+
 interface AiRecommendation {
   keyword: string
   intent: string
   reason: string
+  searchData?: AiSearchData
 }
 
 export default function KeywordsPage() {
@@ -169,7 +178,7 @@ export default function KeywordsPage() {
         <KeywordResults keywords={keywords} isDemo={isDemo} />
       )}
 
-      {/* AI 키워드 추천 섹션 */}
+      {/* AI 키워드 추천 섹션 - 검색량 데이터 통합 뷰 */}
       {keywords.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
@@ -177,6 +186,9 @@ export default function KeywordsPage() {
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-purple-500" />
                 AI 키워드 추천
+                {aiRecommendations.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">{aiRecommendations.length}개</Badge>
+                )}
               </CardTitle>
               {aiRecommendations.length === 0 && (
                 <Button
@@ -210,13 +222,14 @@ export default function KeywordsPage() {
             {aiRecommendations.length === 0 && !aiLoading && !aiError && (
               <p className="text-sm text-muted-foreground">
                 &quot;{searchedKeyword}&quot; 키워드를 기반으로 AI가 블로그 상위 노출에 유리한 롱테일 키워드를 추천해드립니다.
+                검색량과 경쟁도 데이터도 함께 제공됩니다.
               </p>
             )}
 
             {aiLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
-                <span className="ml-2 text-sm text-muted-foreground">AI가 키워드를 분석하고 있습니다...</span>
+                <span className="ml-2 text-sm text-muted-foreground">AI가 키워드를 분석하고 검색량을 조회하고 있습니다...</span>
               </div>
             )}
 
@@ -225,39 +238,71 @@ export default function KeywordsPage() {
                 {aiRecommendations.map((rec, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                    className="rounded-lg border p-4 hover:bg-muted/50 transition-colors"
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{rec.keyword}</span>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${intentColor[rec.intent] || 'bg-gray-100 text-gray-700'}`}>
-                          {rec.intent}
-                        </span>
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{rec.keyword}</span>
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${intentColor[rec.intent] || 'bg-gray-100 text-gray-700'}`}>
+                            {rec.intent}
+                          </span>
+                          {rec.searchData && (
+                            <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${
+                              rec.searchData.score >= 70 ? 'bg-green-50 text-green-600' :
+                              rec.searchData.score >= 40 ? 'bg-yellow-50 text-yellow-600' :
+                              'bg-red-50 text-red-600'
+                            }`}>
+                              {rec.searchData.score}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{rec.reason}</p>
+
+                        {/* 검색량 데이터 통합 뷰 */}
+                        {rec.searchData && (
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Search className="h-3 w-3" />
+                              월 {rec.searchData.totalSearch.toLocaleString()}회
+                            </span>
+                            <span className="hidden sm:inline">
+                              PC {rec.searchData.monthlyPcQcCnt.toLocaleString()} / 모바일 {rec.searchData.monthlyMobileQcCnt.toLocaleString()}
+                            </span>
+                            <Badge variant={
+                              rec.searchData.compIdx === 'LOW' ? 'default' :
+                              rec.searchData.compIdx === 'MEDIUM' ? 'secondary' : 'destructive'
+                            } className={`text-[10px] px-1.5 py-0 ${
+                              rec.searchData.compIdx === 'LOW' ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                            }`}>
+                              경쟁 {rec.searchData.compIdx === 'LOW' ? '낮음' : rec.searchData.compIdx === 'MEDIUM' ? '보통' : '높음'}
+                            </Badge>
+                          </div>
+                        )}
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{rec.reason}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => handleSearch(rec.keyword)}
-                      >
-                        검색
-                      </Button>
-                      <Link href={`/content?keyword=${encodeURIComponent(rec.keyword)}`}>
+                      <div className="flex gap-1 shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-xs text-primary"
+                          className="text-xs"
+                          onClick={() => handleSearch(rec.keyword)}
                         >
-                          <Wand2 className="mr-1 h-3 w-3" />
-                          글쓰기
+                          검색
                         </Button>
-                      </Link>
+                        <Link href={`/content?keyword=${encodeURIComponent(rec.keyword)}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-primary"
+                          >
+                            <Wand2 className="mr-1 h-3 w-3" />
+                            글쓰기
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 ))}

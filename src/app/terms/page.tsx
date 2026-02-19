@@ -216,7 +216,7 @@ export default function TermsPage() {
             <ol className="list-decimal space-y-2 pl-6">
               <li>
                 회원이 서비스의 이용을 원하지 아니하거나 이 약관에 동의하지 아니하는 경우,
-                회원은 언제든지 서비스 내 제공되는 설정 메뉴 또는 이메일(support@naverseo.pro)을 통하여
+                회원은 언제든지 서비스 내 제공되는 설정 메뉴 또는 이메일(soseon203@gmail.com)을 통하여
                 서비스 이용계약의 해지를 신청할 수 있고, 회사는 법령이 정하는 바에 따라 이를 처리합니다.
               </li>
               <li>
@@ -236,7 +236,7 @@ export default function TermsPage() {
             <ol className="list-decimal space-y-2 pl-6">
               <li>유료 플랜 결제 후 7일 이내에 서비스를 이용하지 않은 경우(키워드 조회, AI 콘텐츠 생성 등 유료 기능 미사용) 전액 환불이 가능합니다.</li>
               <li>유료 기능을 1회 이상 사용한 경우, 해당 결제 주기의 환불은 불가합니다. 다만, 해지를 신청하면 현재 결제 주기가 끝나는 시점까지 서비스를 이용할 수 있으며, 다음 결제는 이루어지지 않습니다.</li>
-              <li>환불 요청은 서비스 내 설정 또는 이메일(support@naverseo.pro)을 통해 가능합니다.</li>
+              <li>환불 요청은 서비스 내 설정 또는 이메일(soseon203@gmail.com)을 통해 가능합니다.</li>
               <li>회사의 귀책사유로 서비스를 이용하지 못한 경우, 해당 기간에 대해 일할 계산하여 환불 또는 이용 기간 연장으로 보상합니다.</li>
             </ol>
           </section>
@@ -295,7 +295,7 @@ export default function TermsPage() {
           {/* 부칙 */}
           <section className="border-t pt-8">
             <h2 className="mb-3 text-lg font-semibold text-foreground">부칙</h2>
-            <p>본 약관은 2024년 1월 1일부터 시행합니다.</p>
+            <p>본 약관은 2026년 2월 19일부터 시행합니다.</p>
           </section>
         </div>
 

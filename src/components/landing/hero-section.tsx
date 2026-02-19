@@ -1,43 +1,9 @@
-'use client'
-
-import { useState } from 'react'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRight, Sparkles, Search, Wand2, BarChart3, TrendingUp, Clock, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 
 export function HeroSection() {
-  const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [message, setMessage] = useState('')
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email) return
-
-    setStatus('loading')
-    try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-      const data = await res.json()
-
-      if (res.ok) {
-        setStatus('success')
-        setMessage('등록 완료! 출시 소식을 가장 먼저 전해드릴게요.')
-        setEmail('')
-      } else {
-        setStatus('error')
-        setMessage(data.error || '등록에 실패했습니다. 다시 시도해주세요.')
-      }
-    } catch {
-      setStatus('error')
-      setMessage('네트워크 오류가 발생했습니다.')
-    }
-  }
-
   return (
     <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-32">
       {/* 배경 그라데이션 */}
@@ -50,71 +16,75 @@ export function HeroSection() {
         <div className="text-center">
           <Badge variant="secondary" className="mb-6 px-4 py-1.5">
             <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            AI 기반 네이버 블로그 SEO 도구
+            블로그 글 1편 작성 시간: 3시간 → 10분
           </Badge>
 
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            네이버 블로그 상위 노출,
+            블로그 1편에 3시간?
             <br />
-            <span className="text-primary">AI가 도와드립니다</span>
+            <span className="text-primary">AI로 10분이면 끝납니다</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            키워드 리서치부터 AI 콘텐츠 생성, SEO 점수 분석, 순위 트래킹까지.
+            키워드 발굴부터 SEO 최적화 글 작성, 점수 분석, 순위 추적까지.
             <br className="hidden sm:block" />
-            네이버 블로그 SEO의 모든 것을 한 곳에서 관리하세요.
+            월 <span className="font-semibold text-foreground">29,000원</span>으로 SEO 전문가를 고용하세요.
           </p>
 
-          {/* 이메일 수집 폼 */}
-          <form
-            onSubmit={handleSubmit}
-            className="mx-auto mt-10 flex max-w-md flex-col gap-3 sm:flex-row"
-          >
-            <Input
-              type="email"
-              placeholder="이메일 주소를 입력하세요"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-12"
-              required
-            />
-            <Button
-              type="submit"
-              size="lg"
-              className="h-12 whitespace-nowrap"
-              disabled={status === 'loading'}
-            >
-              {status === 'loading' ? '등록 중...' : '사전 등록'}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </form>
+          {/* CTA 버튼 */}
+          <div className="mx-auto mt-10 flex max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link href="/signup">
+              <Button size="lg" className="h-12 w-full sm:w-auto whitespace-nowrap px-8">
+                무료로 시작하기
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+            <a href="#pricing">
+              <Button variant="outline" size="lg" className="h-12 w-full sm:w-auto whitespace-nowrap px-8">
+                요금제 보기
+              </Button>
+            </a>
+          </div>
 
-          {message && (
-            <p
-              className={`mt-3 text-sm ${
-                status === 'success' ? 'text-primary' : 'text-destructive'
-              }`}
-            >
-              {message}
-            </p>
-          )}
+          <p className="mt-3 text-sm text-muted-foreground">
+            무료 플랜으로 바로 체험 · 신용카드 필요 없음 · 3분 만에 시작
+          </p>
 
-          {/* 숫자 통계 */}
-          <div className="mx-auto mt-16 grid max-w-3xl grid-cols-3 gap-8">
+          {/* 핵심 가치 요약 (기능이 아닌 가치 중심) */}
+          <div className="mx-auto mt-16 grid max-w-4xl grid-cols-2 gap-6 sm:grid-cols-4">
             {[
-              { value: '10만+', label: '키워드 분석' },
-              { value: '5,000+', label: 'AI 콘텐츠 생성' },
-              { value: '95%', label: 'SEO 정확도' },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div className="text-2xl font-bold text-foreground sm:text-3xl">
-                  {stat.value}
+              { icon: Clock, label: '시간 절약', desc: '글 1편 3시간 → 10분', highlight: '95% 절감' },
+              { icon: Wand2, label: 'AI 콘텐츠', desc: 'SEO 최적화 자동 생성', highlight: '100점 만점 분석' },
+              { icon: Search, label: '키워드 분석', desc: '실시간 검색량·경쟁도', highlight: '데이터 기반' },
+              { icon: TrendingUp, label: '순위 추적', desc: '네이버 검색 순위 모니터링', highlight: '자동 트래킹' },
+            ].map((item) => (
+              <div key={item.label} className="flex flex-col items-center gap-2">
+                <div className="rounded-lg bg-primary/10 p-2.5">
+                  <item.icon className="h-5 w-5 text-primary" />
                 </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {stat.label}
-                </div>
+                <div className="text-sm font-semibold">{item.label}</div>
+                <div className="text-xs text-muted-foreground">{item.desc}</div>
+                <Badge variant="outline" className="text-[10px] px-2 py-0">
+                  {item.highlight}
+                </Badge>
               </div>
             ))}
+          </div>
+
+          {/* 소셜 프루프 수치 */}
+          <div className="mx-auto mt-12 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-primary" />
+              <span>AI 콘텐츠 <span className="font-semibold text-foreground">5가지 유형</span> 지원</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <span>SEO <span className="font-semibold text-foreground">10개 항목</span> 정밀 분석</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Search className="h-4 w-4 text-primary" />
+              <span>네이버 공식 API <span className="font-semibold text-foreground">실시간</span> 데이터</span>
+            </div>
           </div>
         </div>
       </div>

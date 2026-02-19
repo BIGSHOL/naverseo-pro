@@ -141,6 +141,11 @@ export default function ContentCalendarPage() {
   const totalContents = contents.length
   const draftCount = contents.filter((c) => c.status === 'draft').length
   const publishedCount = contents.filter((c) => c.status === 'published').length
+  const activeDays = Object.keys(contentsByDate).length
+  const withScore = contents.filter((c) => c.seo_score !== null)
+  const avgSeoScore = withScore.length > 0
+    ? Math.round(withScore.reduce((sum, c) => sum + (c.seo_score || 0), 0) / withScore.length)
+    : null
 
   return (
     <div className="space-y-6">
@@ -160,10 +165,10 @@ export default function ContentCalendarPage() {
       </div>
 
       {/* 월별 통계 */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">이번 달 총 콘텐츠</p>
+            <p className="text-sm text-muted-foreground">총 콘텐츠</p>
             <p className="mt-1 text-2xl font-bold">{totalContents}편</p>
           </CardContent>
         </Card>
@@ -177,6 +182,25 @@ export default function ContentCalendarPage() {
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">발행됨</p>
             <p className="mt-1 text-2xl font-bold text-green-600">{publishedCount}편</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">작성일수</p>
+            <p className="mt-1 text-2xl font-bold text-blue-600">
+              {activeDays}일
+              <span className="ml-1 text-xs font-normal text-muted-foreground">/ {daysInMonth}일</span>
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">평균 SEO 점수</p>
+            <p className={`mt-1 text-2xl font-bold ${
+              avgSeoScore === null ? '' : avgSeoScore >= 70 ? 'text-green-600' : avgSeoScore >= 50 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {avgSeoScore !== null ? `${avgSeoScore}점` : '-'}
+            </p>
           </CardContent>
         </Card>
       </div>

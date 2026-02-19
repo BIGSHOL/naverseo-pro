@@ -272,7 +272,13 @@ export default function ReportPage() {
                           </Badge>
                         </td>
                         <td className="py-2">
-                          {c.seo_score !== null ? `${c.seo_score}점` : '-'}
+                          {c.seo_score !== null ? (
+                            <span className={`font-medium ${
+                              c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              {c.seo_score}점
+                            </span>
+                          ) : '-'}
                         </td>
                         <td className="py-2 text-muted-foreground">
                           {new Date(c.created_at).toLocaleDateString('ko-KR')}
@@ -300,25 +306,33 @@ export default function ReportPage() {
                       <th className="pb-2 font-medium">#</th>
                       <th className="pb-2 font-medium">키워드</th>
                       <th className="pb-2 font-medium">블로그</th>
+                      <th className="pb-2 font-medium">섹션</th>
                       <th className="pb-2 font-medium">순위</th>
                       <th className="pb-2 font-medium">확인일</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.tracking.map((t, i) => (
-                      <tr key={`${t.keyword}-${t.blog_url}`} className="border-b last:border-0">
+                      <tr key={`${t.keyword}-${t.blog_url}-${i}`} className="border-b last:border-0">
                         <td className="py-2 text-muted-foreground">{i + 1}</td>
                         <td className="py-2 font-medium">{t.keyword}</td>
                         <td className="max-w-[200px] truncate py-2 text-muted-foreground">
                           {t.blog_url}
                         </td>
                         <td className="py-2">
+                          <Badge variant="outline" className="text-xs">
+                            {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                          </Badge>
+                        </td>
+                        <td className="py-2">
                           {t.rank_position !== null ? (
                             <span
                               className={
-                                t.rank_position <= 10
+                                t.rank_position <= 5
                                   ? 'font-bold text-green-600'
-                                  : 'font-medium'
+                                  : t.rank_position <= 10
+                                    ? 'font-bold text-blue-600'
+                                    : 'font-medium'
                               }
                             >
                               {t.rank_position}위

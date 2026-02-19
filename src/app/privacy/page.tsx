@@ -24,7 +24,7 @@ export default function PrivacyPage() {
             하기 위하여 다음과 같이 개인정보 처리방침을 수립·공개합니다.
           </p>
           <p className="mt-3">
-            이 개인정보처리방침은 2024년 1월 1일부터 적용됩니다.
+            이 개인정보처리방침은 2026년 2월 19일부터 적용됩니다.
           </p>
         </div>
 
@@ -287,7 +287,7 @@ export default function PrivacyPage() {
                   <p className="font-medium text-foreground">개인정보 보호책임자</p>
                   <ul className="mt-2 space-y-1">
                     <li>담당: NaverSEO Pro 운영팀</li>
-                    <li>이메일: support@naverseo.pro</li>
+                    <li>이메일: soseon203@gmail.com</li>
                   </ul>
                 </div>
               </li>
@@ -307,7 +307,7 @@ export default function PrivacyPage() {
               <p className="font-medium text-foreground">개인정보 열람청구 접수·처리 부서</p>
               <ul className="mt-2 space-y-1">
                 <li>담당: NaverSEO Pro 운영팀</li>
-                <li>이메일: support@naverseo.pro</li>
+                <li>이메일: soseon203@gmail.com</li>
               </ul>
             </div>
           </section>
@@ -331,7 +331,7 @@ export default function PrivacyPage() {
           <section className="border-t pt-8">
             <h2 className="mb-3 text-lg font-semibold text-foreground">제14조 (개인정보 처리방침 변경)</h2>
             <ol className="list-decimal space-y-2 pl-6">
-              <li>이 개인정보처리방침은 2024년 1월 1일부터 적용됩니다.</li>
+              <li>이 개인정보처리방침은 2026년 2월 19일부터 적용됩니다.</li>
               <li>이전의 개인정보 처리방침은 아래에서 확인하실 수 있습니다.</li>
             </ol>
             <p className="mt-3 text-xs">(이전 내역 없음)</p>

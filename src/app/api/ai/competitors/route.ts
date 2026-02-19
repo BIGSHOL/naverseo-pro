@@ -43,6 +43,17 @@ interface PatternAnalysis {
   }
 }
 
+interface DifficultyAssessment {
+  level: 'easy' | 'medium' | 'hard' | 'very_hard'
+  score: number // 0~100 (높을수록 어려움)
+  reasons: string[]
+}
+
+interface TitlePatternWords {
+  word: string
+  count: number
+}
+
 interface AiInsights {
   summary: string
   topPatterns: string[]
@@ -131,6 +142,70 @@ function analyzePatterns(competitors: CompetitorItem[], keyword: string): Patter
   return { titleStats, dateStats, blogDiversity }
 }
 
+// === 경쟁 난이도 평가 ===
+
+function assessDifficulty(patterns: PatternAnalysis, competitors: CompetitorItem[]): DifficultyAssessment {
+  let score = 0
+  const reasons: string[] = []
+
+  // 키워드 포함률이 높으면 경쟁이 세밀함 (최대 25점)
+  const kwRate = patterns.titleStats.keywordInTitleRate
+  if (kwRate >= 80) { score += 25; reasons.push('상위 글 80% 이상이 제목에 키워드를 포함') }
+  else if (kwRate >= 60) { score += 15; reasons.push('상위 글 60% 이상이 제목에 키워드를 포함') }
+  else { score += 5; reasons.push('제목에 키워드를 포함한 글이 적어 진입 가능성 높음') }
+
+  // 최신 글 비율 (최대 25점)
+  const recentRate = patterns.dateStats.within30Days / competitors.length
+  if (recentRate >= 0.5) { score += 25; reasons.push(`최근 30일 내 작성 글이 ${patterns.dateStats.within30Days}개로 경쟁 활발`) }
+  else if (recentRate >= 0.3) { score += 15; reasons.push('최근 글이 일부 있어 적당한 경쟁 수준') }
+  else { score += 5; reasons.push('오래된 글이 많아 최신 콘텐츠로 충분히 진입 가능') }
+
+  // 블로그 다양성 낮음 = 독점 = 어려움 (최대 25점)
+  const diversity = patterns.blogDiversity.diversityRate
+  if (diversity < 50) { score += 25; reasons.push('특정 블로그가 상위를 독점하고 있어 진입이 어려움') }
+  else if (diversity < 80) { score += 15; reasons.push('블로그 다양성이 보통 수준') }
+  else { score += 5; reasons.push('다양한 블로그가 노출되어 신규 진입이 용이') }
+
+  // 제목 길이 최적화 수준 (최대 25점)
+  const avgLen = patterns.titleStats.avgLength
+  if (avgLen >= 25 && avgLen <= 40) { score += 20; reasons.push('상위 글 제목이 SEO 최적 길이 (25~40자)에 맞춰져 있음') }
+  else { score += 8; reasons.push('제목 길이가 비효율적이어서 최적화된 제목으로 차별화 가능') }
+
+  const level = score >= 75 ? 'very_hard' : score >= 55 ? 'hard' : score >= 35 ? 'medium' : 'easy'
+
+  return { level, score, reasons }
+}
+
+// === 제목 패턴 워드 추출 ===
+
+function extractTitlePatterns(competitors: CompetitorItem[], keyword: string): TitlePatternWords[] {
+  const stopWords = new Set(['의', '에', '를', '을', '이', '가', '은', '는', '로', '으로', '과', '와', '한', '할', '하는', '된', '되는', '및', '등', '더', '그', '이런', '저런', '그런'])
+  const keywordWords = new Set(keyword.toLowerCase().split(/\s+/))
+  const wordCount = new Map<string, number>()
+
+  for (const comp of competitors) {
+    // 제목에서 특수문자 제거 후 단어 추출
+    const words = comp.title
+      .replace(/[\[\]【】\(\)「」『』|·\-_~!@#$%^&*+=,.<>?;:'"\/\\]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && !stopWords.has(w) && !keywordWords.has(w.toLowerCase()))
+
+    const seen = new Set<string>()
+    for (const word of words) {
+      if (!seen.has(word)) {
+        seen.add(word)
+        wordCount.set(word, (wordCount.get(word) || 0) + 1)
+      }
+    }
+  }
+
+  return Array.from(wordCount.entries())
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([word, count]) => ({ word, count }))
+}
+
 // === AI 분석 ===
 
 async function getAiInsights(
@@ -176,13 +251,13 @@ function generateDemoCompetitors(keyword: string): CompetitorItem[] {
   const blogNames = ['블로그마스터', '일상기록장', '꿀팁대방출', '리뷰요정', '엄마의하루', '트렌드헌터', '생활연구소', '정보나눔이', '경험공유소', '스마트라이프']
 
   const titles = [
-    `${keyword} 완벽 가이드 2025 총정리`,
+    `${keyword} 완벽 가이드 2026 총정리`,
     `${keyword} 추천 TOP 7 직접 비교해봄`,
     `${keyword} 후기 솔직하게 알려드릴게요`,
     `${keyword} 초보자도 쉽게 따라하는 방법`,
     `${keyword} 비교 분석 장단점 총정리`,
     `${keyword} 가성비 좋은 것만 골랐어요`,
-    `[2025] ${keyword} 최신 트렌드 분석`,
+    `[2026] ${keyword} 최신 트렌드 분석`,
     `${keyword} 실패하지 않는 꿀팁 5가지`,
     `${keyword} 전문가가 알려주는 핵심 포인트`,
     `내돈내산 ${keyword} 3개월 사용 후기`,
@@ -195,7 +270,7 @@ function generateDemoCompetitors(keyword: string): CompetitorItem[] {
     `${keyword} 시작하시는 분들을 위해 기본부터 심화까지 단계별로 정리했습니다.`,
     `여러 ${keyword}를 직접 비교해보고 장단점을 분석했습니다. 선택에 도움이 되길 바랍니다.`,
     `가성비 좋은 ${keyword}만 엄선해서 추천드립니다. 가격 대비 만족도가 높은 것들이에요.`,
-    `2025년 최신 ${keyword} 트렌드를 분석했습니다. 올해 달라진 점을 확인해보세요.`,
+    `2026년 최신 ${keyword} 트렌드를 분석했습니다. 올해 달라진 점을 확인해보세요.`,
     `${keyword}에서 실패하지 않는 핵심 꿀팁 5가지를 정리했어요.`,
     `전문가 관점에서 ${keyword}의 핵심 포인트를 짚어드립니다.`,
     `3개월 동안 직접 사용해본 ${keyword} 솔직 후기입니다. 내돈내산 리뷰!`,
@@ -230,7 +305,7 @@ function getDemoAiInsights(keyword: string): AiInsights {
       '제목에 키워드를 앞쪽에 배치하고 "추천", "TOP", "비교" 등 클릭 유도 단어 사용',
       '2,000~3,000자 분량의 체계적 구조 (소제목 3-5개 활용)',
       '직접 경험 기반의 솔직한 톤으로 신뢰감 확보',
-      '최신 연도(2025)를 제목이나 본문에 명시하여 최신성 어필',
+      '최신 연도(2026)를 제목이나 본문에 명시하여 최신성 어필',
     ],
     contentGaps: [
       '대부분의 글이 일반적인 정보 나열에 그치고 있어, 구체적인 비용/가격 비교 콘텐츠가 부족',
@@ -239,7 +314,7 @@ function getDemoAiInsights(keyword: string): AiInsights {
     ],
     recommendedStrategy: `${keyword} 키워드로 상위 노출을 위해서는 직접 경험 기반의 2,500자 이상 콘텐츠를 작성하되, 기존 상위 글들이 다루지 않는 구체적인 비용 비교나 단계별 가이드 형태로 차별화하세요. 제목은 30자 내외로 키워드를 앞쪽에 배치하고, 소제목 4-5개로 구조화하여 체류 시간을 높이는 것이 핵심입니다.`,
     titleSuggestions: [
-      `${keyword} 완벽 정리 - 초보자를 위한 단계별 가이드 (2025)`,
+      `${keyword} 완벽 정리 - 초보자를 위한 단계별 가이드 (2026)`,
       `${keyword} 실제 비용 비교 분석 | 가성비 순위 TOP 5`,
       `${keyword} 3개월 직접 경험 후기 - 장단점 솔직 리뷰`,
     ],
@@ -274,12 +349,16 @@ export async function POST(request: NextRequest) {
     if (!process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET) {
       const demoCompetitors = generateDemoCompetitors(cleanKeyword)
       const demoPatterns = analyzePatterns(demoCompetitors, cleanKeyword)
+      const demoDifficulty = assessDifficulty(demoPatterns, demoCompetitors)
+      const demoTitlePatterns = extractTitlePatterns(demoCompetitors, cleanKeyword)
       const demoAi = includeAi ? getDemoAiInsights(cleanKeyword) : null
 
       return NextResponse.json({
         keyword: cleanKeyword,
         competitors: demoCompetitors,
         patterns: demoPatterns,
+        difficulty: demoDifficulty,
+        titlePatterns: demoTitlePatterns,
         aiInsights: demoAi,
         isDemo: true,
       })
@@ -310,6 +389,8 @@ export async function POST(request: NextRequest) {
 
     // 패턴 분석
     const patterns = analyzePatterns(competitors, cleanKeyword)
+    const difficulty = assessDifficulty(patterns, competitors)
+    const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
 
     // AI 인사이트 (옵션)
     let aiInsights: AiInsights | null = null
@@ -326,6 +407,8 @@ export async function POST(request: NextRequest) {
       keyword: cleanKeyword,
       competitors,
       patterns,
+      difficulty,
+      titlePatterns,
       aiInsights,
       isDemo: false,
     })

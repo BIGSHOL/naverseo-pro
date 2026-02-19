@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown, RefreshCw, Activity } from 'lucide-react'
+import { Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText, CalendarDays, FileDown, RefreshCw, Activity, Users, Lightbulb } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +31,12 @@ const quickActions = [
     icon: Search,
   },
   {
+    title: '키워드 기회',
+    description: '블루오션 키워드를 발견하세요',
+    href: '/opportunities',
+    icon: Lightbulb,
+  },
+  {
     title: 'AI 콘텐츠 생성',
     description: 'SEO 최적화된 블로그 글 작성',
     href: '/content',
@@ -41,6 +47,12 @@ const quickActions = [
     description: '콘텐츠 SEO 점수를 확인하세요',
     href: '/seo-check',
     icon: BarChart3,
+  },
+  {
+    title: '경쟁사 분석',
+    description: '상위 노출 블로그 패턴 분석',
+    href: '/competitors',
+    icon: Users,
   },
   {
     title: '블로그 지수',
@@ -288,10 +300,51 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 오늘의 추천 */}
+      {!loading && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="flex items-start gap-4 p-5">
+            <div className="rounded-lg bg-primary/10 p-2.5 shrink-0">
+              <Lightbulb className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm">오늘의 추천</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {contentGenerated === 0 && keywordsUsed === 0
+                  ? '키워드 리서치부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
+                  : keywordsUsed > 0 && contentGenerated === 0
+                    ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
+                    : contentGenerated > 0 && recentContent.some(c => c.status === 'draft')
+                      ? `초안 상태의 콘텐츠가 있습니다. SEO 점수를 확인하고 발행해보세요!`
+                      : `이번 달 ${contentGenerated}편의 콘텐츠를 생성하셨습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
+                }
+              </p>
+              <div className="mt-2">
+                <Link href={
+                  contentGenerated === 0 && keywordsUsed === 0 ? '/keywords'
+                    : keywordsUsed > 0 && contentGenerated === 0 ? '/content'
+                      : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? '/seo-check'
+                        : '/content'
+                }>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    {contentGenerated === 0 && keywordsUsed === 0 ? '키워드 조회하기'
+                      : keywordsUsed > 0 && contentGenerated === 0 ? '글 작성하기'
+                        : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? 'SEO 체크하기'
+                          : '새 글 작성하기'
+                    }
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 빠른 액션 */}
       <div>
         <h2 className="mb-4 text-lg font-semibold">빠른 시작</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {quickActions.map((action) => (
             <Card
               key={action.title}

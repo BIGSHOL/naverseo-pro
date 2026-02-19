@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2 } from 'lucide-react'
+import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,6 +48,17 @@ interface PatternAnalysis {
   }
 }
 
+interface DifficultyAssessment {
+  level: 'easy' | 'medium' | 'hard' | 'very_hard'
+  score: number
+  reasons: string[]
+}
+
+interface TitlePatternWord {
+  word: string
+  count: number
+}
+
 interface AiInsights {
   summary: string
   topPatterns: string[]
@@ -66,6 +77,16 @@ function formatDaysAgo(days: number): string {
   return `${Math.floor(days / 365)}년 전`
 }
 
+function getDifficultyInfo(level: string) {
+  switch (level) {
+    case 'easy': return { label: '쉬움', color: 'text-green-600', bg: 'bg-green-100', barColor: 'bg-green-500' }
+    case 'medium': return { label: '보통', color: 'text-yellow-600', bg: 'bg-yellow-100', barColor: 'bg-yellow-500' }
+    case 'hard': return { label: '어려움', color: 'text-orange-600', bg: 'bg-orange-100', barColor: 'bg-orange-500' }
+    case 'very_hard': return { label: '매우 어려움', color: 'text-red-600', bg: 'bg-red-100', barColor: 'bg-red-500' }
+    default: return { label: '알 수 없음', color: 'text-gray-600', bg: 'bg-gray-100', barColor: 'bg-gray-500' }
+  }
+}
+
 // === 메인 페이지 ===
 
 export default function CompetitorsPage() {
@@ -77,6 +98,8 @@ export default function CompetitorsPage() {
 
   const [competitors, setCompetitors] = useState<CompetitorItem[]>([])
   const [patterns, setPatterns] = useState<PatternAnalysis | null>(null)
+  const [difficulty, setDifficulty] = useState<DifficultyAssessment | null>(null)
+  const [titlePatterns, setTitlePatterns] = useState<TitlePatternWord[]>([])
 
   const [aiInsights, setAiInsights] = useState<AiInsights | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
@@ -104,6 +127,8 @@ export default function CompetitorsPage() {
 
       setCompetitors(data.competitors)
       setPatterns(data.patterns)
+      setDifficulty(data.difficulty || null)
+      setTitlePatterns(data.titlePatterns || [])
       setIsDemo(data.isDemo || false)
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -174,6 +199,48 @@ export default function CompetitorsPage() {
             <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
               네이버 API 키가 설정되지 않아 데모 데이터를 표시합니다.
             </div>
+          )}
+
+          {/* 경쟁 난이도 */}
+          {difficulty && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${getDifficultyInfo(difficulty.level).bg}`}>
+                    <Shield className={`h-6 w-6 ${getDifficultyInfo(difficulty.level).color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-semibold">경쟁 진입 난이도</h3>
+                      <Badge className={`${getDifficultyInfo(difficulty.level).bg} ${getDifficultyInfo(difficulty.level).color} border-0`}>
+                        {getDifficultyInfo(difficulty.level).label}
+                      </Badge>
+                    </div>
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                        <span>쉬움</span>
+                        <span>{difficulty.score}점</span>
+                        <span>어려움</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted">
+                        <div
+                          className={`h-2 rounded-full transition-all ${getDifficultyInfo(difficulty.level).barColor}`}
+                          style={{ width: `${difficulty.score}%` }}
+                        />
+                      </div>
+                    </div>
+                    <ul className="space-y-1">
+                      {difficulty.reasons.map((reason, i) => (
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* 요약 통계 */}
@@ -269,8 +336,8 @@ export default function CompetitorsPage() {
                             <span className="line-clamp-2">{comp.title}</span>
                             <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
                           </a>
-                          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground md:hidden">
-                            {comp.bloggerName}
+                          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                            {comp.description}
                           </p>
                         </td>
                         <td className="hidden py-3 pr-4 md:table-cell">
@@ -407,6 +474,33 @@ export default function CompetitorsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* 제목 패턴 워드 */}
+          {titlePatterns.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Hash className="h-4 w-4" />
+                  상위 글 제목 키워드 패턴
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">상위 블로그 제목에 자주 등장하는 단어입니다. 제목 작성 시 참고하세요.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {titlePatterns.map((tp) => (
+                    <Badge
+                      key={tp.word}
+                      variant="secondary"
+                      className="text-sm px-3 py-1"
+                    >
+                      {tp.word}
+                      <span className="ml-1.5 text-xs text-muted-foreground">×{tp.count}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* AI 인사이트 */}
           <Card>

@@ -2,6 +2,7 @@ import { Navbar } from '@/components/landing/navbar'
 import { HeroSection } from '@/components/landing/hero-section'
 import { ProblemSection } from '@/components/landing/problem-section'
 import { FeaturesSection } from '@/components/landing/features-section'
+import { ComparisonSection } from '@/components/landing/comparison-section'
 import { PricingSection } from '@/components/landing/pricing-section'
 import { FaqSection } from '@/components/landing/faq-section'
 import { CtaSection } from '@/components/landing/cta-section'
@@ -14,6 +15,7 @@ export default function Home() {
       <HeroSection />
       <ProblemSection />
       <FeaturesSection />
+      <ComparisonSection />
       <PricingSection />
       <FaqSection />
       <CtaSection />

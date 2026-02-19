@@ -30,21 +30,42 @@ function getDemoOpportunities(topic: string): OpportunityItem[] {
     { keyword: `${topic} 추천 순위 TOP5`, category: '구매형', reason: '리스트형 콘텐츠는 클릭률이 높고 체류 시간이 깁니다' },
     { keyword: `${topic} 실패 경험담`, category: '경험형', reason: '실패 사례는 경쟁 글이 적으면서 신뢰도가 높은 콘텐츠입니다' },
     { keyword: `${topic} 주의사항 총정리`, category: '정보형', reason: '주의사항/팁 정리 콘텐츠는 검색 의도가 명확하여 전환율이 높습니다' },
-    { keyword: `2025 ${topic} 트렌드`, category: '정보형', reason: '연도 포함 키워드는 최신성을 인정받아 네이버 노출에 유리합니다' },
+    { keyword: `2026 ${topic} 트렌드`, category: '정보형', reason: '연도 포함 키워드는 최신성을 인정받아 네이버 노출에 유리합니다' },
     { keyword: `${topic} vs 대안 비교`, category: '비교형', reason: 'vs 비교 콘텐츠는 체류 시간이 길어 D.I.A. 점수가 높아집니다' },
     { keyword: `${topic} 1개월 후기`, category: '경험형', reason: '구체적 기간 명시 후기는 롱테일 키워드로 경쟁이 낮습니다' },
     { keyword: `${topic} 가성비 추천`, category: '구매형', reason: '가성비 키워드는 구매 전환율이 높은 핵심 키워드입니다' },
     { keyword: `${topic} 하는 방법 단계별`, category: '정보형', reason: '단계별 가이드는 소제목 구조화에 유리하고 SEO 점수가 높습니다' },
+    { keyword: `${topic} 장단점 솔직 정리`, category: '비교형', reason: '장단점 키워드는 검색 의도가 명확하고 클릭률이 높습니다' },
+    { keyword: `${topic} 입문자 필수템`, category: '구매형', reason: '입문자 대상 추천은 구매 전환율이 높고 경쟁이 낮습니다' },
+    { keyword: `${topic} 3개월 변화 과정`, category: '경험형', reason: '장기 후기는 희소성이 높아 블루오션 키워드입니다' },
+    { keyword: `${topic} 자주 하는 실수`, category: '정보형', reason: '실수/주의 콘텐츠는 검색량이 꾸준하고 경쟁이 낮습니다' },
+    { keyword: `${topic} 혼자서 시작하기`, category: '정보형', reason: '독학/혼자 키워드는 검색 의도가 높고 콘텐츠 경쟁이 적습니다' },
+    { keyword: `${topic} 효과 없는 이유`, category: '경험형', reason: '부정적 경험 키워드는 공감도가 높아 체류 시간이 깁니다' },
+    { keyword: `${topic} 무료 vs 유료`, category: '비교형', reason: '무료/유료 비교는 구매 결정 단계 사용자를 유입시킵니다' },
+    { keyword: `${topic} 나이별 추천`, category: '구매형', reason: '세분화된 추천 키워드는 경쟁이 매우 낮은 틈새 시장입니다' },
+    { keyword: `${topic} 꿀팁 모음`, category: '정보형', reason: '꿀팁/모음 키워드는 저장·공유율이 높아 노출에 유리합니다' },
+    { keyword: `${topic} 현실 비용 공개`, category: '경험형', reason: '구체적 비용 공개 콘텐츠는 신뢰도와 체류 시간이 매우 높습니다' },
   ]
 
-  return demos.map((d, i) => ({
-    ...d,
-    monthlySearch: Math.floor(Math.random() * 4000) + 200,
-    monthlyPc: Math.floor(Math.random() * 1000) + 50,
-    monthlyMobile: Math.floor(Math.random() * 3000) + 150,
-    compIdx: i < 4 ? 'LOW' : i < 7 ? 'MEDIUM' : 'HIGH',
-    score: Math.floor(Math.random() * 40) + 50,
-  })).sort((a, b) => b.score - a.score)
+  return demos.map((d, i) => {
+    // 다양한 검색량 분포 생성 (고/중/저 tier)
+    const tier = i < 5 ? 'high' : i < 12 ? 'mid' : 'low'
+    const monthlyPc = tier === 'high' ? Math.floor(Math.random() * 1500) + 500
+      : tier === 'mid' ? Math.floor(Math.random() * 600) + 100
+      : Math.floor(Math.random() * 200) + 30
+    const monthlyMobile = tier === 'high' ? Math.floor(Math.random() * 4000) + 1000
+      : tier === 'mid' ? Math.floor(Math.random() * 2000) + 300
+      : Math.floor(Math.random() * 800) + 100
+
+    return {
+      ...d,
+      monthlySearch: monthlyPc + monthlyMobile,
+      monthlyPc,
+      monthlyMobile,
+      compIdx: i < 8 ? 'LOW' : i < 15 ? 'MEDIUM' : 'HIGH',
+      score: Math.floor(Math.random() * 35) + (i < 8 ? 60 : i < 15 ? 40 : 25),
+    }
+  }).sort((a, b) => b.score - a.score)
 }
 
 // === API 핸들러 ===
@@ -142,9 +163,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. 기회 점수 높은 순 정렬 + 상위 12개
+    // 3. 기회 점수 높은 순 정렬 + 상위 20개
     allResults.sort((a, b) => b.score - a.score)
-    const topOpportunities = allResults.slice(0, 12)
+    const topOpportunities = allResults.slice(0, 20)
 
     return NextResponse.json({
       topic: cleanTopic,

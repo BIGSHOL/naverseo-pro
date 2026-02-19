@@ -17,6 +17,7 @@ import {
   ChevronUp,
   TrendingUp,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -99,6 +100,8 @@ export default function ContentPage() {
   const [result, setResult] = useState<ContentResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
+  const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
+  const [contentType, setContentType] = useState('')
 
   // URL param에서 키워드 프리필
   useEffect(() => {
@@ -108,13 +111,11 @@ export default function ContentPage() {
     }
   }, [searchParams])
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const generateContent = async (overrides?: { tone?: string; targetLength?: string; contentType?: string }) => {
     if (!keyword.trim() || loading) return
 
     setLoading(true)
     setError('')
-    setResult(null)
     setShowSeoDetail(false)
 
     try {
@@ -123,7 +124,9 @@ export default function ContentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyword: keyword.trim(),
-          tone,
+          tone: overrides?.tone || tone,
+          targetLength: overrides?.targetLength || targetLength,
+          contentType: overrides?.contentType || contentType || undefined,
           additionalKeywords: additionalKeywords
             .split(',')
             .map((k) => k.trim())
@@ -143,6 +146,12 @@ export default function ContentPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResult(null)
+    await generateContent()
   }
 
   const handleCopy = async () => {
@@ -501,6 +510,98 @@ export default function ContentPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* 재생성 옵션 */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <RefreshCw className="h-4 w-4" />
+                다시 생성하기
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                마음에 들지 않으면 다른 스타일로 다시 생성해보세요.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {/* 같은 설정으로 재생성 */}
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start gap-1 p-3 text-left"
+                  disabled={loading}
+                  onClick={() => generateContent()}
+                >
+                  <span className="text-sm font-medium">같은 설정으로</span>
+                  <span className="text-xs text-muted-foreground">새로운 버전 생성</span>
+                </Button>
+
+                {/* 다른 톤으로 재생성 */}
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start gap-1 p-3 text-left"
+                  disabled={loading}
+                  onClick={() => {
+                    const otherTones = toneOptions.filter(t => t !== tone)
+                    const nextTone = otherTones[Math.floor(Math.random() * otherTones.length)]
+                    setTone(nextTone)
+                    generateContent({ tone: nextTone })
+                  }}
+                >
+                  <span className="text-sm font-medium">다른 톤으로</span>
+                  <span className="text-xs text-muted-foreground">현재: {tone}</span>
+                </Button>
+
+                {/* 더 길게/짧게 */}
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start gap-1 p-3 text-left"
+                  disabled={loading}
+                  onClick={() => {
+                    const next = targetLength === 'medium' ? 'long' : targetLength === 'long' ? 'short' : 'medium'
+                    setTargetLength(next)
+                    generateContent({ targetLength: next })
+                  }}
+                >
+                  <span className="text-sm font-medium">
+                    {targetLength === 'short' ? '더 길게' : targetLength === 'long' ? '간결하게' : '더 길게'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    현재: {targetLength === 'short' ? '짧은 글' : targetLength === 'long' ? '긴 글' : '보통'}
+                  </span>
+                </Button>
+              </div>
+
+              {/* 콘텐츠 유형 변경 */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">콘텐츠 유형 변경</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { type: 'informational', label: '정보형' },
+                    { type: 'comparison', label: '비교/추천형' },
+                    { type: 'review', label: '후기/리뷰형' },
+                    { type: 'howto', label: '방법/가이드형' },
+                    { type: 'listicle', label: '리스트형' },
+                  ].map(({ type, label }) => (
+                    <Badge
+                      key={type}
+                      variant={contentType === type || result.contentType === type ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (!loading) {
+                          setContentType(type)
+                          generateContent({ contentType: type })
+                        }
+                      }}
+                    >
+                      {label}
+                      {result.contentType === type && !contentType && ' (현재)'}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </>

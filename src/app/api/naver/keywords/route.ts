@@ -6,32 +6,40 @@ import {
 } from '@/lib/naver/search-ad'
 import { checkKeywordLimit } from '@/lib/plan-check'
 
-// 데모 데이터 (API 키 없을 때 사용)
+// 데모 데이터 (API 키 없을 때 사용) - 30개 다양한 롱테일 키워드 생성
 function generateDemoData(keyword: string): NaverKeywordResult[] {
-  const variations = [
-    keyword,
-    `${keyword} 추천`,
-    `${keyword} 방법`,
-    `${keyword} 후기`,
-    `${keyword} 비교`,
-    `${keyword} 가격`,
-    `${keyword} 순위`,
-    `${keyword} 블로그`,
-    `${keyword} 팁`,
-    `${keyword} 정보`,
+  const suffixes = [
+    '', ' 추천', ' 방법', ' 후기', ' 비교', ' 가격',
+    ' 순위', ' 블로그', ' 팁', ' 정보', ' 하는법',
+    ' 종류', ' 장단점', ' 총정리', ' 2026', ' 리뷰',
+    ' 초보', ' 가이드', ' 효과', ' 주의사항',
+    ' TOP5', ' 선택법', ' 꿀팁', ' 실제', ' 경험',
+    ' 정리', ' 차이', ' 맛집', ' 솔직후기', ' BEST',
   ]
 
-  return variations.map((kw, i) => ({
-    relKeyword: kw,
-    monthlyPcQcCnt: Math.floor(Math.random() * 5000) + (i === 0 ? 3000 : 100),
-    monthlyMobileQcCnt: Math.floor(Math.random() * 15000) + (i === 0 ? 8000 : 300),
-    monthlyAvePcClkCnt: Math.floor(Math.random() * 200) + 10,
-    monthlyAveMobileClkCnt: Math.floor(Math.random() * 500) + 30,
-    monthlyAvePcCtr: Math.random() * 5 + 0.5,
-    monthlyAveMobileCtr: Math.random() * 8 + 1,
-    plAvgDepth: Math.floor(Math.random() * 15) + 1,
-    compIdx: ['HIGH', 'MEDIUM', 'LOW'][Math.floor(Math.random() * 3)],
-  }))
+  return suffixes.map((suffix, i) => {
+    const kw = `${keyword}${suffix}`
+    // 시드 키워드는 높은 검색량, 롱테일로 갈수록 낮은 검색량 + 낮은 경쟁도
+    const isSeed = i === 0
+    const tier = i < 5 ? 'high' : i < 15 ? 'mid' : 'low'
+
+    const pcBase = isSeed ? 3000 : tier === 'high' ? 800 : tier === 'mid' ? 200 : 50
+    const mobileBase = isSeed ? 8000 : tier === 'high' ? 2500 : tier === 'mid' ? 600 : 150
+
+    return {
+      relKeyword: kw,
+      monthlyPcQcCnt: pcBase + Math.floor(Math.random() * pcBase * 0.5),
+      monthlyMobileQcCnt: mobileBase + Math.floor(Math.random() * mobileBase * 0.5),
+      monthlyAvePcClkCnt: Math.floor(Math.random() * 200) + 10,
+      monthlyAveMobileClkCnt: Math.floor(Math.random() * 500) + 30,
+      monthlyAvePcCtr: Math.random() * 5 + 0.5,
+      monthlyAveMobileCtr: Math.random() * 8 + 1,
+      plAvgDepth: Math.floor(Math.random() * 15) + 1,
+      compIdx: tier === 'low' ? 'LOW' : tier === 'mid'
+        ? (['MEDIUM', 'LOW'] as const)[Math.floor(Math.random() * 2)]
+        : (['HIGH', 'MEDIUM'] as const)[Math.floor(Math.random() * 2)],
+    }
+  })
 }
 
 // Supabase에 키워드 검색 결과 저장 + 사용량 증가

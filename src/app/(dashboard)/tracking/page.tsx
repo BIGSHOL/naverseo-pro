@@ -77,6 +77,7 @@ export default function TrackingPage() {
   const [newBlogUrl, setNewBlogUrl] = useState('')
   const [error, setError] = useState('')
   const [isDemo, setIsDemo] = useState(false)
+  const [bulkChecking, setBulkChecking] = useState(false)
 
   async function loadTracking() {
     try {
@@ -178,6 +179,46 @@ export default function TrackingPage() {
     }
   }
 
+  // 전체 새로고침
+  async function handleBulkCheck() {
+    if (keywords.length === 0 || bulkChecking) return
+    setBulkChecking(true)
+
+    for (const kw of keywords) {
+      try {
+        await fetch('/api/tracking/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keyword: kw.keyword, blogUrl: kw.blog_url }),
+        })
+      } catch {
+        // 개별 실패 무시
+      }
+    }
+
+    await loadTracking()
+    setBulkChecking(false)
+  }
+
+  // 최고 순위 계산
+  function getBestRank(history: TrackingHistory[]): number | null {
+    const ranks = history
+      .map(h => h.rank_position)
+      .filter((r): r is number => r !== null)
+    return ranks.length > 0 ? Math.min(...ranks) : null
+  }
+
+  // 섹션 라벨
+  function getSectionLabel(section: string | null): string {
+    if (!section) return ''
+    const labels: Record<string, string> = {
+      blog: '블로그탭',
+      smartblock: '스마트블록',
+      view: 'VIEW탭',
+    }
+    return labels[section] || section
+  }
+
   // 통계 계산
   const totalKeywords = keywords.length
   const inRankCount = keywords.filter((k) => k.latest.rank_position !== null).length
@@ -205,10 +246,23 @@ export default function TrackingPage() {
             </span>
           </p>
         </div>
-        <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          키워드 추가
-        </Button>
+        <div className="flex gap-2">
+          {keywords.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleBulkCheck}
+              disabled={bulkChecking}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
+              {bulkChecking ? '확인 중...' : '전체 새로고침'}
+            </Button>
+          )}
+          <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            키워드 추가
+          </Button>
+        </div>
       </div>
 
       {isDemo && (
@@ -457,10 +511,21 @@ export default function TrackingPage() {
                           <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        마지막 확인: {timeAgo(kw.latest.checked_at)}
-                        {kw.history.length > 1 && ` · ${kw.history.length}회 기록`}
-                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>마지막 확인: {timeAgo(kw.latest.checked_at)}</span>
+                        {kw.history.length > 1 && <span>· {kw.history.length}회 기록</span>}
+                        {kw.latest.section && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {getSectionLabel(kw.latest.section)}
+                          </Badge>
+                        )}
+                        {(() => {
+                          const best = getBestRank(kw.history)
+                          return best !== null && kw.history.length > 1 ? (
+                            <span className="text-green-600">최고 {best}위</span>
+                          ) : null
+                        })()}
+                      </div>
                     </div>
 
                     {/* 액션 버튼 */}

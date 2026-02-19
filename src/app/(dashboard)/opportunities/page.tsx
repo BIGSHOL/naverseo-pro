@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, Cell, ZAxis } from 'recharts'
 import Link from 'next/link'
 
 interface OpportunityItem {
@@ -180,6 +181,20 @@ export default function OpportunitiesPage() {
       })
     : []
 
+  // 산점도 매트릭스 데이터: X=경쟁도(낮을수록 좋음), Y=검색량, 버블크기=기회점수
+  const matrixData = useMemo(() => {
+    if (!result) return []
+    const compMap: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3 }
+    return result.opportunities.map(opp => ({
+      x: compMap[opp.compIdx] || 2,
+      y: opp.monthlySearch,
+      z: opp.score,
+      keyword: opp.keyword,
+      compIdx: opp.compIdx,
+      category: opp.category,
+    }))
+  }, [result])
+
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
     if (sortKey !== columnKey) return <ArrowUpDown className="ml-1 h-3 w-3 inline opacity-40" />
     return sortDir === 'asc'
@@ -292,6 +307,86 @@ export default function OpportunitiesPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* 기회 매트릭스 산점도 */}
+          {matrixData.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  기회 매트릭스
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  왼쪽 위(검색량 높음 + 경쟁 낮음)에 위치할수록 블루오션 키워드입니다. 원 크기 = 기회 점수
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="w-full h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                      <XAxis
+                        type="number"
+                        dataKey="x"
+                        domain={[0.5, 3.5]}
+                        ticks={[1, 2, 3]}
+                        tickFormatter={(v: number) => v === 1 ? '낮음' : v === 2 ? '보통' : '높음'}
+                        label={{ value: '경쟁도 →', position: 'insideBottom', offset: -20, fontSize: 12 }}
+                        fontSize={12}
+                      />
+                      <YAxis
+                        type="number"
+                        dataKey="y"
+                        tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(1)}만` : v >= 1000 ? `${(v / 1000).toFixed(1)}천` : String(v)}
+                        label={{ value: '월간 검색량 →', angle: -90, position: 'insideLeft', offset: 10, fontSize: 12 }}
+                        fontSize={11}
+                      />
+                      <ZAxis type="number" dataKey="z" range={[80, 500]} />
+                      <RechartsTooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null
+                          const d = payload[0].payload as (typeof matrixData)[0]
+                          return (
+                            <div className="rounded-lg border bg-background p-3 shadow-md text-sm">
+                              <p className="font-semibold">{d.keyword}</p>
+                              <p className="text-muted-foreground">
+                                검색량: {formatNumber(d.y)} · 경쟁: {d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : '높음'}
+                              </p>
+                              <p className="text-primary font-medium">기회 점수: {d.z}점</p>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Scatter data={matrixData}>
+                        {matrixData.map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill={entry.z >= 70 ? '#22c55e' : entry.z >= 40 ? '#eab308' : '#ef4444'}
+                            fillOpacity={0.7}
+                            stroke={entry.z >= 70 ? '#16a34a' : entry.z >= 40 ? '#ca8a04' : '#dc2626'}
+                            strokeWidth={1}
+                          />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* 범례 */}
+                <div className="flex items-center justify-center gap-6 mt-2 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-full bg-green-500" /> 높은 기회 (70+)
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-full bg-yellow-500" /> 보통 (40~69)
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-3 w-3 rounded-full bg-red-500" /> 낮은 기회 (&lt;40)
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 기회 키워드 테이블 */}
           <Card>
