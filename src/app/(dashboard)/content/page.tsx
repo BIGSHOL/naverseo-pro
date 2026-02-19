@@ -18,12 +18,18 @@ import {
   TrendingUp,
   AlertCircle,
   RefreshCw,
+  Pencil,
+  Save,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
+import { TagEditor } from '@/components/content/TagEditor'
 import Link from 'next/link'
 
 interface SeoCategory {
@@ -103,6 +109,14 @@ export default function ContentPage() {
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [contentType, setContentType] = useState('')
 
+  // 편집 모드 상태
+  const [activeTab, setActiveTab] = useState('preview')
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [editTags, setEditTags] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
+
   // URL param에서 키워드 프리필
   useEffect(() => {
     const kwParam = searchParams.get('keyword')
@@ -160,6 +174,54 @@ export default function ContentPage() {
     await navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const enterEditMode = () => {
+    if (!result) return
+    setEditTitle(result.title)
+    setEditContent(result.content)
+    setEditTags(result.tags || [])
+    setActiveTab('edit')
+  }
+
+  const handleSave = async () => {
+    if (!result?.contentId || saving) return
+    setSaving(true)
+    setSaveMessage('')
+
+    try {
+      const res = await fetch('/api/content/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contentId: result.contentId,
+          title: editTitle,
+          content: editContent,
+          tags: editTags,
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setSaveMessage(data.error || '저장에 실패했습니다.')
+        return
+      }
+
+      // 결과 반영
+      setResult({
+        ...result,
+        title: editTitle,
+        content: editContent,
+        tags: editTags,
+        seoScore: data.seoScore ?? result.seoScore,
+      })
+      setSaveMessage('저장 완료!')
+      setTimeout(() => setSaveMessage(''), 2000)
+    } catch {
+      setSaveMessage('네트워크 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toneOptions = [
@@ -461,6 +523,10 @@ export default function ContentPage() {
                   {result.isDemo && (
                     <Badge variant="outline">데모</Badge>
                   )}
+                  <Button variant="outline" size="sm" onClick={enterEditMode}>
+                    <Pencil className="mr-1 h-3 w-3" />
+                    편집
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleCopy}>
                     {copied ? (
                       <>
@@ -477,39 +543,134 @@ export default function ContentPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 제목 */}
-              <div>
-                <Label className="text-xs text-muted-foreground">제목</Label>
-                <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
-              </div>
+            <CardContent>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="preview">
+                    <Eye className="mr-1 h-3.5 w-3.5" />
+                    미리보기
+                  </TabsTrigger>
+                  <TabsTrigger value="edit">
+                    <Pencil className="mr-1 h-3.5 w-3.5" />
+                    편집
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* 본문 */}
-              <div>
-                <Label className="text-xs text-muted-foreground">본문</Label>
-                <div className="mt-2 rounded-lg border bg-muted/30 p-4">
-                  <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                    {result.content}
+                {/* 미리보기 탭 */}
+                <TabsContent value="preview" className="space-y-6">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">제목</Label>
+                    <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
                   </div>
-                </div>
-              </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">본문</Label>
+                    <div className="mt-2 rounded-lg border bg-muted/30 p-4">
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                        {result.content}
+                      </div>
+                    </div>
+                  </div>
+                  {result.tags && result.tags.length > 0 && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        <Tag className="mr-1 inline h-3 w-3" />
+                        추천 태그
+                      </Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {result.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary">
+                            #{tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
 
-              {/* 태그 */}
-              {result.tags && result.tags.length > 0 && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    <Tag className="mr-1 inline h-3 w-3" />
-                    추천 태그
-                  </Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {result.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
-                        #{tag}
-                      </Badge>
-                    ))}
+                {/* 편집 탭 */}
+                <TabsContent value="edit">
+                  <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                    {/* 좌측: 편집 영역 */}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-title">제목</Label>
+                        <Input
+                          id="edit-title"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-content">본문</Label>
+                        <Textarea
+                          id="edit-content"
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={20}
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {editContent.length.toLocaleString()}자
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>
+                          <Tag className="mr-1 inline h-3 w-3" />
+                          태그
+                        </Label>
+                        <TagEditor tags={editTags} onTagsChange={setEditTags} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button onClick={handleSave} disabled={saving || !result.contentId}>
+                          {saving ? (
+                            <><Loader2 className="mr-1 h-4 w-4 animate-spin" />저장 중...</>
+                          ) : (
+                            <><Save className="mr-1 h-4 w-4" />저장</>
+                          )}
+                        </Button>
+                        {!result.contentId && (
+                          <span className="text-xs text-muted-foreground">데모 콘텐츠는 저장할 수 없습니다</span>
+                        )}
+                        {saveMessage && (
+                          <span className={`text-sm font-medium ${saveMessage.includes('완료') ? 'text-green-600' : 'text-red-600'}`}>
+                            {saveMessage}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 우측: 실시간 SEO 패널 */}
+                    <div className="hidden lg:block">
+                      <div className="sticky top-4">
+                        <div className="mb-2 flex items-center gap-1.5">
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                          <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
+                        </div>
+                        <LiveSeoPanel
+                          keyword={keyword}
+                          title={editTitle}
+                          content={editContent}
+                          compact
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+
+                  {/* 모바일: SEO 패널 아래에 표시 */}
+                  <div className="mt-6 lg:hidden">
+                    <div className="mb-2 flex items-center gap-1.5">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                      <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
+                    </div>
+                    <LiveSeoPanel
+                      keyword={keyword}
+                      title={editTitle}
+                      content={editContent}
+                      compact
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 

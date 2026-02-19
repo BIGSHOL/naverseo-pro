@@ -450,7 +450,9 @@ export function analyzeSeo(
   {
     let score = 0
     const keywordCount = content.split(keyword).length - 1
-    const estimatedWords = contentLength / 2 // 한국어 평균 어절 길이
+    // 한국어 어절 수: 공백 기준 실제 어절 수 사용 (더 정확)
+    const spaceBasedWords = (content.match(/\S+/g) || []).length
+    const estimatedWords = spaceBasedWords > 10 ? spaceBasedWords : Math.ceil(contentLength / 3.5)
     const density = estimatedWords > 0 ? (keywordCount / estimatedWords) * 100 : 0
 
     if (density >= 0.5 && density <= 2.5) {

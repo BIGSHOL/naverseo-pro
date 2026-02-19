@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   analyzeBlogIndex,
+  determineLevelInfo,
   generateDemoPosts,
   generateDemoKeywordResults,
   type BlogPost,
   type KeywordRankResult,
 } from '@/lib/blog-index/engine'
+import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 /**
@@ -350,8 +352,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5축 블로그 지수 분석 엔진 실행
+    // 5축 블로그 지수 분석 엔진 실행 (알고리즘 기반)
     const result = analyzeBlogIndex(blogUrl.trim(), posts, keywordResults, isDemo, blogName)
+
+    // AI 심층 분석 (v2.5) — 알고리즘 분석과 병렬이 아닌 순차 실행 (결과에 보정값 적용)
+    try {
+      const aiAnalysis = isDemo
+        ? generateDemoAiAnalysis()
+        : await analyzeWithAi(posts, isDemo)
+
+      if (aiAnalysis) {
+        result.aiAnalysis = aiAnalysis
+
+        // AI 점수 보정 적용 (알고리즘 점수에 AI 보정값 가산/감산)
+        if (aiAnalysis.scoreAdjustment !== 0) {
+          const adjusted = Math.max(0, Math.min(100, result.totalScore + aiAnalysis.scoreAdjustment))
+          console.log(`[BlogIndex AI] 점수 보정: ${result.totalScore} → ${adjusted} (${aiAnalysis.scoreAdjustment > 0 ? '+' : ''}${aiAnalysis.scoreAdjustment})`)
+          result.totalScore = adjusted
+          // 등급도 보정된 점수로 재계산
+          result.level = determineLevelInfo(result.totalScore)
+        }
+
+        // AI 추천을 기존 추천에 병합 (중복 제거)
+        if (aiAnalysis.recommendations.length > 0) {
+          const existingSet = new Set(result.recommendations.map(r => r.substring(0, 20)))
+          const newRecs = aiAnalysis.recommendations.filter(
+            r => !existingSet.has(r.substring(0, 20))
+          )
+          result.recommendations = [...result.recommendations, ...newRecs].slice(0, 8)
+        }
+      }
+    } catch (aiError) {
+      // AI 분석 실패해도 알고리즘 결과는 정상 반환
+      console.error('[BlogIndex AI] AI 분석 오류 (무시):', aiError)
+    }
 
     // 분석 사용량 증가
     await incrementAnalysisUsage(supabase, user.id)

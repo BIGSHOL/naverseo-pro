@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2 } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
 interface SeoCategory {
@@ -26,7 +28,6 @@ interface SeoResult {
   isDemo: boolean
 }
 
-// 통일된 점수 기준: 80+ 우수(녹색), 60+ 양호(녹색), 40+ 보통(노란색), 40 미만 개선 필요(빨간색)
 function getScoreColor(score: number, max: number) {
   const pct = (score / max) * 100
   if (pct >= 60) return 'text-green-600'
@@ -48,6 +49,13 @@ function getGradeLabel(score: number) {
   return { label: '개선 필요', icon: XCircle, color: 'text-red-600', tooltip: 'SEO 핵심 요소의 보완이 필요합니다' }
 }
 
+function getCharCountClass(len: number) {
+  if (len < 800) return 'text-red-500'
+  if (len < 1500) return 'text-yellow-500'
+  if (len <= 3000) return 'text-green-500'
+  return 'text-yellow-500'
+}
+
 export default function SeoCheckPage() {
   const searchParams = useSearchParams()
   const [keyword, setKeyword] = useState('')
@@ -60,6 +68,9 @@ export default function SeoCheckPage() {
   const [blogUrl, setBlogUrl] = useState('')
   const [fetchingUrl, setFetchingUrl] = useState(false)
   const [fetchSource, setFetchSource] = useState('')
+
+  // 실시간 분석 패널 표시 여부
+  const showLivePanel = content.trim().length >= 50 && keyword.trim().length > 0
 
   // URL param + sessionStorage에서 프리필
   useEffect(() => {
@@ -155,138 +166,165 @@ export default function SeoCheckPage() {
         </p>
       </div>
 
-      {/* 입력 폼 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between text-lg">
-            <span>콘텐츠 입력</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowUrlInput(!showUrlInput)}
-                >
-                  <Link2 className="mr-1.5 h-4 w-4" />
-                  URL로 가져오기
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>네이버 블로그 URL에서 제목과 본문을 자동으로 가져옵니다</p></TooltipContent>
-            </Tooltip>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {showUrlInput && (
-            <div className="mb-4 rounded-md border border-dashed p-4 space-y-3">
-              <Label>네이버 블로그 URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="https://blog.naver.com/blogid/123456789"
-                  value={blogUrl}
-                  onChange={(e) => setBlogUrl(e.target.value)}
-                  disabled={fetchingUrl}
-                />
-                <Button
-                  type="button"
-                  onClick={handleFetchBlog}
-                  disabled={fetchingUrl || !blogUrl.trim()}
-                >
-                  {fetchingUrl ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    '가져오기'
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                네이버 블로그 글 URL을 입력하면 제목과 본문을 자동으로 가져옵니다
-              </p>
-            </div>
-          )}
-
-          {fetchSource && (
-            <div className="mb-4 flex items-center gap-2">
-              <Badge variant="secondary" className="gap-1">
-                <ExternalLink className="h-3 w-3" />
-                URL에서 가져옴
-              </Badge>
-              <a
-                href={fetchSource}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:underline truncate max-w-[300px]"
-              >
-                {fetchSource}
-              </a>
-            </div>
-          )}
-
-          <form onSubmit={handleAnalyze} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="keyword">타겟 키워드</Label>
-                <Input
-                  id="keyword"
-                  placeholder="예: 다이어트 식단"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">글 제목</Label>
-                <Input
-                  id="title"
-                  placeholder="블로그 글 제목을 입력하세요"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="content">본문 *</Label>
-                <span className="text-xs text-muted-foreground">
-                  {content.length}자
-                </span>
-              </div>
-              <textarea
-                id="content"
-                className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="분석할 블로그 글 내용을 붙여넣기 하세요..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
+      {/* 입력 폼 + 실시간 분석 2컬럼 */}
+      <div className={cn('grid gap-6', showLivePanel && 'lg:grid-cols-[1fr,380px]')}>
+        {/* 좌측: 입력 폼 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-lg">
+              <span>콘텐츠 입력</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUrlInput(!showUrlInput)}
+                  >
+                    <Link2 className="mr-1.5 h-4 w-4" />
+                    URL로 가져오기
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>네이버 블로그 URL에서 제목과 본문을 자동으로 가져옵니다</p></TooltipContent>
+              </Tooltip>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {showUrlInput && (
+              <div className="mb-4 rounded-md border border-dashed p-4 space-y-3">
+                <Label>네이버 블로그 URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://blog.naver.com/blogid/123456789"
+                    value={blogUrl}
+                    onChange={(e) => setBlogUrl(e.target.value)}
+                    disabled={fetchingUrl}
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleFetchBlog}
+                    disabled={fetchingUrl || !blogUrl.trim()}
+                  >
+                    {fetchingUrl ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      '가져오기'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  네이버 블로그 글 URL을 입력하면 제목과 본문을 자동으로 가져옵니다
+                </p>
               </div>
             )}
 
-            <Button type="submit" disabled={loading || !content.trim()} className="w-full">
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  SEO 분석 중...
-                </>
-              ) : (
-                <>
-                  <BarChart3 className="mr-2 h-4 w-4" />
-                  SEO 점수 분석하기
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            {fetchSource && (
+              <div className="mb-4 flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <ExternalLink className="h-3 w-3" />
+                  URL에서 가져옴
+                </Badge>
+                <a
+                  href={fetchSource}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground hover:underline truncate max-w-[300px]"
+                >
+                  {fetchSource}
+                </a>
+              </div>
+            )}
 
-      {/* 분석 결과 */}
+            <form onSubmit={handleAnalyze} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="keyword">타겟 키워드</Label>
+                  <Input
+                    id="keyword"
+                    placeholder="예: 다이어트 식단"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="title">글 제목</Label>
+                  <Input
+                    id="title"
+                    placeholder="블로그 글 제목을 입력하세요"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="content">본문 *</Label>
+                  <span className={cn('text-xs font-medium', getCharCountClass(content.length))}>
+                    {content.length.toLocaleString()}자
+                    {content.length > 0 && content.length < 1500 && ' (최소 1,500자 권장)'}
+                    {content.length >= 1500 && content.length <= 3000 && ' (적정)'}
+                    {content.length > 3000 && ' (길 수 있음)'}
+                  </span>
+                </div>
+                <textarea
+                  id="content"
+                  className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="분석할 블로그 글 내용을 붙여넣기 하세요..."
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    AI 심층 분석 중...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    AI 심층 분석
+                  </>
+                )}
+              </Button>
+              {showLivePanel && (
+                <p className="text-center text-xs text-muted-foreground">
+                  실시간 기본 분석은 우측에서 확인하세요. AI 심층 분석은 더 정밀한 결과를 제공합니다.
+                </p>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* 우측: 실시간 SEO 분석 패널 */}
+        {showLivePanel && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">실시간 분석</span>
+              <Badge variant="secondary" className="text-xs">LIVE</Badge>
+            </div>
+            <LiveSeoPanel
+              keyword={keyword}
+              title={title}
+              content={content}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* AI 심층 분석 결과 */}
       {result && grade && (
         <>
           {/* 총점 카드 */}
@@ -312,17 +350,14 @@ export default function SeoCheckPage() {
                       </TooltipTrigger>
                       <TooltipContent><p>{grade.tooltip}</p></TooltipContent>
                     </Tooltip>
-                    <p className="text-sm text-muted-foreground">100점 만점</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-muted-foreground">AI 심층 분석 결과</p>
+                      {result.isDemo && (
+                        <Badge variant="outline" className="text-xs">데모</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-                {result.isDemo && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="cursor-help">데모 분석</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
-                  </Tooltip>
-                )}
               </div>
             </CardContent>
           </Card>

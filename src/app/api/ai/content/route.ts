@@ -102,28 +102,65 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildSystemPrompt(contentRequest)
     const userMessage = buildUserPrompt(contentRequest)
 
-    const response = await callGemini(systemPrompt, userMessage, 4096)
+    try {
+      const response = await callGemini(systemPrompt, userMessage, 4096)
 
-    const parsed = parseGeminiJson<{
-      title: string
-      content: string
-      tags: string[]
-      metaDescription?: string
-    }>(response)
+      const parsed = parseGeminiJson<{
+        title: string
+        content: string
+        tags: string[]
+        metaDescription?: string
+      }>(response)
 
-    // 엔진으로 후처리 (SEO 분석 + 가독성 분석 + 태그/메타 보강)
-    const processedResult = postProcessContent(contentRequest, parsed)
+      // 엔진으로 후처리 (SEO 분석 + 가독성 분석 + 태그/메타 보강)
+      const processedResult = postProcessContent(contentRequest, parsed)
 
-    // DB에 저장
-    const saved = await saveGeneratedContent(keyword.trim(), processedResult.title, processedResult.content)
+      // DB에 저장
+      const saved = await saveGeneratedContent(keyword.trim(), processedResult.title, processedResult.content)
 
-    return NextResponse.json({
-      ...processedResult,
-      contentId: saved?.id,
-      seoScore: saved?.seoScore,
-    })
+      return NextResponse.json({
+        ...processedResult,
+        contentId: saved?.id,
+        seoScore: saved?.seoScore,
+      })
+    } catch (aiError) {
+      const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)
+
+      // 429 Rate Limit
+      if (aiMsg.includes('429') || aiMsg.includes('quota') || aiMsg.includes('Too Many Requests')) {
+        return NextResponse.json(
+          { error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' },
+          { status: 429 }
+        )
+      }
+
+      // JSON 파싱 실패 → 데모 콘텐츠 폴백
+      if (aiMsg.includes('JSON') || aiMsg.includes('파싱')) {
+        const demo = generateDemoContent(contentRequest)
+        const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content)
+        return NextResponse.json({
+          ...demo,
+          contentId: saved?.id,
+          seoScore: saved?.seoScore,
+          isDemo: true,
+          notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
+        })
+      }
+
+      throw aiError
+    }
   } catch (error) {
-    console.error('[AI Content] 오류:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('[AI Content] 오류:', errorMessage)
+
+    // 429 Rate Limit
+    if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('Too Many Requests')) {
+      return NextResponse.json(
+        { error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' },
+        { status: 429 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'AI 콘텐츠 생성 중 오류가 발생했습니다.' },
       { status: 500 }

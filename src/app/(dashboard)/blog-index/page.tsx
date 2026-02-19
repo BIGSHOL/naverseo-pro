@@ -22,6 +22,12 @@ import {
   ArrowUpRight,
   Shield,
   Gauge,
+  Brain,
+  ThumbsUp,
+  ThumbsDown,
+  Sparkles,
+  ShieldAlert,
+  Eye,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,8 +55,10 @@ interface BlogLevelInfo {
   tier: number
   category: string
   label: string
+  shortLabel: string
   description: string
   color: string
+  badgeColor: string
   nextTierScore: number | null
 }
 
@@ -94,12 +102,28 @@ interface BenchmarkData {
   categoryPercentile: number
 }
 
+interface AiAnalysis {
+  experienceScore: number
+  experienceDetails: string
+  qualityScore: number
+  qualityDetails: string
+  abuseRisk: number
+  abuseDetails: string
+  strengths: string[]
+  weaknesses: string[]
+  recommendations: string[]
+  analyzedPosts: number
+  scoreAdjustment: number
+  adjustmentReason: string
+}
+
 interface BlogIndexResult {
   blogUrl: string
   blogId: string | null
   totalScore: number
   level: BlogLevelInfo
   categories: AnalysisCategory[]
+  aiAnalysis?: AiAnalysis
   keywordResults: KeywordRankResult[]
   postAnalysis: {
     totalFound: number
@@ -225,15 +249,6 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
 
 // ===== 유틸 함수 =====
 
-function getCategoryColor(category: string) {
-  switch (category) {
-    case '최적화': return 'text-green-600 bg-green-100 border-green-200'
-    case '준최적화': return 'text-blue-600 bg-blue-100 border-blue-200'
-    case '일반': return 'text-yellow-600 bg-yellow-100 border-yellow-200'
-    case '저품질': return 'text-red-600 bg-red-100 border-red-200'
-    default: return 'text-gray-600 bg-gray-100 border-gray-200'
-  }
-}
 
 function getQualityBadgeStyle(category: string) {
   switch (category) {
@@ -469,7 +484,7 @@ export default function BlogIndexPage() {
                         <p className="text-[10px] text-muted-foreground">/100</p>
                       </div>
                     </div>
-                    <Badge className={`text-xs font-bold ${getCategoryColor(result.level.category)}`}>
+                    <Badge className={`text-xs font-bold ${result.level.badgeColor}`}>
                       {result.level.label}
                     </Badge>
                   </div>
@@ -649,6 +664,177 @@ export default function BlogIndexPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ===== AI 심층 분석 인사이트 (v2.5) ===== */}
+          {result.aiAnalysis && (
+            <Card className="border-purple-200 dark:border-purple-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Brain className="h-4 w-4 text-purple-600" />
+                  AI 심층 분석
+                  <Badge className="bg-purple-100 text-purple-700 text-[10px] dark:bg-purple-900/40 dark:text-purple-300">
+                    <Sparkles className="mr-1 h-3 w-3" />Gemini AI
+                  </Badge>
+                  <span className="ml-auto text-[10px] text-muted-foreground font-normal">
+                    {result.aiAnalysis.analyzedPosts}개 포스트 분석
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* AI 점수 3대 지표 */}
+                <div className="grid gap-3 sm:grid-cols-3 mb-4">
+                  {/* 경험 정보 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Eye className="h-4 w-4 text-blue-500" />
+                      <span className="text-xs font-medium">경험 정보</span>
+                      <span className={`ml-auto text-lg font-bold ${
+                        result.aiAnalysis.experienceScore >= 7 ? 'text-green-600' :
+                        result.aiAnalysis.experienceScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {result.aiAnalysis.experienceScore}
+                        <span className="text-[10px] text-muted-foreground font-normal">/10</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          result.aiAnalysis.experienceScore >= 7 ? 'bg-green-500' :
+                          result.aiAnalysis.experienceScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${result.aiAnalysis.experienceScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
+                      {result.aiAnalysis.experienceDetails}
+                    </p>
+                  </div>
+
+                  {/* 콘텐츠 품질 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="h-4 w-4 text-purple-500" />
+                      <span className="text-xs font-medium">콘텐츠 품질</span>
+                      <span className={`ml-auto text-lg font-bold ${
+                        result.aiAnalysis.qualityScore >= 7 ? 'text-green-600' :
+                        result.aiAnalysis.qualityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {result.aiAnalysis.qualityScore}
+                        <span className="text-[10px] text-muted-foreground font-normal">/10</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          result.aiAnalysis.qualityScore >= 7 ? 'bg-green-500' :
+                          result.aiAnalysis.qualityScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${result.aiAnalysis.qualityScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
+                      {result.aiAnalysis.qualityDetails}
+                    </p>
+                  </div>
+
+                  {/* 어뷰징 위험도 */}
+                  <div className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldAlert className="h-4 w-4 text-orange-500" />
+                      <span className="text-xs font-medium">어뷰징 위험도</span>
+                      <span className={`ml-auto text-lg font-bold ${
+                        result.aiAnalysis.abuseRisk <= 2 ? 'text-green-600' :
+                        result.aiAnalysis.abuseRisk <= 5 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {result.aiAnalysis.abuseRisk}
+                        <span className="text-[10px] text-muted-foreground font-normal">/10</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          result.aiAnalysis.abuseRisk <= 2 ? 'bg-green-500' :
+                          result.aiAnalysis.abuseRisk <= 5 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${result.aiAnalysis.abuseRisk * 10}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
+                      {result.aiAnalysis.abuseDetails}
+                    </p>
+                  </div>
+                </div>
+
+                {/* AI 점수 보정 알림 */}
+                {result.aiAnalysis.scoreAdjustment !== 0 && (
+                  <div className={`mb-4 flex items-center gap-2 rounded-lg p-2.5 text-xs ${
+                    result.aiAnalysis.scoreAdjustment > 0
+                      ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
+                      : 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                  }`}>
+                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {result.aiAnalysis.adjustmentReason}
+                      <span className="font-bold ml-1">
+                        ({result.aiAnalysis.scoreAdjustment > 0 ? '+' : ''}{result.aiAnalysis.scoreAdjustment}점)
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                {/* 강점 & 약점 */}
+                <div className="grid gap-3 sm:grid-cols-2 mb-4">
+                  {/* 강점 */}
+                  <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/20">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-300 mb-2">
+                      <ThumbsUp className="h-3.5 w-3.5" />강점
+                    </p>
+                    <ul className="space-y-1">
+                      {result.aiAnalysis.strengths.map((s, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-green-600 dark:text-green-400">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-green-500" />
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {/* 약점 */}
+                  <div className="rounded-lg bg-orange-50 p-3 dark:bg-orange-950/20">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-orange-700 dark:text-orange-300 mb-2">
+                      <ThumbsDown className="h-3.5 w-3.5" />개선 필요
+                    </p>
+                    <ul className="space-y-1">
+                      {result.aiAnalysis.weaknesses.map((w, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-orange-600 dark:text-orange-400">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-orange-500" />
+                          {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* AI 맞춤 추천 */}
+                {result.aiAnalysis.recommendations.length > 0 && (
+                  <div>
+                    <p className="flex items-center gap-1.5 text-xs font-medium mb-2">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-500" />AI 맞춤 추천
+                    </p>
+                    <div className="space-y-1.5">
+                      {result.aiAnalysis.recommendations.map((rec, i) => (
+                        <div key={i} className="flex items-start gap-2 rounded-lg bg-purple-50 p-2 dark:bg-purple-950/20">
+                          <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-purple-200 text-[9px] font-bold text-purple-700 dark:bg-purple-800 dark:text-purple-200">
+                            {i + 1}
+                          </div>
+                          <p className="text-[11px] text-purple-700 dark:text-purple-300">{rec}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
