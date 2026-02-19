@@ -352,6 +352,10 @@ export default function BlogIndexPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || '블로그 지수 측정에 실패했습니다.'); return }
       setResult(data)
+      // 키워드를 비워둔 경우, 자동 추출된 키워드를 입력란에 채워넣기
+      if (keywords.length === 0 && data.keywordResults?.length > 0) {
+        setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+      }
     } catch { setError('네트워크 오류가 발생했습니다.') }
     finally { setLoading(false) }
   }
@@ -380,10 +384,10 @@ export default function BlogIndexPage() {
                 <Label htmlFor="keywords">테스트 키워드</Label>
                 <Badge className="bg-primary/10 text-primary text-[10px] font-medium">핵심 기능</Badge>
               </div>
-              <Input id="keywords" placeholder="쉼표로 구분 (예: 침산동 수학, 강남 맛집, 다이어트 후기)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
+              <Input id="keywords" placeholder="비워두면 포스트에서 자동 추출 (직접 입력 시 쉼표로 구분)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
               <div className="rounded-md bg-blue-50 p-2.5 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
                 <p className="font-medium">실제 키워드 순위를 측정합니다</p>
-                <p className="mt-0.5 text-blue-600/70 dark:text-blue-400/70">내 블로그가 해당 키워드 검색에서 몇 위에 노출되는지 확인합니다. 비워두면 기본 키워드 5개로 테스트합니다.</p>
+                <p className="mt-0.5 text-blue-600/70 dark:text-blue-400/70">내 블로그가 해당 키워드 검색에서 몇 위에 노출되는지 확인합니다. 비워두면 블로그 포스트에서 자동 추출한 키워드로 테스트합니다.</p>
               </div>
             </div>
             {error && (

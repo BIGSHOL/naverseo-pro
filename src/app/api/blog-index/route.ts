@@ -7,17 +7,60 @@ import {
   type KeywordRankResult,
 } from '@/lib/blog-index/engine'
 
-// 테스트용 기본 키워드 (다양한 경쟁도)
-const DEFAULT_TEST_KEYWORDS = [
-  '맛집 추천',
-  '여행 후기',
-  '다이어트 방법',
-  '자기계발 책',
-  '인테리어 팁',
-  '육아 정보',
-  '재테크 방법',
-  '카페 추천',
-]
+/**
+ * 수집된 블로그 포스트 제목에서 검색용 키워드를 자동 추출
+ * 빈출 바이그램(2단어 조합) 우선, 부족하면 단일 키워드로 보충
+ */
+function extractKeywordsFromPosts(posts: BlogPost[]): string[] {
+  const stopwords = new Set([
+    '그리고', '하지만', '그래서', '때문에', '입니다', '합니다',
+    '있습니다', '됩니다', '것입니다', '블로그', '포스팅', '오늘은',
+    '안녕하세요', '이번에', '정말', '진짜', '같은', '통해', '대한',
+    '위한', '하는', '있는', '되는', '만들기', '사용', '방법', '추천',
+    '후기', '리뷰', '정보', '이야기', '소개', '관련', '대해',
+  ])
+
+  const wordFreq: Record<string, number> = {}
+  const bigramFreq: Record<string, number> = {}
+
+  posts.forEach((p) => {
+    const title = p.title.replace(/<[^>]*>/g, '')
+    const words = (title.match(/[가-힣]{2,}|[a-zA-Z]{3,}/g) || [])
+      .map((w) => w.toLowerCase())
+      .filter((w) => !stopwords.has(w))
+
+    words.forEach((w) => {
+      wordFreq[w] = (wordFreq[w] || 0) + 1
+    })
+
+    // 인접 단어 바이그램 생성 (더 구체적인 검색 키워드)
+    for (let i = 0; i < words.length - 1; i++) {
+      const bigram = `${words[i]} ${words[i + 1]}`
+      bigramFreq[bigram] = (bigramFreq[bigram] || 0) + 1
+    }
+  })
+
+  const keywords: string[] = []
+
+  // 1단계: 빈도 2회 이상 바이그램 (구체적인 검색어)
+  const topBigrams = Object.entries(bigramFreq)
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([phrase]) => phrase)
+  keywords.push(...topBigrams)
+
+  // 2단계: 바이그램에 포함되지 않은 단일 키워드로 보충
+  const usedWords = new Set(topBigrams.flatMap((b) => b.split(' ')))
+  const topWords = Object.entries(wordFreq)
+    .filter(([word]) => !usedWords.has(word))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5 - keywords.length)
+    .map(([word]) => word)
+  keywords.push(...topWords)
+
+  return keywords.slice(0, 5)
+}
 
 /**
  * 블로그 URL에서 blogId 추출
@@ -150,14 +193,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 테스트할 키워드 목록 (사용자 입력 + 기본 키워드)
+    // 사용자 입력 키워드 파싱
     const userKeywords = (testKeywords as string[])
       .map((k: string) => k.trim())
       .filter(Boolean)
-    const keywords =
-      userKeywords.length > 0
-        ? userKeywords
-        : DEFAULT_TEST_KEYWORDS.slice(0, 5) // 기본 5개
 
     // 네이버 API 키 확인
     const hasNaverApi =
@@ -175,6 +214,10 @@ export async function POST(request: NextRequest) {
       // 데모 모드
       const demoBlogId = blogId || blogUrl.trim().replace(/.*\//, '') || 'demo_blog'
       posts = generateDemoPosts(demoBlogId)
+      // 사용자 키워드가 없으면 데모 포스트에서 자동 추출
+      const keywords = userKeywords.length > 0
+        ? userKeywords
+        : extractKeywordsFromPosts(posts)
       keywordResults = generateDemoKeywordResults(keywords)
       blogName = '데모 블로그'
     } else {
@@ -188,7 +231,7 @@ export async function POST(request: NextRequest) {
             .replace(/^https?:\/\//, '')
             .replace(/\/$/, '')
 
-      // 1. 블로그 포스트 가져오기 - RSS 피드 사용 (정확한 최신 포스트)
+      // === 1단계: 블로그 포스트 수집 (RSS 우선, 검색 API 폴백) ===
       if (blogId) {
         const rssResult = await fetchBlogPostsViaRss(blogId)
         posts = rssResult.posts
@@ -201,7 +244,6 @@ export async function POST(request: NextRequest) {
       // RSS에서 포스트를 못 가져온 경우 검색 API 폴백
       if (posts.length === 0) {
         try {
-          // blogId가 있으면 "site:blog.naver.com/blogId" 형태로 검색 시도
           const searchQuery = blogId
             ? `site:blog.naver.com/${blogId}`
             : blogUrl.trim()
@@ -236,7 +278,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 2. 키워드별 순위 체크
+      // === 2단계: 키워드 결정 (사용자 입력 또는 포스트에서 자동 추출) ===
+      const keywords = userKeywords.length > 0
+        ? userKeywords
+        : extractKeywordsFromPosts(posts)
+
+      if (userKeywords.length === 0 && keywords.length > 0) {
+        console.log(`[BlogIndex] 포스트에서 자동 추출 키워드: ${keywords.join(', ')}`)
+      }
+
+      // === 3단계: 키워드별 순위 체크 ===
       keywordResults = []
       for (const keyword of keywords) {
         try {
