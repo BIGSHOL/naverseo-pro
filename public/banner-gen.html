@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1200, height=630, initial-scale=1.0">
+    <title>Banner Generator</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1200px;
+            height: 630px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            font-family: 'Pretendard', sans-serif;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Background Grid Pattern */
+        .grid-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(51, 65, 85, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(51, 65, 85, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+        }
+
+        /* Left Content Area */
+        .content {
+            flex: 0 0 45%;
+            padding: 80px 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .logo {
+            font-size: 56px;
+            font-weight: 900;
+            color: white;
+            margin-bottom: 24px;
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo span {
+            color: #03C75A;
+            /* Naver Green */
+        }
+
+        .copy-main {
+            font-size: 38px;
+            font-weight: 700;
+            color: #E2E8F0;
+            line-height: 1.4;
+            margin-bottom: 32px;
+            word-break: keep-all;
+        }
+
+        .cta-badge {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(3, 199, 90, 0.1);
+            border: 1px solid rgba(3, 199, 90, 0.3);
+            border-radius: 999px;
+            padding: 8px 20px;
+            color: #03C75A;
+            font-weight: 600;
+            font-size: 18px;
+            width: fit-content;
+        }
+
+        /* Right Content Area (Dashboard Screenshot) */
+        .visual {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            perspective: 1500px;
+            /* 3D Perspective */
+        }
+
+        .mockup-container {
+            width: 130%;
+            /* Oversized to bleed off edge */
+            margin-left: -50px;
+            transform: rotateY(-12deg) rotateX(5deg) scale(0.95);
+            transform-style: preserve-3d;
+            box-shadow:
+                -20px 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.1);
+            /* Subtle border */
+            border-radius: 12px;
+            overflow: hidden;
+            background: #1e293b;
+            /* Placeholder color before image loads */
+            position: relative;
+        }
+
+        /* Glass reflection effect */
+        .mockup-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(105deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0) 60%);
+            pointer-events: none;
+        }
+
+        img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        /* Decorative Elements */
+        .deco-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            z-index: 0;
+        }
+
+        .monitor-glow {
+            width: 400px;
+            height: 400px;
+            background: #03C75A;
+            top: -100px;
+            right: -100px;
+        }
+
+        .bottom-glow {
+            width: 600px;
+            height: 200px;
+            background: #3B82F6;
+            /* Blue accent */
+            bottom: -50px;
+            left: -100px;
+            opacity: 0.2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="grid-bg"></div>
+    <div class="deco-circle monitor-glow"></div>
+    <div class="deco-circle bottom-glow"></div>
+
+    <div class="content">
+        <div class="logo">
+            <!-- Simple SVG Icon inline for crispness -->
+            <svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="#03C75A" stroke-width="3"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="13" cy="13" r="10" />
+                <path d="M21 21 L29 29" />
+                <path d="M7 16 L10 16 L14 10 L17 14 L22 7" stroke-width="2" />
+            </svg>
+            NaverSEO <span>Pro</span>
+        </div>
+        <div class="copy-main">
+            네이버 블로그 상위 노출의 비밀,<br>
+            데이터로 증명합니다.
+        </div>
+        <div class="cta-badge">
+            🚀 All-in-One SEO Solution
+        </div>
+    </div>
+
+    <div class="visual">
+        <div class="mockup-container">
+            <!-- This image needs to be captured first -->
+            <img src="dashboard-shot.png" alt="Dashboard Screenshot">
+        </div>
+    </div>
+</body>
+
+</html>

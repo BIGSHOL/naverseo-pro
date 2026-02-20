@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,22 +20,41 @@ interface SeoCategory {
   feedback: string
 }
 
+interface AiAnalysis {
+  experienceScore: number
+  experienceDetails: string
+  contentQualityScore: number
+  contentQualityDetails: string
+  keywordStrategyScore: number
+  keywordStrategyDetails: string
+  engagementScore: number
+  engagementDetails: string
+  overallFeedback: string
+  strengths: string[]
+  weaknesses: string[]
+  recommendations: string[]
+  scoreAdjustment: number
+  adjustmentReason: string
+}
+
 interface SeoResult {
   totalScore: number
+  grade?: string
   categories: SeoCategory[]
   improvements: string[]
   strengths: string[]
   isDemo: boolean
+  aiAnalysis?: AiAnalysis | null
 }
 
-function getScoreColor(score: number, max: number) {
+function getCategoryScoreColor(score: number, max: number) {
   const pct = (score / max) * 100
   if (pct >= 60) return 'text-green-600'
   if (pct >= 40) return 'text-yellow-600'
   return 'text-red-600'
 }
 
-function getScoreBg(score: number) {
+function getOverallScoreBg(score: number) {
   if (score >= 80) return 'bg-green-500'
   if (score >= 60) return 'bg-yellow-500'
   if (score >= 40) return 'bg-orange-500'
@@ -54,6 +73,21 @@ function getCharCountClass(len: number) {
   if (len < 1500) return 'text-yellow-500'
   if (len <= 3000) return 'text-green-500'
   return 'text-yellow-500'
+}
+
+/** AI 분석 축 점수 색상 (10점 만점) */
+function getAxisColor(score: number) {
+  if (score >= 8) return 'text-green-600'
+  if (score >= 6) return 'text-blue-600'
+  if (score >= 4) return 'text-yellow-600'
+  return 'text-red-600'
+}
+
+function getAxisBg(score: number) {
+  if (score >= 8) return 'bg-green-500'
+  if (score >= 6) return 'bg-blue-500'
+  if (score >= 4) return 'bg-yellow-500'
+  return 'bg-red-500'
 }
 
 export default function SeoCheckPage() {
@@ -156,6 +190,7 @@ export default function SeoCheckPage() {
   }
 
   const grade = result ? getGradeLabel(result.totalScore) : null
+  const ai = result?.aiAnalysis
 
   return (
     <div className="space-y-6">
@@ -334,7 +369,7 @@ export default function SeoCheckPage() {
                 <div className="flex items-center gap-4">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className={`flex h-20 w-20 items-center justify-center rounded-full cursor-help ${getScoreBg(result.totalScore)}`}>
+                      <div className={`flex h-20 w-20 items-center justify-center rounded-full cursor-help ${getOverallScoreBg(result.totalScore)}`}>
                         <span className="text-2xl font-bold text-white">{result.totalScore}</span>
                       </div>
                     </TooltipTrigger>
@@ -356,29 +391,196 @@ export default function SeoCheckPage() {
                         <Badge variant="outline" className="text-xs">데모</Badge>
                       )}
                     </div>
+                    {/* AI 점수 보정 표시 */}
+                    {ai && ai.scoreAdjustment !== 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {ai.scoreAdjustment > 0 ? '+' : ''}{ai.scoreAdjustment}점 보정 ({ai.adjustmentReason})
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* 카테고리별 점수 */}
+          {/* AI 4축 심층 분석 */}
+          {ai && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Brain className="h-5 w-5 text-purple-500" />
+                  AI 심층 분석
+                  {result.isDemo && <Badge variant="outline" className="text-xs">데모</Badge>}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 4축 점수 카드 */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* 경험 정보 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium">경험 정보</span>
+                      </div>
+                      <span className={cn('text-lg font-bold', getAxisColor(ai.experienceScore))}>
+                        {ai.experienceScore}/10
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.experienceScore))}
+                        style={{ width: `${ai.experienceScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ai.experienceDetails}</p>
+                  </div>
+
+                  {/* 콘텐츠 품질 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium">콘텐츠 품질</span>
+                      </div>
+                      <span className={cn('text-lg font-bold', getAxisColor(ai.contentQualityScore))}>
+                        {ai.contentQualityScore}/10
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.contentQualityScore))}
+                        style={{ width: `${ai.contentQualityScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ai.contentQualityDetails}</p>
+                  </div>
+
+                  {/* 키워드 전략 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-medium">키워드 전략</span>
+                      </div>
+                      <span className={cn('text-lg font-bold', getAxisColor(ai.keywordStrategyScore))}>
+                        {ai.keywordStrategyScore}/10
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.keywordStrategyScore))}
+                        style={{ width: `${ai.keywordStrategyScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ai.keywordStrategyDetails}</p>
+                  </div>
+
+                  {/* 독자 참여 */}
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-pink-500" />
+                        <span className="text-sm font-medium">독자 참여</span>
+                      </div>
+                      <span className={cn('text-lg font-bold', getAxisColor(ai.engagementScore))}>
+                        {ai.engagementScore}/10
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.engagementScore))}
+                        style={{ width: `${ai.engagementScore * 10}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ai.engagementDetails}</p>
+                  </div>
+                </div>
+
+                {/* 종합 피드백 */}
+                {ai.overallFeedback && (
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm">{ai.overallFeedback}</p>
+                  </div>
+                )}
+
+                {/* AI 강점/약점 */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {ai.strengths.length > 0 && (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                      <p className="mb-2 text-sm font-medium text-green-700 flex items-center gap-1.5">
+                        <ArrowUp className="h-4 w-4" />
+                        AI 분석 강점
+                      </p>
+                      <ul className="space-y-1.5">
+                        {ai.strengths.map((s, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-green-700">
+                            <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {ai.weaknesses.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                      <p className="mb-2 text-sm font-medium text-red-700 flex items-center gap-1.5">
+                        <ArrowDown className="h-4 w-4" />
+                        AI 분석 약점
+                      </p>
+                      <ul className="space-y-1.5">
+                        {ai.weaknesses.map((w, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-red-700">
+                            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            {w}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI 맞춤 추천 */}
+                {ai.recommendations.length > 0 && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <p className="mb-3 text-sm font-medium text-blue-700 flex items-center gap-1.5">
+                      <Lightbulb className="h-4 w-4" />
+                      AI 맞춤 추천
+                    </p>
+                    <ul className="space-y-2">
+                      {ai.recommendations.map((rec, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-blue-700">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold">
+                            {i + 1}
+                          </span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 카테고리별 점수 (13개 항목) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">항목별 분석</CardTitle>
+              <CardTitle className="text-lg">항목별 분석 ({result.categories.length}개 항목)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {result.categories.map((cat) => (
                 <div key={cat.name} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{cat.name}</span>
-                    <span className={`text-sm font-bold ${getScoreColor(cat.score, cat.maxScore)}`}>
+                    <span className={`text-sm font-bold ${getCategoryScoreColor(cat.score, cat.maxScore)}`}>
                       {cat.score}/{cat.maxScore}
                     </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
                     <div
-                      className={`h-2 rounded-full transition-all ${getScoreBg(cat.score * (100 / cat.maxScore))}`}
+                      className={`h-2 rounded-full transition-all ${getOverallScoreBg(cat.score * (100 / cat.maxScore))}`}
                       style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
                     />
                   </div>
@@ -388,7 +590,7 @@ export default function SeoCheckPage() {
             </CardContent>
           </Card>
 
-          {/* 강점 & 개선사항 */}
+          {/* 강점 & 개선사항 (엔진 기반) */}
           <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <CardHeader className="pb-3">

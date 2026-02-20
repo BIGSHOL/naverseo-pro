@@ -46,7 +46,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 이미 로그인한 사용자가 인증 페이지 접근 시 대시보드로 리다이렉트
-  const authPaths = ['/login', '/signup']
+  const authPaths = ['/login', '/signup', '/forgot-password']
   const isAuthPath = authPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )

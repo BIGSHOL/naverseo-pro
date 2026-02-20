@@ -1,0 +1,55 @@
+# NaverSEO Pro - 크롤링 정책
+# 랜딩/공개 페이지만 검색엔진 노출 허용, 나머지 차단
+
+User-agent: *
+
+# 허용: 랜딩 페이지, 약관, 개인정보
+Allow: /$
+Allow: /terms
+Allow: /privacy
+
+# 차단: 대시보드 및 앱 기능
+Disallow: /dashboard
+Disallow: /keywords
+Disallow: /content
+Disallow: /seo-check
+Disallow: /tracking
+Disallow: /report
+Disallow: /settings
+Disallow: /competitors
+Disallow: /blog-index
+Disallow: /opportunities
+
+# 차단: 인증 페이지
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# 차단: API 엔드포인트
+Disallow: /api/
+
+# 차단: Next.js 내부
+Disallow: /_next/
+
+# AI 크롤러 완전 차단
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /

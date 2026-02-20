@@ -30,7 +30,7 @@ const navItems = [
   { label: '상위노출 분석', href: '/competitors', icon: Users },
   { label: '블로그 지수', href: '/blog-index', icon: Activity },
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
-  { label: '콘텐츠 캘린더', href: '/content/calendar', icon: CalendarDays },
+  { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
   { label: 'SEO 리포트', href: '/report', icon: FileDown },
   { label: '설정', href: '/settings', icon: Settings },
 ]

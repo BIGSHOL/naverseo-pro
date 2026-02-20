@@ -1,0 +1,79 @@
+<!-- Supabase "Change Email Address" 이메일 템플릿 -->
+<!-- Subject: NaverSEO Pro - 이메일 변경을 확인해주세요 -->
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 0;font-family:'Apple SD Gothic Neo','Malgun Gothic',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+
+        <!-- 상단 브랜드 영역 -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#02BA5A 0%,#059669 100%);padding:36px 32px;text-align:center;">
+            <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">
+              NaverSEO Pro
+            </div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:6px;">
+              AI 기반 네이버 블로그 SEO 올인원 도구
+            </div>
+          </td>
+        </tr>
+
+        <!-- 아이콘 + 제목 -->
+        <tr>
+          <td style="padding:32px 32px 0;text-align:center;">
+            <div style="display:inline-block;width:64px;height:64px;line-height:64px;border-radius:50%;background-color:#eff6ff;font-size:28px;text-align:center;">
+              &#9993;
+            </div>
+            <h1 style="margin:16px 0 8px;font-size:22px;font-weight:700;color:#18181b;letter-spacing:-0.3px;">
+              이메일 주소 변경 확인
+            </h1>
+            <p style="margin:0;font-size:14px;color:#71717a;line-height:1.5;">
+              아래 버튼을 클릭하여 새 이메일 주소를 확인해주세요
+            </p>
+          </td>
+        </tr>
+
+        <!-- CTA 버튼 -->
+        <tr>
+          <td style="padding:28px 32px 0;text-align:center;">
+            <a href="{{ .ConfirmationURL }}"
+               style="display:inline-block;padding:14px 48px;background-color:#02BA5A;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:10px;letter-spacing:-0.2px;box-shadow:0 2px 8px rgba(2,186,90,0.3);">
+              이메일 변경 확인하기
+            </a>
+          </td>
+        </tr>
+
+        <!-- 링크 대체 안내 -->
+        <tr>
+          <td style="padding:24px 32px 0;">
+            <p style="margin:0;font-size:12px;color:#a1a1aa;line-height:1.6;">
+              버튼이 작동하지 않으면 아래 링크를 브라우저에 직접 붙여넣어 주세요:
+            </p>
+            <p style="margin:6px 0 0;font-size:11px;word-break:break-all;">
+              <a href="{{ .ConfirmationURL }}" style="color:#02BA5A;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- 구분선 + 하단 -->
+        <tr>
+          <td style="padding:28px 32px 0;">
+            <div style="border-top:1px solid #f0f0f0;"></div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px 28px;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#a1a1aa;line-height:1.6;">
+              본 메일은 NaverSEO Pro 이메일 변경 요청에 의해 발송되었습니다.<br>
+              본인이 요청하지 않았다면 이 메일을 무시해주세요.
+            </p>
+            <p style="margin:10px 0 0;font-size:11px;color:#d4d4d8;">
+              &copy; 2025 NaverSEO Pro. All rights reserved.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -100,7 +100,17 @@ export async function POST(request: NextRequest) {
 
     // AI 프롬프트 생성 (엔진에서 최적화된 프롬프트 빌드)
     const systemPrompt = buildSystemPrompt(contentRequest)
-    const userMessage = buildUserPrompt(contentRequest)
+    let userMessage = buildUserPrompt(contentRequest)
+
+    // 참고 URL 분석 결과가 있으면 프롬프트에 추가
+    if (referenceAnalysis && referenceAnalysis.headings?.length > 0) {
+      userMessage += `\n\n## 참고 블로그 구조 분석
+상위노출 블로그의 구조를 참고하여 유사하거나 더 나은 구조로 작성해주세요:
+- 참고 글 제목: "${referenceAnalysis.title}"
+- 참고 글 분량: ${referenceAnalysis.charCount?.toLocaleString() || '알 수 없음'}자
+- 참고 글 목차: ${referenceAnalysis.headings.join(' → ')}
+위 구조를 참고하되, 동일한 내용 복사가 아닌 키워드에 맞는 독창적인 콘텐츠를 작성하세요.`
+    }
 
     try {
       const response = await callGemini(systemPrompt, userMessage, 4096)

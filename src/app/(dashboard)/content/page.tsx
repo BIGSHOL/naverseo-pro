@@ -3,24 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
-  Wand2,
-  Loader2,
-  Copy,
-  Check,
-  Tag,
-  CalendarDays,
-  CheckCircle,
-  BarChart3,
-  FileText,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-  TrendingUp,
-  AlertCircle,
-  RefreshCw,
-  Pencil,
-  Save,
+  Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
+  FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
+  Pencil, Save, Link2, ListOrdered, MessageSquareQuote,
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
+import { detectContentType, generateOutline, type ContentType } from '@/lib/content/engine'
+import { analyzeDia } from '@/lib/dia/engine'
+import { Shield } from 'lucide-react'
 import Link from 'next/link'
 
 interface SeoCategory {
@@ -74,14 +65,14 @@ interface ContentResult {
   seoScore?: number
 }
 
-function getScoreColor(score: number) {
+function getContentScoreColor(score: number) {
   if (score >= 80) return 'text-green-600'
   if (score >= 60) return 'text-blue-600'
   if (score >= 40) return 'text-yellow-600'
   return 'text-red-600'
 }
 
-function getScoreBgColor(score: number) {
+function getContentScoreBgColor(score: number) {
   if (score >= 80) return 'bg-green-500'
   if (score >= 60) return 'bg-blue-500'
   if (score >= 40) return 'bg-yellow-500'
@@ -107,7 +98,19 @@ export default function ContentPage() {
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
-  const [contentType, setContentType] = useState('')
+  const [contentType, setContentType] = useState<ContentType | ''>('')
+  const [includeFaq, setIncludeFaq] = useState(true)
+  const [showOutline, setShowOutline] = useState(false)
+
+  // 참고 URL 분석
+  const [referenceUrl, setReferenceUrl] = useState('')
+  const [referenceAnalysis, setReferenceAnalysis] = useState<{
+    title: string
+    headings: string[]
+    charCount: number
+    structure: string
+  } | null>(null)
+  const [analyzingRef, setAnalyzingRef] = useState(false)
 
   // 편집 모드 상태
   const [activeTab, setActiveTab] = useState('preview')
@@ -125,6 +128,50 @@ export default function ContentPage() {
     }
   }, [searchParams])
 
+  // 참고 URL 분석
+  const analyzeReferenceUrl = async () => {
+    if (!referenceUrl.trim() || analyzingRef) return
+    setAnalyzingRef(true)
+    setReferenceAnalysis(null)
+
+    try {
+      const res = await fetch('/api/naver/blog-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: referenceUrl.trim() }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || '블로그 분석에 실패했습니다.')
+        return
+      }
+
+      // 구조 분석
+      const text = data.content || ''
+      const headingMatches = text.match(/^#{1,3}\s.+$/gm) || []
+      const headings = headingMatches.map((h: string) => h.replace(/^#+\s/, ''))
+      const h2Count = (text.match(/^## /gm) || []).length
+      const h3Count = (text.match(/^### /gm) || []).length
+      const imageCount = (text.match(/\[이미지/g) || []).length
+      const boldCount = (text.match(/\*\*[^*]+\*\*/g) || []).length
+      const listCount = (text.match(/^[-•]\s|^\d+\.\s/gm) || []).length
+
+      const structure = `${text.length.toLocaleString()}자 / H2 ${h2Count}개 / H3 ${h3Count}개 / 볼드 ${boldCount}개 / 리스트 ${listCount}개 / 이미지 ${imageCount}개`
+
+      setReferenceAnalysis({
+        title: data.title || '(제목 없음)',
+        headings,
+        charCount: text.length,
+        structure,
+      })
+    } catch {
+      setError('참고 URL 분석 중 오류가 발생했습니다.')
+    } finally {
+      setAnalyzingRef(false)
+    }
+  }
+
   const generateContent = async (overrides?: { tone?: string; targetLength?: string; contentType?: string }) => {
     if (!keyword.trim() || loading) return
 
@@ -141,10 +188,17 @@ export default function ContentPage() {
           tone: overrides?.tone || tone,
           targetLength: overrides?.targetLength || targetLength,
           contentType: overrides?.contentType || contentType || undefined,
+          includeFaq,
           additionalKeywords: additionalKeywords
             .split(',')
             .map((k) => k.trim())
             .filter(Boolean),
+          // 참고 URL 분석 결과가 있으면 전달
+          referenceAnalysis: referenceAnalysis ? {
+            title: referenceAnalysis.title,
+            headings: referenceAnalysis.headings,
+            charCount: referenceAnalysis.charCount,
+          } : undefined,
         }),
       })
       const data = await res.json()
@@ -161,6 +215,15 @@ export default function ContentPage() {
       setLoading(false)
     }
   }
+
+  // 아웃라인 미리보기 계산
+  const currentOutline = keyword.trim()
+    ? generateOutline({
+        keyword: keyword.trim(),
+        contentType: (contentType as ContentType) || detectContentType(keyword.trim()),
+        targetLength,
+      })
+    : null
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -246,7 +309,7 @@ export default function ContentPage() {
           <CardTitle className="text-lg">콘텐츠 설정</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleGenerate} className="space-y-4">
+          <form onSubmit={handleGenerate} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="keyword">타겟 키워드 *</Label>
               <Input
@@ -269,6 +332,103 @@ export default function ContentPage() {
               />
             </div>
 
+            {/* 참고 블로그 URL */}
+            <div className="space-y-2">
+              <Label htmlFor="refUrl" className="flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5" />
+                참고 블로그 URL (선택)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="refUrl"
+                  placeholder="상위노출 블로그 URL을 입력하면 구조를 분석합니다"
+                  value={referenceUrl}
+                  onChange={(e) => setReferenceUrl(e.target.value)}
+                  disabled={loading || analyzingRef}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={analyzeReferenceUrl}
+                  disabled={!referenceUrl.trim() || analyzingRef || loading}
+                  className="shrink-0"
+                >
+                  {analyzingRef ? <Loader2 className="h-4 w-4 animate-spin" /> : '분석'}
+                </Button>
+              </div>
+              {referenceAnalysis && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs">
+                  <p className="font-medium text-blue-800 mb-1">{referenceAnalysis.title}</p>
+                  <p className="text-blue-600 mb-1.5">{referenceAnalysis.structure}</p>
+                  {referenceAnalysis.headings.length > 0 && (
+                    <div className="text-blue-700">
+                      <span className="font-medium">목차:</span>{' '}
+                      {referenceAnalysis.headings.slice(0, 6).join(' → ')}
+                      {referenceAnalysis.headings.length > 6 && ` 외 ${referenceAnalysis.headings.length - 6}개`}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="mt-1.5 text-blue-500 hover:text-blue-700 underline"
+                    onClick={() => { setReferenceAnalysis(null); setReferenceUrl('') }}
+                  >
+                    분석 초기화
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 콘텐츠 유형 */}
+            <div className="space-y-2">
+              <Label>콘텐츠 유형</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { type: '' as const, label: '자동 감지', desc: '키워드 기반' },
+                  { type: 'informational' as ContentType, label: '정보형' },
+                  { type: 'comparison' as ContentType, label: '비교/추천형' },
+                  { type: 'review' as ContentType, label: '후기/리뷰형' },
+                  { type: 'howto' as ContentType, label: '방법/가이드형' },
+                  { type: 'listicle' as ContentType, label: '리스트형' },
+                ].map(({ type, label, desc }) => (
+                  <Badge
+                    key={type || 'auto'}
+                    variant={contentType === type ? 'default' : 'outline'}
+                    className="cursor-pointer"
+                    onClick={() => setContentType(type as ContentType | '')}
+                  >
+                    {label}
+                    {desc && contentType === type && (
+                      <span className="ml-1 opacity-60 text-[10px]">({desc})</span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* 글 길이 */}
+            <div className="space-y-2">
+              <Label>글 길이</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'short' as const, label: '짧은 글', desc: '~1,500자' },
+                  { value: 'medium' as const, label: '보통', desc: '~2,500자' },
+                  { value: 'long' as const, label: '긴 글', desc: '~4,000자' },
+                ].map(({ value, label, desc }) => (
+                  <Badge
+                    key={value}
+                    variant={targetLength === value ? 'default' : 'outline'}
+                    className="cursor-pointer"
+                    onClick={() => setTargetLength(value)}
+                  >
+                    {label}
+                    <span className="ml-1 opacity-60 text-[10px]">({desc})</span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* 톤앤매너 */}
             <div className="space-y-2">
               <Label>톤앤매너</Label>
               <div className="flex flex-wrap gap-2">
@@ -284,6 +444,69 @@ export default function ContentPage() {
                 ))}
               </div>
             </div>
+
+            {/* FAQ 포함 토글 */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeFaq}
+                onClick={() => setIncludeFaq(!includeFaq)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  includeFaq ? 'bg-primary' : 'bg-muted'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    includeFaq ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                  }`}
+                />
+              </button>
+              <Label className="flex items-center gap-1.5 cursor-pointer" onClick={() => setIncludeFaq(!includeFaq)}>
+                <MessageSquareQuote className="h-3.5 w-3.5" />
+                FAQ 섹션 포함
+              </Label>
+            </div>
+
+            {/* 아웃라인 미리보기 */}
+            {keyword.trim() && currentOutline && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowOutline(!showOutline)}
+                >
+                  <ListOrdered className="h-3.5 w-3.5" />
+                  아웃라인 미리보기
+                  {showOutline ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+                {showOutline && (
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground">
+                        예상 {currentOutline.estimatedLength.toLocaleString()}자 · {
+                          contentType
+                            ? { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형' }[contentType]
+                            : '자동 감지: ' + { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형' }[detectContentType(keyword.trim())]
+                        }
+                      </span>
+                    </div>
+                    {currentOutline.sections.map((sec, i) => (
+                      <div key={i} className={sec.level === 3 ? 'ml-4' : ''}>
+                        <span className="text-muted-foreground">{sec.level === 2 ? '##' : '###'}</span>{' '}
+                        <span className="font-medium">{sec.heading}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({sec.keyPoints.join(', ')})
+                        </span>
+                      </div>
+                    ))}
+                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                      키워드 배치: {currentOutline.keywordPlacements.join(' → ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {error && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -353,9 +576,9 @@ export default function ContentPage() {
             </div>
           </div>
 
-          {/* SEO 분석 + 가독성 카드 */}
+          {/* SEO 분석 + 가독성 + DIA 카드 */}
           {result.seoAnalysis && (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {/* SEO 분석 요약 */}
               <Card>
                 <CardContent className="p-4">
@@ -369,14 +592,14 @@ export default function ContentPage() {
                     </Badge>
                   </div>
                   <div className="mt-2 flex items-end gap-1">
-                    <span className={`text-3xl font-bold ${getScoreColor(result.seoAnalysis.totalScore)}`}>
+                    <span className={`text-3xl font-bold ${getContentScoreColor(result.seoAnalysis.totalScore)}`}>
                       {result.seoAnalysis.totalScore}
                     </span>
                     <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-muted">
                     <div
-                      className={`h-full rounded-full ${getScoreBgColor(result.seoAnalysis.totalScore)}`}
+                      className={`h-full rounded-full ${getContentScoreBgColor(result.seoAnalysis.totalScore)}`}
                       style={{ width: `${result.seoAnalysis.totalScore}%` }}
                     />
                   </div>
@@ -409,7 +632,7 @@ export default function ContentPage() {
                       </Badge>
                     </div>
                     <div className="mt-2 flex items-end gap-1">
-                      <span className={`text-3xl font-bold ${getScoreColor(result.readabilityAnalysis.score)}`}>
+                      <span className={`text-3xl font-bold ${getContentScoreColor(result.readabilityAnalysis.score)}`}>
                         {result.readabilityAnalysis.score}
                       </span>
                       <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
@@ -431,6 +654,9 @@ export default function ContentPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* DIA 품질 분석 */}
+              <DiaScoreCard keyword={keyword} title={result.title} content={result.content} />
             </div>
           )}
 
@@ -451,7 +677,7 @@ export default function ContentPage() {
                         <div className="flex-1">
                           <div className="h-2 rounded-full bg-muted">
                             <div
-                              className={`h-full rounded-full ${getScoreBgColor(pct)}`}
+                              className={`h-full rounded-full ${getContentScoreBgColor(pct)}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -556,7 +782,7 @@ export default function ContentPage() {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* 미리보기 탭 */}
+                {/* 미리보기 탭 - 마크다운 렌더링 */}
                 <TabsContent value="preview" className="space-y-6">
                   <div>
                     <Label className="text-xs text-muted-foreground">제목</Label>
@@ -565,8 +791,10 @@ export default function ContentPage() {
                   <div>
                     <Label className="text-xs text-muted-foreground">본문</Label>
                     <div className="mt-2 rounded-lg border bg-muted/30 p-4">
-                      <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                        {result.content}
+                      <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-li:text-foreground/90">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {result.content}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   </div>
@@ -682,13 +910,11 @@ export default function ContentPage() {
                 다시 생성하기
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                마음에 들지 않으면 다른 스타일로 다시 생성해보세요.
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                마음에 들지 않으면 위 설정을 변경하거나 빠르게 재생성해보세요.
               </p>
-
               <div className="grid gap-3 sm:grid-cols-3">
-                {/* 같은 설정으로 재생성 */}
                 <Button
                   variant="outline"
                   className="h-auto flex-col items-start gap-1 p-3 text-left"
@@ -698,8 +924,6 @@ export default function ContentPage() {
                   <span className="text-sm font-medium">같은 설정으로</span>
                   <span className="text-xs text-muted-foreground">새로운 버전 생성</span>
                 </Button>
-
-                {/* 다른 톤으로 재생성 */}
                 <Button
                   variant="outline"
                   className="h-auto flex-col items-start gap-1 p-3 text-left"
@@ -714,8 +938,6 @@ export default function ContentPage() {
                   <span className="text-sm font-medium">다른 톤으로</span>
                   <span className="text-xs text-muted-foreground">현재: {tone}</span>
                 </Button>
-
-                {/* 더 길게/짧게 */}
                 <Button
                   variant="outline"
                   className="h-auto flex-col items-start gap-1 p-3 text-left"
@@ -734,39 +956,70 @@ export default function ContentPage() {
                   </span>
                 </Button>
               </div>
-
-              {/* 콘텐츠 유형 변경 */}
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">콘텐츠 유형 변경</Label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { type: 'informational', label: '정보형' },
-                    { type: 'comparison', label: '비교/추천형' },
-                    { type: 'review', label: '후기/리뷰형' },
-                    { type: 'howto', label: '방법/가이드형' },
-                    { type: 'listicle', label: '리스트형' },
-                  ].map(({ type, label }) => (
-                    <Badge
-                      key={type}
-                      variant={contentType === type || result.contentType === type ? 'default' : 'outline'}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (!loading) {
-                          setContentType(type)
-                          generateContent({ contentType: type })
-                        }
-                      }}
-                    >
-                      {label}
-                      {result.contentType === type && !contentType && ' (현재)'}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
         </>
       )}
     </div>
+  )
+}
+
+// DIA 점수 카드 (콘텐츠 생성 결과에 표시)
+function DiaScoreCard({ keyword, title, content }: { keyword: string; title: string; content: string }) {
+  const dia = analyzeDia(keyword.trim(), title, content)
+
+  const gradeColor = (() => {
+    switch (dia.grade) {
+      case 'S': return { bg: 'bg-emerald-100 text-emerald-700', score: 'text-emerald-600', bar: 'bg-emerald-500' }
+      case 'A+': return { bg: 'bg-green-100 text-green-700', score: 'text-green-600', bar: 'bg-green-500' }
+      case 'A': return { bg: 'bg-teal-100 text-teal-700', score: 'text-teal-600', bar: 'bg-teal-500' }
+      case 'B+': return { bg: 'bg-blue-100 text-blue-700', score: 'text-blue-600', bar: 'bg-blue-500' }
+      case 'B': return { bg: 'bg-yellow-100 text-yellow-700', score: 'text-yellow-600', bar: 'bg-yellow-500' }
+      case 'C': return { bg: 'bg-orange-100 text-orange-700', score: 'text-orange-600', bar: 'bg-orange-500' }
+      default: return { bg: 'bg-red-100 text-red-700', score: 'text-red-600', bar: 'bg-red-500' }
+    }
+  })()
+
+  // 가장 약한 카테고리 2개
+  const weakest = [...dia.categories]
+    .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+    .slice(0, 2)
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-emerald-600" />
+            <span className="text-sm font-medium">D.I.A. 품질</span>
+          </div>
+          <Badge className={gradeColor.bg}>
+            {dia.grade} {dia.gradeInfo.label}
+          </Badge>
+        </div>
+        <div className="mt-2 flex items-end gap-1">
+          <span className={`text-3xl font-bold ${gradeColor.score}`}>
+            {dia.totalScore}
+          </span>
+          <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full ${gradeColor.bar}`}
+            style={{ width: `${dia.totalScore}%` }}
+          />
+        </div>
+        {weakest.length > 0 && (
+          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+            {weakest.map(cat => (
+              <div key={cat.id} className="flex items-center justify-between">
+                <span>{cat.name}</span>
+                <span className="font-medium">{cat.score}/{cat.maxScore}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

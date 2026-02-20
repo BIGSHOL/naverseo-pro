@@ -70,9 +70,15 @@ export default function SignupPage() {
         return
       }
 
+      // identities가 비어있으면 이미 가입된 이메일 (Supabase 보안 정책상 동일 응답)
+      if (data.user?.identities?.length === 0) {
+        setError('이미 등록된 이메일입니다. 로그인 페이지를 이용해주세요.')
+        return
+      }
+
       // Supabase 설정에 따라 이메일 확인이 필요할 수 있음
       if (data.user && !data.session) {
-        // 이메일 확인 필요
+        // 신규 가입 → 이메일 확인 필요
         setSuccess(true)
       } else {
         // 바로 로그인됨 (이메일 확인 비활성화 시)

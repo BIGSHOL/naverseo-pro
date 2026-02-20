@@ -47,17 +47,21 @@ interface ReportData {
 export default function ReportPage() {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function loadReport() {
       try {
         const res = await fetch('/api/report')
-        if (!res.ok) return
+        if (!res.ok) {
+          setError('리포트 데이터를 불러오지 못했습니다.')
+          return
+        }
         const json = await res.json()
         setData(json)
       } catch {
-        // 로드 실패
+        setError('리포트를 불러오는 중 오류가 발생했습니다.')
       } finally {
         setLoading(false)
       }
@@ -73,6 +77,14 @@ export default function ReportPage() {
     return (
       <div className="flex items-center justify-center py-16">
         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
+        {error}
       </div>
     )
   }

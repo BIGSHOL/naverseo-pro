@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target } from 'lucide-react'
+import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, Cell, ZAxis } from 'recharts'
 import Link from 'next/link'
+import { useKeywordHistory } from '@/hooks/use-keyword-history'
 
 interface OpportunityItem {
   keyword: string
@@ -33,84 +35,6 @@ type SortDir = 'asc' | 'desc'
 
 const EXAMPLE_TOPICS = ['캠핑', '다이어트', '인테리어', '육아', '요리', '부업', '여행', '운동']
 
-const COMP_TOOLTIPS: Record<string, string> = {
-  HIGH: '광고 경쟁이 치열합니다. 상위 노출 난이도가 높습니다',
-  MEDIUM: '적절한 경쟁 수준입니다. 양질의 콘텐츠로 승부 가능합니다',
-  LOW: '경쟁이 적어 상위 노출 가능성이 높습니다',
-}
-
-const CATEGORY_TOOLTIPS: Record<string, string> = {
-  '정보형': '지식/정보를 찾는 검색 의도입니다',
-  '비교형': '제품/서비스를 비교하려는 검색 의도입니다',
-  '구매형': '구매 결정 직전의 검색 의도입니다',
-  '경험형': '실제 경험/후기를 찾는 검색 의도입니다',
-}
-
-function getCompBadge(compIdx: string) {
-  const badge = (() => {
-    switch (compIdx) {
-      case 'HIGH':
-        return <Badge variant="destructive" className="text-xs">높음</Badge>
-      case 'MEDIUM':
-        return <Badge variant="secondary" className="text-xs">보통</Badge>
-      case 'LOW':
-        return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
-      default:
-        return <Badge variant="outline" className="text-xs">-</Badge>
-    }
-  })()
-
-  const tip = COMP_TOOLTIPS[compIdx]
-  if (!tip) return badge
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{badge}</TooltipTrigger>
-      <TooltipContent><p>{tip}</p></TooltipContent>
-    </Tooltip>
-  )
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 70) return 'text-green-600 bg-green-50'
-  if (score >= 40) return 'text-yellow-600 bg-yellow-50'
-  return 'text-red-600 bg-red-50'
-}
-
-function getScoreTooltip(score: number): string {
-  if (score >= 70) return '블로그 상위 노출 가능성이 높은 추천 키워드입니다'
-  if (score >= 40) return '경쟁에 따라 상위 노출 가능한 키워드입니다'
-  return '경쟁이 높거나 검색량이 부족한 키워드입니다'
-}
-
-function getCategoryBadge(category: string) {
-  const colors: Record<string, string> = {
-    '정보형': 'bg-blue-100 text-blue-700',
-    '비교형': 'bg-purple-100 text-purple-700',
-    '구매형': 'bg-orange-100 text-orange-700',
-    '경험형': 'bg-pink-100 text-pink-700',
-  }
-  const badge = (
-    <Badge className={`text-xs ${colors[category] || 'bg-gray-100 text-gray-700'} hover:opacity-80`}>
-      {category}
-    </Badge>
-  )
-
-  const tip = CATEGORY_TOOLTIPS[category]
-  if (!tip) return badge
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{badge}</TooltipTrigger>
-      <TooltipContent><p>{tip}</p></TooltipContent>
-    </Tooltip>
-  )
-}
-
-function formatNumber(num: number): string {
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}만`
-  return num.toLocaleString()
-}
 
 export default function OpportunitiesPage() {
   const [topic, setTopic] = useState('')
@@ -120,9 +44,13 @@ export default function OpportunitiesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
+  // 키워드 발굴 히스토리
+  const { history, addKeyword } = useKeywordHistory('keyword-discovery-history')
+
   const handleSearch = async (searchTopic?: string) => {
     const t = (searchTopic || topic).trim()
     if (!t || loading) return
+    addKeyword(t)
 
     if (searchTopic) setTopic(searchTopic)
     setLoading(true)
@@ -236,20 +164,40 @@ export default function OpportunitiesPage() {
               </Button>
             </div>
 
-            {/* 예시 주제 */}
+            {/* 최근 검색 히스토리 + 예시 주제 */}
             {!result && !loading && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">예시:</span>
-                {EXAMPLE_TOPICS.map((t) => (
-                  <Badge
-                    key={t}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-accent transition-colors"
-                    onClick={() => handleSearch(t)}
-                  >
-                    {t}
-                  </Badge>
-                ))}
+              <div className="space-y-2">
+                {history.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      최근:
+                    </span>
+                    {history.map((t) => (
+                      <Badge
+                        key={t}
+                        variant="outline"
+                        className="cursor-pointer border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors"
+                        onClick={() => handleSearch(t)}
+                      >
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">예시:</span>
+                  {EXAMPLE_TOPICS.map((t) => (
+                    <Badge
+                      key={t}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => handleSearch(t)}
+                    >
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
           </form>

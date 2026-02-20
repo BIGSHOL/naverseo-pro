@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import Link from 'next/link'
 import { PLANS, type Plan } from '@/types/database'
+import { timeAgo } from '@/lib/utils/date'
 
 // ---------- 타입 ----------
 
@@ -48,16 +49,6 @@ interface DailyActivity {
 }
 
 // ---------- 유틸 ----------
-
-function timeAgo(dateStr: string): string {
-  const now = new Date()
-  const date = new Date(dateStr)
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return `${Math.floor(diff / 86400)}일 전`
-}
 
 /** "10회/월" → 10, "무제한" → Infinity */
 function parseLimit(str: string): number {
@@ -120,6 +111,7 @@ export default function DashboardPage() {
   const [trackedKeywordsCount, setTrackedKeywordsCount] = useState(0)
   const [greeting, setGreeting] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -130,7 +122,10 @@ export default function DashboardPage() {
     async function loadDashboard() {
       try {
         const res = await fetch('/api/dashboard')
-        if (!res.ok) return
+        if (!res.ok) {
+          setError('대시보드 데이터를 불러오지 못했습니다.')
+          return
+        }
         const data = await res.json()
 
         setPlan((data.profile?.plan || 'free') as Plan)
@@ -142,7 +137,7 @@ export default function DashboardPage() {
         setDailyActivity(data.dailyActivity || [])
         setTrackedKeywordsCount(data.trackedKeywordsCount || 0)
       } catch {
-        // 로드 실패 시 기본값 유지
+        setError('대시보드 데이터를 불러오는 중 오류가 발생했습니다.')
       } finally {
         setLoading(false)
       }
@@ -243,6 +238,14 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
+        {error}
       </div>
     )
   }

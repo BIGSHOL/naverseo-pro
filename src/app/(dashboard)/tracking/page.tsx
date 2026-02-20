@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { RankHistoryChart } from '@/components/charts/rank-history-chart'
+import { timeAgo } from '@/lib/utils/date'
 
 interface TrackingHistory {
   id: string
@@ -34,17 +35,6 @@ interface TrackedKeyword {
     checked_at: string
   }
   history: TrackingHistory[]
-}
-
-function timeAgo(dateStr: string): string {
-  const now = new Date()
-  const date = new Date(dateStr)
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (diff < 60) return '방금 전'
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-  return `${Math.floor(diff / 86400)}일 전`
 }
 
 function getRankChange(history: TrackingHistory[]): {

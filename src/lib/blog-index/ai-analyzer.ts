@@ -1,18 +1,18 @@
 /**
  * NaverSEO Pro - 블로그 지수 AI 심층 분석 모듈 (v2.5)
  *
- * Gemini 2.0 Flash를 활용한 블로그 콘텐츠 심층 분석
+ * Gemini 2.5 Flash를 활용한 블로그 콘텐츠 심층 분석
  * - D.I.A. 경험 정보 감지
  * - 콘텐츠 품질 심층 평가
  * - 어뷰징 정밀 감지
  * - 맞춤 추천 생성
  *
- * 비용: ~₩2.3/건 (Gemini 2.0 Flash 기준)
- * 무료 티어: 1,500 req/day로 대부분 커버 가능
+ * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
 import { callGemini, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
-import type { AiAnalysis, BlogPost } from './engine'
+import { calculateScoreAdjustment } from '@/lib/utils/scoring'
+import type { AiAnalysis, BlogPost } from './types'
 
 /** Gemini AI 응답 형식 */
 interface AiAnalysisRaw {
@@ -245,27 +245,15 @@ ${p.content}
     const abuseRisk = Math.max(0, Math.min(10, raw.abuseRisk))
 
     // AI 점수 보정값 계산
-    // 경험 + 품질 평균이 높으면 가산, 어뷰징 위험이 높으면 감산
     const avgPositive = (experienceScore + qualityScore) / 2
-    let scoreAdjustment = 0
-    let adjustmentReason = ''
-
-    if (avgPositive >= 8 && abuseRisk <= 2) {
-      scoreAdjustment = Math.round((avgPositive - 7) * 2)  // 최대 +6
-      adjustmentReason = `AI 분석: 높은 경험 정보(${experienceScore}점)와 콘텐츠 품질(${qualityScore}점)으로 가산`
-    } else if (avgPositive >= 6 && abuseRisk <= 3) {
-      scoreAdjustment = Math.round((avgPositive - 6) * 1.5)  // 최대 +6
-      adjustmentReason = `AI 분석: 양호한 콘텐츠 품질로 소폭 가산`
-    } else if (abuseRisk >= 7) {
-      scoreAdjustment = -Math.round((abuseRisk - 5) * 2)  // 최대 -10
-      adjustmentReason = `AI 분석: 어뷰징 위험(${abuseRisk}점)으로 감산`
-    } else if (avgPositive <= 3) {
-      scoreAdjustment = -Math.round((4 - avgPositive) * 1.5)  // 최대 -6
-      adjustmentReason = `AI 분석: 낮은 콘텐츠 품질(${qualityScore}점)로 감산`
-    }
-
-    // 보정값 범위 제한
-    scoreAdjustment = Math.max(-10, Math.min(10, scoreAdjustment))
+    const { adjustment: scoreAdjustment, reason: adjustmentReason } = calculateScoreAdjustment({
+      avgPositiveScore: avgPositive,
+      abuseRisk: abuseRisk,
+      positiveReason: (avg) => `AI 분석: 높은 경험 정보(${experienceScore}점)와 콘텐츠 품질(${qualityScore}점)으로 가산`,
+      mildPositiveReason: 'AI 분석: 양호한 콘텐츠 품질로 소폭 가산',
+      negativeReason: (_avg) => `AI 분석: 낮은 콘텐츠 품질(${qualityScore}점)로 감산`,
+      abuseReason: (risk) => `AI 분석: 어뷰징 위험(${risk}점)으로 감산`,
+    })
 
     return {
       experienceScore,

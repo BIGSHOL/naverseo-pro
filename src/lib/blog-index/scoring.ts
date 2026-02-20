@@ -1,0 +1,58 @@
+/**
+ * 블로그 지수 - 개별 포스트 품질 지수 (v2 개선)
+ *
+ * 기존: 0~10점 (제목 3 + 콘텐츠 4 + 이미지 2 + 키워드 1)
+ * v2:   0~12점 (제목 3 + 콘텐츠 3 + 이미지 3 + 구조 2 + 키워드 1)
+ */
+
+import type { PostQuality } from './types'
+
+export function scorePost(title: string, descHtml: string, descLength: number, imageCount: number): PostQuality {
+  let score = 0
+
+  // 제목 길이 (0~3점) - 15~40자가 최적
+  const titleLen = title.length
+  if (titleLen >= 15 && titleLen <= 40) score += 3
+  else if (titleLen >= 10 && titleLen <= 50) score += 2
+  else if (titleLen >= 5) score += 1
+
+  // 콘텐츠 길이 (0~3점) - 설명문 기준
+  if (descLength >= 200) score += 3
+  else if (descLength >= 150) score += 2
+  else if (descLength >= 50) score += 1
+
+  // 이미지 (0~3점) - 개수 기반 (v2 개선)
+  if (imageCount >= 3) score += 3
+  else if (imageCount >= 2) score += 2
+  else if (imageCount >= 1) score += 1
+
+  // 구조/서식 (0~2점) - v2 신규
+  const hasStructure = /[①②③④⑤]|[1-9]\.\s|•|▶|<b>|<strong>/.test(descHtml)
+  const hasConcreteData = /\d+[만천백]?\s*원|₩\d|가격|\d+분|\d+km/.test(descHtml)
+  if (hasStructure && hasConcreteData) score += 2
+  else if (hasStructure || hasConcreteData) score += 1
+
+  // 제목 키워드 포함 여부 (0~1점) - 숫자나 구체적 키워드
+  if (/\d+/.test(title) || /추천|후기|방법|비교|정리|가이드|리뷰|TOP/i.test(title)) {
+    score += 1
+  }
+
+  // score 0~12 → 등급 매핑
+  let tier: number
+  let category: string
+  let label: string
+
+  if (score >= 11) { tier = 11; category = '파워'; label = '파워' }
+  else if (score >= 10) { tier = 10; category = '최적화'; label = '최적화2' }
+  else if (score >= 9) { tier = 9; category = '최적화'; label = '최적화1' }
+  else if (score >= 8) { tier = 8; category = '준최적화'; label = '준최적화3' }
+  else if (score >= 6) { tier = 7; category = '준최적화'; label = '준최적화2' }
+  else if (score >= 5) { tier = 6; category = '준최적화'; label = '준최적화1' }
+  else if (score >= 4) { tier = 5; category = '일반'; label = '일반3' }
+  else if (score >= 3) { tier = 4; category = '일반'; label = '일반2' }
+  else if (score >= 2) { tier = 3; category = '일반'; label = '일반1' }
+  else if (score >= 1) { tier = 2; category = '저품질'; label = '저품질2' }
+  else { tier = 1; category = '저품질'; label = '저품질1' }
+
+  return { score, tier, label, category }
+}

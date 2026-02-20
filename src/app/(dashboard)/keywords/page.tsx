@@ -6,8 +6,11 @@ import { KeywordResults, type KeywordData } from '@/components/keywords/keyword-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2 } from 'lucide-react'
+import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { useKeywordHistory } from '@/hooks/use-keyword-history'
+
+const DEFAULT_EXAMPLES = ['다이어트 식단', '맛집 추천', '여행 코스', '인테리어 팁']
 
 interface AiSearchData {
   totalSearch: number
@@ -38,7 +41,11 @@ export default function KeywordsPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
+  // 키워드 검색 히스토리
+  const { history, addKeyword } = useKeywordHistory('keyword-research-history')
+
   const handleSearch = async (keyword: string) => {
+    addKeyword(keyword)
     setLoading(true)
     setError('')
     setSpaceNotice('')
@@ -323,17 +330,46 @@ export default function KeywordsPage() {
             <p className="mt-2 text-center text-sm text-muted-foreground">
               키워드를 입력하면 네이버 월간 검색량, 경쟁도, 추천 점수를 분석합니다
             </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {['다이어트 식단', '맛집 추천', '여행 코스', '인테리어 팁'].map((example) => (
-                <Badge
-                  key={example}
-                  variant="secondary"
-                  className="cursor-pointer hover:bg-secondary/80"
-                  onClick={() => handleSearch(example)}
-                >
-                  {example}
-                </Badge>
-              ))}
+
+            {/* 최근 검색 히스토리 */}
+            {history.length > 0 && (
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  최근 검색
+                </span>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {history.map((kw) => (
+                    <Badge
+                      key={kw}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => handleSearch(kw)}
+                    >
+                      {kw}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 추천 키워드 (히스토리 없을 때만 또는 항상 표시) */}
+            <div className="mt-4 flex flex-col items-center gap-2">
+              {history.length > 0 && (
+                <span className="text-xs text-muted-foreground">추천 키워드</span>
+              )}
+              <div className="flex flex-wrap justify-center gap-2">
+                {DEFAULT_EXAMPLES.map((example) => (
+                  <Badge
+                    key={example}
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-secondary/80"
+                    onClick={() => handleSearch(example)}
+                  >
+                    {example}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

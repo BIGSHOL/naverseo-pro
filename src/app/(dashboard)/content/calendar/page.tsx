@@ -10,12 +10,17 @@ import {
   Check,
   Eye,
   X,
+  Search,
+  Compass,
+  BarChart3,
+  PenTool,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 
+// 콘텐츠 아이템 (본문 보기용)
 interface ContentItem {
   id: string
   target_keyword: string
@@ -25,6 +30,24 @@ interface ContentItem {
   seo_score: number | null
   created_at: string
   updated_at: string
+}
+
+// 통합 활동 아이템
+interface Activity {
+  id: string
+  type: 'content' | 'keyword' | 'discovery' | 'tracking'
+  label: string
+  detail: string | null
+  status: string | null
+  score: number | null
+  created_at: string
+}
+
+const ACTIVITY_CONFIG: Record<string, { name: string; icon: typeof FileText; color: string; bgColor: string }> = {
+  content: { name: '콘텐츠', icon: PenTool, color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  keyword: { name: '키워드 리서치', icon: Search, color: 'text-purple-700', bgColor: 'bg-purple-100' },
+  discovery: { name: '키워드 발굴', icon: Compass, color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+  tracking: { name: '순위 트래킹', icon: BarChart3, color: 'text-orange-700', bgColor: 'bg-orange-100' },
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -48,31 +71,38 @@ export default function ContentCalendarPage() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [contents, setContents] = useState<ContentItem[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [viewingContent, setViewingContent] = useState<ContentItem | null>(null)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
 
-  const loadContents = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const res = await fetch(
-        `/api/content/list?year=${year}&month=${month + 1}`
+        `/api/content/list?year=${year}&month=${month + 1}&activities=true`
       )
-      if (!res.ok) return
+      if (!res.ok) {
+        setError('캘린더 데이터를 불러오지 못했습니다.')
+        return
+      }
       const data = await res.json()
       setContents(data.contents || [])
+      setActivities(data.activities || [])
     } catch {
-      // 로드 실패
+      setError('캘린더 데이터를 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
   }, [year, month])
 
   useEffect(() => {
-    loadContents()
-  }, [loadContents])
+    loadData()
+  }, [loadData])
 
   const handlePrevMonth = () => {
     if (month === 0) {
@@ -103,7 +133,7 @@ export default function ContentCalendarPage() {
         body: JSON.stringify({ contentId, status: newStatus }),
       })
       if (res.ok) {
-        await loadContents()
+        await loadData()
       }
     } catch {
       // 업데이트 실패
@@ -122,84 +152,96 @@ export default function ContentCalendarPage() {
     }
   }
 
-  // 날짜별 콘텐츠 그룹핑
-  const contentsByDate: Record<string, ContentItem[]> = {}
-  for (const c of contents) {
-    const d = new Date(c.created_at)
+  // 날짜별 활동 그룹핑
+  const activitiesByDate: Record<string, Activity[]> = {}
+  for (const a of activities) {
+    const d = new Date(a.created_at)
     const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    if (!contentsByDate[dateKey]) contentsByDate[dateKey] = []
-    contentsByDate[dateKey].push(c)
+    if (!activitiesByDate[dateKey]) activitiesByDate[dateKey] = []
+    activitiesByDate[dateKey].push(a)
   }
 
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfMonth(year, month)
 
-  // 선택된 날짜의 콘텐츠
-  const selectedContents = selectedDate ? contentsByDate[selectedDate] || [] : []
+  // 선택된 날짜의 활동
+  const selectedActivities = selectedDate ? activitiesByDate[selectedDate] || [] : []
 
   // 통계
-  const totalContents = contents.length
-  const draftCount = contents.filter((c) => c.status === 'draft').length
-  const publishedCount = contents.filter((c) => c.status === 'published').length
-  const activeDays = Object.keys(contentsByDate).length
-  const withScore = contents.filter((c) => c.seo_score !== null)
-  const avgSeoScore = withScore.length > 0
-    ? Math.round(withScore.reduce((sum, c) => sum + (c.seo_score || 0), 0) / withScore.length)
-    : null
+  const contentCount = activities.filter((a) => a.type === 'content').length
+  const keywordCount = activities.filter((a) => a.type === 'keyword').length
+  const discoveryCount = activities.filter((a) => a.type === 'discovery').length
+  const trackingCount = activities.filter((a) => a.type === 'tracking').length
+  const activeDays = Object.keys(activitiesByDate).length
+  const totalActivities = activities.length
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">콘텐츠 캘린더</h1>
+          <h1 className="text-2xl font-bold">활동 캘린더</h1>
           <p className="mt-1 text-muted-foreground">
-            생성된 콘텐츠를 날짜별로 확인하고 관리하세요
+            모든 SEO 활동을 날짜별로 확인하세요
           </p>
         </div>
         <Link href="/content">
           <Button variant="outline" size="sm" className="gap-2">
-            <FileText className="h-4 w-4" />
+            <PenTool className="h-4 w-4" />
             새 콘텐츠 생성
           </Button>
         </Link>
       </div>
 
       {/* 월별 통계 */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">총 콘텐츠</p>
-            <p className="mt-1 text-2xl font-bold">{totalContents}편</p>
+            <p className="text-sm text-muted-foreground">총 활동</p>
+            <p className="mt-1 text-2xl font-bold">{totalActivities}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">초안</p>
-            <p className="mt-1 text-2xl font-bold text-yellow-600">{draftCount}편</p>
+            <div className="flex items-center gap-1.5">
+              <PenTool className="h-3.5 w-3.5 text-blue-600" />
+              <p className="text-sm text-muted-foreground">콘텐츠</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-blue-600">{contentCount}편</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">발행됨</p>
-            <p className="mt-1 text-2xl font-bold text-green-600">{publishedCount}편</p>
+            <div className="flex items-center gap-1.5">
+              <Search className="h-3.5 w-3.5 text-purple-600" />
+              <p className="text-sm text-muted-foreground">키워드 리서치</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-purple-600">{keywordCount}건</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">작성일수</p>
-            <p className="mt-1 text-2xl font-bold text-blue-600">
+            <div className="flex items-center gap-1.5">
+              <Compass className="h-3.5 w-3.5 text-emerald-600" />
+              <p className="text-sm text-muted-foreground">키워드 발굴</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-emerald-600">{discoveryCount}건</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5 text-orange-600" />
+              <p className="text-sm text-muted-foreground">순위 트래킹</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-orange-600">{trackingCount}건</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">활동일수</p>
+            <p className="mt-1 text-2xl font-bold">
               {activeDays}일
               <span className="ml-1 text-xs font-normal text-muted-foreground">/ {daysInMonth}일</span>
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">평균 SEO 점수</p>
-            <p className={`mt-1 text-2xl font-bold ${
-              avgSeoScore === null ? '' : avgSeoScore >= 70 ? 'text-green-600' : avgSeoScore >= 50 ? 'text-yellow-600' : 'text-red-600'
-            }`}>
-              {avgSeoScore !== null ? `${avgSeoScore}점` : '-'}
             </p>
           </CardContent>
         </Card>
@@ -222,7 +264,11 @@ export default function ContentCalendarPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {error ? (
+              <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
+                {error}
+              </div>
+            ) : loading ? (
               <div className="flex items-center justify-center py-16">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
@@ -247,12 +293,15 @@ export default function ContentCalendarPage() {
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1
                   const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  const dayContents = contentsByDate[dateKey] || []
+                  const dayActivities = activitiesByDate[dateKey] || []
                   const isToday =
                     year === now.getFullYear() &&
                     month === now.getMonth() &&
                     day === now.getDate()
                   const isSelected = selectedDate === dateKey
+
+                  // 날짜 셀에 표시할 활동 타입별 도트
+                  const typesInDay = Array.from(new Set(dayActivities.map((a) => a.type)))
 
                   return (
                     <div
@@ -271,23 +320,35 @@ export default function ContentCalendarPage() {
                       >
                         {day}
                       </span>
-                      {dayContents.length > 0 && (
+                      {dayActivities.length > 0 && (
                         <div className="mt-0.5 space-y-0.5">
-                          {dayContents.slice(0, 2).map((c) => (
-                            <div
-                              key={c.id}
-                              className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${
-                                STATUS_LABELS[c.status]?.color || 'bg-gray-100'
-                              }`}
-                            >
-                              {c.target_keyword}
-                            </div>
-                          ))}
-                          {dayContents.length > 2 && (
+                          {/* 활동 타입별 요약 표시 */}
+                          {dayActivities.slice(0, 2).map((a) => {
+                            const config = ACTIVITY_CONFIG[a.type]
+                            return (
+                              <div
+                                key={a.id}
+                                className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${config.bgColor} ${config.color}`}
+                              >
+                                {a.label}
+                              </div>
+                            )
+                          })}
+                          {dayActivities.length > 2 && (
                             <div className="px-1 text-[10px] text-muted-foreground">
-                              +{dayContents.length - 2}개 더
+                              +{dayActivities.length - 2}개 더
                             </div>
                           )}
+                          {/* 활동 타입 도트 */}
+                          <div className="flex gap-0.5 px-1">
+                            {typesInDay.map((type) => (
+                              <div
+                                key={type}
+                                className={`h-1.5 w-1.5 rounded-full ${ACTIVITY_CONFIG[type]?.bgColor || 'bg-gray-300'}`}
+                                style={{ opacity: 0.8 }}
+                              />
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -298,7 +359,7 @@ export default function ContentCalendarPage() {
           </CardContent>
         </Card>
 
-        {/* 선택된 날짜의 콘텐츠 상세 */}
+        {/* 선택된 날짜의 활동 상세 */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
@@ -306,7 +367,7 @@ export default function ContentCalendarPage() {
                 ? `${new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', {
                     month: 'long',
                     day: 'numeric',
-                  })} 콘텐츠`
+                  })} 활동`
                 : '날짜를 선택하세요'}
             </CardTitle>
           </CardHeader>
@@ -315,126 +376,162 @@ export default function ContentCalendarPage() {
               <p className="py-8 text-center text-sm text-muted-foreground">
                 캘린더에서 날짜를 클릭하면
                 <br />
-                해당 날짜의 콘텐츠를 볼 수 있어요
+                해당 날짜의 활동을 볼 수 있어요
               </p>
-            ) : selectedContents.length === 0 ? (
+            ) : selectedActivities.length === 0 ? (
               <div className="py-8 text-center">
                 <p className="text-sm text-muted-foreground">
-                  이 날짜에 생성된 콘텐츠가 없습니다
+                  이 날짜에 기록된 활동이 없습니다
                 </p>
-                <Link href="/content">
-                  <Button variant="outline" size="sm" className="mt-3">
-                    콘텐츠 생성하기
-                  </Button>
-                </Link>
               </div>
             ) : (
               <div className="space-y-3">
-                {selectedContents.map((c) => (
-                  <div key={c.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{c.title}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          키워드: {c.target_keyword}
-                        </p>
+                {selectedActivities.map((a) => {
+                  const config = ACTIVITY_CONFIG[a.type]
+                  const Icon = config.icon
+
+                  return (
+                    <div key={`${a.type}-${a.id}`} className="rounded-lg border p-3">
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 rounded p-1 ${config.bgColor}`}>
+                          <Icon className={`h-3 w-3 ${config.color}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-medium ${config.color}`}>
+                              {config.name}
+                            </span>
+                            {a.type === 'content' && a.status && STATUS_LABELS[a.status] && (
+                              <Badge
+                                variant="secondary"
+                                className={`h-4 px-1 text-[10px] ${STATUS_LABELS[a.status].color}`}
+                              >
+                                {STATUS_LABELS[a.status].label}
+                              </Badge>
+                            )}
+                            {a.type === 'content' && a.score !== null && (
+                              <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                                SEO {a.score}
+                              </Badge>
+                            )}
+                            {a.type === 'tracking' && a.status && (
+                              <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                                {a.status}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-0.5 truncate text-sm font-semibold">{a.label}</p>
+                          {a.detail && a.type === 'content' && (
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {a.detail}
+                            </p>
+                          )}
+                          {a.detail && a.type === 'tracking' && (
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {a.detail}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      {c.seo_score !== null && (
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          SEO {c.seo_score}
-                        </Badge>
-                      )}
-                    </div>
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${STATUS_LABELS[c.status]?.color || ''}`}
-                      >
-                        {STATUS_LABELS[c.status]?.label || c.status}
-                      </Badge>
-
-                      {c.status === 'draft' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleStatusChange(c.id, 'published')}
-                          disabled={updating === c.id}
-                        >
-                          {updating === c.id ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            '발행'
+                      {/* 콘텐츠 전용 액션 버튼 */}
+                      {a.type === 'content' && (
+                        <div className="mt-2 flex items-center gap-1 pl-7">
+                          {a.status === 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => handleStatusChange(a.id, 'published')}
+                              disabled={updating === a.id}
+                            >
+                              {updating === a.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                '발행'
+                              )}
+                            </Button>
                           )}
-                        </Button>
-                      )}
-                      {c.status === 'published' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleStatusChange(c.id, 'archived')}
-                          disabled={updating === c.id}
-                        >
-                          {updating === c.id ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            '보관'
+                          {a.status === 'published' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => handleStatusChange(a.id, 'archived')}
+                              disabled={updating === a.id}
+                            >
+                              {updating === a.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                '보관'
+                              )}
+                            </Button>
                           )}
-                        </Button>
-                      )}
-                      {c.status === 'archived' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleStatusChange(c.id, 'draft')}
-                          disabled={updating === c.id}
-                        >
-                          {updating === c.id ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            '초안으로'
+                          {a.status === 'archived' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => handleStatusChange(a.id, 'draft')}
+                              disabled={updating === a.id}
+                            >
+                              {updating === a.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                '초안으로'
+                              )}
+                            </Button>
                           )}
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 gap-1 px-2 text-xs"
+                            onClick={() => {
+                              const item = contents.find((c) => c.id === a.id)
+                              if (item) setViewingContent(item)
+                            }}
+                          >
+                            <Eye className="h-3 w-3" />
+                            보기
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 gap-1 px-2 text-xs"
+                            onClick={() => {
+                              const item = contents.find((c) => c.id === a.id)
+                              if (item) handleCopy(`${item.title}\n\n${item.content}`)
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                            복사
+                          </Button>
+                        </div>
                       )}
-                    </div>
 
-                    <div className="mt-2 flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 gap-1 px-2 text-xs"
-                        onClick={() => setViewingContent(c)}
-                      >
-                        <Eye className="h-3 w-3" />
-                        보기
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 gap-1 px-2 text-xs"
-                        onClick={() => handleCopy(`${c.title}\n\n${c.content}`)}
-                      >
-                        <Copy className="h-3 w-3" />
-                        복사
-                      </Button>
+                      <p className="mt-1.5 pl-7 text-[10px] text-muted-foreground">
+                        {new Date(a.created_at).toLocaleTimeString('ko-KR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
                     </div>
-
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">
-                      {new Date(c.created_at).toLocaleTimeString('ko-KR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}{' '}
-                      생성
-                    </p>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* 범례 */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        {Object.entries(ACTIVITY_CONFIG).map(([key, config]) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <div className={`h-2.5 w-2.5 rounded-full ${config.bgColor}`} />
+            <span>{config.name}</span>
+          </div>
+        ))}
       </div>
 
       {/* 콘텐츠 본문 보기 모달 */}

@@ -4,33 +4,28 @@ import {
   determineLevelInfo,
   generateDemoPosts,
   generateDemoKeywordResults,
+  generateDemoKeywordCompetition,
+  generateDemoVisitorData,
   type BlogPost,
   type KeywordRankResult,
+  type KeywordCompetitionData,
+  type VisitorData,
 } from '@/lib/blog-index/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { STOPWORDS, stripHtml, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
 
 /**
  * 수집된 블로그 포스트 제목에서 검색용 키워드를 자동 추출
  * 빈출 바이그램(2단어 조합) 우선, 부족하면 단일 키워드로 보충
  */
 function extractKeywordsFromPosts(posts: BlogPost[]): string[] {
-  const stopwords = new Set([
-    '그리고', '하지만', '그래서', '때문에', '입니다', '합니다',
-    '있습니다', '됩니다', '것입니다', '블로그', '포스팅', '오늘은',
-    '안녕하세요', '이번에', '정말', '진짜', '같은', '통해', '대한',
-    '위한', '하는', '있는', '되는', '만들기', '사용', '방법', '추천',
-    '후기', '리뷰', '정보', '이야기', '소개', '관련', '대해',
-  ])
-
   const wordFreq: Record<string, number> = {}
   const bigramFreq: Record<string, number> = {}
 
   posts.forEach((p) => {
-    const title = p.title.replace(/<[^>]*>/g, '')
-    const words = (title.match(/[가-힣]{2,}|[a-zA-Z]{3,}/g) || [])
-      .map((w) => w.toLowerCase())
-      .filter((w) => !stopwords.has(w))
+    const title = stripHtml(p.title)
+    const words = extractKoreanKeywords(title, STOPWORDS)
 
     words.forEach((w) => {
       wordFreq[w] = (wordFreq[w] || 0) + 1
@@ -63,16 +58,6 @@ function extractKeywordsFromPosts(posts: BlogPost[]): string[] {
   keywords.push(...topWords)
 
   return keywords.slice(0, 5)
-}
-
-/**
- * 블로그 URL에서 blogId 추출
- */
-function extractBlogIdFromUrl(url: string): string | null {
-  const match = url.match(
-    /(?:blog\.naver\.com|m\.blog\.naver\.com)\/([a-zA-Z0-9_-]+)/
-  )
-  return match ? match[1] : null
 }
 
 /**
@@ -216,11 +201,13 @@ export async function POST(request: NextRequest) {
 
     let posts: BlogPost[]
     let keywordResults: KeywordRankResult[]
+    let keywordCompetition: KeywordCompetitionData[] = []
+    let visitorData: VisitorData | null = null
     let blogName: string | null = null
     const isDemo = !hasNaverApi
 
     // blogId 추출
-    const blogId = extractBlogIdFromUrl(blogUrl.trim())
+    const blogId = extractBlogId(blogUrl.trim())
 
     if (!hasNaverApi) {
       // 데모 모드
@@ -231,6 +218,8 @@ export async function POST(request: NextRequest) {
         ? userKeywords
         : extractKeywordsFromPosts(posts)
       keywordResults = generateDemoKeywordResults(keywords)
+      keywordCompetition = generateDemoKeywordCompetition(keywords)
+      visitorData = generateDemoVisitorData()
       blogName = '데모 블로그'
     } else {
       const { searchNaverBlog } = await import('@/lib/naver/blog-search')
@@ -350,10 +339,49 @@ export async function POST(request: NextRequest) {
           keywordResults.push({ keyword, rank: null, totalResults: 0 })
         }
       }
+
+      // === 4단계: 키워드 경쟁도 조회 (검색광고 API) ===
+      const hasAdApi = process.env.NAVER_AD_API_KEY && process.env.NAVER_AD_SECRET_KEY && process.env.NAVER_AD_CUSTOMER_ID
+      if (hasAdApi && keywords.length > 0) {
+        try {
+          const { getKeywordStats } = await import('@/lib/naver/search-ad')
+          const adResults = await getKeywordStats(keywords.join(','))
+          keywordCompetition = keywords.map((kw) => {
+            const match = adResults.find((r) => r.relKeyword === kw)
+            return {
+              keyword: kw,
+              compIdx: match?.compIdx || '-',
+              searchVolume: match ? match.monthlyPcQcCnt + match.monthlyMobileQcCnt : 0,
+            }
+          })
+          console.log(`[BlogIndex] 키워드 경쟁도 ${keywordCompetition.length}개 조회 완료`)
+        } catch (adError) {
+          console.error('[BlogIndex] 키워드 경쟁도 조회 실패 (무시):', adError)
+          // 실패해도 빈 배열 → engine에서 중립 점수
+        }
+      }
+
+      // === 5단계: 방문자 데이터 조회 (XML API) ===
+      if (blogId) {
+        try {
+          const { fetchBlogVisitors } = await import('@/lib/naver/visitor-stats')
+          visitorData = await fetchBlogVisitors(blogId)
+          if (visitorData.isAvailable) {
+            console.log(`[BlogIndex] 방문자 데이터 조회 완료 (일평균: ${visitorData.avgDailyVisitors}명)`)
+          }
+        } catch (visitorError) {
+          console.error('[BlogIndex] 방문자 데이터 조회 실패 (무시):', visitorError)
+          // 실패해도 null → engine에서 중립 점수
+        }
+      }
     }
 
-    // 5축 블로그 지수 분석 엔진 실행 (알고리즘 기반)
-    const result = analyzeBlogIndex(blogUrl.trim(), posts, keywordResults, isDemo, blogName)
+    // 4축 블로그 지수 분석 엔진 실행 (알고리즘 기반)
+    const result = analyzeBlogIndex(
+      blogUrl.trim(), posts, keywordResults, isDemo, blogName,
+      keywordCompetition.length > 0 ? keywordCompetition : undefined,
+      visitorData
+    )
 
     // AI 심층 분석 (v2.5) — 알고리즘 분석과 병렬이 아닌 순차 실행 (결과에 보정값 적용)
     try {

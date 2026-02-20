@@ -256,5 +256,18 @@ Query:
 | `verify-implementation` | 프로젝트의 모든 verify 스킬을 순차 실행하여 통합 검증 보고서를 생성합니다 |
 | `manage-skills` | 세션 변경사항을 분석하고, 검증 스킬을 생성/업데이트하며, CLAUDE.md를 관리합니다 |
 | `verify-api-routes` | API Route의 에러 처리, 입력 검증, 데모 폴백, 한국어 메시지, HTTP 상태 코드 검증 |
-| `verify-dashboard-pages` | 대시보드 페이지의 클라이언트 선언, 한국어 UI, shadcn/ui 사용, 로딩/에러 상태 검증 |
+| `verify-dashboard-pages` | 대시보드/인증 페이지의 클라이언트 선언, 한국어 UI, shadcn/ui 사용, 로딩/에러 상태 검증 |
 | `verify-landing-pages` | 랜딩 페이지의 한국어 마케팅 텍스트, 가격 일관성, shadcn/ui, 아이콘 통일 검증 |
+| `verify-security` | 봇 차단/Rate Limiting/robots.txt/보안 헤더 3레이어 일관성 검증 |
+| `verify-plan-limits` | 플랜별 사용량 제한(키워드/콘텐츠/분석/트래킹) 일관 적용 검증 |
+| `verify-shared-utils` | 공유 유틸리티 중복 코드 재발 방지, import 경로, 미사용 export 검증 |
+| `verify-seo-engine` | SEO 점수 체계(100점 만점) 및 등급 판정의 엔진/API/UI 일관성 검증 |
+
+## Agents
+
+커스텀 에이전트는 `.claude/agents/`에 정의되어 있습니다.
+
+| Agent | Purpose |
+|-------|---------|
+| `code-reviewer` | PR 전 코드 리뷰 자동화 (한국어 UI, shadcn/ui, 에러 처리, 타입 안전성 체크) |
+| `refactor-scout` | 중복 코드 탐지 + 공유 유틸 추출 대상 자동 탐지 및 리팩토링 제안 |

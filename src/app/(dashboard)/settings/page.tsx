@@ -8,10 +8,14 @@ import {
   AlertCircle,
   RefreshCw,
   LogOut,
+  Lock,
+  CheckCircle2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { PLANS, type Plan } from '@/types/database'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -20,6 +24,8 @@ interface ProfileData {
   plan: Plan
   keywords_used_this_month: number
   content_generated_this_month: number
+  analysis_used_today: number
+  analysis_reset_date: string | null
   email: string
   created_at: string
 }
@@ -28,16 +34,25 @@ export default function SettingsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
+  const [pwSuccess, setPwSuccess] = useState(false)
+  const [fetchError, setFetchError] = useState('')
 
   const loadProfile = useCallback(async () => {
     try {
       const res = await fetch('/api/billing')
-      if (!res.ok) return
+      if (!res.ok) {
+        setFetchError('설정 데이터를 불러오지 못했습니다.')
+        return
+      }
       const data = await res.json()
       setProfile(data.profile)
     } catch {
-      // 로드 실패
+      setFetchError('설정 데이터를 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -46,6 +61,66 @@ export default function SettingsPage() {
   useEffect(() => {
     loadProfile()
   }, [loadProfile])
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwError('')
+    setPwSuccess(false)
+
+    if (!isSupabaseConfigured()) {
+      setPwError('Supabase가 설정되지 않았습니다.')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      setPwError('새 비밀번호는 6자 이상이어야 합니다.')
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setPwError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+
+    setPwLoading(true)
+    try {
+      const supabase = createClient()
+
+      // 현재 비밀번호로 재인증
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: profile?.email || '',
+        password: currentPassword,
+      })
+
+      if (signInError) {
+        setPwError('현재 비밀번호가 올바르지 않습니다.')
+        return
+      }
+
+      // 새 비밀번호로 변경
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (updateError) {
+        if (updateError.message.includes('same password')) {
+          setPwError('현재 비밀번호와 동일합니다. 다른 비밀번호를 입력해주세요.')
+        } else {
+          setPwError(updateError.message)
+        }
+        return
+      }
+
+      setPwSuccess(true)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+    } catch {
+      setPwError('비밀번호 변경 중 오류가 발생했습니다.')
+    } finally {
+      setPwLoading(false)
+    }
+  }
 
   const handleLogout = async () => {
     if (isSupabaseConfigured()) {
@@ -68,6 +143,14 @@ export default function SettingsPage() {
     )
   }
 
+  if (fetchError) {
+    return (
+      <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
+        {fetchError}
+      </div>
+    )
+  }
+
   const currentPlan = profile?.plan || 'free'
   const currentPlanInfo = PLANS[currentPlan]
 
@@ -79,23 +162,6 @@ export default function SettingsPage() {
           계정 정보를 관리하세요
         </p>
       </div>
-
-      {message && (
-        <div
-          className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${
-            message.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-800'
-              : 'border-red-200 bg-red-50 text-red-800'
-          }`}
-        >
-          {message.type === 'success' ? (
-            <Check className="h-4 w-4 shrink-0" />
-          ) : (
-            <AlertCircle className="h-4 w-4 shrink-0" />
-          )}
-          {message.text}
-        </div>
-      )}
 
       {/* 프로필 정보 */}
       <Card>
@@ -129,12 +195,19 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">이번 달 사용량</p>
-              <p className="text-sm">
-                키워드 {profile?.keywords_used_this_month || 0}회
-                {' · '}
-                콘텐츠 {profile?.content_generated_this_month || 0}편
-              </p>
+              <p className="text-sm text-muted-foreground">사용량</p>
+              <div className="space-y-1 text-sm">
+                <p>
+                  <span className="text-muted-foreground">월간</span>{' '}
+                  키워드 {profile?.keywords_used_this_month || 0}/{currentPlanInfo.keywords}
+                  {' · '}
+                  콘텐츠 {profile?.content_generated_this_month || 0}/{currentPlanInfo.content}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">일간</span>{' '}
+                  분석 {profile?.analysis_used_today || 0}/{currentPlanInfo.analysis}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3 border-t pt-4">
@@ -142,24 +215,72 @@ export default function SettingsPage() {
               <LogOut className="h-4 w-4" />
               로그아웃
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/content/recalculate-seo', { method: 'POST' })
-                  const data = await res.json()
-                  setMessage({ type: 'success', text: data.message || 'SEO 점수가 업데이트되었습니다.' })
-                } catch {
-                  setMessage({ type: 'error', text: 'SEO 점수 재계산에 실패했습니다.' })
-                }
-              }}
-            >
-              <RefreshCw className="h-4 w-4" />
-              SEO 점수 재계산
-            </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 비밀번호 변경 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Lock className="h-4 w-4" />
+            비밀번호 변경
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            {pwError && (
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {pwError}
+              </div>
+            )}
+            {pwSuccess && (
+              <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-200">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                비밀번호가 성공적으로 변경되었습니다.
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">현재 비밀번호</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                placeholder="현재 비밀번호를 입력하세요"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">새 비밀번호</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  placeholder="6자 이상 입력하세요"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmNewPassword">새 비밀번호 확인</Label>
+                <Input
+                  id="confirmNewPassword"
+                  type="password"
+                  placeholder="비밀번호를 다시 입력하세요"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+            </div>
+            <Button type="submit" size="sm" disabled={pwLoading}>
+              {pwLoading ? '변경 중...' : '비밀번호 변경'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

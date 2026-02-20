@@ -13,7 +13,6 @@ import {
   Clock,
   Zap,
   BookOpen,
-  Star,
   User,
   Calendar,
   ExternalLink,
@@ -252,6 +251,7 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
 
 function getQualityBadgeStyle(category: string) {
   switch (category) {
+    case '파워': return 'bg-emerald-500 text-white'
     case '최적화': return 'bg-green-500 text-white'
     case '준최적화': return 'bg-blue-500 text-white'
     case '일반': return 'bg-yellow-500 text-white'
@@ -261,6 +261,7 @@ function getQualityBadgeStyle(category: string) {
 }
 
 function getTierBarColor(tier: number) {
+  if (tier >= 11) return 'bg-emerald-500'
   if (tier >= 9) return 'bg-green-500'
   if (tier >= 6) return 'bg-blue-500'
   if (tier >= 3) return 'bg-yellow-500'
@@ -291,7 +292,6 @@ function getCategoryIcon(name: string) {
     case '콘텐츠 품질': return <FileText className="h-4 w-4" />
     case '주제 전문성': return <BookOpen className="h-4 w-4" />
     case '활동성': return <Clock className="h-4 w-4" />
-    case '영향력': return <Star className="h-4 w-4" />
     default: return <Activity className="h-4 w-4" />
   }
 }
@@ -380,7 +380,7 @@ export default function BlogIndexPage() {
       <div>
         <h1 className="text-2xl font-bold">블로그 지수 측정</h1>
         <p className="mt-1 text-muted-foreground">
-          5대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
+          4대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
         </p>
       </div>
 
@@ -396,7 +396,7 @@ export default function BlogIndexPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Label htmlFor="keywords">테스트 키워드</Label>
+                <Label htmlFor="keywords">측정 키워드</Label>
                 <Badge className="bg-primary/10 text-primary text-[10px] font-medium">핵심 기능</Badge>
               </div>
               <Input id="keywords" placeholder="비워두면 포스트에서 자동 추출 (직접 입력 시 쉼표로 구분)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
@@ -533,22 +533,22 @@ export default function BlogIndexPage() {
                   </div>
                 </div>
 
-                {/* 10단계 등급 맵 */}
+                {/* 11단계 등급 맵 */}
                 <div className="mt-4 pt-3 border-t">
-                  <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">10단계 블로그 지수</p>
+                  <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">11단계 블로그 지수</p>
                   <div className="flex gap-0.5">
-                    {Array.from({ length: 10 }, (_, i) => {
+                    {Array.from({ length: 11 }, (_, i) => {
                       const t = i + 1
                       const active = t === result.level.tier
                       const passed = t < result.level.tier
-                      const tierLabels: Record<number, string> = { 1: '저품질1', 2: '저품질2', 3: '입문', 4: '일반', 5: '성장', 6: '준최적', 7: '양호', 8: '우수', 9: '최적화', 10: '파워' }
+                      const tierLabels: Record<number, string> = { 1: '저품질1', 2: '저품질2', 3: '일반1', 4: '일반2', 5: '일반3', 6: '준최적화1', 7: '준최적화2', 8: '준최적화3', 9: '최적화1', 10: '최적화2', 11: '파워' }
                       let bg = 'bg-muted'
                       let textCls = 'text-muted-foreground'
                       if (active) {
-                        bg = t >= 9 ? 'bg-green-500' : t >= 6 ? 'bg-blue-500' : t >= 3 ? 'bg-yellow-500' : 'bg-red-500'
+                        bg = t >= 11 ? 'bg-emerald-500' : t >= 9 ? 'bg-green-500' : t >= 6 ? 'bg-blue-500' : t >= 3 ? 'bg-yellow-500' : 'bg-red-500'
                         textCls = 'text-foreground font-bold'
                       } else if (passed) {
-                        bg = t >= 9 ? 'bg-green-200' : t >= 6 ? 'bg-blue-200' : t >= 3 ? 'bg-yellow-200' : 'bg-red-200'
+                        bg = t >= 11 ? 'bg-emerald-200' : t >= 9 ? 'bg-green-200' : t >= 6 ? 'bg-blue-200' : t >= 3 ? 'bg-yellow-200' : 'bg-red-200'
                       }
                       return (
                         <div key={t} className="flex-1 text-center">
@@ -569,6 +569,7 @@ export default function BlogIndexPage() {
                     <span className="text-yellow-500">일반</span>
                     <span className="text-blue-500">준최적화</span>
                     <span className="text-green-500">최적화</span>
+                    <span className="text-emerald-500">파워</span>
                   </div>
                 </div>
               </CardContent>
@@ -577,12 +578,12 @@ export default function BlogIndexPage() {
             {/* 레이더 차트 */}
             <Card className="lg:col-span-4">
               <CardHeader className="pb-0">
-                <CardTitle className="text-sm">5축 분석 레이더</CardTitle>
+                <CardTitle className="text-sm">4축 분석 레이더</CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
                 <RadarChart categories={result.categories} />
                 {/* 축 점수 요약 */}
-                <div className="mt-1 grid grid-cols-5 gap-1 text-center">
+                <div className="mt-1 grid grid-cols-4 gap-1 text-center">
                   {result.categories.map((cat) => (
                     <div key={cat.name}>
                       <p className="text-[9px] text-muted-foreground">{cat.name.replace(' ', '\n')}</p>
@@ -595,7 +596,7 @@ export default function BlogIndexPage() {
           </div>
 
           {/* ===== 2행: 5축 상세 카드 (전체 너비) ===== */}
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
             {result.categories.map((cat) => {
               const pct = Math.round((cat.score / cat.maxScore) * 100)
               return (
