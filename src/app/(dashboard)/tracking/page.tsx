@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { RankHistoryChart } from '@/components/charts/rank-history-chart'
 import { timeAgo } from '@/lib/utils/date'
@@ -271,29 +272,27 @@ export default function TrackingPage() {
           <CardContent className="space-y-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium">타겟 키워드</label>
-              <input
+              <Input
                 type="text"
                 value={newKeyword}
                 onChange={(e) => setNewKeyword(e.target.value)}
                 placeholder="예: 네이버 블로그 SEO"
-                className="w-full rounded-md border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">블로그 URL</label>
-              <input
+              <Input
                 type="text"
                 value={newBlogUrl}
                 onChange={(e) => setNewBlogUrl(e.target.value)}
                 placeholder="예: https://blog.naver.com/myblog"
-                className="w-full rounded-md border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 네이버 블로그 주소를 입력해주세요 (blog.naver.com/아이디)
               </p>
             </div>
             {error && (
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
             )}
             <div className="flex gap-2">
               <Button onClick={handleAdd} disabled={adding}>

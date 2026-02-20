@@ -500,8 +500,9 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 shrink-0">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0 ${
                   contentStats.avgSeoScore >= 80 ? 'bg-green-500'
-                    : contentStats.avgSeoScore >= 60 ? 'bg-amber-500'
-                      : 'bg-red-500'
+                    : contentStats.avgSeoScore >= 60 ? 'bg-yellow-500'
+                      : contentStats.avgSeoScore >= 40 ? 'bg-orange-500'
+                        : 'bg-red-500'
                 }`}>
                   {contentStats.avgSeoScore}
                 </div>
@@ -510,7 +511,8 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-muted-foreground">
                     {contentStats.avgSeoScore >= 80 ? '최적화 우수'
                       : contentStats.avgSeoScore >= 60 ? '개선 가능'
-                        : '개선 필요'}
+                        : contentStats.avgSeoScore >= 40 ? '보완 필요'
+                          : '개선 필요'}
                   </p>
                 </div>
               </div>

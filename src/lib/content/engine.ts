@@ -216,7 +216,7 @@ ${lengthGuide}
 ### 제목 최적화
 - 핵심 키워드를 제목 앞쪽(처음 15자 이내)에 배치
 - 제목 길이: 20~40자 (네이버 검색 결과에서 잘리지 않는 길이)
-- 클릭을 유도하는 수식어 활용: 완벽 가이드, 총정리, BEST, 실제 후기, 2025년 등
+- 클릭을 유도하는 수식어 활용: 완벽 가이드, 총정리, BEST, 실제 후기, ${new Date().getFullYear()}년 등
 - 숫자 활용: "5가지 방법", "TOP 7", "3분만에" 등
 
 ### 키워드 배치 전략
@@ -241,6 +241,13 @@ ${lengthGuide}
 ### 태그 & 마무리
 - 본문 마지막에 관련 태그 7~10개 제안 (#키워드 형태)
 - 독자 참여 유도 문구로 마무리 (댓글, 공감 유도)
+
+### 2025-2026 최신 트렌드
+- **질문형 소제목** 활용: "~방법" 대신 "~어떻게 해야 하나요?" 형태의 질문형 소제목 사용
+- **경험 정보 강화**: 직접 체험, 구체적 수치, 개인 의견 등 대체 불가능한 정보 포함
+- **VLM 시각 최적화**: 문단 2~3문장 단위 호흡, 이미지와 텍스트의 맥락 정합성
+- **권위 있는 출처 인용**: 통계, 공식 발표 등 객관적 근거 제시
+- **주제 심도 집중**: 양보다 밀도, 하나의 주제에 대한 깊이 있는 정보
 
 ## 응답 형식 (JSON)
 반드시 유효한 JSON 형식으로만 응답하세요. 마크다운 코드블록 없이 순수 JSON만 출력합니다.
@@ -438,7 +445,7 @@ export function generateDemoContent(request: ContentGenerationRequest): ContentG
 
   switch (contentType) {
     case 'comparison':
-      title = `${keyword} TOP 5 완벽 비교 (2025년 최신)`
+      title = `${keyword} TOP 5 완벽 비교 (${new Date().getFullYear()}년 최신)`
       content = generateDemoComparisonContent(keyword)
       break
     case 'review':
@@ -644,7 +651,7 @@ ${keyword}를 비교할 때 가장 중요한 4가지 기준입니다:
 
 궁금한 점이 있으시면 **댓글**로 남겨주세요! 더 자세한 리뷰도 준비하겠습니다.
 
-#${keyword} #${keyword}추천 #${keyword}비교 #${keyword}순위 #${keyword}TOP5 #${keyword}가격비교 #2025추천`
+#${keyword} #${keyword}추천 #${keyword}비교 #${keyword}순위 #${keyword}TOP5 #${keyword}가격비교 #${new Date().getFullYear()}추천`
 }
 
 function generateDemoReviewContent(keyword: string): string {
@@ -660,7 +667,7 @@ function generateDemoReviewContent(keyword: string): string {
 
 - **구매처**: 공식 홈페이지
 - **구매 가격**: 39,900원 (할인가)
-- **구매 시기**: 2025년 1월
+- **구매 시기**: ${new Date().getFullYear()}년 1월
 - **사용 기간**: 약 3개월
 
 ## 첫 인상

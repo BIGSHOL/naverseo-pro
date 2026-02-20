@@ -78,10 +78,15 @@ export async function analyzeWithAi(
   }
 
   try {
-    // 비용 절감: 본문 2000자까지만 전송
-    const truncatedContent = content.length > 2000
-      ? content.substring(0, 2000) + '...(이하 생략)'
-      : content
+    // 비용 절감: 본문 2000자까지만 전송 (앞 1500자 + 뒤 500자로 결론/CTA 포함)
+    let truncatedContent: string
+    if (content.length > 2000) {
+      const head = content.substring(0, 1500)
+      const tail = content.substring(content.length - 500)
+      truncatedContent = head + '\n...(중략)...\n' + tail
+    } else {
+      truncatedContent = content
+    }
 
     const userMessage = `다음 네이버 블로그 글을 심층 분석해주세요.
 

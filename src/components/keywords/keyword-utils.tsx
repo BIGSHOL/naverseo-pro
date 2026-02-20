@@ -3,7 +3,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 // ===== 경쟁도 툴팁 =====
 
-export const COMP_TOOLTIPS: Record<string, string> = {
+const COMP_TOOLTIPS: Record<string, string> = {
   HIGH: '광고 경쟁이 치열합니다. 상위 노출 난이도가 높습니다',
   MEDIUM: '적절한 경쟁 수준입니다. 양질의 콘텐츠로 승부 가능합니다',
   LOW: '경쟁이 적어 상위 노출 가능성이 높습니다',
@@ -11,7 +11,7 @@ export const COMP_TOOLTIPS: Record<string, string> = {
 
 // ===== 카테고리 툴팁 =====
 
-export const CATEGORY_TOOLTIPS: Record<string, string> = {
+const CATEGORY_TOOLTIPS: Record<string, string> = {
   '정보형': '지식/정보를 찾는 검색 의도입니다',
   '비교형': '제품/서비스를 비교하려는 검색 의도입니다',
   '구매형': '구매 결정 직전의 검색 의도입니다',

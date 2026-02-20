@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -78,6 +79,7 @@ export default function ContentCalendarPage() {
   const [viewingContent, setViewingContent] = useState<ContentItem | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -166,6 +168,32 @@ export default function ContentCalendarPage() {
 
   // 선택된 날짜의 활동
   const selectedActivities = selectedDate ? activitiesByDate[selectedDate] || [] : []
+
+  // 타입별 아코디언 그룹 (기본 접힘, 내부에 개별 아이템)
+  const typeGroups = useMemo(() => {
+    const map = new Map<string, Activity[]>()
+    // 타입 순서 고정
+    const typeOrder = ['content', 'keyword', 'discovery', 'tracking']
+    for (const type of typeOrder) map.set(type, [])
+
+    for (const a of selectedActivities) {
+      const list = map.get(a.type)
+      if (list) list.push(a)
+    }
+
+    return typeOrder
+      .filter(type => (map.get(type)?.length || 0) > 0)
+      .map(type => ({ type, items: map.get(type)! }))
+  }, [selectedActivities])
+
+  const toggleGroup = (type: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      return next
+    })
+  }
 
   // 통계
   const contentCount = activities.filter((a) => a.type === 'content').length
@@ -309,7 +337,7 @@ export default function ContentCalendarPage() {
                       className={`min-h-[72px] cursor-pointer border-b p-1 transition-colors hover:bg-muted/50 ${
                         isSelected ? 'bg-primary/5' : ''
                       }`}
-                      onClick={() => setSelectedDate(dateKey)}
+                      onClick={() => { setSelectedDate(dateKey); setExpandedGroups(new Set()) }}
                     >
                       <span
                         className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${
@@ -360,18 +388,18 @@ export default function ContentCalendarPage() {
         </Card>
 
         {/* 선택된 날짜의 활동 상세 */}
-        <Card>
+        <Card className="lg:max-h-[600px] lg:flex lg:flex-col">
           <CardHeader>
             <CardTitle className="text-base">
               {selectedDate
                 ? `${new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', {
                     month: 'long',
                     day: 'numeric',
-                  })} 활동`
+                  })} 활동${selectedActivities.length > 0 ? ` (${selectedActivities.length}건)` : ''}`
                 : '날짜를 선택하세요'}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-y-auto flex-1 min-h-0">
             {!selectedDate ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 캘린더에서 날짜를 클릭하면
@@ -385,136 +413,108 @@ export default function ContentCalendarPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {selectedActivities.map((a) => {
-                  const config = ACTIVITY_CONFIG[a.type]
+              <div className="space-y-2">
+                {typeGroups.map((group) => {
+                  const config = ACTIVITY_CONFIG[group.type]
                   const Icon = config.icon
+                  const isExpanded = expandedGroups.has(group.type)
 
                   return (
-                    <div key={`${a.type}-${a.id}`} className="rounded-lg border p-3">
-                      <div className="flex items-start gap-2">
-                        <div className={`mt-0.5 rounded p-1 ${config.bgColor}`}>
-                          <Icon className={`h-3 w-3 ${config.color}`} />
+                    <div key={group.type} className="rounded-lg border">
+                      {/* 그룹 헤더 (클릭으로 토글) */}
+                      <button
+                        className="flex w-full items-center gap-2 p-3 text-left hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleGroup(group.type)}
+                      >
+                        <div className={`rounded p-1 ${config.bgColor}`}>
+                          <Icon className={`h-3.5 w-3.5 ${config.color}`} />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[10px] font-medium ${config.color}`}>
-                              {config.name}
-                            </span>
-                            {a.type === 'content' && a.status && STATUS_LABELS[a.status] && (
-                              <Badge
-                                variant="secondary"
-                                className={`h-4 px-1 text-[10px] ${STATUS_LABELS[a.status].color}`}
-                              >
-                                {STATUS_LABELS[a.status].label}
-                              </Badge>
-                            )}
-                            {a.type === 'content' && a.score !== null && (
-                              <Badge variant="outline" className="h-4 px-1 text-[10px]">
-                                SEO {a.score}
-                              </Badge>
-                            )}
-                            {a.type === 'tracking' && a.status && (
-                              <Badge variant="outline" className="h-4 px-1 text-[10px]">
-                                {a.status}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="mt-0.5 truncate text-sm font-semibold">{a.label}</p>
-                          {a.detail && a.type === 'content' && (
-                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                              {a.detail}
-                            </p>
-                          )}
-                          {a.detail && a.type === 'tracking' && (
-                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                              {a.detail}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        <span className="flex-1 text-sm font-medium">{config.name}</span>
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">
+                          {group.items.length}
+                        </Badge>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </button>
 
-                      {/* 콘텐츠 전용 액션 버튼 */}
-                      {a.type === 'content' && (
-                        <div className="mt-2 flex items-center gap-1 pl-7">
-                          {a.status === 'draft' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={() => handleStatusChange(a.id, 'published')}
-                              disabled={updating === a.id}
-                            >
-                              {updating === a.id ? (
-                                <RefreshCw className="h-3 w-3 animate-spin" />
-                              ) : (
-                                '발행'
+                      {/* 펼쳐진 아이템 목록 */}
+                      {isExpanded && (
+                        <div className="border-t px-3 pb-2">
+                          {group.items.map((a) => (
+                            <div key={a.id} className="border-b last:border-b-0 py-2">
+                              <div className="flex items-center gap-1.5">
+                                <p className="flex-1 truncate text-sm">{a.label}</p>
+                                {a.type === 'content' && a.status && STATUS_LABELS[a.status] && (
+                                  <Badge
+                                    variant="secondary"
+                                    className={`h-4 shrink-0 px-1 text-[10px] ${STATUS_LABELS[a.status].color}`}
+                                  >
+                                    {STATUS_LABELS[a.status].label}
+                                  </Badge>
+                                )}
+                                {a.type === 'content' && a.score !== null && (
+                                  <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">
+                                    SEO {a.score}
+                                  </Badge>
+                                )}
+                                {a.type === 'tracking' && a.status && (
+                                  <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">
+                                    {a.status}
+                                  </Badge>
+                                )}
+                              </div>
+                              {a.detail && (a.type === 'content' || a.type === 'tracking') && (
+                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                  {a.detail}
+                                </p>
                               )}
-                            </Button>
-                          )}
-                          {a.status === 'published' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={() => handleStatusChange(a.id, 'archived')}
-                              disabled={updating === a.id}
-                            >
-                              {updating === a.id ? (
-                                <RefreshCw className="h-3 w-3 animate-spin" />
-                              ) : (
-                                '보관'
+
+                              {/* 콘텐츠 전용 액션 버튼 */}
+                              {a.type === 'content' && (
+                                <div className="mt-1.5 flex items-center gap-1">
+                                  {a.status === 'draft' && (
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                                      onClick={() => handleStatusChange(a.id, 'published')}
+                                      disabled={updating === a.id}
+                                    >
+                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '발행'}
+                                    </Button>
+                                  )}
+                                  {a.status === 'published' && (
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                                      onClick={() => handleStatusChange(a.id, 'archived')}
+                                      disabled={updating === a.id}
+                                    >
+                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '보관'}
+                                    </Button>
+                                  )}
+                                  {a.status === 'archived' && (
+                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                                      onClick={() => handleStatusChange(a.id, 'draft')}
+                                      disabled={updating === a.id}
+                                    >
+                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '초안으로'}
+                                    </Button>
+                                  )}
+                                  <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs"
+                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) setViewingContent(item) }}
+                                  >
+                                    <Eye className="h-3 w-3" /> 보기
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs"
+                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) handleCopy(`${item.title}\n\n${item.content}`) }}
+                                  >
+                                    <Copy className="h-3 w-3" /> 복사
+                                  </Button>
+                                </div>
                               )}
-                            </Button>
-                          )}
-                          {a.status === 'archived' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={() => handleStatusChange(a.id, 'draft')}
-                              disabled={updating === a.id}
-                            >
-                              {updating === a.id ? (
-                                <RefreshCw className="h-3 w-3 animate-spin" />
-                              ) : (
-                                '초안으로'
-                              )}
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 gap-1 px-2 text-xs"
-                            onClick={() => {
-                              const item = contents.find((c) => c.id === a.id)
-                              if (item) setViewingContent(item)
-                            }}
-                          >
-                            <Eye className="h-3 w-3" />
-                            보기
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 gap-1 px-2 text-xs"
-                            onClick={() => {
-                              const item = contents.find((c) => c.id === a.id)
-                              if (item) handleCopy(`${item.title}\n\n${item.content}`)
-                            }}
-                          >
-                            <Copy className="h-3 w-3" />
-                            복사
-                          </Button>
+
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {new Date(a.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          ))}
                         </div>
                       )}
-
-                      <p className="mt-1.5 pl-7 text-[10px] text-muted-foreground">
-                        {new Date(a.created_at).toLocaleTimeString('ko-KR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
                     </div>
                   )
                 })}

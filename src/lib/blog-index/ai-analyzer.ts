@@ -107,9 +107,9 @@ async function fetchPostContent(blogId: string, postNo: string): Promise<string 
 
 /**
  * 대표 포스트 선택 (최근 + 다양성 고려)
- * 최대 3개 포스트를 선택하여 비용 최적화
+ * 최대 5개 포스트를 선택하여 더 정확한 분석 수행
  */
-function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 3): BlogPost[] {
+function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 5): BlogPost[] {
   if (posts.length <= maxCount) return posts
 
   // 날짜순 정렬 (최신 우선)
@@ -124,19 +124,28 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 3): Blo
   // 1. 가장 최근 포스트 (현재 글쓰기 스타일 반영)
   selected.push(sorted[0])
 
-  // 2. 중간 시점 포스트 (글쓰기 스타일 변화 감지)
-  const midIdx = Math.floor(sorted.length / 2)
-  selected.push(sorted[midIdx])
+  // 2. 두 번째 최신 포스트 (최근 트렌드 확인)
+  if (sorted.length > 1) selected.push(sorted[1])
 
-  // 3. 가장 긴 설명문 포스트 (최고 품질 글 평가)
-  if (maxCount >= 3) {
-    const longestPost = sorted
-      .filter(p => !selected.includes(p))
-      .sort((a, b) => b.description.length - a.description.length)[0]
-    if (longestPost) selected.push(longestPost)
+  // 3. 중간 시점 포스트 (글쓰기 스타일 변화 감지)
+  const midIdx = Math.floor(sorted.length / 2)
+  if (!selected.includes(sorted[midIdx])) {
+    selected.push(sorted[midIdx])
   }
 
-  return selected
+  // 4. 가장 긴 설명문 포스트 (최고 품질 글 평가)
+  const longestPost = sorted
+    .filter(p => !selected.includes(p))
+    .sort((a, b) => b.description.length - a.description.length)[0]
+  if (longestPost && selected.length < maxCount) selected.push(longestPost)
+
+  // 5. 가장 오래된 포스트 (성장 추이 파악)
+  const oldestPost = sorted[sorted.length - 1]
+  if (!selected.includes(oldestPost) && selected.length < maxCount) {
+    selected.push(oldestPost)
+  }
+
+  return selected.slice(0, maxCount)
 }
 
 /**
@@ -160,8 +169,8 @@ export async function analyzeWithAi(
   if (posts.length === 0) return null
 
   try {
-    // 대표 포스트 선택 (최대 3개)
-    const targetPosts = selectRepresentativePosts(posts, 3)
+    // 대표 포스트 선택 (최대 5개로 확대하여 정확도 향상)
+    const targetPosts = selectRepresentativePosts(posts, 5)
     const postContents: { title: string; content: string; date: string }[] = []
 
     if (isDemo) {
@@ -197,8 +206,15 @@ export async function analyzeWithAi(
 
         const content = await fetchPostContent(parsed.blogId, parsed.postNo)
         if (content && content.length >= 50) {
-          // 본문이 너무 길면 앞부분만 사용 (토큰 비용 절감)
-          const truncated = content.length > 2000 ? content.substring(0, 2000) + '...(이하 생략)' : content
+          // 본문이 너무 길면 앞 1500자 + 뒤 500자 사용 (결론/CTA 포함)
+          let truncated: string
+          if (content.length > 2000) {
+            const head = content.substring(0, 1500)
+            const tail = content.substring(content.length - 500)
+            truncated = head + '\n...(중략)...\n' + tail
+          } else {
+            truncated = content
+          }
           postContents.push({
             title: post.title.replace(/<[^>]*>/g, ''),
             content: truncated,

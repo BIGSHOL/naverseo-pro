@@ -82,7 +82,6 @@ export function analyzeBlogIndex(
   const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
   const totalScore = Math.max(0, Math.min(100, rawScore + abusePenalty.score))  // 0~100 범위
   const level = determineLevelInfo(totalScore)
-  const recommendations = generateRecommendations(categories, abusePenalty)
 
   // 포스트 분석 요약
   const avgTitleLength = posts.length > 0
@@ -205,6 +204,15 @@ export function analyzeBlogIndex(
     optimizationPct,
     categoryPercentile,
   }
+
+  // 벤치마크/포스트 데이터를 활용한 구체적 추천 생성
+  const recommendations = generateRecommendations(categories, abusePenalty, {
+    benchmark,
+    level,
+    totalScore,
+    recentPosts,
+    blogProfile,
+  })
 
   return {
     blogUrl,

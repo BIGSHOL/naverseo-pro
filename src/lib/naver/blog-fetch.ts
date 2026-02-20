@@ -138,7 +138,8 @@ export function extractContent(html: string): string {
 
 /**
  * Smart Editor ONE의 se-text-paragraph 태그에서 텍스트 직접 추출
- * 가장 정확한 본문 추출 방법
+ * - 링크(<a>)를 Markdown [text](url) 형태로 보존
+ * - 소제목(se-l-heading_N 클래스)을 ## / ### Markdown 접두사로 변환
  */
 function extractSeTextParagraphs(html: string): string[] {
   const results: string[] = []
@@ -146,30 +147,51 @@ function extractSeTextParagraphs(html: string): string[] {
   // se-text-paragraph 안의 텍스트 추출
   const paragraphRegex = /<p[^>]*class=["'][^"']*se-text-paragraph[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi
   let m
+  let prevEnd = 0
   while ((m = paragraphRegex.exec(html)) !== null) {
-    // HTML 태그 제거하고 텍스트만 추출
+    // 이전 문단과 현재 문단 사이의 HTML에서 소제목 클래스(se-l-heading_N) 감지
+    const betweenHtml = html.substring(prevEnd, m.index)
+    const headingMatch = betweenHtml.match(/se-l-heading_(\d+)/)
+    const headingPrefix = headingMatch
+      ? (headingMatch[1] === '1' ? '## ' : '### ')
+      : ''
+
+    // 링크를 Markdown으로 변환한 후 나머지 태그 제거
     const text = m[1]
       .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+        (_, url, linkText) => `[${linkText.replace(/<[^>]*>/g, '').trim()}](${url})`)
       .replace(/<[^>]*>/g, '')
       .replace(/&nbsp;/gi, ' ')
       .trim()
     if (text.length > 0) {
-      results.push(text)
+      results.push(headingPrefix + text)
     }
+    prevEnd = m.index + m[0].length
   }
 
   // se-text-paragraph가 없으면 se-module-text 내부의 span.se-text-content 시도
   if (results.length === 0) {
+    prevEnd = 0
     const spanRegex = /<span[^>]*class=["'][^"']*se-text-content[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi
     while ((m = spanRegex.exec(html)) !== null) {
+      const betweenHtml = html.substring(prevEnd, m.index)
+      const headingMatch = betweenHtml.match(/se-l-heading_(\d+)/)
+      const headingPrefix = headingMatch
+        ? (headingMatch[1] === '1' ? '## ' : '### ')
+        : ''
+
       const text = m[1]
         .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+          (_, url, linkText) => `[${linkText.replace(/<[^>]*>/g, '').trim()}](${url})`)
         .replace(/<[^>]*>/g, '')
         .replace(/&nbsp;/gi, ' ')
         .trim()
       if (text.length > 0) {
-        results.push(text)
+        results.push(headingPrefix + text)
       }
+      prevEnd = m.index + m[0].length
     }
   }
 
@@ -232,6 +254,19 @@ export function htmlToPlainText(html: string): string {
   const imgCount = imgMatches ? imgMatches.length : 0
 
   let text = html
+    // Smart Editor ONE 소제목 전처리: se-l-heading_N 클래스 → 표준 <h2>/<h3> 태그로 변환
+    // (전략 2-5에서 raw HTML이 전달될 때 필요)
+    .replace(/<[^>]*class=["'][^"']*se-l-heading_(\d+)[^"']*["'][^>]*>[\s\S]{0,500}?<p[^>]*class=["'][^"']*se-text-paragraph[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi,
+      (_, level, content) => {
+        const tag = level === '1' ? 'h2' : 'h3'
+        return `<${tag}>${content}</${tag}>`
+      })
+    // HTML 헤딩을 Markdown으로 변환 (SEO 엔진이 ## / ### 패턴을 감지)
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, inner) => `\n\n## ${inner.replace(/<[^>]*>/g, '').trim()}\n\n`)
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, inner) => `\n\n### ${inner.replace(/<[^>]*>/g, '').trim()}\n\n`)
+    .replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, inner) => `\n\n#### ${inner.replace(/<[^>]*>/g, '').trim()}\n\n`)
+    // HTML 링크를 Markdown으로 변환 (SEO 엔진이 [text](url) 패턴을 감지)
+    .replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, url, linkText) => `[${linkText.replace(/<[^>]*>/g, '').trim()}](${url})`)
     // <br>, <p>, <div> 등을 줄바꿈으로
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n\n')

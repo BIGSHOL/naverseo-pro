@@ -7,7 +7,15 @@
 
 /** HTML 태그 및 엔티티 제거 */
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim()
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&[a-z]+;/gi, ' ')
+    .trim()
 }
 
 /** 이미지 개수 추출 (HTML에서 <img 태그 카운트) */

@@ -141,36 +141,42 @@ export async function POST(request: NextRequest) {
       summary: string
     }>(aiResponse)
 
-    // 2. 생성된 키워드들을 Naver API로 검색량 조회
+    // 2. 생성된 키워드들을 Naver API로 검색량 조회 (병렬 배치 처리)
     const keywordList = aiResult.keywords.map(k => k.keyword)
-    // Naver API는 한번에 5개씩 조회 가능하므로 배치 처리
+    // Naver API는 한번에 5개씩 조회 가능 → 배치를 병렬로 처리하여 속도 향상
     const batchSize = 5
-    const allResults: OpportunityItem[] = []
-
+    const batches: string[][] = []
     for (let i = 0; i < keywordList.length; i += batchSize) {
-      const batch = keywordList.slice(i, i + batchSize)
-      try {
-        const stats = await getKeywordStats(batch.join(','))
+      batches.push(keywordList.slice(i, i + batchSize))
+    }
 
-        for (const stat of stats) {
-          const aiInfo = aiResult.keywords.find(
-            k => k.keyword.replace(/\s+/g, '') === stat.relKeyword.replace(/\s+/g, '')
-          )
-          const totalSearch = (stat.monthlyPcQcCnt || 0) + (stat.monthlyMobileQcCnt || 0)
+    // 모든 배치를 병렬로 요청
+    const batchResults = await Promise.allSettled(
+      batches.map(batch => getKeywordStats(batch.join(',')))
+    )
 
-          allResults.push({
-            keyword: stat.relKeyword,
-            monthlySearch: totalSearch,
-            monthlyPc: stat.monthlyPcQcCnt || 0,
-            monthlyMobile: stat.monthlyMobileQcCnt || 0,
-            compIdx: stat.compIdx || 'LOW',
-            score: calculateKeywordScore(stat),
-            category: aiInfo?.category || '정보형',
-            reason: aiInfo?.reason || '검색량 대비 경쟁이 낮은 키워드입니다',
-          })
-        }
-      } catch (batchError) {
-        console.error(`[Opportunities] 배치 조회 실패 (${batch.join(', ')}):`, batchError)
+    const allResults: OpportunityItem[] = []
+    for (const result of batchResults) {
+      if (result.status === 'rejected') {
+        console.error('[Opportunities] 배치 조회 실패:', result.reason)
+        continue
+      }
+      for (const stat of result.value) {
+        const aiInfo = aiResult.keywords.find(
+          k => k.keyword.replace(/\s+/g, '') === stat.relKeyword.replace(/\s+/g, '')
+        )
+        const totalSearch = (stat.monthlyPcQcCnt || 0) + (stat.monthlyMobileQcCnt || 0)
+
+        allResults.push({
+          keyword: stat.relKeyword,
+          monthlySearch: totalSearch,
+          monthlyPc: stat.monthlyPcQcCnt || 0,
+          monthlyMobile: stat.monthlyMobileQcCnt || 0,
+          compIdx: stat.compIdx || 'LOW',
+          score: calculateKeywordScore(stat),
+          category: aiInfo?.category || '정보형',
+          reason: aiInfo?.reason || '검색량 대비 경쟁이 낮은 키워드입니다',
+        })
       }
     }
 

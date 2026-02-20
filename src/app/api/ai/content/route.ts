@@ -10,11 +10,40 @@ import {
   type ContentGenerationRequest,
 } from '@/lib/content/engine'
 import { checkContentLimit } from '@/lib/plan-check'
+import { searchNaverBlog } from '@/lib/naver/blog-search'
 
 // 간단한 SEO 점수 계산 (DB 저장용, 100점 만점)
 function calculateBasicSeoScore(keyword: string, title: string, content: string): number {
   const result = analyzeSeo(keyword, title, content)
   return result.totalScore
+}
+
+// SERP 자동 참조: 네이버 블로그 상위 결과를 가져와 콘텐츠 생성 참고 자료로 활용
+async function fetchSerpReference(keyword: string): Promise<string | null> {
+  const hasNaverApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
+  if (!hasNaverApi) return null
+
+  try {
+    const result = await searchNaverBlog(keyword, 5)
+    if (!result.items || result.items.length === 0) return null
+
+    const topPosts = result.items.slice(0, 5).map((item, i) => {
+      const cleanTitle = item.title.replace(/<[^>]*>/g, '')
+      const cleanDesc = item.description.replace(/<[^>]*>/g, '').substring(0, 100)
+      return `${i + 1}. "${cleanTitle}" - ${cleanDesc}`
+    })
+
+    return `## 현재 상위 노출 블로그 분석
+다음은 "${keyword}" 검색 시 상위에 노출되는 글들입니다. 이들보다 더 유용하고 차별화된 콘텐츠를 작성하세요:
+${topPosts.join('\n')}
+
+차별화 전략:
+- 위 글들이 다루지 않는 정보나 관점을 추가하세요
+- 더 구체적인 수치, 날짜, 경험 정보를 포함하세요
+- 더 체계적인 구조와 깊이 있는 분석을 제공하세요`
+  } catch {
+    return null
+  }
 }
 
 // Supabase에 생성된 콘텐츠 저장 + 사용량 증가
@@ -101,6 +130,12 @@ export async function POST(request: NextRequest) {
     // AI 프롬프트 생성 (엔진에서 최적화된 프롬프트 빌드)
     const systemPrompt = buildSystemPrompt(contentRequest)
     let userMessage = buildUserPrompt(contentRequest)
+
+    // SERP 자동 참조: 상위 노출 글을 분석하여 차별화 전략 수립
+    const serpRef = await fetchSerpReference(keyword.trim())
+    if (serpRef) {
+      userMessage += '\n\n' + serpRef
+    }
 
     // 참고 URL 분석 결과가 있으면 프롬프트에 추가
     if (referenceAnalysis && referenceAnalysis.headings?.length > 0) {

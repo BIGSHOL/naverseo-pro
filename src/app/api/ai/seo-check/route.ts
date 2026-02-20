@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeSeo } from '@/lib/seo/engine'
+import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/seo/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
 import type { AiSeoAnalysis } from '@/lib/seo/ai-analyzer'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
@@ -17,6 +17,7 @@ interface SeoCheckResponse {
   strengths: string[]
   isDemo: boolean
   aiAnalysis?: AiSeoAnalysis | null
+  readabilityAnalysis?: ReadabilityResult
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest) {
     // 1) 로컬 SEO 엔진 분석 (항상 실행, 13개 항목)
     const engineResult = analyzeSeo(keyword || '', title || '', content)
 
+    // 가독성 분석
+    const readability = analyzeReadability(content)
+
     const baseResult = {
       totalScore: engineResult.totalScore,
       grade: engineResult.grade,
@@ -63,6 +67,7 @@ export async function POST(request: NextRequest) {
       })),
       improvements: engineResult.improvements,
       strengths: engineResult.strengths,
+      readabilityAnalysis: readability,
     }
 
     // 2) AI 심층 분석

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { callGemini, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { stripHtml } from '@/lib/utils/text'
 
 // === 타입 정의 ===
 
@@ -64,17 +65,6 @@ interface AiInsights {
 }
 
 // === 유틸리티 함수 ===
-
-// HTML 태그 및 엔티티 제거
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-}
 
 // postdate(YYYYMMDD) → 오늘까지 경과 일수
 function daysSince(postdate: string): number {
