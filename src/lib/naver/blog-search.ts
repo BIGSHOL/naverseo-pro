@@ -1,5 +1,7 @@
 // 네이버 블로그 검색 API - 순위 트래킹용
 
+import { extractBlogId } from '@/lib/utils/text'
+
 export interface NaverBlogSearchItem {
   title: string
   link: string
@@ -54,19 +56,6 @@ export async function searchNaverBlog(
   }
 
   return response.json()
-}
-
-// 블로그 URL에서 블로그 ID 추출
-// 예: https://blog.naver.com/myblog → myblog
-//     https://m.blog.naver.com/myblog/123456 → myblog
-export function extractBlogId(url: string): string | null {
-  // blog.naver.com/blogid 또는 blog.naver.com/blogid/postid 형태
-  const naverBlogMatch = url.match(
-    /(?:blog\.naver\.com|m\.blog\.naver\.com)\/([a-zA-Z0-9_-]+)/
-  )
-  if (naverBlogMatch) return naverBlogMatch[1]
-
-  return null
 }
 
 // 키워드로 검색하여 특정 블로그의 순위 확인

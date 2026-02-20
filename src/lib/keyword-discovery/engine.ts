@@ -16,10 +16,78 @@ import type { SeedKeyword, DiscoveredKeyword, DiscoveryResult, RawKeywordData } 
 const MIN_SCORE_THRESHOLD = 15
 // 결과 최대 개수
 const MAX_RESULTS = 20
+// 폴백 확장 트리거 기준 (네이버 확장 결과가 이보다 적으면 재시도)
+const FALLBACK_THRESHOLD = 20
 
 interface AiSeedResponse {
   seeds: SeedKeyword[]
   summary: string
+}
+
+/**
+ * Phase 0: 주제를 자동 분해하여 넓은 시드 키워드 생성
+ * AI와 무관하게 항상 실행 → 네이버 API 확장의 안전망
+ *
+ * "침산동 수학" → ["침산동 수학", "수학", "수학 추천", "수학학원", "수학과외", "침산동 학원"]
+ * "다이어트"   → ["다이어트", "다이어트 추천", "다이어트 방법"]
+ */
+function generateAutoSeeds(topic: string): SeedKeyword[] {
+  const words = topic.split(/\s+/).map(w => w.trim()).filter(w => w.length >= 2)
+  const autoSeeds: SeedKeyword[] = []
+
+  // 원본 주제를 항상 시드에 포함
+  autoSeeds.push({ keyword: topic, direction: '주제 직접 검색' })
+
+  if (words.length >= 2) {
+    // 복합 주제 처리: "침산동 수학"
+    const genericSuffixes = ['추천', '방법']
+
+    // 각 단어를 독립 시드로 추가
+    for (const word of words) {
+      autoSeeds.push({ keyword: word, direction: `"${word}" 단독 확장용` })
+    }
+
+    // 비지역 단어(업종/주제)에 접미사 추가
+    const isLocationFirst = /[가-힣]{2,5}(동|구|시|역|군|읍|면|로)$/.test(words[0])
+    const coreWords = isLocationFirst ? words.slice(1) : words
+    const coreText = coreWords.join(' ')
+
+    for (const suffix of genericSuffixes) {
+      autoSeeds.push({ keyword: `${coreText} ${suffix}`, direction: `${coreText} ${suffix} 확장` })
+    }
+
+    // 지역명 감지 시 업종 접미사 자동 추가
+    if (isLocationFirst) {
+      const isEducation = /수학|영어|국어|과학|코딩|피아노|미술|음악|체육|논술|영재|학습/.test(coreText)
+      const businessSuffixes = isEducation
+        ? ['학원', '과외', '학습']
+        : /맛집|음식|카페|식당|밥/.test(coreText)
+          ? ['맛집', '카페', '식당']
+          : ['추천', '후기', '가격']
+
+      for (const suffix of businessSuffixes) {
+        autoSeeds.push({ keyword: `${coreText}${suffix}`, direction: `업종 확장: ${coreText}${suffix}` })
+      }
+
+      // 지역 + 일반 업종
+      autoSeeds.push({ keyword: `${words[0]} ${isEducation ? '학원' : '추천'}`, direction: '지역 일반 확장' })
+    }
+  } else {
+    // 단일 주제: 접미사 확장
+    const singleSuffixes = ['추천', '방법', '후기']
+    for (const suffix of singleSuffixes) {
+      autoSeeds.push({ keyword: `${topic} ${suffix}`, direction: `기본 확장: ${suffix}` })
+    }
+  }
+
+  // 중복 제거
+  const seen = new Set<string>()
+  return autoSeeds.filter(s => {
+    const key = s.keyword.replace(/\s+/g, '')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**
@@ -134,6 +202,35 @@ async function expandWithNaverApi(
 }
 
 /**
+ * Phase 2.5: 폴백 확장
+ * 네이버 확장 결과가 FALLBACK_THRESHOLD개 미만이면 개별 단어로 재질의
+ */
+async function fallbackExpansion(
+  topic: string,
+  existingKeywords: RawKeywordData[],
+): Promise<void> {
+  const words = topic.split(/\s+/).filter(w => w.length >= 2)
+  if (words.length < 2) return // 단일 단어는 이미 시도함
+
+  const existingSet = new Set(existingKeywords.map(k => k.relKeyword.replace(/\s+/g, '')))
+
+  // 각 단어를 개별적으로 네이버 API에 질의
+  const fallbackResults = await Promise.allSettled(
+    words.map(word => getKeywordStats(word))
+  )
+
+  for (const result of fallbackResults) {
+    if (result.status === 'rejected') continue
+    for (const stat of result.value) {
+      const normalized = stat.relKeyword.replace(/\s+/g, '')
+      if (existingSet.has(normalized)) continue
+      existingSet.add(normalized)
+      existingKeywords.push(stat as RawKeywordData)
+    }
+  }
+}
+
+/**
  * 주제에서 핵심 단어 추출 (관련성 필터용)
  * "침산동 수학" → ["침산동", "수학"]
  */
@@ -145,13 +242,31 @@ function extractTopicWords(topic: string): string[] {
 }
 
 /**
- * 키워드가 주제와 관련 있는지 판별
- * 주제 단어 중 하나라도 포함되어 있으면 관련 있음
+ * 키워드가 주제와 관련 있는지 판별 (완화된 버전)
+ *
+ * 2계층 필터:
+ * 1. 주제 단어 직접 포함 → 통과
+ * 2. 시드 키워드 핵심 단어 포함 → 통과 (시드에서 파생된 연관 키워드 허용)
  */
-function isRelevantKeyword(keyword: string, topicWords: string[]): boolean {
+function isRelevantKeyword(
+  keyword: string,
+  topicWords: string[],
+  seedCoreWords: Set<string>
+): boolean {
   if (topicWords.length === 0) return true
   const normalized = keyword.replace(/\s+/g, '')
-  return topicWords.some(word => normalized.includes(word))
+
+  // 1단계: 주제 단어 중 하나라도 포함
+  if (topicWords.some(word => normalized.includes(word))) return true
+
+  // 2단계: 시드 핵심 단어 중 하나라도 포함
+  // (시드 "수학학원"에서 확장된 "영재학원"은 "학원" 포함으로 통과)
+  const seedArr = Array.from(seedCoreWords)
+  for (let i = 0; i < seedArr.length; i++) {
+    if (normalized.includes(seedArr[i])) return true
+  }
+
+  return false
 }
 
 /**
@@ -164,15 +279,33 @@ function scoreAndCategorize(
   topic: string
 ): DiscoveredKeyword[] {
   const topicWords = extractTopicWords(topic)
+
+  // 시드 키워드에서 핵심 단어 추출 (관련성 필터용)
+  const seedCoreWords = new Set<string>()
+  for (const seed of seeds) {
+    // 띄어쓰기 기준 분리: "수학학원 추천" → "수학학원", "추천"
+    const words = seed.keyword.split(/\s+/).filter(w => w.length >= 2)
+    for (const word of words) {
+      seedCoreWords.add(word)
+    }
+    // 붙어있는 복합어 분리: "수학학원" → "수학", "학원"
+    const compound = seed.keyword.replace(/\s+/g, '')
+    const parts = compound.match(/[가-힣]{2,3}/g)
+    if (parts) {
+      for (const part of parts) {
+        seedCoreWords.add(part)
+      }
+    }
+  }
+
   const results: DiscoveredKeyword[] = []
 
   for (const stat of allKeywords) {
     const normalized = stat.relKeyword.replace(/\s+/g, '')
 
-    // ★ 관련성 필터: 주제 단어가 하나도 포함되지 않으면 제외
-    // (시드 키워드는 AI가 의도적으로 생성한 것이므로 항상 포함)
+    // ★ 관련성 필터 (완화): 주제 단어 OR 시드 핵심 단어 포함
     const isSeed = seedKeywordSet.has(normalized)
-    if (!isSeed && !isRelevantKeyword(stat.relKeyword, topicWords)) continue
+    if (!isSeed && !isRelevantKeyword(stat.relKeyword, topicWords, seedCoreWords)) continue
 
     const score = calculateKeywordScore(stat)
 
@@ -212,16 +345,37 @@ function scoreAndCategorize(
  * 키워드 발굴 엔진 메인 함수
  */
 export async function discoverKeywords(topic: string): Promise<DiscoveryResult> {
+  // Phase 0: 자동 시드 생성 (AI와 무관하게 넓은 키워드 보장)
+  const autoSeeds = generateAutoSeeds(topic)
+
   // Phase 1: AI 시드 키워드 생성
   const aiResult = await generateSeedKeywords(topic)
-  const seedCount = aiResult.seeds.length
+
+  // Phase 1.5: AI + 자동 시드 합치기 (중복 제거, AI 우선)
+  const seenKeywords = new Set(aiResult.seeds.map(s => s.keyword.replace(/\s+/g, '')))
+  const mergedSeeds = [...aiResult.seeds]
+  for (const autoSeed of autoSeeds) {
+    const normalized = autoSeed.keyword.replace(/\s+/g, '')
+    if (!seenKeywords.has(normalized)) {
+      seenKeywords.add(normalized)
+      mergedSeeds.push(autoSeed)
+    }
+  }
+
+  const seedCount = mergedSeeds.length
 
   // Phase 2: 네이버 API 확장
-  const { allKeywords, seedKeywordSet } = await expandWithNaverApi(aiResult.seeds)
+  const { allKeywords, seedKeywordSet } = await expandWithNaverApi(mergedSeeds)
+
+  // Phase 2.5: 폴백 확장 (결과가 너무 적으면 개별 단어로 재시도)
+  if (allKeywords.length < FALLBACK_THRESHOLD) {
+    await fallbackExpansion(topic, allKeywords)
+  }
+
   const naverExpandedCount = allKeywords.length
 
   // Phase 3: 관련성 필터 + 경쟁도 추정 + 스코어링 + 카테고리 분류
-  const opportunities = scoreAndCategorize(allKeywords, seedKeywordSet, aiResult.seeds, topic)
+  const opportunities = scoreAndCategorize(allKeywords, seedKeywordSet, mergedSeeds, topic)
 
   return {
     topic,

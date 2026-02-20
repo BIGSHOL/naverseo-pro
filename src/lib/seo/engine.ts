@@ -16,6 +16,7 @@
  */
 
 import { determineGrade, type GradeTableEntry } from '@/lib/utils/grading'
+import { detectStuffingPatterns } from '@/lib/utils/text'
 
 // ===== 타입 정의 =====
 
@@ -201,7 +202,7 @@ function analyzeHeadingStructure(content: string): { category: SeoCategory; stre
   }
 }
 
-/** 4. 키워드 밀도 (8점) */
+/** 4. 키워드 밀도 (8점) - 스터핑 패턴 감지 포함 */
 function analyzeKeywordDensity(keyword: string, content: string): { category: SeoCategory; strength?: string; improvement?: string; keywordCount: number; density: number } {
   const keywordCount = content.split(keyword).length - 1
   const spaceBasedWords = (content.match(/\S+/g) || []).length
@@ -225,6 +226,22 @@ function analyzeKeywordDensity(keyword: string, content: string): { category: Se
   } else {
     score = 0
     improvement = '본문에 핵심 키워드를 포함하세요'
+  }
+
+  // 스터핑 패턴 감지 → 감점 적용
+  if (keywordCount >= 2) {
+    const stuffing = detectStuffingPatterns(keyword, content)
+    const stuffRatio = stuffing.totalCount > 0 ? stuffing.stuffedCount / stuffing.totalCount : 0
+
+    if (stuffRatio >= 0.5) {
+      // 절반 이상이 부자연스러운 배치 → 큰 감점
+      score = Math.min(score, 2)
+      improvement = `키워드 스터핑 감지 (${stuffing.patterns.join(', ')}). 자연스러운 문장 속에 키워드를 녹여주세요`
+    } else if (stuffRatio >= 0.3) {
+      // 30% 이상 부자연스러운 배치 → 감점
+      score = Math.min(score, 4)
+      improvement = `부자연스러운 키워드 배치 감지 (${stuffing.patterns.join(', ')}). 자연스럽게 문장에 포함하세요`
+    }
   }
 
   return {

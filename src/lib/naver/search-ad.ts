@@ -112,8 +112,8 @@ export function getCompetitionLabel(compIdx: string): string {
   }
 }
 
-// 키워드 점수 계산 (5요소 종합 평가 - 블로그 SEO 관점)
-// 높은 점수 = 검색량 충분 + 경쟁 낮음 + CTR 높음 + 모바일 비중 높음
+// 키워드 점수 계산 (6요소 종합 평가 - 블로그 SEO 관점)
+// 높은 점수 = 검색량 충분 + 경쟁 낮음 + CTR 높음 + 모바일 비중 높음 + 니치 기회
 // → 상위 노출 가능성이 높은 키워드
 export function calculateKeywordScore(keyword: NaverKeywordResult): number {
   const totalSearch = keyword.monthlyPcQcCnt + keyword.monthlyMobileQcCnt
@@ -125,7 +125,8 @@ export function calculateKeywordScore(keyword: NaverKeywordResult): number {
   else if (totalSearch >= 10000) volumeScore = 28 + ((totalSearch - 10000) / 40000) * 7
   else if (totalSearch >= 1000) volumeScore = 17 + ((totalSearch - 1000) / 9000) * 11
   else if (totalSearch >= 100) volumeScore = 7 + ((totalSearch - 100) / 900) * 10
-  else volumeScore = (totalSearch / 100) * 7
+  else if (totalSearch >= 10) volumeScore = 3 + ((totalSearch - 10) / 90) * 4  // 10~99 구간 바닥 3점 보장
+  else volumeScore = (totalSearch / 10) * 3  // <10 구간도 최소 점수
 
   // 2. 경쟁도 점수 - plAvgDepth 연속값 (0~25)
   // plAvgDepth = 평균 노출 광고 수. 낮을수록 경쟁이 적어 블로그에 유리
@@ -137,33 +138,39 @@ export function calculateKeywordScore(keyword: NaverKeywordResult): number {
   else if (depth <= 10) depthScore = 15 - ((depth - 5) / 5) * 7
   else depthScore = Math.max(3, 8 - ((depth - 10) / 5) * 5)
 
-  // ★ 검색량이 극소(< 50)이면 depth=0은 "경쟁 없음"이 아니라 "데이터 없음"
-  // depthScore를 검색량에 비례하여 축소
+  // ★ 검색량이 극소(< 50)이면 depth 점수 축소 (최소 40% 보장)
   if (totalSearch < 50) {
-    depthScore = depthScore * (totalSearch / 50)
+    const scaleFactor = Math.max(0.4, totalSearch / 50)
+    depthScore = depthScore * scaleFactor
   }
 
   // 3. 경쟁도 카테고리 점수 (0~15): compIdx 범주형 보조 지표
-  // '-'(미확인): 검색량 충분하면 중립(10점), 극소면 축소(5점)
   let compScore: number
   if (keyword.compIdx === 'LOW') compScore = 15
   else if (keyword.compIdx === 'MEDIUM') compScore = 8
   else if (keyword.compIdx === 'HIGH') compScore = 3
-  else compScore = totalSearch < 50 ? 3 : 10
+  else compScore = totalSearch < 50 ? 5 : 10  // 미확인 저볼륨: 3→5 완화
 
   // 4. CTR 보너스 (0~15): 높은 클릭률 = 검색 의도가 명확한 키워드
-  // PC와 모바일 CTR의 가중 평균 (모바일 가중치 높게)
   const pcCtr = keyword.monthlyAvePcCtr || 0
   const mobileCtr = keyword.monthlyAveMobileCtr || 0
   const mobileWeight = totalSearch > 0 ? keyword.monthlyMobileQcCnt / totalSearch : 0.7
   const weightedCtr = pcCtr * (1 - mobileWeight) + mobileCtr * mobileWeight
-  // CTR 5%+ → 15점, 2% → 8점, 0% → 0점
   const ctrScore = Math.min(15, weightedCtr * 3)
 
   // 5. 모바일 비중 보너스 (0~10): 네이버 블로그는 모바일 소비가 주력
-  // 모바일 70%+ → 10점, 50% → 5점, 30%- → 0점
   const mobileRatio = totalSearch > 0 ? keyword.monthlyMobileQcCnt / totalSearch : 0
   const mobileScore = Math.min(10, Math.max(0, (mobileRatio - 0.3) * 25))
 
-  return Math.min(100, Math.round(volumeScore + depthScore + compScore + ctrScore + mobileScore))
+  // 6. 니치 기회 보너스 (0~8): 저검색량이지만 경쟁이 확실히 낮은 키워드에 보상
+  let nicheBonus = 0
+  if (totalSearch > 0 && totalSearch < 500) {
+    if (depth <= 1 && (keyword.compIdx === 'LOW' || keyword.compIdx === '-')) {
+      nicheBonus = totalSearch < 50 ? 8 : 5
+    } else if (depth <= 3 && keyword.compIdx !== 'HIGH') {
+      nicheBonus = 3
+    }
+  }
+
+  return Math.min(100, Math.round(volumeScore + depthScore + compScore + ctrScore + mobileScore + nicheBonus))
 }

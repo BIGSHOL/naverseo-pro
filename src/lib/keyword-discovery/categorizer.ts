@@ -14,6 +14,10 @@ export function estimateCompetition(stat: RawKeywordData): string {
   if (depth >= 7) return 'HIGH'
   if (depth >= 3 || totalSearch >= 10000) return 'MEDIUM'
   if (totalSearch >= 500 || depth >= 1) return 'LOW'
+
+  // 극소 검색량이지만 depth=0이면 "경쟁 없음" = 실질적 LOW
+  if (totalSearch > 0 && depth === 0) return 'LOW'
+
   return '-'
 }
 

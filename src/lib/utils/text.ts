@@ -85,3 +85,55 @@ export function extractBlogId(url: string): string | null {
   )
   return match ? match[1] : null
 }
+
+/**
+ * 키워드 스터핑(부자연스러운 삽입) 패턴 감지
+ * 인용문 끝, 짧은 줄 끝, 근접 반복 등을 탐지
+ *
+ * SEO 엔진 + DIA 엔진 공용
+ */
+export function detectStuffingPatterns(keyword: string, content: string): { stuffedCount: number; totalCount: number; patterns: string[] } {
+  const patterns: string[] = []
+  let stuffedCount = 0
+  const totalCount = content.split(keyword).length - 1
+  if (totalCount === 0) return { stuffedCount: 0, totalCount: 0, patterns }
+
+  const lines = content.split('\n')
+  const kwLen = keyword.length
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed.includes(keyword)) continue
+
+    // 패턴 1: 인용문 끝에 삽입 ("..." - 키워드, "..." 키워드)
+    if (/[""\u201D][\s]*[-\u2013\u2014]?\s*$/.test(trimmed.replace(keyword, '').trim()) && trimmed.endsWith(keyword)) {
+      stuffedCount++
+      if (!patterns.includes('인용문 끝 삽입')) patterns.push('인용문 끝 삽입')
+    }
+
+    // 패턴 2: 짧은 줄에서 키워드만 단독 또는 거의 단독
+    if (trimmed.length > 0 && trimmed.length < kwLen * 2 && trimmed.includes(keyword)) {
+      const withoutKw = trimmed.replace(keyword, '').replace(/[#\->\s*\u00B7|]/g, '').trim()
+      if (withoutKw.length < 5) {
+        stuffedCount++
+        if (!patterns.includes('단독 줄 삽입')) patterns.push('단독 줄 삽입')
+      }
+    }
+  }
+
+  // 패턴 3: 근접 반복 (100자 이내에 키워드가 2번 이상)
+  let searchFrom = 0
+  let prevIdx = -200
+  while (true) {
+    const idx = content.indexOf(keyword, searchFrom)
+    if (idx === -1) break
+    if (idx - prevIdx < 100 && prevIdx >= 0) {
+      stuffedCount++
+      if (!patterns.includes('근접 반복')) patterns.push('근접 반복')
+    }
+    prevIdx = idx
+    searchFrom = idx + kwLen
+  }
+
+  return { stuffedCount, totalCount, patterns }
+}

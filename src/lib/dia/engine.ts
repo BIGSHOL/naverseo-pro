@@ -19,6 +19,7 @@
  */
 
 import { determineGrade, type GradeTableEntry } from '@/lib/utils/grading'
+import { detectStuffingPatterns } from '@/lib/utils/text'
 
 // ===== 타입 정의 =====
 
@@ -407,6 +408,25 @@ function analyzeTopicRelevance(
   if (headingsWithKeyword >= 2) score += 2
   else if (headingsWithKeyword >= 1) score += 1
 
+  // 키워드 스터핑 감지 → 감점 적용
+  let stuffingNote = ''
+  if (keywordCount >= 2) {
+    const stuffing = detectStuffingPatterns(keyword, content)
+    const stuffRatio = stuffing.totalCount > 0 ? stuffing.stuffedCount / stuffing.totalCount : 0
+
+    if (stuffRatio >= 0.5) {
+      // 절반 이상이 부자연스러운 배치 → 큰 감점
+      score = Math.max(0, score - 5)
+      stuffingNote = ` / 스터핑 감지(${stuffing.patterns.join(', ')})`
+      improvements.push(`키워드 스터핑 감지 (${stuffing.patterns.join(', ')}). 자연스러운 문장 속에 키워드를 녹여주세요`)
+    } else if (stuffRatio >= 0.3) {
+      // 30% 이상 부자연스러운 배치 → 소폭 감점
+      score = Math.max(0, score - 3)
+      stuffingNote = ` / 부자연스러운 배치(${stuffing.patterns.join(', ')})`
+      improvements.push(`부자연스러운 키워드 배치 감지 (${stuffing.patterns.join(', ')}). 자연스럽게 문장에 포함하세요`)
+    }
+  }
+
   if (score >= 10) {
     strengths.push('주제 적합도 우수: 키워드가 자연스럽게 전반에 분포')
   }
@@ -416,7 +436,7 @@ function analyzeTopicRelevance(
     name: '주제 적합도',
     score,
     maxScore: 12,
-    details: `제목(${titleHasKeyword ? 'O' : 'X'}) / 도입부(${introHasKeyword ? 'O' : 'X'}) / 소제목 ${headingsWithKeyword}개 / 분포 ${coverage}/3 / 총 ${keywordCount}회`,
+    details: `제목(${titleHasKeyword ? 'O' : 'X'}) / 도입부(${introHasKeyword ? 'O' : 'X'}) / 소제목 ${headingsWithKeyword}개 / 분포 ${coverage}/3 / 총 ${keywordCount}회${stuffingNote}`,
     tip: '제목, 도입부, 소제목에 키워드를 자연스럽게 녹여 주제 적합도를 높이세요.',
   }
 }
