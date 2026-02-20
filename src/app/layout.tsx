@@ -26,11 +26,20 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'ko_KR',
     siteName: 'NaverSEO Pro',
+    images: [
+      {
+        url: '/banner.png',
+        width: 1200,
+        height: 630,
+        alt: 'NaverSEO Pro - AI 기반 네이버 블로그 SEO 올인원 도구',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'NaverSEO Pro - 네이버 블로그 상위 노출의 비밀',
     description: '키워드 분석부터 AI 글쓰기, SEO 점수 체크, 순위 트래킹까지. 블로그 운영자와 마케터를 위한 올인원 SEO 도구.',
+    images: ['/banner.png'],
   },
   icons: {
     icon: '/icon.svg',
