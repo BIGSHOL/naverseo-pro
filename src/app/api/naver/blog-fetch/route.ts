@@ -99,6 +99,18 @@ function tryExtractContent(html: string): { title: string; content: string } | n
 
 export async function POST(request: NextRequest) {
   try {
+    // 인증 체크
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+
     const { url } = await request.json()
 
     if (!url || typeof url !== 'string' || url.trim().length === 0) {

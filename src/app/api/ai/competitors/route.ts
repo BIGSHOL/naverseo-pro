@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callGemini, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 import { stripHtml } from '@/lib/utils/text'
 
@@ -86,6 +86,7 @@ function formatDate(postdate: string): string {
 
 function analyzePatterns(competitors: CompetitorItem[], keyword: string): PatternAnalysis {
   const keywordLower = keyword.toLowerCase().replace(/\s+/g, '')
+  const count = competitors.length || 1 // 빈 배열 시 Division by Zero 방지
 
   // 제목 분석
   const lengths = competitors.map(c => c.titleLength)
@@ -94,19 +95,19 @@ function analyzePatterns(competitors: CompetitorItem[], keyword: string): Patter
   )
 
   const titleStats = {
-    avgLength: Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length),
-    minLength: Math.min(...lengths),
-    maxLength: Math.max(...lengths),
-    keywordInTitleRate: Math.round((withKeyword.length / competitors.length) * 100),
+    avgLength: lengths.length > 0 ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0,
+    minLength: lengths.length > 0 ? Math.min(...lengths) : 0,
+    maxLength: lengths.length > 0 ? Math.max(...lengths) : 0,
+    keywordInTitleRate: Math.round((withKeyword.length / count) * 100),
     keywordInTitleCount: withKeyword.length,
   }
 
   // 날짜 분석
   const days = competitors.map(c => c.daysSincePosted)
   const dateStats = {
-    avgDaysAgo: Math.round(days.reduce((a, b) => a + b, 0) / days.length),
-    newestDaysAgo: Math.min(...days),
-    oldestDaysAgo: Math.max(...days),
+    avgDaysAgo: days.length > 0 ? Math.round(days.reduce((a, b) => a + b, 0) / days.length) : 0,
+    newestDaysAgo: days.length > 0 ? Math.min(...days) : 0,
+    oldestDaysAgo: days.length > 0 ? Math.max(...days) : 0,
     within30Days: days.filter(d => d <= 30).length,
     within90Days: days.filter(d => d <= 90).length,
     within365Days: days.filter(d => d <= 365).length,
@@ -126,7 +127,7 @@ function analyzePatterns(competitors: CompetitorItem[], keyword: string): Patter
   const blogDiversity = {
     uniqueBlogCount: blogCounts.size,
     totalResults: competitors.length,
-    diversityRate: Math.round((blogCounts.size / competitors.length) * 100),
+    diversityRate: competitors.length > 0 ? Math.round((blogCounts.size / competitors.length) * 100) : 0,
     repeatedBlogs,
   }
 
@@ -202,7 +203,8 @@ function extractTitlePatterns(competitors: CompetitorItem[], keyword: string): T
 async function getAiInsights(
   keyword: string,
   competitors: CompetitorItem[],
-  patterns: PatternAnalysis
+  patterns: PatternAnalysis,
+  provider: AiProvider = 'gemini'
 ): Promise<AiInsights> {
   const competitorList = competitors
     .map((c, i) => `${i + 1}위. 제목: "${c.title}" | 블로그: ${c.bloggerName} | 작성일: ${c.postDateFormatted} | 설명: "${c.description.substring(0, 80)}"`)
@@ -232,7 +234,7 @@ ${competitorList}
   "titleSuggestions": ["추천 제목 1", "추천 제목 2", "추천 제목 3"]
 }`
 
-  const response = await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 2048)
+  const response = await callAI(provider, COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
   return parseGeminiJson<AiInsights>(response)
 }
 
@@ -325,6 +327,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
+    // 사용자의 AI 제공자 조회
+    const provider = await getUserAiProvider(supabase, user.id)
+
     // 일간 분석 제한 체크
     const limitCheck = await checkAnalysisLimit(supabase, user.id)
     if (!limitCheck.allowed) {
@@ -395,9 +400,9 @@ export async function POST(request: NextRequest) {
 
     // AI 인사이트 (옵션)
     let aiInsights: AiInsights | null = null
-    if (includeAi && process.env.GEMINI_API_KEY) {
+    if (includeAi && hasAiApiKey(provider)) {
       try {
-        aiInsights = await getAiInsights(cleanKeyword, competitors, patterns)
+        aiInsights = await getAiInsights(cleanKeyword, competitors, patterns, provider)
       } catch (aiError) {
         console.error('[Competitors AI] AI 분석 실패:', aiError)
         // AI 실패해도 기본 분석은 반환

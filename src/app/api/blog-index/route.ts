@@ -12,6 +12,7 @@ import {
   type VisitorData,
 } from '@/lib/blog-index/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
+import { getUserAiProvider } from '@/lib/ai/gemini'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 import { STOPWORDS, stripHtml, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
 
@@ -92,7 +93,6 @@ async function fetchBlogPostsViaRss(blogId: string): Promise<{ posts: BlogPost[]
 /**
  * RSS XML에서 블로그 이름(title) 추출
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function extractBlogNameFromRss(xml: string): string | null {
   // <channel> 내의 <title> (첫 번째 title이 블로그 이름)
   const channelMatch = xml.match(/<channel>([\s\S]*?)<item>/)
@@ -168,9 +168,13 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json(
         { error: '로그인이 필요합니다.' },
+
         { status: 401 }
       )
     }
+
+    // 사용자의 AI 제공자 조회
+    const provider = await getUserAiProvider(supabase, user.id)
 
     // 일간 분석 제한 체크
     const limitCheck = await checkAnalysisLimit(supabase, user.id)
@@ -387,7 +391,7 @@ export async function POST(request: NextRequest) {
     try {
       const aiAnalysis = isDemo
         ? generateDemoAiAnalysis()
-        : await analyzeWithAi(posts, isDemo)
+        : await analyzeWithAi(posts, isDemo, provider)
 
       if (aiAnalysis) {
         result.aiAnalysis = aiAnalysis

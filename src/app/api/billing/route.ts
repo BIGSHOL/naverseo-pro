@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // 현재 사용자 결제/플랜 정보 조회
 export async function GET() {
   try {

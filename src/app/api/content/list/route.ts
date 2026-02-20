@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // 생성된 콘텐츠 + 전체 활동 목록 조회 (캘린더 + 목록용)
 export async function GET(request: NextRequest) {
   try {

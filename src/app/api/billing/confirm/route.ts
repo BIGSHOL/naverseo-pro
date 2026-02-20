@@ -31,9 +31,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 토스페이먼츠 결제 승인
-    if (isTossConfigured()) {
-      await confirmPayment(paymentKey, orderId, Number(amount))
+    if (!isTossConfigured()) {
+      return NextResponse.json(
+        { error: '결제 시스템이 설정되지 않았습니다. 관리자에게 문의해주세요.' },
+        { status: 503 }
+      )
     }
+    await confirmPayment(paymentKey, orderId, Number(amount))
 
     // 플랜 업그레이드
     const { error: updateError } = await supabase

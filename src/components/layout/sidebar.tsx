@@ -3,37 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  LayoutDashboard,
-  Search,
-  Wand2,
-  BarChart3,
-  TrendingUp,
-  CalendarDays,
-  FileDown,
-  Settings,
-  Activity,
-  Users,
-  Lightbulb,
-} from 'lucide-react'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { PLANS, type Plan } from '@/types/database'
-
-const navItems = [
-  { label: '대시보드', href: '/dashboard', icon: LayoutDashboard },
-  { label: '키워드 리서치', href: '/keywords', icon: Search },
-  { label: '키워드 발굴', href: '/opportunities', icon: Lightbulb },
-  { label: 'AI 콘텐츠 생성', href: '/content', icon: Wand2 },
-  { label: 'SEO 점수 체크', href: '/seo-check', icon: BarChart3 },
-  { label: '상위노출 분석', href: '/competitors', icon: Users },
-  { label: '블로그 지수', href: '/blog-index', icon: Activity },
-  { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
-  { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
-  { label: 'SEO 리포트', href: '/report', icon: FileDown },
-  { label: '설정', href: '/settings', icon: Settings },
-]
+import type { UserRole } from '@/types/database'
+import { navItems, adminNavItems } from '@/lib/navigation'
 
 function parseLimit(limitStr: string): number | null {
   if (limitStr === '무제한') return null
@@ -44,6 +19,7 @@ function parseLimit(limitStr: string): number | null {
 export function Sidebar() {
   const pathname = usePathname()
   const [plan, setPlan] = useState<Plan>('free')
+  const [role, setRole] = useState<UserRole>('user')
   const [keywordsUsed, setKeywordsUsed] = useState(0)
   const [contentUsed, setContentUsed] = useState(0)
   const [analysisUsed, setAnalysisUsed] = useState(0)
@@ -54,7 +30,9 @@ export function Sidebar() {
         const res = await fetch('/api/dashboard')
         if (!res.ok) return
         const data = await res.json()
-        setPlan((data.profile?.plan || 'free') as Plan)
+        const userRole = (data.profile?.role || 'user') as UserRole
+        setPlan(userRole === 'admin' ? 'admin' : (data.profile?.plan || 'free') as Plan)
+        setRole(userRole)
         setKeywordsUsed(data.profile?.keywords_used_this_month || 0)
         setContentUsed(data.profile?.content_generated_this_month || 0)
         // 날짜가 오늘과 다르면 리셋된 것으로 간주
@@ -88,7 +66,7 @@ export function Sidebar() {
         </div>
 
         {/* 네비게이션 */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href
             return (
@@ -107,6 +85,36 @@ export function Sidebar() {
               </Link>
             )
           })}
+
+          {/* 관리자 메뉴 */}
+          {role === 'admin' && (
+            <>
+              <div className="my-2">
+                <div className="border-t" />
+                <p className="mt-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
+                  관리자
+                </p>
+              </div>
+              {adminNavItems.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </>
+          )}
         </nav>
 
         {/* 하단 사용량 표시 */}
@@ -120,7 +128,7 @@ export function Sidebar() {
                   <div className="cursor-help">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>키워드 조회</span>
-                      <span>{kwLimit ? `${keywordsUsed}/${kwLimit}` : `${keywordsUsed} (무제한)`}</span>
+                      <span>{kwLimit ? `${keywordsUsed}/${kwLimit}` : `${keywordsUsed}/∞`}</span>
                     </div>
                     <div className="mt-1 h-1.5 rounded-full bg-background">
                       <div
@@ -137,7 +145,7 @@ export function Sidebar() {
                   <div className="cursor-help">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>콘텐츠 생성</span>
-                      <span>{ctLimit ? `${contentUsed}/${ctLimit}` : `${contentUsed} (무제한)`}</span>
+                      <span>{ctLimit ? `${contentUsed}/${ctLimit}` : `${contentUsed}/∞`}</span>
                     </div>
                     <div className="mt-1 h-1.5 rounded-full bg-background">
                       <div
@@ -154,7 +162,7 @@ export function Sidebar() {
                   <div className="cursor-help">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>블로그 분석</span>
-                      <span>{anLimit ? `${analysisUsed}/${anLimit}` : `${analysisUsed} (무제한)`}</span>
+                      <span>{anLimit ? `${analysisUsed}/${anLimit}` : `${analysisUsed}/∞`}</span>
                     </div>
                     <div className="mt-1 h-1.5 rounded-full bg-background">
                       <div

@@ -296,10 +296,12 @@ export default function SettingsPage() {
         <CardContent>
           <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            결제 기능은 준비 중입니다. 현재는 무료 플랜으로 모든 기능을 체험하실 수 있습니다.
+            결제 기능은 준비 중입니다. 플랜 업그레이드는 추후 공개 예정입니다.
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).map(
+            {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).filter(
+              ([key]) => key !== 'admin'
+            ).map(
               ([planKey, planInfo]) => {
                 const isCurrent = planKey === currentPlan
 

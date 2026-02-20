@@ -11,7 +11,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callGemini, parseGeminiJson, SEO_DEEP_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callAI, parseGeminiJson, SEO_DEEP_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 
 // ===== 타입 정의 =====
@@ -63,11 +63,15 @@ interface AiAnalysisRaw {
 export async function analyzeWithAi(
   keyword: string,
   title: string,
-  content: string
+  content: string,
+  provider: AiProvider = 'gemini'
 ): Promise<AiSeoAnalysis | null> {
-  // Gemini API 키가 없으면 스킵
-  if (!process.env.GEMINI_API_KEY?.trim()) {
-    console.log('[SEO AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
+  // AI API 키가 없으면 스킵
+  const hasKey = provider === 'claude'
+    ? !!process.env.ANTHROPIC_API_KEY?.trim()
+    : !!process.env.GEMINI_API_KEY?.trim()
+  if (!hasKey) {
+    console.log(`[SEO AI] ${provider} API 키 미설정, AI 분석 스킵`)
     return null
   }
 
@@ -114,7 +118,7 @@ ${truncatedContent}
 
     console.log(`[SEO AI] 분석 요청 (${truncatedContent.length}자)`)
 
-    const response = await callGemini(SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024)
+    const response = await callAI(provider, SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정 (1~10)

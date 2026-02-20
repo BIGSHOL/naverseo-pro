@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 상태입니다.' }, { status: 400 })
     }
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('generated_content')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', contentId)
@@ -30,6 +30,10 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('[Content Update] 오류:', error)
       return NextResponse.json({ error: '업데이트 실패' }, { status: 500 })
+    }
+
+    if (count === 0) {
+      return NextResponse.json({ error: '콘텐츠를 찾을 수 없습니다.' }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })

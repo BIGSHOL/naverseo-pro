@@ -7,6 +7,7 @@ const COMP_TOOLTIPS: Record<string, string> = {
   HIGH: '광고 경쟁이 치열합니다. 상위 노출 난이도가 높습니다',
   MEDIUM: '적절한 경쟁 수준입니다. 양질의 콘텐츠로 승부 가능합니다',
   LOW: '경쟁이 적어 상위 노출 가능성이 높습니다',
+  '-': '검색량이 적어 네이버에서 경쟁도 데이터를 제공하지 않습니다',
 }
 
 // ===== 카테고리 툴팁 =====
@@ -30,7 +31,7 @@ export function getCompBadge(compIdx: string) {
       case 'LOW':
         return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">낮음</Badge>
       default:
-        return <Badge variant="outline" className="text-xs">-</Badge>
+        return <Badge variant="outline" className="text-xs text-muted-foreground">미확인</Badge>
     }
   })()
 

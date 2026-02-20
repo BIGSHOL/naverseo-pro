@@ -10,7 +10,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callGemini, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
+import { callAI, parseGeminiJson, BLOG_INDEX_AI_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 import type { AiAnalysis, BlogPost } from './types'
 
@@ -157,11 +157,15 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 5): Blo
  */
 export async function analyzeWithAi(
   posts: BlogPost[],
-  isDemo: boolean
+  isDemo: boolean,
+  provider: AiProvider = 'gemini'
 ): Promise<AiAnalysis | null> {
-  // Gemini API 키가 없으면 스킵
-  if (!process.env.GEMINI_API_KEY?.trim()) {
-    console.log('[BlogIndex AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
+  // AI API 키가 없으면 스킵
+  const hasKey = provider === 'claude'
+    ? !!process.env.ANTHROPIC_API_KEY?.trim()
+    : !!process.env.GEMINI_API_KEY?.trim()
+  if (!hasKey) {
+    console.log(`[BlogIndex AI] ${provider} API 키 미설정, AI 분석 스킵`)
     return null
   }
 
@@ -252,7 +256,7 @@ ${p.content}
 
     console.log(`[BlogIndex AI] ${postContents.length}개 포스트 분석 요청 (총 ${userMessage.length}자)`)
 
-    const response = await callGemini(BLOG_INDEX_AI_PROMPT, userMessage, 1024)
+    const response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 1024, { jsonMode: true })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정

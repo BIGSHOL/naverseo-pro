@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // SEO 리포트 데이터 조회 (PDF 생성용)
 export async function GET() {
   try {

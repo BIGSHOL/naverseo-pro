@@ -19,9 +19,22 @@ const ALLOWED_SEARCH_BOTS = [
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 const API_RATE_LIMIT = 60       // 분당 최대 요청
 const API_RATE_WINDOW = 60_000  // 1분 (ms)
+const CLEANUP_INTERVAL = 300_000 // 5분마다 만료 엔트리 정리
+let lastCleanup = Date.now()
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
+
+  // 주기적으로 만료된 엔트리 정리 (메모리 누수 방지)
+  if (now - lastCleanup > CLEANUP_INTERVAL) {
+    const expiredKeys: string[] = []
+    rateLimitMap.forEach((val, key) => {
+      if (now > val.resetAt) expiredKeys.push(key)
+    })
+    expiredKeys.forEach(key => rateLimitMap.delete(key))
+    lastCleanup = now
+  }
+
   const entry = rateLimitMap.get(ip)
 
   if (!entry || now > entry.resetAt) {
@@ -72,7 +85,7 @@ export async function middleware(request: NextRequest) {
   const protectedFromBots = [
     '/dashboard', '/keywords', '/content', '/seo-check',
     '/tracking', '/report', '/settings', '/competitors',
-    '/blog-index', '/opportunities',
+    '/blog-index', '/opportunities', '/admin',
   ]
   const isProtectedPage = protectedFromBots.some((p) => pathname.startsWith(p))
 

@@ -137,10 +137,19 @@ export function calculateKeywordScore(keyword: NaverKeywordResult): number {
   else if (depth <= 10) depthScore = 15 - ((depth - 5) / 5) * 7
   else depthScore = Math.max(3, 8 - ((depth - 10) / 5) * 5)
 
+  // ★ 검색량이 극소(< 50)이면 depth=0은 "경쟁 없음"이 아니라 "데이터 없음"
+  // depthScore를 검색량에 비례하여 축소
+  if (totalSearch < 50) {
+    depthScore = depthScore * (totalSearch / 50)
+  }
+
   // 3. 경쟁도 카테고리 점수 (0~15): compIdx 범주형 보조 지표
-  const compScore =
-    keyword.compIdx === 'LOW' ? 15 :
-    keyword.compIdx === 'MEDIUM' ? 8 : 3
+  // '-'(미확인): 검색량 충분하면 중립(10점), 극소면 축소(5점)
+  let compScore: number
+  if (keyword.compIdx === 'LOW') compScore = 15
+  else if (keyword.compIdx === 'MEDIUM') compScore = 8
+  else if (keyword.compIdx === 'HIGH') compScore = 3
+  else compScore = totalSearch < 50 ? 3 : 10
 
   // 4. CTR 보너스 (0~15): 높은 클릭률 = 검색 의도가 명확한 키워드
   // PC와 모바일 CTR의 가중 평균 (모바일 가중치 높게)

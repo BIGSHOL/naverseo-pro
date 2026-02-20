@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
-  Pencil, Save, Link2, ListOrdered, MessageSquareQuote,
+  Pencil, Save, Link2, ListOrdered, MessageSquareQuote, Sparkles,
+  Search, Filter, Clock, Trash2, ExternalLink,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -18,12 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
-import { detectContentType, generateOutline, type ContentType } from '@/lib/content/engine'
+import { detectContentType, generateOutline, analyzeSeo, type ContentType } from '@/lib/content/engine'
 import { analyzeDia } from '@/lib/dia/engine'
-import { Shield } from 'lucide-react'
+import { Shield, Store } from 'lucide-react'
 import Link from 'next/link'
 
 interface SeoCategory {
+  id: string
   name: string
   score: number
   maxScore: number
@@ -51,6 +54,14 @@ interface ReadabilityResult {
   details: string[]
 }
 
+interface EnrichmentData {
+  relatedKeywordsCount?: number
+  autoKeywords?: string[]
+  trendDirection?: string
+  trendRatio?: number
+  serpRefCount?: number
+}
+
 interface ContentResult {
   title: string
   content: string
@@ -63,6 +74,7 @@ interface ContentResult {
   isDemo: boolean
   contentId?: string
   seoScore?: number
+  enrichment?: EnrichmentData
 }
 
 function getContentScoreColor(score: number) {
@@ -93,6 +105,7 @@ export default function ContentPage() {
   const [tone, setTone] = useState('친근하고 정보적인')
   const [additionalKeywords, setAdditionalKeywords] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingStep, setLoadingStep] = useState(0) // 0: 네이버 데이터, 1: AI 생성, 2: SEO 분석
   const [error, setError] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
   const [copied, setCopied] = useState(false)
@@ -119,6 +132,62 @@ export default function ContentPage() {
   const [editTags, setEditTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+  const [improving, setImproving] = useState(false)
+  const [improveMessage, setImproveMessage] = useState('')
+
+  // 내 업체 홍보글 모드
+  const [isPromoMode, setIsPromoMode] = useState(false)
+  const [businessName, setBusinessName] = useState('')
+  const [businessAddress, setBusinessAddress] = useState('')
+  const [businessPricing, setBusinessPricing] = useState('')
+  const [businessStrengths, setBusinessStrengths] = useState('')
+  const [businessHours, setBusinessHours] = useState('')
+  const [businessContact, setBusinessContact] = useState('')
+  const [businessTopic, setBusinessTopic] = useState('')
+
+  // 내 콘텐츠 내역 탭
+  const [pageTab, setPageTab] = useState<'generate' | 'history'>('generate')
+  const [historyContents, setHistoryContents] = useState<Array<{
+    id: string
+    target_keyword: string
+    title: string
+    content: string
+    status: string
+    seo_score: number | null
+    created_at: string
+    updated_at: string
+  }>>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(null)
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'draft' | 'published' | 'archived'>('all')
+  const [historyEditMode, setHistoryEditMode] = useState(false)
+  const [historyEditTitle, setHistoryEditTitle] = useState('')
+  const [historyEditContent, setHistoryEditContent] = useState('')
+  const [historySaving, setHistorySaving] = useState(false)
+  const [historyCopied, setHistoryCopied] = useState(false)
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await fetch('/api/content/list')
+      const data = await res.json()
+      if (res.ok) {
+        setHistoryContents(data.contents || [])
+      }
+    } catch {
+      // 조용히 실패
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  // 내 콘텐츠 탭 진입 시 로드
+  useEffect(() => {
+    if (pageTab === 'history') {
+      loadHistory()
+    }
+  }, [pageTab, loadHistory])
 
   // URL param에서 키워드 프리필
   useEffect(() => {
@@ -176,8 +245,13 @@ export default function ContentPage() {
     if (!keyword.trim() || loading) return
 
     setLoading(true)
+    setLoadingStep(0)
     setError('')
     setShowSeoDetail(false)
+
+    // 로딩 단계 타이머 (UX용)
+    const stepTimer1 = setTimeout(() => setLoadingStep(1), 3000)  // 3초 후: AI 생성 중
+    const stepTimer2 = setTimeout(() => setLoadingStep(2), 12000) // 12초 후: SEO 분석 중
 
     try {
       const res = await fetch('/api/ai/content', {
@@ -199,6 +273,16 @@ export default function ContentPage() {
             headings: referenceAnalysis.headings,
             charCount: referenceAnalysis.charCount,
           } : undefined,
+          // 홍보글 모드일 때 업체 정보 전달
+          businessInfo: isPromoMode && businessName.trim() ? {
+            name: businessName.trim(),
+            address: businessAddress.trim() || undefined,
+            pricing: businessPricing.trim() || undefined,
+            strengths: businessStrengths.trim() || undefined,
+            operatingHours: businessHours.trim() || undefined,
+            contact: businessContact.trim() || undefined,
+            topic: businessTopic.trim() || undefined,
+          } : undefined,
         }),
       })
       const data = await res.json()
@@ -212,16 +296,21 @@ export default function ContentPage() {
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
+      clearTimeout(stepTimer1)
+      clearTimeout(stepTimer2)
       setLoading(false)
+      setLoadingStep(0)
     }
   }
 
   // 아웃라인 미리보기 계산
+  const effectiveContentType = (contentType as ContentType) || detectContentType(keyword.trim())
   const currentOutline = keyword.trim()
     ? generateOutline({
         keyword: keyword.trim(),
-        contentType: (contentType as ContentType) || detectContentType(keyword.trim()),
+        contentType: effectiveContentType,
         targetLength,
+        businessInfo: isPromoMode ? { name: businessName.trim() || '내 업체', topic: businessTopic.trim() || undefined } : undefined,
       })
     : null
 
@@ -287,6 +376,65 @@ export default function ContentPage() {
     }
   }
 
+  // AI 약점 개선
+  const handleImprove = async () => {
+    if (improving || !editContent.trim() || !keyword.trim()) return
+    setImproving(true)
+    setImproveMessage('')
+
+    try {
+      // 현재 콘텐츠의 SEO 분석 실행
+      const seoResult = analyzeSeo(keyword.trim(), editTitle, editContent)
+
+      // 약한 항목 추출 (점수 비율 기준 상위 5개)
+      const weakCategories = [...seoResult.categories]
+        .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+        .filter(cat => (cat.score / cat.maxScore) < 0.8) // 80% 미만만
+        .slice(0, 5)
+        .map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          score: cat.score,
+          maxScore: cat.maxScore,
+          details: cat.details,
+        }))
+
+      if (weakCategories.length === 0) {
+        setImproveMessage('모든 항목이 양호합니다!')
+        setTimeout(() => setImproveMessage(''), 3000)
+        return
+      }
+
+      const res = await fetch('/api/ai/content/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          title: editTitle,
+          content: editContent,
+          weakCategories,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setImproveMessage(data.error || 'AI 개선에 실패했습니다.')
+        return
+      }
+
+      // 개선된 콘텐츠 반영
+      if (data.title) setEditTitle(data.title)
+      if (data.content) setEditContent(data.content)
+      setImproveMessage(`${weakCategories.length}개 항목 개선 완료! LIVE SEO에서 점수 변화를 확인하세요.`)
+      setTimeout(() => setImproveMessage(''), 5000)
+    } catch {
+      setImproveMessage('네트워크 오류가 발생했습니다.')
+    } finally {
+      setImproving(false)
+    }
+  }
+
   const toneOptions = [
     '친근하고 정보적인',
     '전문적인',
@@ -294,14 +442,330 @@ export default function ContentPage() {
     '솔직한',
   ]
 
+  // 내역 관련 함수
+  const selectedContent = historyContents.find(c => c.id === selectedContentId)
+  const filteredHistory = historyContents.filter(c => {
+    if (historyFilter !== 'all' && c.status !== historyFilter) return false
+    if (historySearch.trim()) {
+      const q = historySearch.trim().toLowerCase()
+      return c.title.toLowerCase().includes(q) || c.target_keyword.toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  const updateContentStatus = async (contentId: string, status: string) => {
+    try {
+      const res = await fetch('/api/content/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentId, status }),
+      })
+      if (res.ok) {
+        setHistoryContents(prev => prev.map(c => c.id === contentId ? { ...c, status } : c))
+      }
+    } catch {
+      // 조용히 실패
+    }
+  }
+
+  const saveHistoryEdit = async () => {
+    if (!selectedContentId || historySaving) return
+    setHistorySaving(true)
+    try {
+      const res = await fetch('/api/content/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contentId: selectedContentId,
+          title: historyEditTitle,
+          content: historyEditContent,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setHistoryContents(prev => prev.map(c => c.id === selectedContentId
+          ? { ...c, title: historyEditTitle, content: historyEditContent, seo_score: data.seoScore ?? c.seo_score }
+          : c
+        ))
+        setHistoryEditMode(false)
+      }
+    } catch {
+      // 조용히 실패
+    } finally {
+      setHistorySaving(false)
+    }
+  }
+
+  const copyHistoryContent = (c: { title: string; content: string }) => {
+    navigator.clipboard.writeText(c.title + '\n\n' + c.content)
+    setHistoryCopied(true)
+    setTimeout(() => setHistoryCopied(false), 2000)
+  }
+
+  const statusLabel: Record<string, { label: string; color: string }> = {
+    draft: { label: '초안', color: 'bg-gray-100 text-gray-700' },
+    published: { label: '발행됨', color: 'bg-green-100 text-green-700' },
+    archived: { label: '보관됨', color: 'bg-yellow-100 text-yellow-700' },
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">AI 콘텐츠 생성</h1>
+        <h1 className="text-2xl font-bold">AI 콘텐츠</h1>
         <p className="mt-1 text-muted-foreground">
           AI가 네이버 SEO에 최적화된 블로그 글을 자동으로 생성합니다
         </p>
       </div>
+
+      {/* 최상단 탭: AI 콘텐츠 생성 | 내 콘텐츠 */}
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <button
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            pageTab === 'generate'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setPageTab('generate')}
+        >
+          <Wand2 className="mr-1.5 inline h-4 w-4" />
+          AI 콘텐츠 생성
+        </button>
+        <button
+          className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            pageTab === 'history'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setPageTab('history')}
+        >
+          <FileText className="mr-1.5 inline h-4 w-4" />
+          내 콘텐츠
+          {historyContents.length > 0 && (
+            <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+              {historyContents.length}
+            </Badge>
+          )}
+        </button>
+      </div>
+
+      {/* 내 콘텐츠 탭 */}
+      {pageTab === 'history' && (
+        <div className="space-y-4">
+          {/* 검색 + 필터 */}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="키워드 또는 제목으로 검색..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex gap-1.5">
+              {(['all', 'draft', 'published', 'archived'] as const).map(f => (
+                <Badge
+                  key={f}
+                  variant={historyFilter === f ? 'default' : 'outline'}
+                  className="cursor-pointer"
+                  onClick={() => setHistoryFilter(f)}
+                >
+                  {f === 'all' ? '전체' : statusLabel[f].label}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">불러오는 중...</span>
+            </div>
+          ) : filteredHistory.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <FileText className="h-12 w-12 text-muted-foreground/40" />
+                <p className="mt-4 text-lg font-medium">
+                  {historyContents.length === 0 ? '아직 생성한 콘텐츠가 없습니다' : '검색 결과가 없습니다'}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {historyContents.length === 0
+                    ? 'AI 콘텐츠 생성 탭에서 첫 번째 글을 만들어보세요!'
+                    : '다른 키워드로 검색하거나 필터를 변경해보세요'}
+                </p>
+                {historyContents.length === 0 && (
+                  <Button className="mt-4" onClick={() => setPageTab('generate')}>
+                    <Wand2 className="mr-1.5 h-4 w-4" />
+                    콘텐츠 생성하기
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+              {/* 좌측: 목록 */}
+              <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+                {filteredHistory.map(c => (
+                  <div
+                    key={c.id}
+                    className={`cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent/50 ${
+                      selectedContentId === c.id ? 'border-primary bg-accent/30' : ''
+                    }`}
+                    onClick={() => {
+                      setSelectedContentId(c.id)
+                      setHistoryEditMode(false)
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-medium line-clamp-1 flex-1">{c.title}</h3>
+                      {c.seo_score !== null && (
+                        <span className={`text-xs font-bold shrink-0 ${getContentScoreColor(c.seo_score)}`}>
+                          {c.seo_score}점
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.target_keyword}</Badge>
+                      <Badge className={`text-[10px] px-1.5 py-0 ${statusLabel[c.status]?.color || ''}`}>
+                        {statusLabel[c.status]?.label || c.status}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground ml-auto">
+                        {new Date(c.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 우측: 상세 보기 */}
+              <div>
+                {selectedContent ? (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <Badge variant="outline">{selectedContent.target_keyword}</Badge>
+                            <Badge className={statusLabel[selectedContent.status]?.color || ''}>
+                              {statusLabel[selectedContent.status]?.label || selectedContent.status}
+                            </Badge>
+                            {selectedContent.seo_score !== null && (
+                              <Badge variant="outline" className="border-blue-300 text-blue-700">
+                                SEO {selectedContent.seo_score}점
+                              </Badge>
+                            )}
+                          </div>
+                          {historyEditMode ? (
+                            <Input
+                              value={historyEditTitle}
+                              onChange={(e) => setHistoryEditTitle(e.target.value)}
+                              className="text-lg font-bold"
+                            />
+                          ) : (
+                            <h2 className="text-lg font-bold">{selectedContent.title}</h2>
+                          )}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {new Date(selectedContent.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      {/* 액션 버튼 */}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {historyEditMode ? (
+                          <>
+                            <Button size="sm" onClick={saveHistoryEdit} disabled={historySaving}>
+                              {historySaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}
+                              저장
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setHistoryEditMode(false)}>
+                              취소
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => copyHistoryContent(selectedContent)}>
+                              {historyCopied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
+                              {historyCopied ? '복사됨' : '복사'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => {
+                              setHistoryEditTitle(selectedContent.title)
+                              setHistoryEditContent(selectedContent.content)
+                              setHistoryEditMode(true)
+                            }}>
+                              <Pencil className="mr-1 h-3 w-3" />
+                              편집
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                sessionStorage.setItem('naverseo-workflow:content-body', selectedContent.content)
+                                sessionStorage.setItem('naverseo-workflow:content-title', selectedContent.title)
+                                sessionStorage.setItem('naverseo-workflow:content-keyword', selectedContent.target_keyword)
+                                router.push('/seo-check?keyword=' + encodeURIComponent(selectedContent.target_keyword))
+                              }}
+                            >
+                              <BarChart3 className="mr-1 h-3 w-3" />
+                              SEO 체크
+                            </Button>
+                            {selectedContent.status !== 'published' && (
+                              <Button size="sm" variant="outline" className="text-green-700" onClick={() => updateContentStatus(selectedContent.id, 'published')}>
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                발행
+                              </Button>
+                            )}
+                            {selectedContent.status !== 'archived' && (
+                              <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => updateContentStatus(selectedContent.id, 'archived')}>
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                보관
+                              </Button>
+                            )}
+                            {selectedContent.status === 'archived' && (
+                              <Button size="sm" variant="outline" onClick={() => updateContentStatus(selectedContent.id, 'draft')}>
+                                <RefreshCw className="mr-1 h-3 w-3" />
+                                초안으로
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {historyEditMode ? (
+                        <Textarea
+                          value={historyEditContent}
+                          onChange={(e) => setHistoryEditContent(e.target.value)}
+                          rows={20}
+                          className="font-mono text-sm"
+                        />
+                      ) : (
+                        <div className="rounded-lg border bg-muted/30 p-4 max-h-[60vh] overflow-y-auto">
+                          <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-li:text-foreground/90">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {selectedContent.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+                      <Eye className="h-8 w-8 mb-2 opacity-40" />
+                      <p className="text-sm">왼쪽 목록에서 콘텐츠를 선택하세요</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI 콘텐츠 생성 탭 */}
+      {pageTab === 'generate' && (<>
+
 
       {/* 입력 폼 */}
       <Card>
@@ -390,21 +854,147 @@ export default function ContentPage() {
                   { type: 'review' as ContentType, label: '후기/리뷰형' },
                   { type: 'howto' as ContentType, label: '방법/가이드형' },
                   { type: 'listicle' as ContentType, label: '리스트형' },
+                  { type: 'local' as ContentType, label: '지역업종형', desc: '동/역+업종' },
                 ].map(({ type, label, desc }) => (
                   <Badge
                     key={type || 'auto'}
-                    variant={contentType === type ? 'default' : 'outline'}
+                    variant={contentType === type && !isPromoMode ? 'default' : 'outline'}
                     className="cursor-pointer"
-                    onClick={() => setContentType(type as ContentType | '')}
+                    onClick={() => { setContentType(type as ContentType | ''); setIsPromoMode(false) }}
                   >
                     {label}
-                    {desc && contentType === type && (
+                    {desc && contentType === type && !isPromoMode && (
                       <span className="ml-1 opacity-60 text-[10px]">({desc})</span>
                     )}
                   </Badge>
                 ))}
+                <Badge
+                  variant={isPromoMode ? 'default' : 'outline'}
+                  className={`cursor-pointer ${isPromoMode ? 'bg-orange-500 hover:bg-orange-600 border-orange-500' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
+                  onClick={() => {
+                    if (!isPromoMode) {
+                      setContentType('local')
+                      setIsPromoMode(true)
+                    } else {
+                      setIsPromoMode(false)
+                    }
+                  }}
+                >
+                  <Store className="mr-1 h-3 w-3" />
+                  내 업체 홍보글
+                </Badge>
               </div>
             </div>
+
+            {/* 내 업체 홍보글 입력 폼 */}
+            {isPromoMode && (
+              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/50 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-orange-700">
+                  <Store className="h-4 w-4" />
+                  내 업체 정보 입력
+                </div>
+                <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-name" className="text-sm">업체명 *</Label>
+                      <Input
+                        id="biz-name"
+                        placeholder="내 업체/매장 이름을 입력하세요"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="biz-address" className="text-sm">위치/주소</Label>
+                        <Input
+                          id="biz-address"
+                          placeholder="시/구/동 또는 상세 주소"
+                          value={businessAddress}
+                          onChange={(e) => setBusinessAddress(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="biz-hours" className="text-sm">운영 시간</Label>
+                        <Input
+                          id="biz-hours"
+                          placeholder="평일/주말 운영 시간"
+                          value={businessHours}
+                          onChange={(e) => setBusinessHours(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="biz-pricing" className="text-sm">가격 정보</Label>
+                        <Input
+                          id="biz-pricing"
+                          placeholder="대표 상품/서비스 가격대"
+                          value={businessPricing}
+                          onChange={(e) => setBusinessPricing(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="biz-contact" className="text-sm">연락처/예약</Label>
+                        <Input
+                          id="biz-contact"
+                          placeholder="전화번호 또는 예약 링크"
+                          value={businessContact}
+                          onChange={(e) => setBusinessContact(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-strengths" className="text-sm">강점/특징</Label>
+                      <Textarea
+                        id="biz-strengths"
+                        placeholder="우리 업체만의 차별점, 핵심 강점을 적어주세요"
+                        value={businessStrengths}
+                        onChange={(e) => setBusinessStrengths(e.target.value)}
+                        disabled={loading}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-topic" className="text-sm font-medium text-orange-700">
+                        글 주제/소재 (핵심!)
+                      </Label>
+                      <Textarea
+                        id="biz-topic"
+                        placeholder="어떤 주제의 글을 쓸지 자유롭게 입력하세요"
+                        value={businessTopic}
+                        onChange={(e) => setBusinessTopic(e.target.value)}
+                        disabled={loading}
+                        rows={2}
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: '서비스 탐방', text: '대표 서비스 체험기 - 직접 방문해서 경험한 솔직한 후기' },
+                          { label: '시설 소개', text: '새로 리뉴얼한 매장 소개 - 깔끔한 인테리어와 편의시설' },
+                          { label: '이벤트 안내', text: '이번 달 특별 이벤트 안내 - 할인 및 무료 체험 정보' },
+                          { label: '고객 후기', text: '단골 고객의 솔직 후기 - 실제 이용자의 생생한 경험담' },
+                          { label: '전문가 칼럼', text: '업계 전문가가 알려주는 꿀팁 - 현장 노하우 공유' },
+                          { label: '일상/비하인드', text: '매장 운영 비하인드 - 사장님과 직원들의 소소한 일상' },
+                        ].map(({ label, text }) => (
+                          <button
+                            key={label}
+                            type="button"
+                            className="rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs text-orange-600 hover:bg-orange-100 transition-colors"
+                            onClick={() => setBusinessTopic(text)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        칩을 클릭하면 예시가 자동 입력됩니다. 자유롭게 수정하세요!
+                      </p>
+                    </div>
+                  </div>
+              </div>
+            )}
 
             {/* 글 길이 */}
             <div className="space-y-2">
@@ -485,9 +1075,11 @@ export default function ContentPage() {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs text-muted-foreground">
                         예상 {currentOutline.estimatedLength.toLocaleString()}자 · {
-                          contentType
-                            ? { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형' }[contentType]
-                            : '자동 감지: ' + { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형' }[detectContentType(keyword.trim())]
+                          isPromoMode
+                            ? '내 업체 홍보글'
+                            : contentType
+                              ? { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형', local: '지역업종형' }[contentType]
+                              : '자동 감지: ' + { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형', local: '지역업종형' }[detectContentType(keyword.trim())]
                         }
                       </span>
                     </div>
@@ -518,7 +1110,9 @@ export default function ContentPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  AI가 글을 작성하고 있습니다...
+                  {loadingStep === 0 && '네이버 데이터 수집 중... (연관 키워드 · 트렌드 · 상위 글)'}
+                  {loadingStep === 1 && 'AI가 콘텐츠를 작성하고 있습니다...'}
+                  {loadingStep === 2 && 'SEO 분석 및 최적화 중...'}
                 </>
               ) : (
                 <>
@@ -551,6 +1145,15 @@ export default function ContentPage() {
               )}
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100"
+                onClick={() => { setPageTab('history'); loadHistory() }}
+              >
+                <FileText className="h-4 w-4" />
+                내 콘텐츠
+              </Button>
               <Link href="/content/calendar">
                 <Button variant="outline" size="sm" className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100">
                   <CalendarDays className="h-4 w-4" />
@@ -575,6 +1178,30 @@ export default function ContentPage() {
               </Button>
             </div>
           </div>
+
+          {/* 데이터 강화 요약 */}
+          {result.enrichment && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 mb-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                AI에 제공된 네이버 데이터 인사이트
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-600">
+                {result.enrichment.relatedKeywordsCount && (
+                  <span>연관 키워드 {result.enrichment.relatedKeywordsCount}개 반영</span>
+                )}
+                {result.enrichment.trendDirection && (
+                  <span>트렌드: {result.enrichment.trendDirection} {result.enrichment.trendDirection === '상승 중' ? '↑' : result.enrichment.trendDirection === '하락 중' ? '↓' : '→'}{result.enrichment.trendRatio ? ` (${result.enrichment.trendRatio}/100)` : ''}</span>
+                )}
+                {result.enrichment.serpRefCount && (
+                  <span>상위노출 {result.enrichment.serpRefCount}개 글 분석</span>
+                )}
+                {result.enrichment.autoKeywords && result.enrichment.autoKeywords.length > 0 && (
+                  <span>자동 추가 키워드: {result.enrichment.autoKeywords.join(', ')}</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* SEO 분석 + 가독성 + DIA 카드 */}
           {result.seoAnalysis && (
@@ -848,12 +1475,24 @@ export default function ContentPage() {
                         </Label>
                         <TagEditor tags={editTags} onTagsChange={setEditTags} />
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <Button onClick={handleSave} disabled={saving || !result.contentId}>
                           {saving ? (
                             <><Loader2 className="mr-1 h-4 w-4 animate-spin" />저장 중...</>
                           ) : (
                             <><Save className="mr-1 h-4 w-4" />저장</>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleImprove}
+                          disabled={improving || !editContent.trim() || !keyword.trim()}
+                          className="gap-1.5"
+                        >
+                          {improving ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
+                          ) : (
+                            <><Sparkles className="h-4 w-4" />AI 약점 개선</>
                           )}
                         </Button>
                         {!result.contentId && (
@@ -862,6 +1501,11 @@ export default function ContentPage() {
                         {saveMessage && (
                           <span className={`text-sm font-medium ${saveMessage.includes('완료') ? 'text-green-600' : 'text-red-600'}`}>
                             {saveMessage}
+                          </span>
+                        )}
+                        {improveMessage && (
+                          <span className={`text-sm font-medium ${improveMessage.includes('완료') || improveMessage.includes('양호') ? 'text-green-600' : 'text-red-600'}`}>
+                            {improveMessage}
                           </span>
                         )}
                       </div>
@@ -960,6 +1604,7 @@ export default function ContentPage() {
           </Card>
         </>
       )}
+      </>)}
     </div>
   )
 }

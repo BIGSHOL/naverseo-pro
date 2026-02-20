@@ -268,6 +268,9 @@ function analyzeKeywordDistribution(keyword: string, content: string): { categor
   } else if (coverage === 1) {
     score = 2
     improvement = '키워드를 본문 전반에 걸쳐 배치하세요'
+  } else {
+    score = 0
+    improvement = '본문에 핵심 키워드가 발견되지 않습니다. 도입부·중간·마무리에 키워드를 자연스럽게 포함하세요'
   }
 
   return {

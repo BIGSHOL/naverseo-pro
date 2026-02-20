@@ -34,7 +34,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // 인증이 필요한 페이지 보호
-  const protectedPaths = ['/dashboard', '/keywords', '/content', '/seo-check', '/tracking', '/report', '/settings']
+  const protectedPaths = ['/dashboard', '/keywords', '/content', '/seo-check', '/tracking', '/report', '/settings', '/admin']
   const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )
@@ -43,6 +43,21 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // 관리자 전용 페이지 보호: admin이 아니면 대시보드로 리다이렉트
+  if (request.nextUrl.pathname.startsWith('/admin') && user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
   }
 
   // 이미 로그인한 사용자가 인증 페이지 접근 시 대시보드로 리다이렉트

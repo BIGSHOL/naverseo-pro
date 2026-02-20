@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target, Clock } from 'lucide-react'
+import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target, Clock, Sparkles, Database } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ interface OpportunityItem {
   score: number
   category: string
   reason: string
+  source?: 'ai' | 'naver'
 }
 
 interface OpportunityResult {
@@ -28,6 +29,9 @@ interface OpportunityResult {
   opportunities: OpportunityItem[]
   summary: string
   isDemo: boolean
+  seedCount?: number
+  naverExpandedCount?: number
+  filteredCount?: number
 }
 
 type SortKey = 'monthlySearch' | 'compIdx' | 'score'
@@ -112,15 +116,47 @@ export default function OpportunitiesPage() {
   // 산점도 매트릭스 데이터: X=경쟁도(낮을수록 좋음), Y=검색량, 버블크기=기회점수
   const matrixData = useMemo(() => {
     if (!result) return []
+    // '-'(미확인)은 별도 위치(0)에 표시
     const compMap: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3 }
-    return result.opportunities.map(opp => ({
-      x: compMap[opp.compIdx] || 2,
-      y: opp.monthlySearch,
-      z: opp.score,
-      keyword: opp.keyword,
-      compIdx: opp.compIdx,
-      category: opp.category,
-    }))
+    return result.opportunities.map((opp, i) => {
+      const baseX = compMap[opp.compIdx] ?? 0
+      // 같은 위치에 겹치는 점들을 분산시키기 위한 jitter
+      const jitterX = ((i % 5) - 2) * 0.08
+      const jitterY = ((Math.floor(i / 5) % 3) - 1) * 0.06
+      return {
+        x: baseX + jitterX,
+        y: opp.monthlySearch * (1 + jitterY),
+        rawY: opp.monthlySearch,
+        z: opp.score,
+        keyword: opp.keyword,
+        compIdx: opp.compIdx,
+        category: opp.category,
+        source: opp.source,
+      }
+    })
+  }, [result])
+
+  // 데이터 품질 분석: 검색량이 충분한지 판단
+  const dataQuality = useMemo(() => {
+    if (!result) return { isLowData: false, lowDataCount: 0 }
+    const lowDataCount = result.opportunities.filter(o => o.monthlySearch <= 20).length
+    return {
+      isLowData: lowDataCount > result.opportunities.length * 0.7,
+      lowDataCount,
+    }
+  }, [result])
+
+  // Y축 최대값: 데이터 기반 동적 계산 (최소 100)
+  const yAxisMax = useMemo(() => {
+    if (!result) return 100
+    const maxSearch = Math.max(...result.opportunities.map(o => o.monthlySearch))
+    return Math.max(100, Math.ceil(maxSearch * 1.2 / 50) * 50)
+  }, [result])
+
+  // X축에 "미확인" 축이 필요한지
+  const hasUnknownComp = useMemo(() => {
+    if (!result) return false
+    return result.opportunities.some(o => o.compIdx !== 'LOW' && o.compIdx !== 'MEDIUM' && o.compIdx !== 'HIGH')
   }, [result])
 
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
@@ -216,10 +252,10 @@ export default function OpportunitiesPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="mt-3 text-sm text-muted-foreground">
-              AI가 블루오션 키워드를 분석하고 있습니다...
+              AI 시드 키워드 생성 → 네이버 연관 키워드 확장 중...
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              15~20개 키워드 생성 + 실제 검색량 조회 중 (약 10~20초)
+              AI 전략 키워드 + 네이버 실제 데이터 조합 (약 10~20초)
             </p>
           </CardContent>
         </Card>
@@ -251,6 +287,23 @@ export default function OpportunitiesPage() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">{result.summary}</p>
+                  {/* 엔진 통계 */}
+                  {result.seedCount && (
+                    <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-purple-500" />
+                        AI 시드: {result.seedCount}개
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Database className="h-3 w-3 text-blue-500" />
+                        네이버 확장: {result.naverExpandedCount}개
+                      </span>
+                      <span>
+                        → 상위 {result.opportunities.length}개 선별
+                        {result.filteredCount ? ` (${result.filteredCount}개 필터링)` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -269,39 +322,64 @@ export default function OpportunitiesPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="w-full h-[350px]">
+                {/* 데이터 품질 안내 */}
+                {dataQuality.isLowData && (
+                  <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium">검색 데이터가 제한적입니다</p>
+                      <p className="text-xs mt-0.5 text-amber-700">
+                        {dataQuality.lowDataCount}개 키워드의 월간 검색량이 10 미만으로, 네이버가 정확한 데이터를 제공하지 않습니다.
+                        니치/지역 키워드는 검색량이 적더라도 경쟁이 낮아 상위 노출에 유리할 수 있습니다.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="w-full h-[380px] overflow-hidden">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 10, right: 20, bottom: 40, left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <ScatterChart margin={{ top: 20, right: 30, bottom: 50, left: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                       <XAxis
                         type="number"
                         dataKey="x"
-                        domain={[0.5, 3.5]}
-                        ticks={[1, 2, 3]}
-                        tickFormatter={(v: number) => v === 1 ? '낮음' : v === 2 ? '보통' : '높음'}
-                        label={{ value: '경쟁도 →', position: 'insideBottom', offset: -20, fontSize: 12 }}
-                        fontSize={12}
+                        domain={[hasUnknownComp ? -0.5 : 0.5, 3.5]}
+                        ticks={hasUnknownComp ? [0, 1, 2, 3] : [1, 2, 3]}
+                        tickFormatter={(v: number) => v === 0 ? '미확인' : v === 1 ? '낮음' : v === 2 ? '보통' : '높음'}
+                        label={{ value: '경쟁도 →', position: 'insideBottom', offset: -30, style: { fontSize: 13, fontWeight: 500, fill: '#6b7280' } }}
+                        tick={{ fontSize: 13, fontWeight: 500, fill: '#374151' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickLine={{ stroke: '#d1d5db' }}
                       />
                       <YAxis
                         type="number"
                         dataKey="y"
-                        tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(1)}만` : v >= 1000 ? `${(v / 1000).toFixed(1)}천` : String(v)}
-                        label={{ value: '월간 검색량 →', angle: -90, position: 'insideLeft', offset: 10, fontSize: 12 }}
-                        fontSize={11}
+                        domain={[0, yAxisMax]}
+                        tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(1)}만` : v >= 1000 ? `${(v / 1000).toFixed(0)}천` : String(Math.round(v))}
+                        label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -10, style: { fontSize: 13, fontWeight: 500, fill: '#6b7280' } }}
+                        tick={{ fontSize: 12, fill: '#374151' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickLine={{ stroke: '#d1d5db' }}
+                        width={55}
                       />
-                      <ZAxis type="number" dataKey="z" range={[80, 500]} />
+                      <ZAxis type="number" dataKey="z" range={[40, 220]} />
                       <RechartsTooltip
-                        cursor={{ strokeDasharray: '3 3' }}
+                        cursor={{ strokeDasharray: '3 3', stroke: '#9ca3af' }}
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null
                           const d = payload[0].payload as (typeof matrixData)[0]
+                          const compLabel = d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : d.compIdx === 'HIGH' ? '높음' : '미확인'
+                          const sourceLabel = d.source === 'ai' ? 'AI 추천' : d.source === 'naver' ? '네이버 발견' : ''
                           return (
-                            <div className="rounded-lg border bg-background p-3 shadow-md text-sm">
-                              <p className="font-semibold">{d.keyword}</p>
-                              <p className="text-muted-foreground">
-                                검색량: {formatNumber(d.y)} · 경쟁: {d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : '높음'}
-                              </p>
-                              <p className="text-primary font-medium">기회 점수: {d.z}점</p>
+                            <div className="rounded-lg border bg-background/95 backdrop-blur p-3 shadow-lg text-sm min-w-[180px]">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <p className="font-semibold text-foreground">{d.keyword}</p>
+                                {sourceLabel && <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${d.source === 'ai' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>{sourceLabel}</span>}
+                              </div>
+                              <div className="space-y-0.5 text-muted-foreground">
+                                <p>검색량: <span className="font-medium text-foreground">{d.rawY <= 20 ? '< 10' : formatNumber(d.rawY)}</span>/월</p>
+                                <p>경쟁도: <span className="font-medium text-foreground">{compLabel}</span></p>
+                                <p>기회 점수: <span className={`font-bold ${d.z >= 70 ? 'text-green-600' : d.z >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{d.z}점</span></p>
+                              </div>
                             </div>
                           )
                         }}
@@ -310,10 +388,10 @@ export default function OpportunitiesPage() {
                         {matrixData.map((entry, i) => (
                           <Cell
                             key={i}
-                            fill={entry.z >= 70 ? '#22c55e' : entry.z >= 40 ? '#eab308' : '#ef4444'}
-                            fillOpacity={0.7}
-                            stroke={entry.z >= 70 ? '#16a34a' : entry.z >= 40 ? '#ca8a04' : '#dc2626'}
-                            strokeWidth={1}
+                            fill={entry.z >= 70 ? '#22c55e' : entry.z >= 40 ? '#f59e0b' : '#ef4444'}
+                            fillOpacity={0.65}
+                            stroke={entry.z >= 70 ? '#16a34a' : entry.z >= 40 ? '#d97706' : '#dc2626'}
+                            strokeWidth={1.5}
                           />
                         ))}
                       </Scatter>
@@ -321,7 +399,7 @@ export default function OpportunitiesPage() {
                   </ResponsiveContainer>
                 </div>
                 {/* 범례 */}
-                <div className="flex items-center justify-center gap-6 mt-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 mt-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <span className="inline-block h-3 w-3 rounded-full bg-green-500" /> 높은 기회 (70+)
                   </span>
@@ -330,6 +408,12 @@ export default function OpportunitiesPage() {
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="inline-block h-3 w-3 rounded-full bg-red-500" /> 낮은 기회 (&lt;40)
+                  </span>
+                  <span className="border-l pl-4 ml-2 flex items-center gap-1.5">
+                    <span className="inline-block px-1 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700 font-medium">AI</span> AI 추천
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block px-1 py-0.5 rounded text-[10px] bg-green-100 text-green-700 font-medium">N</span> 네이버 연관
                   </span>
                 </div>
               </CardContent>
@@ -390,10 +474,40 @@ export default function OpportunitiesPage() {
                   <tbody>
                     {sorted.map((opp, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                        <td className="py-3 pr-4 font-medium">{opp.keyword}</td>
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{opp.keyword}</span>
+                            {opp.source === 'ai' ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-300 text-purple-600 bg-purple-50 shrink-0">
+                                    AI
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent><p>AI가 전략적으로 추천한 시드 키워드입니다</p></TooltipContent>
+                              </Tooltip>
+                            ) : opp.source === 'naver' ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-600 bg-green-50 shrink-0">
+                                    N
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent><p>네이버 검색 데이터에서 발견된 실제 연관 키워드입니다</p></TooltipContent>
+                              </Tooltip>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="py-3 px-3">{getCategoryBadge(opp.category)}</td>
                         <td className="py-3 px-3 text-right tabular-nums">
-                          {formatNumber(opp.monthlySearch)}
+                          {opp.monthlySearch <= 20 ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-muted-foreground cursor-help">{'< 10'}</span>
+                              </TooltipTrigger>
+                              <TooltipContent><p>네이버에서 월간 검색량이 10 미만인 키워드는 정확한 수치를 제공하지 않습니다</p></TooltipContent>
+                            </Tooltip>
+                          ) : formatNumber(opp.monthlySearch)}
                         </td>
                         <td className="py-3 px-3 text-center">{getCompBadge(opp.compIdx)}</td>
                         <td className="py-3 px-3 text-center">

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -10,9 +12,16 @@ export async function GET() {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 모든 쿼리를 병렬 실행
+    // 프로필 쿼리 (별도 실행 - SSR 세션 경합 방지)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('plan, role, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date')
+      .eq('id', user.id)
+      .single()
+
+
+
     const [
-      { data: profile },
       { data: recentKeywords },
       { data: recentContent },
       { data: allContent },
@@ -20,12 +29,6 @@ export async function GET() {
       { data: recentContentActivity },
       { data: trackedKeywords },
     ] = await Promise.all([
-      // 프로필 정보
-      supabase
-        .from('profiles')
-        .select('plan, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date')
-        .eq('id', user.id)
-        .single(),
       // 최근 키워드 검색 (5개)
       supabase
         .from('keyword_research')
@@ -100,16 +103,17 @@ export async function GET() {
     const trackedKeywordsCount = uniqueKeywords.size
 
     return NextResponse.json({
-      profile: profile || { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
+      profile: profile || { plan: 'free', role: 'user', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       recentKeywords: recentKeywords || [],
       recentContent: recentContent || [],
       contentStats: { total: contentItems.length, draft, published, archived, avgSeoScore },
       dailyActivity,
       trackedKeywordsCount,
     })
-  } catch {
+  } catch (error) {
+    console.error('[Dashboard] 오류:', error)
     return NextResponse.json({
-      profile: { plan: 'free', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
+      profile: { plan: 'free', role: 'user', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       recentKeywords: [],
       recentContent: [],
       contentStats: { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 },

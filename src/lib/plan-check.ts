@@ -48,9 +48,14 @@ export async function checkKeywordLimit(
 ): Promise<PlanCheckResult> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan, keywords_used_this_month')
+    .select('plan, role, keywords_used_this_month')
     .eq('id', userId)
     .single()
+
+  // 관리자는 무제한
+  if (profile?.role === 'admin') {
+    return { allowed: true, plan: (profile.plan || 'free') as PlanType, limit: -1, used: profile.keywords_used_this_month || 0 }
+  }
 
   const plan = (profile?.plan || 'free') as PlanType
   const limit = PLAN_LIMITS[plan].keywordsPerMonth
@@ -74,15 +79,20 @@ export async function checkContentLimit(
 ): Promise<PlanCheckResult> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan, content_generated_this_month')
+    .select('plan, role, content_generated_this_month')
     .eq('id', userId)
     .single()
 
+  // 관리자는 무제한
+  if (profile?.role === 'admin') {
+    return { allowed: true, plan: (profile.plan || 'free') as PlanType, limit: -1, used: profile.content_generated_this_month || 0 }
+  }
+
   const plan = (profile?.plan || 'free') as PlanType
-  const limit = PLAN_LIMITS[plan].contentPerMonth
+  const limit = PLAN_LIMITS[plan].contentPerMonth as number
   const used = profile?.content_generated_this_month || 0
 
-  if (used >= limit) {
+  if (limit !== -1 && used >= limit) {
     return {
       allowed: false, plan, limit, used,
       message: `월간 AI 콘텐츠 생성 한도(${limit}편)를 초과했습니다. 플랜을 업그레이드해주세요.`,
@@ -100,9 +110,14 @@ export async function checkTrackingAccess(
 ): Promise<PlanCheckResult> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan')
+    .select('plan, role')
     .eq('id', userId)
     .single()
+
+  // 관리자는 무제한
+  if (profile?.role === 'admin') {
+    return { allowed: true, plan: (profile.plan || 'free') as PlanType, limit: -1, used: 0 }
+  }
 
   const plan = (profile?.plan || 'free') as PlanType
   const limit = PLAN_LIMITS[plan].trackingKeywords
@@ -125,9 +140,14 @@ export async function checkTrackingCount(
 ): Promise<PlanCheckResult> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan')
+    .select('plan, role')
     .eq('id', userId)
     .single()
+
+  // 관리자는 무제한
+  if (profile?.role === 'admin') {
+    return { allowed: true, plan: (profile.plan || 'free') as PlanType, limit: -1, used: 0 }
+  }
 
   const plan = (profile?.plan || 'free') as PlanType
   const limit = PLAN_LIMITS[plan].trackingKeywords
@@ -171,9 +191,14 @@ export async function checkAnalysisLimit(
 ): Promise<PlanCheckResult> {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('plan, analysis_used_today, analysis_reset_date')
+    .select('plan, role, analysis_used_today, analysis_reset_date')
     .eq('id', userId)
     .single()
+
+  // 관리자는 무제한
+  if (profile?.role === 'admin') {
+    return { allowed: true, plan: (profile.plan || 'free') as PlanType, limit: -1, used: 0 }
+  }
 
   const plan = (profile?.plan || 'free') as PlanType
   const limit = PLAN_LIMITS[plan].analysisPerDay
@@ -214,6 +239,15 @@ export async function incrementAnalysisUsage(
 ): Promise<void> {
   const today = new Date().toISOString().slice(0, 10)
 
+  // RPC 호출로 원자적 증가 시도, 없으면 폴백
+  try {
+    const { error: rpcError } = await supabase.rpc('increment_analysis_usage', { uid: userId }).maybeSingle()
+    if (!rpcError) return
+  } catch {
+    // RPC 함수가 없으면 폴백
+  }
+
+  // 폴백: read-then-write (RPC 없는 환경 호환)
   const { data: profile } = await supabase
     .from('profiles')
     .select('analysis_used_today, analysis_reset_date')

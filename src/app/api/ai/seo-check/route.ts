@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/seo/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
 import type { AiSeoAnalysis } from '@/lib/seo/ai-analyzer'
+import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 interface SeoCheckResponse {
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // 사용자의 AI 제공자 조회
+    const provider = await getUserAiProvider(supabase, user.id)
 
     const limitCheck = await checkAnalysisLimit(supabase, user.id)
     if (!limitCheck.allowed) {
@@ -71,9 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2) AI 심층 분석
-    const hasApiKey = !!process.env.GEMINI_API_KEY?.trim()
-
-    if (!hasApiKey) {
+    if (!hasAiApiKey(provider)) {
       // API 키 없으면 데모 AI 결과 포함
       const response: SeoCheckResponse = {
         ...baseResult,
@@ -84,17 +86,27 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키가 있으면 실제 AI 심층 분석 실행
-    const aiAnalysis = await analyzeWithAi(keyword || '', title || '', content)
+    const aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, provider)
 
-    // AI 점수 보정 적용
+    // AI 점수 보정 적용 + 등급 재계산
     let finalScore = baseResult.totalScore
+    let finalGrade = baseResult.grade
     if (aiAnalysis?.scoreAdjustment) {
       finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
+      // 보정된 점수로 등급 재계산 (SEO_GRADE_TABLE과 동일 기준)
+      if (finalScore >= 90) finalGrade = 'S'
+      else if (finalScore >= 80) finalGrade = 'A+'
+      else if (finalScore >= 70) finalGrade = 'A'
+      else if (finalScore >= 60) finalGrade = 'B+'
+      else if (finalScore >= 50) finalGrade = 'B'
+      else if (finalScore >= 40) finalGrade = 'C'
+      else finalGrade = 'D'
     }
 
     const response: SeoCheckResponse = {
       ...baseResult,
       totalScore: finalScore,
+      grade: finalGrade,
       isDemo: false,
       aiAnalysis,
     }

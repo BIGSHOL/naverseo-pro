@@ -170,6 +170,25 @@ function extractSeTextParagraphs(html: string): string[] {
     prevEnd = m.index + m[0].length
   }
 
+  // 추가 SE 컴포넌트: 인용문(se-quote), 캡션(se-caption), 링크 요약(se-oglink-summary)
+  const quoteRegex = /<[^>]*class=["'][^"']*se-quote-text[^"']*["'][^>]*>([\s\S]*?)<\/[^>]*>/gi
+  while ((m = quoteRegex.exec(html)) !== null) {
+    const text = m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+    if (text.length > 0) results.push(`> ${text}`)
+  }
+
+  const captionRegex = /<[^>]*class=["'][^"']*se-caption[^"']*["'][^>]*>([\s\S]*?)<\/[^>]*>/gi
+  while ((m = captionRegex.exec(html)) !== null) {
+    const text = m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+    if (text.length > 0) results.push(text)
+  }
+
+  const oglinkRegex = /<[^>]*class=["'][^"']*se-oglink-summary[^"']*["'][^>]*>([\s\S]*?)<\/[^>]*>/gi
+  while ((m = oglinkRegex.exec(html)) !== null) {
+    const text = m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim()
+    if (text.length > 0) results.push(text)
+  }
+
   // se-text-paragraph가 없으면 se-module-text 내부의 span.se-text-content 시도
   if (results.length === 0) {
     prevEnd = 0
@@ -282,6 +301,20 @@ export function htmlToPlainText(html: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&hellip;/g, '\u2026')
+    .replace(/&laquo;/g, '\u00AB')
+    .replace(/&raquo;/g, '\u00BB')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&bull;/g, '\u2022')
+    .replace(/&middot;/g, '\u00B7')
+    .replace(/&copy;/g, '\u00A9')
+    .replace(/&reg;/g, '\u00AE')
+    .replace(/&trade;/g, '\u2122')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec)))
     // 연속 줄바꿈 정리 (최대 2개)
@@ -311,6 +344,20 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&mdash;/g, '\u2014')
+    .replace(/&ndash;/g, '\u2013')
+    .replace(/&hellip;/g, '\u2026')
+    .replace(/&laquo;/g, '\u00AB')
+    .replace(/&raquo;/g, '\u00BB')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;/g, '\u2018')
+    .replace(/&rsquo;/g, '\u2019')
+    .replace(/&bull;/g, '\u2022')
+    .replace(/&middot;/g, '\u00B7')
+    .replace(/&copy;/g, '\u00A9')
+    .replace(/&reg;/g, '\u00AE')
+    .replace(/&trade;/g, '\u2122')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec)))
 }

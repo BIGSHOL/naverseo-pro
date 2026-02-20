@@ -19,6 +19,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import Link from 'next/link'
 
 // 콘텐츠 아이템 (본문 보기용)
@@ -75,6 +81,7 @@ export default function ContentCalendarPage() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [updating, setUpdating] = useState<string | null>(null)
   const [viewingContent, setViewingContent] = useState<ContentItem | null>(null)
   const [copied, setCopied] = useState(false)
@@ -126,6 +133,12 @@ export default function ContentCalendarPage() {
     setSelectedDate(null)
   }
 
+  const handleDateClick = (dateKey: string) => {
+    setSelectedDate(dateKey)
+    setExpandedGroups(new Set())
+    setDialogOpen(true)
+  }
+
   const handleStatusChange = async (contentId: string, newStatus: string) => {
     setUpdating(contentId)
     try {
@@ -169,10 +182,9 @@ export default function ContentCalendarPage() {
   // 선택된 날짜의 활동
   const selectedActivities = selectedDate ? activitiesByDate[selectedDate] || [] : []
 
-  // 타입별 아코디언 그룹 (기본 접힘, 내부에 개별 아이템)
+  // 타입별 아코디언 그룹
   const typeGroups = useMemo(() => {
     const map = new Map<string, Activity[]>()
-    // 타입 순서 고정
     const typeOrder = ['content', 'keyword', 'discovery', 'tracking']
     for (const type of typeOrder) map.set(type, [])
 
@@ -275,138 +287,143 @@ export default function ContentCalendarPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* 캘린더 */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <CardTitle className="text-base">
-                {year}년 {month + 1}월
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={handleNextMonth}>
-                <ChevronRight className="h-5 w-5" />
-              </Button>
+      {/* 캘린더 (전체 너비) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <CardTitle className="text-base">
+              {year}년 {month + 1}월
+            </CardTitle>
+            <Button variant="ghost" size="icon" onClick={handleNextMonth}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {error ? (
+            <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
+              {error}
             </div>
-          </CardHeader>
-          <CardContent>
-            {error ? (
-              <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
-                {error}
-              </div>
-            ) : loading ? (
-              <div className="flex items-center justify-center py-16">
-                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-7">
-                {/* 요일 헤더 */}
-                {WEEKDAYS.map((day) => (
+          ) : loading ? (
+            <div className="flex items-center justify-center py-16">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-7">
+              {/* 요일 헤더 */}
+              {WEEKDAYS.map((day) => (
+                <div
+                  key={day}
+                  className="border-b py-2 text-center text-xs font-medium text-muted-foreground"
+                >
+                  {day}
+                </div>
+              ))}
+
+              {/* 빈 칸 (이전 달) */}
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="border-b p-1" />
+              ))}
+
+              {/* 날짜 셀 */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                const dayActivities = activitiesByDate[dateKey] || []
+                const isToday =
+                  year === now.getFullYear() &&
+                  month === now.getMonth() &&
+                  day === now.getDate()
+                const isSelected = selectedDate === dateKey && dialogOpen
+
+                // 날짜 셀에 표시할 활동 타입별 도트
+                const typesInDay = Array.from(new Set(dayActivities.map((a) => a.type)))
+
+                return (
                   <div
                     key={day}
-                    className="border-b py-2 text-center text-xs font-medium text-muted-foreground"
+                    className={`min-h-[80px] cursor-pointer border-b p-1.5 transition-colors hover:bg-muted/50 ${
+                      isSelected ? 'bg-primary/5 ring-1 ring-primary/30' : ''
+                    } ${dayActivities.length > 0 ? 'hover:bg-primary/5' : ''}`}
+                    onClick={() => handleDateClick(dateKey)}
                   >
-                    {day}
-                  </div>
-                ))}
-
-                {/* 빈 칸 (이전 달) */}
-                {Array.from({ length: firstDay }).map((_, i) => (
-                  <div key={`empty-${i}`} className="border-b p-1" />
-                ))}
-
-                {/* 날짜 셀 */}
-                {Array.from({ length: daysInMonth }).map((_, i) => {
-                  const day = i + 1
-                  const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  const dayActivities = activitiesByDate[dateKey] || []
-                  const isToday =
-                    year === now.getFullYear() &&
-                    month === now.getMonth() &&
-                    day === now.getDate()
-                  const isSelected = selectedDate === dateKey
-
-                  // 날짜 셀에 표시할 활동 타입별 도트
-                  const typesInDay = Array.from(new Set(dayActivities.map((a) => a.type)))
-
-                  return (
-                    <div
-                      key={day}
-                      className={`min-h-[72px] cursor-pointer border-b p-1 transition-colors hover:bg-muted/50 ${
-                        isSelected ? 'bg-primary/5' : ''
+                    <span
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                        isToday
+                          ? 'bg-primary font-bold text-primary-foreground'
+                          : 'font-medium'
                       }`}
-                      onClick={() => { setSelectedDate(dateKey); setExpandedGroups(new Set()) }}
                     >
-                      <span
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs ${
-                          isToday
-                            ? 'bg-primary font-bold text-primary-foreground'
-                            : 'font-medium'
-                        }`}
-                      >
-                        {day}
-                      </span>
-                      {dayActivities.length > 0 && (
-                        <div className="mt-0.5 space-y-0.5">
-                          {/* 활동 타입별 요약 표시 */}
-                          {dayActivities.slice(0, 2).map((a) => {
-                            const config = ACTIVITY_CONFIG[a.type]
-                            return (
-                              <div
-                                key={a.id}
-                                className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${config.bgColor} ${config.color}`}
-                              >
-                                {a.label}
-                              </div>
-                            )
-                          })}
-                          {dayActivities.length > 2 && (
-                            <div className="px-1 text-[10px] text-muted-foreground">
-                              +{dayActivities.length - 2}개 더
+                      {day}
+                    </span>
+                    {dayActivities.length > 0 && (
+                      <div className="mt-0.5 space-y-0.5">
+                        {dayActivities.slice(0, 2).map((a) => {
+                          const config = ACTIVITY_CONFIG[a.type]
+                          return (
+                            <div
+                              key={a.id}
+                              className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight ${config.bgColor} ${config.color}`}
+                            >
+                              {a.label}
                             </div>
-                          )}
-                          {/* 활동 타입 도트 */}
-                          <div className="flex gap-0.5 px-1">
-                            {typesInDay.map((type) => (
-                              <div
-                                key={type}
-                                className={`h-1.5 w-1.5 rounded-full ${ACTIVITY_CONFIG[type]?.bgColor || 'bg-gray-300'}`}
-                                style={{ opacity: 0.8 }}
-                              />
-                            ))}
+                          )
+                        })}
+                        {dayActivities.length > 2 && (
+                          <div className="px-1 text-[10px] text-muted-foreground">
+                            +{dayActivities.length - 2}개 더
                           </div>
+                        )}
+                        {/* 활동 타입 도트 */}
+                        <div className="flex gap-0.5 px-1">
+                          {typesInDay.map((type) => (
+                            <div
+                              key={type}
+                              className={`h-1.5 w-1.5 rounded-full ${ACTIVITY_CONFIG[type]?.bgColor || 'bg-gray-300'}`}
+                              style={{ opacity: 0.8 }}
+                            />
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* 선택된 날짜의 활동 상세 */}
-        <Card className="lg:max-h-[600px] lg:flex lg:flex-col">
-          <CardHeader>
-            <CardTitle className="text-base">
+      {/* 범례 */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        {Object.entries(ACTIVITY_CONFIG).map(([key, config]) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <div className={`h-2.5 w-2.5 rounded-full ${config.bgColor}`} />
+            <span>{config.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 날짜 활동 상세 팝업 */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
               {selectedDate
                 ? `${new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', {
+                    year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                   })} 활동${selectedActivities.length > 0 ? ` (${selectedActivities.length}건)` : ''}`
-                : '날짜를 선택하세요'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-y-auto flex-1 min-h-0">
-            {!selectedDate ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                캘린더에서 날짜를 클릭하면
-                <br />
-                해당 날짜의 활동을 볼 수 있어요
-              </p>
-            ) : selectedActivities.length === 0 ? (
+                : '활동 상세'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 120px)' }}>
+            {selectedActivities.length === 0 ? (
               <div className="py-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   이 날짜에 기록된 활동이 없습니다
@@ -421,7 +438,7 @@ export default function ContentCalendarPage() {
 
                   return (
                     <div key={group.type} className="rounded-lg border">
-                      {/* 그룹 헤더 (클릭으로 토글) */}
+                      {/* 그룹 헤더 */}
                       <button
                         className="flex w-full items-center gap-2 p-3 text-left hover:bg-muted/50 transition-colors"
                         onClick={() => toggleGroup(group.type)}
@@ -496,7 +513,7 @@ export default function ContentCalendarPage() {
                                     </Button>
                                   )}
                                   <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs"
-                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) setViewingContent(item) }}
+                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) { setDialogOpen(false); setViewingContent(item) } }}
                                   >
                                     <Eye className="h-3 w-3" /> 보기
                                   </Button>
@@ -520,19 +537,9 @@ export default function ContentCalendarPage() {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 범례 */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-        {Object.entries(ACTIVITY_CONFIG).map(([key, config]) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <div className={`h-2.5 w-2.5 rounded-full ${config.bgColor}`} />
-            <span>{config.name}</span>
           </div>
-        ))}
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 콘텐츠 본문 보기 모달 */}
       {viewingContent && (

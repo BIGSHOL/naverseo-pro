@@ -4,7 +4,7 @@ import { analyzeSeo } from '@/lib/content/engine'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {

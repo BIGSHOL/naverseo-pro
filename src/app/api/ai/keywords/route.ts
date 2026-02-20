@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callGemini, parseGeminiJson, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 import { getKeywordStats, calculateKeywordScore, type NaverKeywordResult } from '@/lib/naver/search-ad'
+import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
 
 interface AiRecommendation {
   keyword: string
@@ -129,6 +130,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
+    // 일간 분석 제한 체크
+    const limitCheck = await checkAnalysisLimit(supabase, user.id)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
+        { status: 429 }
+      )
+    }
+
     const { keyword } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
@@ -138,10 +148,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // API 키가 없으면 데모 데이터 (검색량 포함)
+    // API 키가 없으면 데모 데이터 (검색량 포함) — 키워드는 항상 Gemini
     if (!process.env.GEMINI_API_KEY) {
       const demo = getDemoRecommendations(keyword.trim())
       const enriched = await enrichWithSearchData(demo.recommendations)
+      await incrementAnalysisUsage(supabase, user.id)
       return NextResponse.json({ recommendations: enriched, isDemo: true })
     }
 
@@ -161,12 +172,13 @@ export async function POST(request: NextRequest) {
   ]
 }`
 
-    const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 2048)
+    const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 4096, { jsonMode: true })
     const parsed = parseGeminiJson<{ recommendations: AiRecommendation[] }>(response)
 
     // AI 추천 키워드의 실제 검색량 데이터 병합
     const enriched = await enrichWithSearchData(parsed.recommendations || [])
 
+    await incrementAnalysisUsage(supabase, user.id)
     return NextResponse.json({ recommendations: enriched, isDemo: false })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

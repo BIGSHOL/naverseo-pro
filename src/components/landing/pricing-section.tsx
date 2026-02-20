@@ -8,7 +8,7 @@ import Link from 'next/link'
 const planOrder: Plan[] = ['free', 'starter', 'pro', 'agency']
 
 // 각 플랜별 단가 비교 메시지
-const planValueProps: Record<Plan, string | null> = {
+const planValueProps: Partial<Record<Plan, string | null>> = {
   free: null,
   starter: '글 1편당 2,900원 · 커피 한 잔 값',
   pro: '글 1편당 1,180원 · 하루 2,000원 미만',
