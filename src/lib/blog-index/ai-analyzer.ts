@@ -57,50 +57,121 @@ function parsePostLink(link: string): { blogId: string; postNo: string } | null 
 async function fetchPostContent(blogId: string, postNo: string): Promise<string | null> {
   try {
     const mobileUrl = `https://m.blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${postNo}`
+    console.log(`[BlogIndex] 본문 크롤링 시작: ${blogId}/${postNo}`)
+
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
+    const timeout = setTimeout(() => controller.abort(), 15000) // 8초 → 15초로 증가
 
     const response = await fetch(mobileUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
       },
       signal: controller.signal,
     })
 
     clearTimeout(timeout)
 
-    if (!response.ok) return null
+    if (!response.ok) {
+      console.warn(`[BlogIndex] HTTP ${response.status} - ${blogId}/${postNo}`)
+      return null
+    }
 
     const html = await response.text()
+    console.log(`[BlogIndex] HTML 크기: ${html.length}자 - ${blogId}/${postNo}`)
 
-    // 본문 텍스트 추출 (간단한 방식 — se-text-paragraph 우선)
-    const paragraphs: string[] = []
-    const pRegex = /<p[^>]*class=["'][^"']*se-text-paragraph[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi
-    let m
-    while ((m = pRegex.exec(html)) !== null) {
-      const text = m[1]
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<[^>]*>/g, '')
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/&[a-z]+;/gi, ' ')
-        .trim()
-      if (text.length > 0) paragraphs.push(text)
+    // blog-scraper.ts와 동일한 파싱 로직 적용
+    let bodyHtml = ''
+
+    // SmartEditor 3: div 깊이 추적으로 se-main-container 전체 범위 추출
+    const seContainerIdx = html.indexOf('se-main-container')
+    if (seContainerIdx > -1) {
+      const divStart = html.lastIndexOf('<div', seContainerIdx)
+      const contentStart = html.indexOf('>', divStart) + 1
+
+      // 중첩 div를 추적하여 올바른 닫힘 위치 찾기
+      let depth = 1
+      let pos = contentStart
+      while (depth > 0 && pos < html.length) {
+        const nextOpen = html.indexOf('<div', pos)
+        const nextClose = html.indexOf('</div>', pos)
+
+        if (nextClose === -1) break
+
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++
+          pos = nextOpen + 4
+        } else {
+          depth--
+          if (depth === 0) {
+            bodyHtml = html.substring(contentStart, nextClose)
+          }
+          pos = nextClose + 6
+        }
+      }
     }
 
-    if (paragraphs.length > 0) {
-      return paragraphs.join('\n\n')
+    // 구형 에디터 폴백
+    if (!bodyHtml) {
+      const postViewIdx = html.indexOf('id="postViewArea"') !== -1
+        ? html.indexOf('id="postViewArea"')
+        : html.indexOf('class="post-view')
+      if (postViewIdx > -1) {
+        const divStart = html.lastIndexOf('<div', postViewIdx)
+        const contentStart = html.indexOf('>', divStart) + 1
+        let depth = 1
+        let pos = contentStart
+        while (depth > 0 && pos < html.length) {
+          const nextOpen = html.indexOf('<div', pos)
+          const nextClose = html.indexOf('</div>', pos)
+          if (nextClose === -1) break
+          if (nextOpen !== -1 && nextOpen < nextClose) {
+            depth++
+            pos = nextOpen + 4
+          } else {
+            depth--
+            if (depth === 0) bodyHtml = html.substring(contentStart, nextClose)
+            pos = nextClose + 6
+          }
+        }
+      }
     }
 
-    // 폴백: og:description
-    const ogDesc = html.match(/<meta\s+(?:property=["']og:description["']\s+content=["']([^"']+)["']|content=["']([^"']+)["']\s+property=["']og:description["'])/i)
-    if (ogDesc) {
-      return (ogDesc[1] || ogDesc[2]).replace(/&[a-z]+;/gi, ' ').trim()
+    // 최종 폴백: 스크립트/스타일/헤더/푸터 제거
+    if (!bodyHtml) {
+      bodyHtml = html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<header[\s\S]*?<\/header>/gi, '')
+        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
     }
 
+    // HTML 태그 제거 후 순수 텍스트
+    const text = bodyHtml
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&[a-z]+;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (text.length > 0) {
+      console.log(`[BlogIndex] ✅ 본문 파싱 성공: ${text.length}자 - ${blogId}/${postNo}`)
+      return text
+    }
+
+    console.warn(`[BlogIndex] ❌ 본문 추출 완전 실패 - ${blogId}/${postNo}`)
     return null
-  } catch {
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error(`[BlogIndex] 크롤링 에러: ${blogId}/${postNo} - ${errorMsg}`)
     return null
   }
 }
@@ -256,7 +327,7 @@ ${p.content}
 
     console.log(`[BlogIndex AI] ${postContents.length}개 포스트 분석 요청 (총 ${userMessage.length}자)`)
 
-    const response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 1024, { jsonMode: true })
+    const response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정
@@ -275,6 +346,60 @@ ${p.content}
       abuseReason: (risk) => `AI 분석: 어뷰징 위험(${risk}점)으로 감산`,
     })
 
+    // ===== Validation: 빈 배열 방지 (점수 기반 intelligent fallback) =====
+    let recommendations = raw.recommendations || []
+    let weaknesses = raw.weaknesses || []
+
+    // 개선점이 없으면 점수 기반 fallback 제공
+    if (recommendations.length === 0) {
+      if (avgPositive >= 8) {
+        // 고득점: 미세 개선 팁
+        recommendations = [
+          '질문형 소제목을 활용하여 대화형 검색에 대응하세요',
+          '문단을 2~3문장으로 짧게 나누어 VLM 시각 최적화를 개선하세요',
+          '권위 있는 출처(통계, 공식 발표)를 인용하여 신뢰도를 높이세요',
+        ]
+      } else if (avgPositive >= 6) {
+        // 중간 점수: 구조/키워드 개선
+        recommendations = [
+          '소제목(H2, H3)을 활용하여 글 구조를 체계화하세요',
+          '핵심 키워드의 동의어를 본문에 자연스럽게 배치하세요',
+          '이미지에 설명 캡션을 추가하여 가독성과 SEO를 개선하세요',
+          '글 마지막에 핵심 정보 요약을 추가하여 스캔 가능성을 높이세요',
+        ]
+      } else {
+        // 낮은 점수: 근본적 개선
+        recommendations = [
+          '직접 경험 정보(날짜, 장소, 가격, 느낌)를 추가하여 경험 점수를 높이세요',
+          '소제목으로 글을 단계별로 구조화하여 독자 체류 시간을 늘리세요',
+          '구체적 수치와 데이터를 추가하여 정보 깊이를 강화하세요',
+          '복사/붙여넣기 느낌을 줄이고 본인만의 해석과 의견을 넣으세요',
+        ]
+      }
+
+      // 어뷰징 위험이 높으면 추가 경고
+      if (abuseRisk >= 5) {
+        recommendations.push('키워드 반복을 줄이고 자연스러운 문체로 다듬으세요')
+      }
+    }
+
+    // 약점이 없으면 점수 기반 fallback 제공
+    if (weaknesses.length === 0) {
+      if (experienceScore < 6) {
+        weaknesses.push('직접 체험 흔적이 부족하여 경험 점수가 낮음')
+      }
+      if (qualityScore < 6) {
+        weaknesses.push('글 구조가 단조롭고 소제목 활용이 미흡함')
+      }
+      if (abuseRisk >= 5) {
+        weaknesses.push('키워드 과다 삽입 또는 기계적 패턴이 감지됨')
+      }
+      // 모든 점수가 높아도 최소 1개 약점은 제시
+      if (weaknesses.length === 0) {
+        weaknesses.push('이미지 설명 캡션 활용이 부족함')
+      }
+    }
+
     return {
       experienceScore,
       experienceDetails: raw.experienceDetails || '',
@@ -283,8 +408,8 @@ ${p.content}
       abuseRisk,
       abuseDetails: raw.abuseDetails || '',
       strengths: raw.strengths || [],
-      weaknesses: raw.weaknesses || [],
-      recommendations: raw.recommendations || [],
+      weaknesses,
+      recommendations,
       analyzedPosts: postContents.length,
       scoreAdjustment,
       adjustmentReason,

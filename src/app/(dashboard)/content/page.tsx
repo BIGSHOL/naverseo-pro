@@ -189,11 +189,54 @@ export default function ContentPage() {
     }
   }, [pageTab, loadHistory])
 
-  // URL param에서 키워드 프리필
+  // URL param에서 키워드 프리필 + 경쟁자 분석 데이터 자동 입력
   useEffect(() => {
     const kwParam = searchParams.get('keyword')
     if (kwParam) {
       setKeyword(kwParam)
+    }
+
+    // 경쟁자 분석에서 넘어온 경우 분석 데이터 자동 적용
+    const fromCompetitors = searchParams.get('from') === 'competitors'
+    if (fromCompetitors) {
+      try {
+        const raw = sessionStorage.getItem('naverseo-competitor-preset')
+        if (raw) {
+          const preset = JSON.parse(raw)
+          sessionStorage.removeItem('naverseo-competitor-preset')
+
+          // 관련 키워드 자동 입력
+          if (preset.relatedKeywords && preset.relatedKeywords.length > 0) {
+            setAdditionalKeywords(preset.relatedKeywords.join(', '))
+          }
+
+          // 참고 블로그 URL 자동 입력 (1위 블로그)
+          if (preset.referenceUrl) {
+            setReferenceUrl(preset.referenceUrl)
+          }
+
+          // 콘텐츠 유형 자동 선택
+          if (preset.contentType) {
+            const typeMap: Record<string, ContentType> = {
+              '비교/추천형': 'comparison',
+              '후기/리뷰형': 'review',
+              '방법/가이드형': 'howto',
+              '리스트형': 'listicle',
+              '정보형': 'informational',
+              '지역업종형': 'local',
+            }
+            const mapped = typeMap[preset.contentType]
+            if (mapped) setContentType(mapped)
+          }
+
+          // 톤앤매너 자동 선택
+          if (preset.tone) {
+            setTone(preset.tone)
+          }
+        }
+      } catch {
+        // sessionStorage 파싱 실패 시 무시
+      }
     }
   }, [searchParams])
 

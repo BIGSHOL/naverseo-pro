@@ -1,11 +1,14 @@
 import type { IntentCategory, RawKeywordData } from './types'
 
+/** 유효한 경쟁도 값만 허용 (나머지는 추정 로직으로 전달) */
+const VALID_COMP = new Set(['HIGH', 'MEDIUM', 'LOW'])
+
 /**
- * 네이버 compIdx가 "-"(미확인)일 때, plAvgDepth + 검색량으로 경쟁도 추정
- * compIdx가 이미 있으면 그대로 반환
+ * 경쟁도 추정: compIdx가 유효하면 그대로, 아니면 plAvgDepth + 검색량으로 추정
+ * 네이버 API가 예상외 값('-', 한국어, 빈 문자열 등)을 반환하는 경우 자동 추정
  */
 export function estimateCompetition(stat: RawKeywordData): string {
-  if (stat.compIdx && stat.compIdx !== '-') return stat.compIdx
+  if (VALID_COMP.has(stat.compIdx)) return stat.compIdx
 
   const totalSearch = stat.monthlyPcQcCnt + stat.monthlyMobileQcCnt
   const depth = stat.plAvgDepth || 0

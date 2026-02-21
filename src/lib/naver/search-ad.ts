@@ -69,17 +69,34 @@ export async function getKeywordStats(
   const keywordList = data.keywordList || []
 
   // 네이버 API는 검색량이 적으면 "< 10" 같은 문자열을 반환함 → 숫자로 변환
-  return keywordList.map((kw: Record<string, unknown>) => ({
-    relKeyword: kw.relKeyword as string,
-    monthlyPcQcCnt: parseSearchCount(kw.monthlyPcQcCnt),
-    monthlyMobileQcCnt: parseSearchCount(kw.monthlyMobileQcCnt),
-    monthlyAvePcClkCnt: parseSearchCount(kw.monthlyAvePcClkCnt),
-    monthlyAveMobileClkCnt: parseSearchCount(kw.monthlyAveMobileClkCnt),
-    monthlyAvePcCtr: typeof kw.monthlyAvePcCtr === 'number' ? kw.monthlyAvePcCtr : 0,
-    monthlyAveMobileCtr: typeof kw.monthlyAveMobileCtr === 'number' ? kw.monthlyAveMobileCtr : 0,
-    plAvgDepth: typeof kw.plAvgDepth === 'number' ? kw.plAvgDepth : 0,
-    compIdx: (kw.compIdx as string) || '-',
-  }))
+  return keywordList.map((kw: Record<string, unknown>) => {
+    const plAvgDepth = typeof kw.plAvgDepth === 'number' ? kw.plAvgDepth : 0
+    const rawCompIdx = String(kw.compIdx ?? '').toUpperCase().trim()
+    // 유효한 값만 인정, 나머지(한국어, '-', 빈 문자열 등)는 plAvgDepth로 추정
+    let compIdx = (['HIGH', 'MEDIUM', 'LOW'].includes(rawCompIdx)) ? rawCompIdx : ''
+
+    if (!compIdx) {
+      if (plAvgDepth <= 3) {
+        compIdx = 'LOW'
+      } else if (plAvgDepth <= 8) {
+        compIdx = 'MEDIUM'
+      } else {
+        compIdx = 'HIGH'
+      }
+    }
+
+    return {
+      relKeyword: kw.relKeyword as string,
+      monthlyPcQcCnt: parseSearchCount(kw.monthlyPcQcCnt),
+      monthlyMobileQcCnt: parseSearchCount(kw.monthlyMobileQcCnt),
+      monthlyAvePcClkCnt: parseSearchCount(kw.monthlyAvePcClkCnt),
+      monthlyAveMobileClkCnt: parseSearchCount(kw.monthlyAveMobileClkCnt),
+      monthlyAvePcCtr: typeof kw.monthlyAvePcCtr === 'number' ? kw.monthlyAvePcCtr : 0,
+      monthlyAveMobileCtr: typeof kw.monthlyAveMobileCtr === 'number' ? kw.monthlyAveMobileCtr : 0,
+      plAvgDepth,
+      compIdx,
+    }
+  })
 }
 
 // "< 10" 같은 문자열을 숫자로 안전하게 변환

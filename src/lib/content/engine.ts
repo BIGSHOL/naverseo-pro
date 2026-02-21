@@ -15,6 +15,7 @@
 
 import { analyzeSeo, analyzeReadability, type SeoAnalysisResult, type ReadabilityResult } from '@/lib/seo/engine'
 import { STOPWORDS } from '@/lib/utils/text'
+import { getFewShotExamples } from './examples'
 
 // ===== 타입 정의 =====
 
@@ -259,7 +260,13 @@ const STRUCTURE_GUIDES: Record<ContentType, string> = {
 3. 선택 시 체크포인트: 해당 업종 고를 때 확인할 기준 리스트
 4. 지역 꿀팁: 주변 시설 연계, 할인 정보, 체험 수업 안내 등
 5. 자주 묻는 질문 (FAQ): 가격, 시간, 주차 등 실용 Q&A
-6. 마무리: 핵심 요약 + 방문 전 체크리스트`,
+6. 마무리: 핵심 요약 + 방문 전 체크리스트
+
+⚠️ 중요 규칙 (절대 위반 금지!):
+- 반드시 위 6단계 구조를 따를 것 (Step 1/2/3 같은 엉뚱한 템플릿 사용 금지)
+- 구체적인 업체명·가격·위치를 포함할 것 (추상적 설명 금지)
+- "목표 설정", "기초 세팅" 같은 범용 단계 사용 절대 금지
+- 실제로 존재할 법한 현실적인 업체 정보를 작성 (검증 가능한 수준)`,
 }
 
 /** 홍보글 전용 구조 가이드 (businessInfo가 있을 때 local 대체) */
@@ -312,6 +319,7 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
   const structure = isPromo ? LOCAL_PROMO_STRUCTURE_GUIDE : STRUCTURE_GUIDES[contentType]
   const toneGuide = getToneGuide(request.tone || '친근하고 정보적인')
   const lengthGuide = getLengthGuide(request.targetLength || 'medium')
+  const fewShotExamples = isPromo ? '' : getFewShotExamples(contentType)  // 홍보글은 예시 제외
 
   return `당신은 네이버 블로그 SEO 전문 작가입니다.
 네이버 C-Rank와 D.I.A. 알고리즘에 최적화된 블로그 글을 작성합니다.
@@ -377,6 +385,23 @@ ${lengthGuide}
 - **권위 있는 출처 인용**: 통계, 공식 발표 등 객관적 근거 제시
 - **주제 심도 집중**: 양보다 밀도, 하나의 주제에 대한 깊이 있는 정보
 
+## ⛔ 범용 템플릿 남용 금지 (CRITICAL)
+절대 하지 말아야 할 것:
+❌ "Step 1. 목표 설정하기", "Step 2. 기초 세팅하기" 같은 주제와 무관한 범용 단계
+❌ "준비할 것", "체크리스트" 같은 추상적 섹션만 나열
+❌ 지역 업종 키워드에 학원/맛집 이름 없이 "선택 방법"만 설명
+❌ 비교/추천 키워드에 구체적 항목 없이 "비교 기준"만 설명
+
+반드시 해야 할 것:
+✅ 지정된 콘텐츠 유형 구조를 정확히 따를 것
+✅ 구체적 정보(업체명, 가격, 위치, 제품명 등)를 포함할 것
+✅ 주제에 딱 맞는 실용적 정보를 제공할 것
+
+예시:
+- "침산동 초등수학학원 추천" → TOP 3~5 학원을 H3 소제목으로 나열 (위치·가격·특징 포함)
+- "React vs Vue 비교" → 각 프레임워크의 성능·생태계·학습곡선을 구체적으로 비교
+- "김치찌개 끓이는 법" → 재료 리스트 + 단계별 조리법 (온도·시간 포함)
+${fewShotExamples}
 ## 응답 형식 (JSON)
 반드시 유효한 JSON 형식으로만 응답하세요. 마크다운 코드블록 없이 순수 JSON만 출력합니다.
 {
@@ -670,6 +695,168 @@ export function generateDemoContent(request: ContentGenerationRequest): ContentG
     seoAnalysis,
     readabilityAnalysis,
     isDemo: true,
+  }
+}
+
+// ===== 콘텐츠 품질 검증 =====
+
+/** 콘텐츠 검증 결과 */
+export interface ContentValidationResult {
+  isValid: boolean
+  errors: string[]
+  warnings: string[]
+  score: number  // 0~100점 (80점 이상이면 합격)
+}
+
+/**
+ * 생성된 콘텐츠의 품질을 검증하여 범용 템플릿 남용을 감지
+ *
+ * @param content 검증할 콘텐츠 본문
+ * @param contentType 콘텐츠 유형
+ * @param keyword 타겟 키워드
+ * @returns 검증 결과 (isValid, errors, warnings, score)
+ */
+export function validateContentStructure(
+  content: string,
+  contentType: ContentType,
+  keyword: string
+): ContentValidationResult {
+  const errors: string[] = []
+  const warnings: string[] = []
+  let score = 100
+
+  // 1. 범용 템플릿 금지 단어 감지
+  const genericPhrases = [
+    /Step\s*\d+[.:)]\s*(목표|기초|핵심|결과|마무리)\s*(설정|세팅|작업|확인)/gi,
+    /준비할\s*것.*필수.*선택/gi,
+    /체크리스트.*확인.*점검/gi,
+    /단계별.*가이드.*따라하기/gi,
+  ]
+
+  for (const pattern of genericPhrases) {
+    const matches = content.match(pattern)
+    if (matches && matches.length >= 2) {
+      errors.push(`범용 템플릿 감지: "${matches[0]}" 같은 주제와 무관한 추상적 단계 사용`)
+      score -= 30
+      break
+    }
+  }
+
+  // 2. 콘텐츠 타입별 필수 요소 검증
+  switch (contentType) {
+    case 'local':
+      // 지역 업종: 구체적 업체명, 가격, 위치 필수
+      const hasBusinessNames = /###\s*\d+\.\s*[가-힣a-zA-Z0-9\s]+\s*\(/g.test(content) ||
+                               /###\s*[가-힣a-zA-Z0-9\s]+(학원|카페|식당|병원|헬스장|맛집)/g.test(content)
+      const hasPricing = /\d+[,\d]*원|월\s*\d+만|가격:/gi.test(content)
+      const hasLocation = /(역|동|구|시)\s*\d+번\s*출구|도보\s*\d+분|주소:/gi.test(content)
+
+      if (!hasBusinessNames) {
+        errors.push('지역 업종 콘텐츠에 구체적 업체명이 없습니다 (예: ### 1. OO학원)')
+        score -= 25
+      }
+      if (!hasPricing) {
+        warnings.push('가격 정보가 부족합니다 (예: 월 22만원, 아메리카노 4,500원)')
+        score -= 10
+      }
+      if (!hasLocation) {
+        warnings.push('위치 정보가 부족합니다 (예: 역삼역 3번 출구 도보 5분)')
+        score -= 10
+      }
+      break
+
+    case 'comparison':
+      // 비교형: 구체적 항목명, 비교표, 별점 권장
+      const hasItemNames = /###\s*\d+[위.]?\s*[가-힣a-zA-Z0-9\s]+\s*\(/g.test(content)
+      const hasTable = /\|.*\|.*\|/g.test(content)
+
+      if (!hasItemNames) {
+        errors.push('비교형 콘텐츠에 구체적 항목명이 없습니다 (예: ### 1위. 다이슨 V15)')
+        score -= 25
+      }
+      if (!hasTable) {
+        warnings.push('비교표가 없습니다. 한눈에 보는 비교표를 추가하면 좋습니다')
+        score -= 5
+      }
+      break
+
+    case 'howto':
+      // 방법형: 코드 블록 또는 구체적 명령어 필수
+      const hasCodeBlock = /```[\s\S]+?```/g.test(content)
+      const hasCommands = /\$|>|#\s+[a-z-]+|cd\s+|git\s+|npm\s+/gi.test(content)
+      const hasAbstractSteps = /Step\s*\d+[.:)]\s*(목표|기초)\s*설정/gi.test(content)
+
+      if (hasAbstractSteps) {
+        errors.push('추상적 단계 감지: "Step 1. 목표 설정" 같은 범용 템플릿 사용 금지')
+        score -= 30
+      }
+      if (!hasCodeBlock && !hasCommands && keyword.match(/방법|하는법|설정|설치/)) {
+        warnings.push('구체적 명령어나 코드 블록이 없습니다')
+        score -= 10
+      }
+      break
+
+    case 'review':
+      // 후기형: 구매 정보, 별점, 장단점 필수
+      const hasPurchaseInfo = /구매|가격|날짜|일/gi.test(content)
+      const hasRating = /★|별점|점|\/5/gi.test(content)
+      const hasProsAndCons = /(장점|단점|좋은점|아쉬운점)/gi.test(content)
+
+      if (!hasPurchaseInfo) {
+        warnings.push('구매 정보(날짜, 가격, 구매처)가 부족합니다')
+        score -= 10
+      }
+      if (!hasRating) {
+        warnings.push('별점 평가가 없습니다')
+        score -= 5
+      }
+      if (!hasProsAndCons) {
+        warnings.push('장단점 섹션이 명확하지 않습니다')
+        score -= 10
+      }
+      break
+
+    case 'listicle':
+      // 리스트형: 번호 매기기, 각 항목별 설명
+      const numberedItems = content.match(/###\s*\d+[위.]?\s*/g)
+      if (!numberedItems || numberedItems.length < 3) {
+        errors.push('리스트형 콘텐츠에 번호가 매겨진 항목이 3개 미만입니다')
+        score -= 20
+      }
+      break
+  }
+
+  // 3. 키워드 관련성 검증
+  const keywordAppearances = (content.match(new RegExp(keyword, 'gi')) || []).length
+  if (keywordAppearances === 0) {
+    errors.push(`본문에 핵심 키워드 "${keyword}"가 단 한 번도 등장하지 않습니다`)
+    score -= 20
+  } else if (keywordAppearances === 1) {
+    warnings.push(`본문에 핵심 키워드가 1회만 등장합니다 (권장: 3~5회)`)
+    score -= 5
+  }
+
+  // 4. 구체성 검증 (숫자, 고유명사)
+  const hasNumbers = /\d+[.,\d]*%|\d+[.,\d]*원|\d+[.,\d]*개|\d+[.,\d]*명|\d+시간|\d+분/g.test(content)
+  if (!hasNumbers) {
+    warnings.push('구체적 수치가 부족합니다 (가격, 개수, 비율 등 추가 권장)')
+    score -= 10
+  }
+
+  // 5. 최소 분량 검증
+  if (content.length < 800) {
+    errors.push(`콘텐츠가 너무 짧습니다 (${content.length}자, 최소 1,500자 권장)`)
+    score -= 15
+  }
+
+  // 최종 판정
+  const isValid = score >= 80 && errors.length === 0
+
+  return {
+    isValid,
+    errors,
+    warnings,
+    score: Math.max(0, score),
   }
 }
 

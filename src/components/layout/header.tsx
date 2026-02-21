@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Bell, LogOut, User, Info, Sparkles, Megaphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MobileSidebar } from './mobile-sidebar'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 
@@ -42,6 +43,24 @@ const notifications = [
 
 export function Header() {
   const router = useRouter()
+  const [blogThumbnail, setBlogThumbnail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadBlogProfile = async () => {
+      try {
+        const res = await fetch('/api/dashboard')
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.blogProfile?.blogThumbnail) {
+          setBlogThumbnail(data.blogProfile.blogThumbnail)
+        }
+      } catch {
+        // 블로그 프로필 로드 실패 시 무시
+      }
+    }
+
+    loadBlogProfile()
+  }, [])
 
   const handleLogout = async () => {
     if (isSupabaseConfigured()) {
@@ -101,6 +120,9 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
+                {blogThumbnail && (
+                  <AvatarImage src={blogThumbnail} alt="Blog Profile" />
+                )}
                 <AvatarFallback className="bg-primary/10 text-primary">
                   U
                 </AvatarFallback>

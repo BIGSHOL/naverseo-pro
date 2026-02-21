@@ -10,6 +10,10 @@ import {
   LogOut,
   Lock,
   CheckCircle2,
+  Globe,
+  ExternalLink,
+  Trash2,
+  BarChart3,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,9 +34,26 @@ interface ProfileData {
   created_at: string
 }
 
+interface BlogProfile {
+  blogUrl: string
+  blogId: string | null
+  blogName: string
+  blogThumbnail: string | null
+  totalPosts: number
+  blogScore: number
+  blogLevel: string
+  categoryKeywords: string[]
+  lastPostDate: string | null
+  updatedAt: string | null
+  verificationCode?: string
+  verified?: boolean
+  verifiedAt?: string | null
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [blogProfile, setBlogProfile] = useState<BlogProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -41,16 +62,34 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState(false)
   const [fetchError, setFetchError] = useState('')
+  const [blogUrl, setBlogUrl] = useState('')
+  const [blogLoading, setBlogLoading] = useState(false)
+  const [blogError, setBlogError] = useState('')
+  const [blogSuccess, setBlogSuccess] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [verifyLoading, setVerifyLoading] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+  const [verifySuccess, setVerifySuccess] = useState(false)
 
   const loadProfile = useCallback(async () => {
     try {
-      const res = await fetch('/api/billing')
-      if (!res.ok) {
+      const [billingRes, dashboardRes] = await Promise.all([
+        fetch('/api/billing'),
+        fetch('/api/dashboard'),
+      ])
+
+      if (!billingRes.ok) {
         setFetchError('설정 데이터를 불러오지 못했습니다.')
         return
       }
-      const data = await res.json()
-      setProfile(data.profile)
+
+      const billingData = await billingRes.json()
+      setProfile(billingData.profile)
+
+      if (dashboardRes.ok) {
+        const dashboardData = await dashboardRes.json()
+        setBlogProfile(dashboardData.blogProfile || null)
+      }
     } catch {
       setFetchError('설정 데이터를 불러오는 중 오류가 발생했습니다.')
     } finally {
@@ -135,6 +174,116 @@ export default function SettingsPage() {
     router.refresh()
   }
 
+  const handleRegisterBlog = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBlogError('')
+    setBlogSuccess(false)
+
+    let normalizedUrl = blogUrl.trim()
+
+    if (!normalizedUrl) {
+      setBlogError('블로그 URL을 입력해주세요.')
+      return
+    }
+
+    // URL 정규화: https:// 없으면 추가
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'https://' + normalizedUrl
+    }
+
+    // 네이버 블로그 URL 검증
+    if (!normalizedUrl.includes('blog.naver.com/')) {
+      setBlogError('네이버 블로그 URL을 입력해주세요. (예: https://blog.naver.com/아이디 또는 blog.naver.com/아이디)')
+      return
+    }
+
+    setBlogLoading(true)
+    try {
+      const res = await fetch('/api/profile/blog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogUrl: normalizedUrl }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setBlogError(data.error || '블로그 등록에 실패했습니다.')
+        return
+      }
+
+      // 인증 코드 저장
+      if (data.verificationCode) {
+        setVerificationCode(data.verificationCode)
+      }
+
+      setBlogSuccess(true)
+      setBlogUrl('')
+      // 블로그 프로필 새로고침
+      await loadProfile()
+    } catch {
+      setBlogError('블로그 등록 중 오류가 발생했습니다.')
+    } finally {
+      setBlogLoading(false)
+    }
+  }
+
+  const handleDeleteBlog = async () => {
+    if (!confirm('블로그 정보를 삭제하시겠습니까?')) {
+      return
+    }
+
+    setBlogLoading(true)
+    setBlogError('')
+    try {
+      const res = await fetch('/api/profile/blog', {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setBlogError(data.error || '블로그 삭제에 실패했습니다.')
+        return
+      }
+
+      setBlogProfile(null)
+      setBlogSuccess(false)
+      setVerificationCode('')
+    } catch {
+      setBlogError('블로그 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setBlogLoading(false)
+    }
+  }
+
+  const handleVerifyBlog = async () => {
+    setVerifyError('')
+    setVerifySuccess(false)
+    setVerifyLoading(true)
+
+    try {
+      const res = await fetch('/api/profile/blog/verify', {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setVerifyError(data.error || '인증에 실패했습니다.')
+        return
+      }
+
+      setVerifySuccess(true)
+      setVerificationCode('')
+      // 블로그 프로필 새로고침
+      await loadProfile()
+    } catch {
+      setVerifyError('인증 중 오류가 발생했습니다.')
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -216,6 +365,203 @@ export default function SettingsPage() {
               로그아웃
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 블로그 프로필 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Globe className="h-4 w-4" />
+            블로그 프로필
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {blogProfile ? (
+            <>
+              {/* 등록된 블로그 정보 */}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      {blogProfile.blogThumbnail && (
+                        <img
+                          src={blogProfile.blogThumbnail}
+                          alt={blogProfile.blogName}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{blogProfile.blogName}</h3>
+                          {blogProfile.verified ? (
+                            <Badge variant="default" className="text-xs gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              인증완료
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              미인증
+                            </Badge>
+                          )}
+                        </div>
+                        <a
+                          href={blogProfile.blogUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                        >
+                          {blogProfile.blogUrl}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">총 포스트</p>
+                        <p className="text-lg font-semibold">{blogProfile.totalPosts.toLocaleString()}개</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">블로그 점수</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-lg font-semibold">{blogProfile.blogScore}점</p>
+                          {blogProfile.blogLevel && (
+                            <Badge variant="outline" className="text-xs">
+                              {blogProfile.blogLevel}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">마지막 포스트</p>
+                        <p className="text-sm font-medium">
+                          {blogProfile.lastPostDate
+                            ? new Date(blogProfile.lastPostDate).toLocaleDateString('ko-KR')
+                            : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    {blogProfile.categoryKeywords.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">주요 키워드</p>
+                        <div className="flex flex-wrap gap-1">
+                          {blogProfile.categoryKeywords.slice(0, 5).map((keyword, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs">
+                              {keyword}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 블로그 소유권 인증 */}
+                    {!blogProfile.verified && (verificationCode || blogProfile.verificationCode) && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 p-3 dark:bg-amber-950/30">
+                        <p className="text-sm font-medium text-amber-900 dark:text-amber-200 mb-2">
+                          🔐 블로그 소유권 인증이 필요합니다
+                        </p>
+                        <div className="space-y-2 text-xs text-amber-800 dark:text-amber-300">
+                          <p>1. 블로그 최신 글 하단에 아래 코드를 추가하세요:</p>
+                          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border">
+                            <code className="flex-1 font-mono text-sm">
+                              [인증코드: {verificationCode || blogProfile.verificationCode}]
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`[인증코드: ${verificationCode || blogProfile.verificationCode}]`)
+                              }}
+                            >
+                              복사
+                            </Button>
+                          </div>
+                          <p>2. 글 저장 후 아래 "소유권 인증" 버튼을 클릭하세요</p>
+                          <p className="text-amber-600 dark:text-amber-400">⏱️ 인증 코드는 10분간 유효합니다</p>
+                        </div>
+                        {verifyError && (
+                          <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                            {verifyError}
+                          </div>
+                        )}
+                        {verifySuccess && (
+                          <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                            ✅ 소유권 인증이 완료되었습니다!
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          className="mt-3 w-full"
+                          onClick={handleVerifyBlog}
+                          disabled={verifyLoading}
+                        >
+                          {verifyLoading ? '인증 확인 중...' : '소유권 인증하기'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDeleteBlog}
+                    disabled={blogLoading}
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {blogProfile.updatedAt && (
+                <p className="text-xs text-muted-foreground">
+                  마지막 업데이트: {new Date(blogProfile.updatedAt).toLocaleString('ko-KR')}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              {/* 블로그 등록 폼 */}
+              {blogSuccess && (
+                <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-200">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  블로그가 성공적으로 등록되었습니다.
+                </div>
+              )}
+              {blogError && (
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                  {blogError}
+                </div>
+              )}
+              <form onSubmit={handleRegisterBlog} className="space-y-4">
+                <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                  <p className="font-medium mb-1">📌 주의사항</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>본인 소유의 네이버 블로그만 등록해주세요</li>
+                    <li>한 블로그는 한 계정에만 등록 가능합니다</li>
+                    <li>타인의 블로그를 무단 등록할 경우 서비스 이용이 제한될 수 있습니다</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="blogUrl">네이버 블로그 URL</Label>
+                  <Input
+                    id="blogUrl"
+                    type="text"
+                    placeholder="blog.naver.com/아이디 또는 https://blog.naver.com/아이디"
+                    value={blogUrl}
+                    onChange={(e) => setBlogUrl(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    블로그를 등록하면 블로그 지수 측정 결과가 프로필에 표시됩니다.
+                  </p>
+                </div>
+                <Button type="submit" size="sm" disabled={blogLoading} className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  {blogLoading ? '등록 중...' : '블로그 등록'}
+                </Button>
+              </form>
+            </>
+          )}
         </CardContent>
       </Card>
 

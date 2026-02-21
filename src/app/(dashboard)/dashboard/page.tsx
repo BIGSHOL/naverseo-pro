@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText,
   CalendarDays, FileDown, Activity, Users, Lightbulb, Lock, CheckCircle2,
+  Globe, ExternalLink,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,19 @@ interface DailyActivity {
   date: string
   keywords: number
   content: number
+}
+
+interface BlogProfile {
+  blogUrl: string
+  blogId: string | null
+  blogName: string
+  blogThumbnail: string | null
+  totalPosts: number
+  blogScore: number
+  blogLevel: string
+  categoryKeywords: string[]
+  lastPostDate: string | null
+  updatedAt: string | null
 }
 
 // ---------- 유틸 ----------
@@ -109,6 +123,8 @@ export default function DashboardPage() {
   const [contentStats, setContentStats] = useState<ContentStats>({ total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
   const [dailyActivity, setDailyActivity] = useState<DailyActivity[]>([])
   const [trackedKeywordsCount, setTrackedKeywordsCount] = useState(0)
+  const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([])
+  const [blogProfile, setBlogProfile] = useState<BlogProfile | null>(null)
   const [greeting, setGreeting] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -136,6 +152,8 @@ export default function DashboardPage() {
         setContentStats(data.contentStats || { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
         setDailyActivity(data.dailyActivity || [])
         setTrackedKeywordsCount(data.trackedKeywordsCount || 0)
+        setRecommendedKeywords(data.recommendedKeywords || [])
+        setBlogProfile(data.blogProfile || null)
       } catch {
         setError('대시보드 데이터를 불러오는 중 오류가 발생했습니다.')
       } finally {
@@ -363,6 +381,82 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* ===== 블로그 프로필 (등록된 경우에만 표시) ===== */}
+      {blogProfile && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Globe className="h-4 w-4" />
+              내 블로그
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-4">
+                {blogProfile.blogThumbnail && (
+                  <img
+                    src={blogProfile.blogThumbnail}
+                    alt={blogProfile.blogName}
+                    className="h-16 w-16 rounded-full object-cover"
+                  />
+                )}
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="font-semibold text-lg">{blogProfile.blogName}</h3>
+                    <a
+                      href={blogProfile.blogUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                    >
+                      {blogProfile.blogUrl}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">총 포스트:</span>{' '}
+                      <span className="font-semibold">{blogProfile.totalPosts.toLocaleString()}개</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">블로그 점수:</span>{' '}
+                      <span className="font-semibold">{blogProfile.blogScore}점</span>
+                      {blogProfile.blogLevel && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {blogProfile.blogLevel}
+                        </Badge>
+                      )}
+                    </div>
+                    {blogProfile.lastPostDate && (
+                      <div>
+                        <span className="text-muted-foreground">마지막 포스트:</span>{' '}
+                        <span className="font-medium">
+                          {new Date(blogProfile.lastPostDate).toLocaleDateString('ko-KR')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {blogProfile.categoryKeywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {blogProfile.categoryKeywords.slice(0, 5).map((keyword, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {keyword}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Link href="/settings">
+                <Button variant="outline" size="sm" className="shrink-0">
+                  관리
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ===== 섹션 3: 주간 활동 차트 ===== */}
       <Card>
         <CardHeader className="pb-2">
@@ -418,7 +512,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ===== 섹션 4: 오늘의 추천 ===== */}
+      {/* ===== 섹션 4: 오늘의 추천 (개인화된 키워드) ===== */}
       <Card className="border-l-4 border-l-primary border-primary/20 bg-primary/5">
         <CardContent className="flex items-start gap-4 p-5">
           <div className="rounded-lg bg-primary/10 p-2.5 shrink-0">
@@ -427,27 +521,47 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm">오늘의 추천</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {contentGenerated === 0 && keywordsUsed === 0
-                ? '키워드 리서치부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
-                : keywordsUsed > 0 && contentGenerated === 0
-                  ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
-                  : contentGenerated > 0 && recentContent.some(c => c.status === 'draft')
-                    ? '초안 상태의 콘텐츠가 있습니다. SEO 점수를 확인하고 발행해보세요!'
-                    : `이번 달 ${contentGenerated}편의 콘텐츠를 생성하셨습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
+              {recommendedKeywords.length > 0 && keywordsUsed > 0
+                ? '최근 검색 기록을 바탕으로 추천 키워드를 준비했습니다. 클릭하면 바로 콘텐츠 생성을 시작할 수 있습니다.'
+                : contentGenerated === 0 && keywordsUsed === 0
+                  ? '키워드 리서치부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
+                  : keywordsUsed > 0 && contentGenerated === 0
+                    ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
+                    : contentGenerated > 0 && recentContent.some(c => c.status === 'draft')
+                      ? '초안 상태의 콘텐츠가 있습니다. SEO 점수를 확인하고 발행해보세요!'
+                      : `이번 달 ${contentGenerated}편의 콘텐츠를 생성하셨습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
               }
             </p>
-            <div className="mt-2">
+
+            {/* 추천 키워드 목록 */}
+            {recommendedKeywords.length > 0 && keywordsUsed > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {recommendedKeywords.slice(0, 6).map((kw, idx) => (
+                  <Link key={idx} href={`/content?keyword=${encodeURIComponent(kw)}`}>
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors text-xs px-2.5 py-1"
+                    >
+                      <Wand2 className="mr-1 h-3 w-3" />
+                      {kw}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-3">
               <Link href={
                 contentGenerated === 0 && keywordsUsed === 0 ? '/keywords'
                   : keywordsUsed > 0 && contentGenerated === 0 ? '/content'
                     : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? '/seo-check'
-                      : '/content'
+                      : '/keywords'
               }>
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
                   {contentGenerated === 0 && keywordsUsed === 0 ? '키워드 조회하기'
                     : keywordsUsed > 0 && contentGenerated === 0 ? '글 작성하기'
                       : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? 'SEO 체크하기'
-                        : '새 글 작성하기'
+                        : '더 많은 키워드 찾기'
                   }
                   <ArrowRight className="h-3 w-3" />
                 </Button>

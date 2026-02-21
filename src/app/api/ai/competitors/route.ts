@@ -61,6 +61,9 @@ interface AiInsights {
   topPatterns: string[]
   contentGaps: string[]
   recommendedStrategy: string
+  recommendedContentType?: string
+  recommendedTone?: string
+  relatedKeywords?: string[]
   titleSuggestions: string[]
 }
 
@@ -204,11 +207,14 @@ async function getAiInsights(
   keyword: string,
   competitors: CompetitorItem[],
   patterns: PatternAnalysis,
+  difficulty: DifficultyAssessment,
   provider: AiProvider = 'gemini'
 ): Promise<AiInsights> {
   const competitorList = competitors
     .map((c, i) => `${i + 1}위. 제목: "${c.title}" | 블로그: ${c.bloggerName} | 작성일: ${c.postDateFormatted} | 설명: "${c.description.substring(0, 80)}"`)
     .join('\n')
+
+  const difficultyLabel = difficulty.level === 'very_hard' ? '매우 어려움' : difficulty.level === 'hard' ? '어려움' : difficulty.level === 'medium' ? '보통' : '쉬움'
 
   const userMessage = `키워드: "${keyword}"
 
@@ -223,14 +229,22 @@ ${competitorList}
 - 30일 이내 작성: ${patterns.dateStats.within30Days}개
 - 블로그 다양성: ${patterns.blogDiversity.uniqueBlogCount}개 블로그 / ${patterns.blogDiversity.totalResults}개 결과
 
+경쟁 진입 난이도: ${difficultyLabel} (${difficulty.score}점/100점)
+난이도 근거: ${difficulty.reasons.join(' / ')}
+
 위 데이터를 기반으로 경쟁 분석을 해주세요.
+★ 중요: summary에서 경쟁 난이도 판정(${difficultyLabel})과 일관된 톤으로 분석하세요.
+난이도가 "어려움" 이상이면 진입이 쉽지 않다는 점을 반영하되, 발견된 콘텐츠 기회가 있다면 구체적으로 제시하세요.
 
 다음 JSON 형식으로 응답해주세요:
 {
-  "summary": "전체 경쟁 상황 2-3문장 요약",
+  "summary": "전체 경쟁 상황 2-3문장 요약 (난이도 판정과 일관되게)",
   "topPatterns": ["상위 노출 글들의 공통 패턴 1", "패턴 2", "패턴 3"],
   "contentGaps": ["기존 글들이 놓치고 있는 콘텐츠 기회 1", "기회 2"],
   "recommendedStrategy": "이 키워드로 상위 노출하기 위한 구체적 전략 (100-200자)",
+  "recommendedContentType": "비교/추천형|후기/리뷰형|방법/가이드형|리스트형|정보형|지역업종형 중 하나 (상위 글 분석 기반 최적 유형)",
+  "recommendedTone": "친근하고 정보적인|전문적인|재미있는|솔직한 중 하나",
+  "relatedKeywords": ["상위 글 분석에서 추출한 관련 키워드 5~8개"],
   "titleSuggestions": ["추천 제목 1", "추천 제목 2", "추천 제목 3"]
 }`
 
@@ -402,7 +416,7 @@ export async function POST(request: NextRequest) {
     let aiInsights: AiInsights | null = null
     if (includeAi && hasAiApiKey(provider)) {
       try {
-        aiInsights = await getAiInsights(cleanKeyword, competitors, patterns, provider)
+        aiInsights = await getAiInsights(cleanKeyword, competitors, patterns, difficulty, provider)
       } catch (aiError) {
         console.error('[Competitors AI] AI 분석 실패:', aiError)
         // AI 실패해도 기본 분석은 반환

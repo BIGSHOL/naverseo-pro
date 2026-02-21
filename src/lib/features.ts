@@ -30,7 +30,7 @@ export const TOGGLEABLE_FEATURES: FeatureConfig[] = [
   {
     key: 'content',
     label: 'AI 콘텐츠 생성',
-    description: 'Gemini AI를 통한 SEO 최적화 블로그 콘텐츠 생성',
+    description: 'AI를 통한 SEO 최적화 블로그 콘텐츠 생성',
     href: '/content',
   },
   {

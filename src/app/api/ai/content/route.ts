@@ -7,12 +7,14 @@ import {
   generateDemoContent,
   postProcessContent,
   analyzeSeo,
+  validateContentStructure,
   type ContentGenerationRequest,
 } from '@/lib/content/engine'
 import { checkContentLimit } from '@/lib/plan-check'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { getKeywordStats, type NaverKeywordResult } from '@/lib/naver/search-ad'
 import { fetchKeywordTrend } from '@/lib/naver/datalab'
+import { getSearchEnrichmentData } from '@/lib/naver/search-enrichment'
 
 // 간단한 SEO 점수 계산 (DB 저장용, 100점 만점)
 function calculateBasicSeoScore(keyword: string, title: string, content: string, additionalKeywords?: string[]): number {
@@ -313,16 +315,22 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ===== 데이터 강화: 3개 네이버 API 병렬 호출 =====
-    const [serpResult, keywordsResult, trendResult] = await Promise.allSettled([
+    // ===== 데이터 강화: 4개 네이버 API 병렬 호출 =====
+    const enrichmentType = contentRequest.contentType === 'local' ? 'local'
+      : contentRequest.contentType === 'comparison' ? 'comparison'
+      : 'other'
+
+    const [serpResult, keywordsResult, trendResult, searchEnrichmentResult] = await Promise.allSettled([
       fetchSerpReference(keyword.trim()),
       fetchRelatedKeywordsForContent(keyword.trim()),
       fetchKeywordTrendForContent(keyword.trim()),
+      getSearchEnrichmentData(keyword.trim(), enrichmentType),
     ])
 
     const serpRef = serpResult.status === 'fulfilled' ? serpResult.value : null
     const keywordsRef = keywordsResult.status === 'fulfilled' ? keywordsResult.value : null
     const trendRef = trendResult.status === 'fulfilled' ? trendResult.value : null
+    const searchEnrichment = searchEnrichmentResult.status === 'fulfilled' ? searchEnrichmentResult.value : null
 
     // 연관 키워드 상위 5개를 additionalKeywords에 자동 병합
     if (keywordsRef && keywordsRef.topKeywords.length > 0) {
@@ -352,6 +360,25 @@ export async function POST(request: NextRequest) {
 
     if (serpRef) {
       userMessage += '\n\n' + serpRef.text
+    }
+
+    // 실제 검색 결과에서 추출한 업체명/제품명 주입 (local/comparison 타입)
+    if (searchEnrichment) {
+      if (searchEnrichment.realBusinessNames && searchEnrichment.realBusinessNames.length > 0) {
+        userMessage += `\n\n## 실제 검색되는 업체 예시
+다음은 "${keyword}" 검색 시 실제로 언급되는 업체들입니다. 이를 참고하되, 그대로 사용하지 말고 유사한 패턴으로 콘텐츠를 작성하세요:
+${searchEnrichment.realBusinessNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
+
+⚠️ 중요: 위 업체명은 참고만 하세요. 반드시 주제에 맞는 실제 존재할 법한 업체명으로 작성하세요.`
+      }
+
+      if (searchEnrichment.realProductNames && searchEnrichment.realProductNames.length > 0) {
+        userMessage += `\n\n## 실제 검색되는 제품 예시
+다음은 "${keyword}" 검색 시 실제로 언급되는 제품들입니다:
+${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
+
+⚠️ 중요: 위 제품명은 참고만 하세요. 비교형 콘텐츠에 맞는 실제 제품으로 작성하세요.`
+      }
     }
 
     // 참고 URL 분석 결과가 있으면 프롬프트에 추가
@@ -392,6 +419,13 @@ export async function POST(request: NextRequest) {
       // 엔진으로 후처리 (SEO 분석 + 가독성 분석 + 태그/메타 보강)
       const processedResult = postProcessContent(contentRequest, parsed)
 
+      // 콘텐츠 품질 검증 (범용 템플릿 남용 감지)
+      const validation = validateContentStructure(
+        processedResult.content,
+        contentRequest.contentType || detectContentType(keyword.trim()),
+        keyword.trim()
+      )
+
       // DB에 저장
       const saved = await saveGeneratedContent(keyword.trim(), processedResult.title, processedResult.content, contentRequest.additionalKeywords)
 
@@ -400,6 +434,12 @@ export async function POST(request: NextRequest) {
         contentId: saved?.id,
         seoScore: saved?.seoScore,
         enrichment: hasEnrichment ? enrichment : undefined,
+        validation: {
+          score: validation.score,
+          warnings: validation.warnings,
+          errors: validation.errors,
+          isValid: validation.isValid,
+        },
       })
     } catch (aiError) {
       const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)

@@ -60,11 +60,12 @@ export interface PostDetail {
   link: string
   daysAgo: number
   date: string           // YYYY.MM.DD
-  charCount: number      // 설명문 기준 추정 글자수
-  hasImage: boolean      // 이미지 태그 포함 여부
+  charCount: number      // 실제 본문 글자수 (스크래핑) or 미리보기 추정치
+  hasImage: boolean      // 이미지 포함 여부
   imageCount: number     // 이미지 개수 (v2 추가)
   titleLength: number
   quality: PostQuality   // 개별 포스트 품질 지수
+  isScrapped?: boolean   // true면 실제 본문 데이터, false/undefined면 description 추정
 }
 
 export interface BlogProfile {

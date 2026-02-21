@@ -7,7 +7,13 @@
 
 import type { PostQuality } from './types'
 
-export function scorePost(title: string, descHtml: string, descLength: number, imageCount: number): PostQuality {
+export function scorePost(
+  title: string,
+  descHtml: string,
+  descLength: number,
+  imageCount: number,
+  isScrapped = false   // true면 실제 본문 기준, false면 description 기준
+): PostQuality {
   let score = 0
 
   // 제목 길이 (0~3점) - 15~40자가 최적
@@ -16,15 +22,31 @@ export function scorePost(title: string, descHtml: string, descLength: number, i
   else if (titleLen >= 10 && titleLen <= 50) score += 2
   else if (titleLen >= 5) score += 1
 
-  // 콘텐츠 길이 (0~3점) - 설명문 기준
-  if (descLength >= 200) score += 3
-  else if (descLength >= 150) score += 2
-  else if (descLength >= 50) score += 1
+  // 콘텐츠 길이 (0~3점)
+  if (isScrapped) {
+    // 실제 본문 기준 (네이버 SEO 최적 길이: 1500자 이상)
+    if (descLength >= 1500) score += 3
+    else if (descLength >= 800) score += 2
+    else if (descLength >= 300) score += 1
+  } else {
+    // 네이버 API description 기준 (최대 ~500자)
+    if (descLength >= 300) score += 3
+    else if (descLength >= 150) score += 2
+    else if (descLength >= 60) score += 1
+  }
 
-  // 이미지 (0~3점) - 개수 기반 (v2 개선)
-  if (imageCount >= 3) score += 3
-  else if (imageCount >= 2) score += 2
-  else if (imageCount >= 1) score += 1
+  // 이미지 (0~3점) - 개수 기반
+  if (isScrapped) {
+    // 실제 본문 이미지 기준
+    if (imageCount >= 5) score += 3
+    else if (imageCount >= 3) score += 2
+    else if (imageCount >= 1) score += 1
+  } else {
+    // description HTML에서 감지
+    if (imageCount >= 3) score += 3
+    else if (imageCount >= 2) score += 2
+    else if (imageCount >= 1) score += 1
+  }
 
   // 구조/서식 (0~2점) - v2 신규
   const hasStructure = /[①②③④⑤]|[1-9]\.\s|•|▶|<b>|<strong>/.test(descHtml)

@@ -231,10 +231,10 @@ export async function POST(request: NextRequest) {
       const matchTarget = blogId
         ? blogId.toLowerCase()
         : blogUrl
-            .trim()
-            .toLowerCase()
-            .replace(/^https?:\/\//, '')
-            .replace(/\/$/, '')
+          .trim()
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/$/, '')
 
       // === 1단계: 블로그 포스트 수집 (RSS 우선, 검색 API 폴백) ===
       if (blogId) {
@@ -246,13 +246,14 @@ export async function POST(request: NextRequest) {
         posts = []
       }
 
-      // RSS에서 포스트를 못 가져온 경우 검색 API 폴백
+      // RSS에서 포스트를 못 가져온 경우 검색 API + 블로그 직접 크롤링 폴백
       if (posts.length === 0) {
+        // 방법 1: 검색 API로 blogId 관련 포스트 수집
         try {
-          const searchQuery = blogId
-            ? `site:blog.naver.com/${blogId}`
-            : blogUrl.trim()
-          const postResult = await searchNaverBlog(searchQuery, 30)
+          // 네이버 검색 API는 site: 연산자를 지원하지 않으므로
+          // blogId를 직접 검색어로 사용하고, bloggerlink로 필터링
+          const searchQuery = blogId || blogUrl.trim()
+          const postResult = await searchNaverBlog(searchQuery, 100)
 
           posts = postResult.items
             .filter((item) => {
@@ -277,10 +278,52 @@ export async function POST(request: NextRequest) {
               postdate: item.postdate,
             }))
 
-          console.log(`[BlogIndex] 검색 API 폴백: ${posts.length}개 포스트 수집`)
+          console.log(`[BlogIndex] 검색 API: ${postResult.items.length}개 중 ${posts.length}개 필터됨 (query: "${searchQuery}")`)
         } catch {
           posts = []
         }
+
+        // 방법 2: 블로그 페이지 직접 크롤링으로 포스트 목록 수집 (검색 API 보충)
+        if (posts.length < 10 && blogId) {
+          try {
+            const blogPageUrl = `https://m.blog.naver.com/${blogId}`
+            const blogRes = await fetch(blogPageUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+                'Accept': 'text/html',
+                'Accept-Language': 'ko-KR,ko;q=0.9',
+              },
+              cache: 'no-store' as RequestCache,
+            })
+            if (blogRes.ok) {
+              const html = await blogRes.text()
+              // 포스트 링크 패턴 추출: /blogId/숫자 형태
+              const linkRegex = new RegExp(`/${blogId}/(\\d{12,15})`, 'g')
+              const foundLinks = new Set<string>()
+              let linkMatch: RegExpExecArray | null
+              while ((linkMatch = linkRegex.exec(html)) !== null) {
+                foundLinks.add(`https://blog.naver.com/${blogId}/${linkMatch[1]}`)
+              }
+              // 기존에 없는 링크만 추가
+              const existingLinks = new Set(posts.map(p => p.link))
+              const newLinks = Array.from(foundLinks).filter(l => !existingLinks.has(l))
+              if (newLinks.length > 0) {
+                const crawledPosts = newLinks.slice(0, 30 - posts.length).map(link => ({
+                  title: '',  // 제목은 스크래핑에서 추출
+                  link,
+                  description: '',
+                  postdate: '',
+                }))
+                posts = [...posts, ...crawledPosts]
+                console.log(`[BlogIndex] 블로그 페이지 크롤링: ${newLinks.length}개 추가 발견 (총 ${posts.length}개)`)
+              }
+            }
+          } catch (crawlError) {
+            console.error('[BlogIndex] 블로그 페이지 크롤링 실패 (무시):', crawlError)
+          }
+        }
+
+        console.log(`[BlogIndex] 최종 포스트 수: ${posts.length}개`)
       }
 
       // === 2단계: 키워드 결정 (사용자 입력 또는 포스트에서 자동 추출) ===
@@ -380,11 +423,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // === 6단계: 블로그 포스트 본문 스크래핑 (Rate Limited) ===
+    let scrapedData: Map<string, import('@/lib/naver/blog-scraper').ScrapedPostData> | null = null
+    if (!isDemo && posts.length > 0) {
+      try {
+        const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
+        const postUrls = posts.slice(0, 20).map(p => p.link)
+        console.log(`[BlogIndex] 스크래핑 대상 URL 샘플:`, postUrls.slice(0, 3))
+        scrapedData = await scrapeMultiplePosts(postUrls, 20, {
+          extractMeta: true,
+          blogId: blogId || undefined,
+        })
+        const successCount = scrapedData.size
+        console.log(`[BlogIndex] 포스트 스크래핑 완료: ${successCount}/${postUrls.length}개 성공`)
+      } catch (scrapeError) {
+        console.error('[BlogIndex] 포스트 스크래핑 실패 (폴백 사용):', scrapeError)
+        // 실패해도 scrapedData는 null → engine에서 description 기반 추정값 사용
+      }
+    }
+
     // 4축 블로그 지수 분석 엔진 실행 (알고리즘 기반)
     const result = analyzeBlogIndex(
       blogUrl.trim(), posts, keywordResults, isDemo, blogName,
       keywordCompetition.length > 0 ? keywordCompetition : undefined,
-      visitorData
+      visitorData,
+      scrapedData  // 스크래핑 데이터 전달 (null이면 description 기반 폴백)
     )
 
     // AI 심층 분석 (v2.5) — 알고리즘 분석과 병렬이 아닌 순차 실행 (결과에 보정값 적용)

@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { KeywordSearch } from '@/components/keywords/keyword-search'
-import Link from 'next/link'
 
 // === 타입 ===
 
@@ -64,6 +64,9 @@ interface AiInsights {
   topPatterns: string[]
   contentGaps: string[]
   recommendedStrategy: string
+  recommendedContentType?: string
+  recommendedTone?: string
+  relatedKeywords?: string[]
   titleSuggestions: string[]
 }
 
@@ -90,6 +93,7 @@ function getDifficultyInfo(level: string) {
 // === 메인 페이지 ===
 
 export default function CompetitorsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searched, setSearched] = useState(false)
@@ -607,14 +611,29 @@ export default function CompetitorsPage() {
           <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-4">
             <div className="flex-1">
               <p className="text-sm font-medium">분석이 완료되었습니다</p>
-              <p className="text-xs text-muted-foreground">이 키워드로 SEO 최적화된 블로그 글을 바로 작성해보세요</p>
+              <p className="text-xs text-muted-foreground">분석 데이터가 자동으로 적용되어 최적화된 블로그 글을 바로 생성합니다</p>
             </div>
-            <Link href={`/content?keyword=${encodeURIComponent(searchedKeyword)}`}>
-              <Button className="gap-2">
-                <Wand2 className="h-4 w-4" />
-                이 키워드로 글쓰기
-              </Button>
-            </Link>
+            <Button className="gap-2" onClick={() => {
+              // 분석 데이터를 sessionStorage에 저장하여 콘텐츠 페이지에 전달
+              const contentPreset = {
+                keyword: searchedKeyword,
+                relatedKeywords: [
+                  ...(aiInsights?.relatedKeywords || []),
+                  ...titlePatterns.slice(0, 5).map(p => p.word),
+                ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 8),
+                referenceUrl: competitors[0]?.link || '',
+                contentType: aiInsights?.recommendedContentType || '',
+                tone: aiInsights?.recommendedTone || '',
+                titleSuggestions: aiInsights?.titleSuggestions || [],
+                strategy: aiInsights?.recommendedStrategy || '',
+                difficulty: difficulty ? { level: difficulty.level, score: difficulty.score } : null,
+              }
+              sessionStorage.setItem('naverseo-competitor-preset', JSON.stringify(contentPreset))
+              router.push(`/content?keyword=${encodeURIComponent(searchedKeyword)}&from=competitors`)
+            }}>
+              <Wand2 className="h-4 w-4" />
+              이 키워드로 글쓰기
+            </Button>
           </div>
         </>
       )}

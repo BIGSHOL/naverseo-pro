@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, Cell, ZAxis } from 'recharts'
+import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, ReferenceArea, ReferenceLine } from 'recharts'
 import Link from 'next/link'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 
@@ -113,25 +113,23 @@ export default function OpportunitiesPage() {
       })
     : []
 
-  // 산점도 매트릭스 데이터: X=경쟁도(낮을수록 좋음), Y=검색량, 버블크기=기회점수
+  // 산점도 매트릭스 데이터: X=기회점수, Y=검색량
   const matrixData = useMemo(() => {
     if (!result) return []
-    // '-'(미확인)은 별도 위치(0)에 표시
-    const compMap: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3 }
     return result.opportunities.map((opp, i) => {
-      const baseX = compMap[opp.compIdx] ?? 0
-      // 같은 위치에 겹치는 점들을 분산시키기 위한 jitter
-      const jitterX = ((i % 5) - 2) * 0.08
-      const jitterY = ((Math.floor(i / 5) % 3) - 1) * 0.06
+      // 같은 점수에서 겹침 방지용 소폭 jitter
+      const jitterX = ((i % 3) - 1) * 0.4
+      const jitterY = ((Math.floor(i / 3) % 3) - 1) * 0.015
       return {
-        x: baseX + jitterX,
+        x: opp.score + jitterX,
         y: opp.monthlySearch * (1 + jitterY),
-        rawY: opp.monthlySearch,
-        z: opp.score,
+        rawScore: opp.score,
+        rawSearch: opp.monthlySearch,
         keyword: opp.keyword,
         compIdx: opp.compIdx,
         category: opp.category,
         source: opp.source,
+        isTopRanked: i < 5,
       }
     })
   }, [result])
@@ -146,17 +144,31 @@ export default function OpportunitiesPage() {
     }
   }, [result])
 
-  // Y축 최대값: 데이터 기반 동적 계산 (최소 100)
+  // Y축 최대값
   const yAxisMax = useMemo(() => {
     if (!result) return 100
     const maxSearch = Math.max(...result.opportunities.map(o => o.monthlySearch))
-    return Math.max(100, Math.ceil(maxSearch * 1.2 / 50) * 50)
+    return Math.max(100, Math.ceil(maxSearch * 1.2 / 100) * 100)
   }, [result])
 
-  // X축에 "미확인" 축이 필요한지
-  const hasUnknownComp = useMemo(() => {
-    if (!result) return false
-    return result.opportunities.some(o => o.compIdx !== 'LOW' && o.compIdx !== 'MEDIUM' && o.compIdx !== 'HIGH')
+  // 차트 X축 범위 + 존 경계선
+  const scoreRange = useMemo(() => {
+    if (!result || result.opportunities.length === 0) return { min: 40, max: 80, threshold: 60 }
+    const scores = result.opportunities.map(o => o.score)
+    const minScore = Math.min(...scores)
+    const maxScore = Math.max(...scores)
+    return {
+      min: Math.max(0, minScore - 5),
+      max: Math.min(100, maxScore + 8),
+      threshold: Math.round((minScore + maxScore) / 2),
+    }
+  }, [result])
+
+  // 검색량 중앙값 (존 경계용)
+  const searchMedian = useMemo(() => {
+    if (!result || result.opportunities.length === 0) return 500
+    const sorted = [...result.opportunities].map(o => o.monthlySearch).sort((a, b) => a - b)
+    return sorted[Math.floor(sorted.length / 2)]
   }, [result])
 
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
@@ -309,111 +321,136 @@ export default function OpportunitiesPage() {
             </CardContent>
           </Card>
 
-          {/* 기회 매트릭스 산점도 */}
+          {/* 기회 매트릭스 */}
           {matrixData.length > 0 && (
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Target className="h-5 w-5 text-primary" />
                   기회 매트릭스
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
-                  왼쪽 위(검색량 높음 + 경쟁 낮음)에 위치할수록 블루오션 키워드입니다. 원 크기 = 기회 점수
+                  오른쪽 위(높은 점수 + 높은 검색량)에 위치할수록 추천 키워드입니다
                 </p>
               </CardHeader>
               <CardContent>
-                {/* 데이터 품질 안내 */}
                 {dataQuality.isLowData && (
-                  <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 flex items-start gap-2">
                     <Info className="h-4 w-4 mt-0.5 shrink-0" />
                     <div>
                       <p className="font-medium">검색 데이터가 제한적입니다</p>
                       <p className="text-xs mt-0.5 text-amber-700">
-                        {dataQuality.lowDataCount}개 키워드의 월간 검색량이 10 미만으로, 네이버가 정확한 데이터를 제공하지 않습니다.
-                        니치/지역 키워드는 검색량이 적더라도 경쟁이 낮아 상위 노출에 유리할 수 있습니다.
+                        {dataQuality.lowDataCount}개 키워드의 검색량이 10 미만입니다. 니치 키워드는 경쟁이 낮아 상위 노출에 유리할 수 있습니다.
                       </p>
                     </div>
                   </div>
                 )}
-                <div className="w-full h-[380px] overflow-hidden">
+                <div className="relative w-full h-[420px]">
+                  {/* 존 라벨 (HTML 오버레이) */}
+                  <span className="absolute top-7 right-12 z-10 text-[11px] font-semibold text-emerald-600/50 pointer-events-none select-none">최고 기회</span>
+                  <span className="absolute bottom-[68px] right-12 z-10 text-[11px] font-semibold text-blue-500/50 pointer-events-none select-none">틈새 기회</span>
+                  <span className="absolute top-7 left-[58px] z-10 text-[11px] font-semibold text-amber-500/50 pointer-events-none select-none">경쟁 치열</span>
+                  <span className="absolute bottom-[68px] left-[58px] z-10 text-[11px] font-semibold text-gray-400/50 pointer-events-none select-none">관망</span>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 20, right: 30, bottom: 50, left: 30 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                    <ScatterChart margin={{ top: 24, right: 30, bottom: 50, left: 40 }}>
+                      {/* 4분면 배경 존 */}
+                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={searchMedian} y2={yAxisMax} fill="#10b981" fillOpacity={0.06} stroke="none" />
+                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={0} y2={searchMedian} fill="#3b82f6" fillOpacity={0.05} stroke="none" />
+                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={searchMedian} y2={yAxisMax} fill="#f59e0b" fillOpacity={0.04} stroke="none" />
+                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={0} y2={searchMedian} fill="#9ca3af" fillOpacity={0.03} stroke="none" />
+                      {/* 존 경계선 */}
+                      <ReferenceLine x={scoreRange.threshold} stroke="#e5e7eb" strokeDasharray="6 4" />
+                      <ReferenceLine y={searchMedian} stroke="#e5e7eb" strokeDasharray="6 4" />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.06} />
                       <XAxis
                         type="number"
                         dataKey="x"
-                        domain={[hasUnknownComp ? -0.5 : 0.5, 3.5]}
-                        ticks={hasUnknownComp ? [0, 1, 2, 3] : [1, 2, 3]}
-                        tickFormatter={(v: number) => v === 0 ? '미확인' : v === 1 ? '낮음' : v === 2 ? '보통' : '높음'}
-                        label={{ value: '경쟁도 →', position: 'insideBottom', offset: -30, style: { fontSize: 13, fontWeight: 500, fill: '#6b7280' } }}
-                        tick={{ fontSize: 13, fontWeight: 500, fill: '#374151' }}
-                        axisLine={{ stroke: '#d1d5db' }}
-                        tickLine={{ stroke: '#d1d5db' }}
+                        domain={[scoreRange.min, scoreRange.max]}
+                        label={{ value: '기회 점수 →', position: 'insideBottom', offset: -32, style: { fontSize: 12, fontWeight: 500, fill: '#6b7280' } }}
+                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                        tickLine={false}
                       />
                       <YAxis
                         type="number"
                         dataKey="y"
                         domain={[0, yAxisMax]}
                         tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(1)}만` : v >= 1000 ? `${(v / 1000).toFixed(0)}천` : String(Math.round(v))}
-                        label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -10, style: { fontSize: 13, fontWeight: 500, fill: '#6b7280' } }}
-                        tick={{ fontSize: 12, fill: '#374151' }}
-                        axisLine={{ stroke: '#d1d5db' }}
-                        tickLine={{ stroke: '#d1d5db' }}
-                        width={55}
+                        label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -22, style: { fontSize: 12, fontWeight: 500, fill: '#6b7280' } }}
+                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                        tickLine={false}
+                        width={50}
                       />
-                      <ZAxis type="number" dataKey="z" range={[40, 220]} />
                       <RechartsTooltip
-                        cursor={{ strokeDasharray: '3 3', stroke: '#9ca3af' }}
+                        cursor={{ strokeDasharray: '3 3', stroke: '#d1d5db' }}
                         content={({ active, payload }) => {
                           if (!active || !payload?.length) return null
                           const d = payload[0].payload as (typeof matrixData)[0]
                           const compLabel = d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : d.compIdx === 'HIGH' ? '높음' : '미확인'
-                          const sourceLabel = d.source === 'ai' ? 'AI 추천' : d.source === 'naver' ? '네이버 발견' : ''
                           return (
-                            <div className="rounded-lg border bg-background/95 backdrop-blur p-3 shadow-lg text-sm min-w-[180px]">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <p className="font-semibold text-foreground">{d.keyword}</p>
-                                {sourceLabel && <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${d.source === 'ai' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>{sourceLabel}</span>}
+                            <div className="rounded-xl border bg-background/95 backdrop-blur-sm px-4 py-3 shadow-xl text-sm min-w-[200px]">
+                              <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${d.source === 'ai' ? 'bg-purple-500' : 'bg-emerald-500'}`} />
+                                <span className="font-semibold truncate">{d.keyword}</span>
+                                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${d.source === 'ai' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                  {d.source === 'ai' ? 'AI' : 'N'}
+                                </span>
                               </div>
-                              <div className="space-y-0.5 text-muted-foreground">
-                                <p>검색량: <span className="font-medium text-foreground">{d.rawY <= 20 ? '< 10' : formatNumber(d.rawY)}</span>/월</p>
-                                <p>경쟁도: <span className="font-medium text-foreground">{compLabel}</span></p>
-                                <p>기회 점수: <span className={`font-bold ${d.z >= 70 ? 'text-green-600' : d.z >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{d.z}점</span></p>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                                <span className="text-muted-foreground">기회 점수</span>
+                                <span className={`font-bold text-right ${d.rawScore >= 65 ? 'text-emerald-600' : d.rawScore >= 55 ? 'text-amber-600' : 'text-red-500'}`}>{d.rawScore}점</span>
+                                <span className="text-muted-foreground">월간 검색량</span>
+                                <span className="font-medium text-right">{d.rawSearch <= 20 ? '< 10' : formatNumber(d.rawSearch)}</span>
+                                <span className="text-muted-foreground">경쟁도</span>
+                                <span className="font-medium text-right">{compLabel}</span>
                               </div>
                             </div>
                           )
                         }}
                       />
-                      <Scatter data={matrixData}>
-                        {matrixData.map((entry, i) => (
-                          <Cell
-                            key={i}
-                            fill={entry.z >= 70 ? '#22c55e' : entry.z >= 40 ? '#f59e0b' : '#ef4444'}
-                            fillOpacity={0.65}
-                            stroke={entry.z >= 70 ? '#16a34a' : entry.z >= 40 ? '#d97706' : '#dc2626'}
-                            strokeWidth={1.5}
-                          />
-                        ))}
-                      </Scatter>
+                      <Scatter
+                        data={matrixData}
+                        shape={(props: unknown) => {
+                          const { cx, cy, payload } = props as { cx: number; cy: number; payload: (typeof matrixData)[0] }
+                          if (!cx || !cy) return <g />
+                          const isAi = payload.source === 'ai'
+                          const isTop = payload.isTopRanked
+                          const r = isTop ? 9 : 6
+                          const fill = isAi ? '#a855f7' : '#10b981'
+                          const stroke = isAi ? '#7c3aed' : '#059669'
+                          return (
+                            <g>
+                              {isTop && <circle cx={cx} cy={cy} r={r + 5} fill={fill} fillOpacity={0.1} />}
+                              <circle cx={cx} cy={cy} r={r} fill={fill} fillOpacity={0.75} stroke={stroke} strokeWidth={1.5} />
+                              {isTop && (
+                                <text x={cx + r + 4} y={cy + 4} fontSize={10} fontWeight={500} fill="#374151">
+                                  {payload.keyword.length > 8 ? payload.keyword.slice(0, 8) + '…' : payload.keyword}
+                                </text>
+                              )}
+                            </g>
+                          )
+                        }}
+                      />
                     </ScatterChart>
                   </ResponsiveContainer>
                 </div>
                 {/* 범례 */}
-                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 mt-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mt-3 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-green-500" /> 높은 기회 (70+)
+                    <span className="inline-block h-3 w-3 rounded-full bg-purple-500" /> AI 추천
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-yellow-500" /> 보통 (40~69)
+                    <span className="inline-block h-3 w-3 rounded-full bg-emerald-500" /> 네이버 연관
+                  </span>
+                  <span className="border-l pl-4 ml-1 flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-emerald-500/15 border border-emerald-500/20" /> 최고 기회
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-red-500" /> 낮은 기회 (&lt;40)
-                  </span>
-                  <span className="border-l pl-4 ml-2 flex items-center gap-1.5">
-                    <span className="inline-block px-1 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700 font-medium">AI</span> AI 추천
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-blue-500/15 border border-blue-500/20" /> 틈새 기회
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block px-1 py-0.5 rounded text-[10px] bg-green-100 text-green-700 font-medium">N</span> 네이버 연관
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-amber-500/15 border border-amber-500/20" /> 경쟁 치열
                   </span>
                 </div>
               </CardContent>

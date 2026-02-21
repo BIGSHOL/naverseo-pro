@@ -242,31 +242,17 @@ function extractTopicWords(topic: string): string[] {
 }
 
 /**
- * 키워드가 주제와 관련 있는지 판별 (완화된 버전)
+ * 키워드가 주제와 관련 있는지 판별
+ * 주제 단어 중 하나라도 포함되어 있으면 관련 있음
+ * (시드 키워드는 isSeed 체크로 별도 통과하므로 여기서는 주제어 직접 매칭만 수행)
  *
- * 2계층 필터:
- * 1. 주제 단어 직접 포함 → 통과
- * 2. 시드 키워드 핵심 단어 포함 → 통과 (시드에서 파생된 연관 키워드 허용)
+ * 이전 2계층 필터(seedCoreWords)는 "학원","과외" 같은 범용 단어가
+ * "노량진공무원학원","일본어과외" 등 무관한 키워드를 통과시키는 문제가 있어 제거함
  */
-function isRelevantKeyword(
-  keyword: string,
-  topicWords: string[],
-  seedCoreWords: Set<string>
-): boolean {
+function isRelevantKeyword(keyword: string, topicWords: string[]): boolean {
   if (topicWords.length === 0) return true
   const normalized = keyword.replace(/\s+/g, '')
-
-  // 1단계: 주제 단어 중 하나라도 포함
-  if (topicWords.some(word => normalized.includes(word))) return true
-
-  // 2단계: 시드 핵심 단어 중 하나라도 포함
-  // (시드 "수학학원"에서 확장된 "영재학원"은 "학원" 포함으로 통과)
-  const seedArr = Array.from(seedCoreWords)
-  for (let i = 0; i < seedArr.length; i++) {
-    if (normalized.includes(seedArr[i])) return true
-  }
-
-  return false
+  return topicWords.some(word => normalized.includes(word))
 }
 
 /**
@@ -279,33 +265,14 @@ function scoreAndCategorize(
   topic: string
 ): DiscoveredKeyword[] {
   const topicWords = extractTopicWords(topic)
-
-  // 시드 키워드에서 핵심 단어 추출 (관련성 필터용)
-  const seedCoreWords = new Set<string>()
-  for (const seed of seeds) {
-    // 띄어쓰기 기준 분리: "수학학원 추천" → "수학학원", "추천"
-    const words = seed.keyword.split(/\s+/).filter(w => w.length >= 2)
-    for (const word of words) {
-      seedCoreWords.add(word)
-    }
-    // 붙어있는 복합어 분리: "수학학원" → "수학", "학원"
-    const compound = seed.keyword.replace(/\s+/g, '')
-    const parts = compound.match(/[가-힣]{2,3}/g)
-    if (parts) {
-      for (const part of parts) {
-        seedCoreWords.add(part)
-      }
-    }
-  }
-
   const results: DiscoveredKeyword[] = []
 
   for (const stat of allKeywords) {
     const normalized = stat.relKeyword.replace(/\s+/g, '')
 
-    // ★ 관련성 필터 (완화): 주제 단어 OR 시드 핵심 단어 포함
+    // ★ 관련성 필터: 주제 단어 포함 여부 (시드 키워드는 자동 통과)
     const isSeed = seedKeywordSet.has(normalized)
-    if (!isSeed && !isRelevantKeyword(stat.relKeyword, topicWords, seedCoreWords)) continue
+    if (!isSeed && !isRelevantKeyword(stat.relKeyword, topicWords)) continue
 
     const score = calculateKeywordScore(stat)
 
