@@ -2,6 +2,51 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// 블로그 정보 조회
+export async function GET() {
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('blog_url, blog_id, blog_name, blog_thumbnail, blog_total_posts, blog_score, blog_level, blog_category_keywords, blog_last_post_date, blog_updated_at, blog_verified, blog_verified_at, blog_verification_code, blog_verification_blocked')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !profile.blog_url) {
+      return NextResponse.json({ blogProfile: null })
+    }
+
+    return NextResponse.json({
+      blogProfile: {
+        blogUrl: profile.blog_url,
+        blogId: profile.blog_id,
+        blogName: profile.blog_name,
+        blogThumbnail: profile.blog_thumbnail,
+        totalPosts: profile.blog_total_posts,
+        blogScore: profile.blog_score,
+        blogLevel: profile.blog_level,
+        categoryKeywords: profile.blog_category_keywords || [],
+        lastPostDate: profile.blog_last_post_date,
+        updatedAt: profile.blog_updated_at,
+        verified: profile.blog_verified,
+        verifiedAt: profile.blog_verified_at,
+        verificationCode: profile.blog_verified ? null : profile.blog_verification_code,
+        verificationBlocked: profile.blog_verification_blocked,
+      },
+    })
+  } catch (error) {
+    console.error('[Blog Profile] 조회 오류:', error)
+    return NextResponse.json({ error: '블로그 정보 조회 중 오류가 발생했습니다.' }, { status: 500 })
+  }
+}
+
 // 블로그 정보 등록/업데이트
 export async function POST(req: Request) {
   try {
