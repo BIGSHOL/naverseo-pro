@@ -56,6 +56,7 @@ import type {
   BenchmarkData,
   BlogIndexResult,
 } from './types'
+import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
 // ===== 메인 분석 함수 =====
 
@@ -66,13 +67,14 @@ export function analyzeBlogIndex(
   isDemo: boolean,
   blogName?: string | null,
   keywordCompetition?: KeywordCompetitionData[],
-  visitorData?: VisitorData | null
+  visitorData?: VisitorData | null,
+  scrapedData?: Map<string, ScrapedPostData> | null  // 2단계 파이프라인: 실제 본문 데이터
 ): BlogIndexResult {
   const blogId = extractBlogId(blogUrl)
   const now = new Date()
 
   // 4대 분석 축 + 어뷰징 페널티 실행
-  const contentQuality = analyzeContentQuality(posts)        // 30점
+  const contentQuality = analyzeContentQuality(posts, scrapedData)  // 30점 (v3: 스크래핑 데이터 우선 사용)
   const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 25점
   const searchPower = analyzeSearchPower(keywordResults, keywordCompetition)  // 30점
   const { category: activity, frequency, recentPostDays } = analyzeActivity(posts, visitorData)  // 15점
@@ -87,14 +89,8 @@ export function analyzeBlogIndex(
   const avgTitleLength = posts.length > 0
     ? Math.round(posts.reduce((s, p) => s + stripHtml(p.title).length, 0) / posts.length)
     : 0
-  const avgDescLength = posts.length > 0
-    ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
-    : 0
-  const avgImageCount = posts.length > 0
-    ? Math.round((posts.reduce((s, p) => s + countImageMarkers(p.description), 0) / posts.length) * 10) / 10
-    : 0
 
-  // 개별 포스트 상세 데이터 생성 (v2: 이미지 개수 + 개선된 scorePost)
+  // 개별 포스트 상세 데이터 생성 (v3: 2단계 파이프라인 - 스크래핑 데이터 우선 사용)
   const recentPosts: PostDetail[] = posts
     .map((p) => {
       const cleanTitle = stripHtml(p.title)
@@ -104,24 +100,38 @@ export function analyzeBlogIndex(
       const dateStr = !isNaN(postDate.getTime())
         ? `${postDate.getFullYear()}.${String(postDate.getMonth() + 1).padStart(2, '0')}.${String(postDate.getDate()).padStart(2, '0')}`
         : '날짜 없음'
-      const imgCount = countImageMarkers(p.description)
+
+      // 스크래핑 데이터 우선 사용, 없으면 description 기반 폴백
+      const scraped = scrapedData?.get(p.link) ?? null
+      const charCount = scraped ? scraped.charCount : cleanDesc.length
+      const imgCount = scraped ? scraped.imageCount : countImageMarkers(p.description)
       const hasImage = imgCount > 0
-      const quality = scorePost(cleanTitle, p.description, cleanDesc.length, imgCount)
+      const isScrapped = scraped !== null
+      const quality = scorePost(cleanTitle, p.description, charCount, imgCount, isScrapped)
+
       return {
         title: cleanTitle,
         link: p.link,
         daysAgo,
         date: dateStr,
-        charCount: cleanDesc.length,
+        charCount,
         hasImage,
         imageCount: imgCount,
         titleLength: cleanTitle.length,
         quality,
+        isScrapped,
       }
     })
     .filter((p) => p.daysAgo >= 0)
     .sort((a, b) => a.daysAgo - b.daysAgo)
     .slice(0, 20)
+
+  const avgDescLength = posts.length > 0
+    ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
+    : 0
+  const avgImageCount = posts.length > 0
+    ? Math.round((posts.reduce((s, p) => s + countImageMarkers(p.description), 0) / posts.length) * 10) / 10
+    : 0
 
   // 블로그 프로필 생성
   const sortedDates = posts
