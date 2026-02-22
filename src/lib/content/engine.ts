@@ -49,6 +49,25 @@ export interface ContentGenerationRequest {
   includeImages?: boolean      // 이미지 위치 표시 여부 (기본: true)
   includeFaq?: boolean         // FAQ 섹션 포함 여부 (기본: true)
   businessInfo?: BusinessInfo  // 내 업체 홍보글 모드
+  // 고급 옵션
+  advancedOptions?: {
+    // 구조/레이아웃
+    imageCount?: number | 'auto'           // 이미지 개수 (2-5, 기본: auto)
+    headingCount?: number | 'auto'         // 소제목 개수 (3-7, 기본: auto)
+    structureRatio?: 'balanced' | 'intro-heavy' | 'content-heavy' // 글 구성 비율
+    forcedSections?: string[]              // 강제 포함 섹션 (장단점, 가격표, 주의사항 등)
+    // SEO/키워드
+    keywordDensity?: 'natural' | 'moderate' | 'aggressive' // 키워드 밀도 (기본: moderate)
+    internalLinkCount?: number | 'auto'    // 내부 링크 개수 (1-5, 기본: auto)
+    // 스타일/형식
+    forceListFormat?: boolean              // 리스트 형식 강제
+    includeTable?: boolean                 // 표 포함
+    useEmoji?: boolean                     // 이모지 사용
+    includeQuotes?: boolean                // 인용구/팁박스 포함
+    // 타겟 독자
+    targetAudience?: 'beginner' | 'general' | 'expert' // 독자 수준
+    ageGroup?: '10s' | '20-30s' | '40-50s' | '60+' | 'all' // 연령대
+  }
 }
 
 /** 생성된 콘텐츠 결과 */
@@ -302,10 +321,10 @@ function getToneGuide(tone: string): string {
 /** 콘텐츠 길이별 가이드 */
 function getLengthGuide(length: 'short' | 'medium' | 'long'): string {
   switch (length) {
-    case 'short': return '본문 1,000~1,500자. 핵심만 간결하게.'
-    case 'medium': return '본문 2,000~2,500자. 네이버 블로그 최적 길이.'
-    case 'long': return '본문 3,000~4,000자. 깊이 있는 전문 콘텐츠.'
-    default: return '본문 2,000~2,500자. 네이버 블로그 최적 길이.'
+    case 'short': return '본문 800~1,200자. 핵심만 간결하게. 모바일 최적화.'
+    case 'medium': return '본문 1,800~2,000자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
+    case 'long': return '본문 2,500~3,000자. 심도 있는 전문 콘텐츠. 과도하게 길면 이탈률 증가 주의.'
+    default: return '본문 1,800~2,000자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
   }
 }
 
@@ -320,6 +339,52 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
   const toneGuide = getToneGuide(request.tone || '친근하고 정보적인')
   const lengthGuide = getLengthGuide(request.targetLength || 'medium')
   const fewShotExamples = isPromo ? '' : getFewShotExamples(contentType)  // 홍보글은 예시 제외
+
+  // 고급 옵션 처리
+  const opts = request.advancedOptions || {}
+  const imageCountGuide = opts.imageCount && opts.imageCount !== 'auto'
+    ? `정확히 ${opts.imageCount}개`
+    : '3~5개'
+  const headingCountGuide = opts.headingCount && opts.headingCount !== 'auto'
+    ? `H2 소제목을 정확히 ${opts.headingCount}개`
+    : 'H2 3~5개'
+
+  const keywordDensityGuide = opts.keywordDensity === 'natural'
+    ? '3~5회 (자연스럽게)'
+    : opts.keywordDensity === 'aggressive'
+      ? '8~12회 (적극적으로)'
+      : '5~8회 (권장)'
+
+  const internalLinkGuide = opts.internalLinkCount && opts.internalLinkCount !== 'auto'
+    ? `정확히 ${opts.internalLinkCount}개`
+    : '2~3개'
+
+  const structureRatioGuide = opts.structureRatio === 'intro-heavy'
+    ? '도입부를 풍부하게 (30% 이상) 작성하여 독자의 관심을 끌어주세요.'
+    : opts.structureRatio === 'content-heavy'
+      ? '본문 정보를 충실하게 (70% 이상) 작성하여 깊이 있는 내용을 제공하세요.'
+      : '도입 20% · 본문 60% · 결론 20% 균형잡힌 구성으로 작성하세요.'
+
+  const forcedSectionsGuide = opts.forcedSections && opts.forcedSections.length > 0
+    ? `\n\n### 필수 포함 섹션\n다음 섹션을 반드시 포함하세요:\n${opts.forcedSections.map(s => `- ${s}`).join('\n')}`
+    : ''
+
+  const styleGuide = [
+    opts.forceListFormat ? '- 리스트 형식(-, 1. 등)을 적극 활용하여 가독성을 높이세요.' : null,
+    opts.includeTable ? '- 비교/정리가 필요한 부분은 마크다운 표 형식으로 작성하세요.' : null,
+    opts.useEmoji ? '- 소제목이나 강조 부분에 적절한 이모지를 사용하여 친근감을 더하세요.' : null,
+    opts.includeQuotes ? '- 중요한 팁이나 주의사항은 인용구(> )나 강조 박스로 표현하세요.' : null,
+  ].filter(Boolean).join('\n')
+
+  const audienceGuide = opts.targetAudience === 'beginner'
+    ? '\n\n### 타겟 독자: 초보자\n- 전문 용어는 쉬운 설명과 함께 사용하세요.\n- 단계별로 자세히 설명하여 누구나 따라할 수 있도록 작성하세요.\n- "처음 시작하시는 분", "초보자도 쉽게" 같은 표현을 활용하세요.'
+    : opts.targetAudience === 'expert'
+      ? '\n\n### 타겟 독자: 전문가\n- 전문 용어를 적극 사용하고 심화 내용을 다루세요.\n- 최신 트렌드와 고급 기술을 소개하세요.\n- "전문가들이 주목하는", "심화 과정" 같은 표현을 활용하세요.'
+      : '' // general은 기본 스타일 유지
+
+  const ageGroupGuide = opts.ageGroup && opts.ageGroup !== 'all'
+    ? `\n\n### 타겟 연령대: ${opts.ageGroup === '10s' ? '10대' : opts.ageGroup === '20-30s' ? '20-30대' : opts.ageGroup === '40-50s' ? '40-50대' : '60대 이상'}\n- 해당 연령대가 관심 있어할 만한 예시와 표현을 사용하세요.\n- 독자의 생활 패턴과 관심사를 고려하여 공감할 수 있는 내용을 작성하세요.`
+    : ''
 
   return `당신은 네이버 블로그 SEO 전문 작가입니다.
 네이버 C-Rank와 D.I.A. 알고리즘에 최적화된 블로그 글을 작성합니다.
@@ -343,7 +408,7 @@ ${lengthGuide}
 - 숫자 활용: "5가지 방법", "TOP 7", "3분만에" 등
 
 ### 키워드 배치 전략 (SEO 점수 핵심 요소)
-- **키워드 밀도 (필수)**: 핵심 키워드를 본문에 5~8회 반복 (2000자 기준 약 0.5~2% 밀도)
+- **키워드 밀도 (필수)**: 핵심 키워드를 본문에 ${keywordDensityGuide} 반복 (2000자 기준 약 0.5~2% 밀도)
   - 너무 적으면(3회 이하): SEO 효과 없음
   - 너무 많으면(10회 이상): 키워드 스터핑으로 감점
   - 예: 2500자 글이라면 핵심 키워드를 정확히 6~7회 사용
@@ -371,11 +436,21 @@ ${lengthGuide}
 - 독창적이고 경험 기반의 내용 작성 (단순 정보 나열 금지)
 - 구체적 수치, 날짜, 가격 등 정확한 정보 포함
 - 핵심 내용은 **볼드** 처리하여 스캔 가능하게
-- 적절한 이미지 삽입 위치: [이미지: 설명] 형태로 3~5개
-- 리스트(- )와 번호(1. ) 활용으로 가독성 향상
+- 적절한 이미지 삽입 위치: [이미지: 설명] 형태로 ${imageCountGuide}
+
+### 시각적 계층화 (탐색 용이성 극대화)
+현대 독자는 글을 처음부터 끝까지 정독하지 않고 **스크롤하며 원하는 정보를 시각적으로 탐색**합니다.
+따라서 다음 도구를 적극 활용하여 정보의 위계를 명확히 구분하세요:
+
+- **목록 형식 필수 활용**: 재료, 순서, 항목 정리 시 반드시 목록(- 또는 1. 2. 3.) 형식 사용
+  - ❌ 잘못된 예: "먼저 양파를 준비하고, 그 다음 당근을 썰고, 마지막으로 고기를 볶습니다." (줄글)
+  - ✅ 올바른 예: "재료 준비:\n1. 양파 1개 (채썰기)\n2. 당근 1/2개 (얇게 썰기)\n3. 돼지고기 200g"
+- **중요 문장 강조**: 핵심 팁, 주의사항, 결론은 **볼드** 처리
+- **인용구 활용**: 특별히 강조할 팁이나 전문가 조언은 > 인용구로 표현
+- **단락 호흡 짧게**: 각 문단은 2~4문장, 문장 길이는 40자 이내 (모바일 최적화)
 
 ### 내부 링크 (필수)
-- 본문에 **반드시 2~3개의 내부 링크** 플레이스홀더를 포함하세요
+- 본문에 **반드시 ${internalLinkGuide}의 내부 링크** 플레이스홀더를 포함하세요
 - 마크다운 링크 형식 사용: [관련 글: 제목](./placeholder)
 - 예시:
   - [관련 글: 네이버 블로그 SEO 최적화 완벽 가이드](./naver-blog-seo-guide)
@@ -384,14 +459,50 @@ ${lengthGuide}
 - 관련 주제로 자연스럽게 연결되는 내용으로 작성
 
 ### 구조 최적화
-- 소제목(## H2, ### H3)으로 논리적 구조화 (H2 3~5개, 필요 시 H3 추가)
-- 도입-본문-정리 3단 구조 유지
+- 소제목(## H2, ### H3)으로 논리적 구조화 (${headingCountGuide}, 필요 시 H3 추가)
+- ${structureRatioGuide}
 - 각 문단은 2~4문장으로 짧게 (모바일 가독성)
-- 문장 길이: 40자 이내 권장 (한국어 기준)
+- 문장 길이: 40자 이내 권장 (한국어 기준)${forcedSectionsGuide}${styleGuide ? `\n\n### 스타일 요구사항\n${styleGuide}` : ''}${audienceGuide}${ageGroupGuide}
 
 ### 태그 & 마무리
 - 본문 마지막에 관련 태그 7~10개 제안 (#키워드 형태)
 - 독자 참여 유도 문구로 마무리 (댓글, 공감 유도)
+
+### 콘텐츠 유형별 최적화 전략
+**${typeName}** 콘텐츠의 특성에 맞춰 다음 원칙을 반드시 따르세요:
+
+${contentType === 'howto' || contentType === 'informational' ? `
+**[정보성 콘텐츠]**
+- **핵심 목적**: 독자의 문제 해결, 전문 지식 전달
+- **구조**: 서론(문제 제기 및 공감) → 본론(해결책 나열) → 결론(요약)
+- **필수 요소**:
+  - 소제목의 명확한 계층화 (H2 → H3)
+  - 목록 형식으로 핵심 정보 정리 (재료, 순서, 항목 등)
+  - 인용구로 중요 팁 강조
+  - 구체적 수치와 단계별 설명
+- **시각적 도구**: 목록, 볼드, 인용구를 적극 활용하여 정보 탐색 용이하게` : ''}
+
+${contentType === 'review' || contentType === 'comparison' ? `
+**[리뷰/후기 콘텐츠]**
+- **핵심 목적**: 제품/서비스/장소에 대한 간접 경험과 검증 제공
+- **구조**: 첫인상 → 상세 사용 과정 → 장단점 비교 → 총평
+- **필수 요소**:
+  - 다량의 사진 ([이미지: 설명] 형태로 ${imageCountGuide})
+  - 구체적 가격, 위치, 날짜 정보
+  - 실제 사용 경험 기반 장단점 (표 형식 권장)
+  - 개인적 의견과 객관적 사실 구분
+- **시각적 도구**: 이미지 중심, 표로 비교 항목 정리, 별점/평가 강조` : ''}
+
+${contentType === 'listicle' || contentType === 'local' ? `
+**[추천/리스트 콘텐츠]**
+- **핵심 목적**: 여러 옵션 비교 및 선별된 추천 제공
+- **구조**: 도입(선정 기준) → 각 항목별 H3 소제목 → 종합 비교
+- **필수 요소**:
+  - TOP 3~7 형태의 명확한 순위
+  - 각 항목마다 독립된 H3 소제목 + 사진
+  - 가격, 위치, 특징을 표로 정리
+  - 최종 선택 가이드 (어떤 사람에게 어떤 것 추천)
+- **시각적 도구**: 번호 목록, 비교 표, 강조 박스` : ''}
 
 ### 2025-2026 최신 트렌드
 - **질문형 소제목** 활용: "~방법" 대신 "~어떻게 해야 하나요?" 형태의 질문형 소제목 사용

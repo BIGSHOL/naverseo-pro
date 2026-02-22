@@ -23,6 +23,7 @@ import { detectContentType, generateOutline, analyzeSeo, type ContentType } from
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
 import Link from 'next/link'
+import { useToast } from '@/hooks/use-toast'
 
 interface SeoCategory {
   id: string
@@ -100,6 +101,7 @@ function getGradeBadgeColor(grade: string) {
 export default function ContentPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const [keyword, setKeyword] = useState('')
   const [tone, setTone] = useState('친근하고 정보적인')
   const [additionalKeywords, setAdditionalKeywords] = useState('')
@@ -113,6 +115,221 @@ export default function ContentPage() {
   const [contentType, setContentType] = useState<ContentType | ''>('')
   const [includeFaq, setIncludeFaq] = useState(true)
   const [showOutline, setShowOutline] = useState(false)
+
+  // 고급 옵션
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
+  // 구조/레이아웃
+  const [imageCount, setImageCount] = useState<number | 'auto'>('auto')
+  const [headingCount, setHeadingCount] = useState<number | 'auto'>('auto')
+  const [structureRatio, setStructureRatio] = useState<'balanced' | 'intro-heavy' | 'content-heavy'>('balanced')
+  const [forcedSections, setForcedSections] = useState<string[]>([])
+  // SEO/키워드
+  const [keywordDensity, setKeywordDensity] = useState<'natural' | 'moderate' | 'aggressive'>('moderate')
+  const [internalLinkCount, setInternalLinkCount] = useState<number | 'auto'>('auto')
+  // 스타일/형식
+  const [forceListFormat, setForceListFormat] = useState(false)
+  const [includeTable, setIncludeTable] = useState(false)
+  const [useEmoji, setUseEmoji] = useState(false)
+  const [includeQuotes, setIncludeQuotes] = useState(false)
+  // 타겟 독자
+  const [targetAudience, setTargetAudience] = useState<'beginner' | 'general' | 'expert'>('general')
+  const [ageGroup, setAgeGroup] = useState<'10s' | '20-30s' | '40-50s' | '60+' | 'all'>('all')
+
+  // 템플릿 프리셋 적용 함수
+  const applyInfoPreset = () => {
+    setShowAdvancedOptions(true)
+    // 구조/레이아웃
+    setImageCount(4)
+    setHeadingCount(4)
+    setStructureRatio('balanced')
+    setForcedSections(['핵심 요약', '단계별 가이드'])
+    // SEO/키워드
+    setKeywordDensity('moderate')
+    setInternalLinkCount(3)
+    // 스타일/형식
+    setForceListFormat(true)
+    setIncludeTable(true)
+    setUseEmoji(false)
+    setIncludeQuotes(true)
+    // 타겟 독자
+    setTargetAudience('general')
+    setAgeGroup('all')
+    // 피드백
+    toast({
+      title: '📚 정보성 프리셋 적용됨',
+      description: '목록·인용구 중심 구조로 설정되었습니다.',
+    })
+  }
+
+  const applyReviewPreset = () => {
+    setShowAdvancedOptions(true)
+    // 구조/레이아웃
+    setImageCount(8)
+    setHeadingCount(5)
+    setStructureRatio('content-heavy')
+    setForcedSections(['첫인상', '장점', '단점', '총평'])
+    // SEO/키워드
+    setKeywordDensity('natural')
+    setInternalLinkCount(2)
+    // 스타일/형식
+    setForceListFormat(false)
+    setIncludeTable(true)
+    setUseEmoji(true)
+    setIncludeQuotes(true)
+    // 타겟 독자
+    setTargetAudience('general')
+    setAgeGroup('all')
+    // 피드백
+    toast({
+      title: '⭐ 리뷰성 프리셋 적용됨',
+      description: '사진 다량·경험 중심 구조로 설정되었습니다.',
+    })
+  }
+
+  const applyListiclePreset = () => {
+    setShowAdvancedOptions(true)
+    // 구조/레이아웃
+    setImageCount(6)
+    setHeadingCount(5)
+    setStructureRatio('balanced')
+    setForcedSections(['선정 기준', '비교 요약'])
+    // SEO/키워드
+    setKeywordDensity('moderate')
+    setInternalLinkCount(3)
+    // 스타일/형식
+    setForceListFormat(true)
+    setIncludeTable(true)
+    setUseEmoji(false)
+    setIncludeQuotes(false)
+    // 타겟 독자
+    setTargetAudience('general')
+    setAgeGroup('all')
+    // 피드백
+    toast({
+      title: '🏆 추천형 프리셋 적용됨',
+      description: '순위·비교표 중심 구조로 설정되었습니다.',
+    })
+  }
+
+  // 사용자 정의 템플릿
+  const [templates, setTemplates] = useState<any[]>([])
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
+  // 템플릿 목록 로드
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const loadTemplates = async () => {
+    try {
+      const res = await fetch('/api/templates')
+      if (!res.ok) throw new Error('템플릿 로드 실패')
+      const data = await res.json()
+      setTemplates(data.templates || [])
+    } catch (err) {
+      console.error('[Templates] 로드 오류:', err)
+    }
+  }
+
+  const saveCurrentAsTemplate = async () => {
+    const name = window.prompt('템플릿 이름을 입력하세요 (예: 내 리뷰 템플릿)')
+    if (!name || name.trim().length === 0) return
+
+    const description = window.prompt('템플릿 설명을 입력하세요 (선택사항)')
+
+    setSavingTemplate(true)
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description?.trim() || null,
+          advancedOptions: {
+            imageCount,
+            headingCount,
+            structureRatio,
+            forcedSections,
+            keywordDensity,
+            internalLinkCount,
+            forceListFormat,
+            includeTable,
+            useEmoji,
+            includeQuotes,
+            targetAudience,
+            ageGroup,
+          },
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || '템플릿 저장 실패')
+      }
+
+      toast({
+        title: '✅ 템플릿 저장 완료',
+        description: `"${name}" 템플릿이 저장되었습니다.`,
+      })
+
+      await loadTemplates()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      toast({
+        title: '❌ 저장 실패',
+        description: errorMessage,
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const loadTemplate = (template: any) => {
+    const opts = template.advanced_options
+    setShowAdvancedOptions(true)
+    // 옵션 적용
+    setImageCount(opts.imageCount ?? 'auto')
+    setHeadingCount(opts.headingCount ?? 'auto')
+    setStructureRatio(opts.structureRatio ?? 'balanced')
+    setForcedSections(opts.forcedSections ?? [])
+    setKeywordDensity(opts.keywordDensity ?? 'moderate')
+    setInternalLinkCount(opts.internalLinkCount ?? 'auto')
+    setForceListFormat(opts.forceListFormat ?? false)
+    setIncludeTable(opts.includeTable ?? false)
+    setUseEmoji(opts.useEmoji ?? false)
+    setIncludeQuotes(opts.includeQuotes ?? false)
+    setTargetAudience(opts.targetAudience ?? 'general')
+    setAgeGroup(opts.ageGroup ?? 'all')
+
+    toast({
+      title: '📥 템플릿 불러옴',
+      description: `"${template.name}" 템플릿이 적용되었습니다.`,
+    })
+  }
+
+  const deleteTemplate = async (id: string, name: string) => {
+    if (!window.confirm(`"${name}" 템플릿을 삭제하시겠습니까?`)) return
+
+    try {
+      const res = await fetch(`/api/templates?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('템플릿 삭제 실패')
+
+      toast({
+        title: '🗑️ 템플릿 삭제됨',
+        description: `"${name}" 템플릿이 삭제되었습니다.`,
+      })
+
+      await loadTemplates()
+    } catch (err) {
+      toast({
+        title: '❌ 삭제 실패',
+        description: err instanceof Error ? err.message : '템플릿 삭제에 실패했습니다.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   // 참고 URL 분석
   const [referenceUrl, setReferenceUrl] = useState('')
@@ -324,6 +541,21 @@ export default function ContentPage() {
             operatingHours: businessHours.trim() || undefined,
             contact: businessContact.trim() || undefined,
             topic: businessTopic.trim() || undefined,
+          } : undefined,
+          // 고급 옵션 전달
+          advancedOptions: showAdvancedOptions ? {
+            imageCount,
+            headingCount,
+            structureRatio,
+            forcedSections,
+            keywordDensity,
+            internalLinkCount,
+            forceListFormat,
+            includeTable,
+            useEmoji,
+            includeQuotes,
+            targetAudience,
+            ageGroup,
           } : undefined,
         }),
       })
@@ -1099,6 +1331,296 @@ export default function ContentPage() {
                 <MessageSquareQuote className="h-3.5 w-3.5" />
                 FAQ 섹션 포함
               </Label>
+            </div>
+
+            {/* 고급 옵션 */}
+            <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between text-sm font-medium text-blue-800 hover:text-blue-900 transition-colors"
+                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4" />
+                  고급 옵션 ({showAdvancedOptions ? '접기' : '펼치기'})
+                </span>
+                {showAdvancedOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {showAdvancedOptions && (
+                <div className="space-y-4 pt-3">
+                  {/* 템플릿 프리셋 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-blue-800">⚡ 빠른 설정</Label>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={applyInfoPreset}
+                        className="flex flex-col items-start gap-1 rounded-md border border-blue-200 bg-white p-3 text-left hover:bg-blue-50 hover:border-blue-300 transition-all"
+                      >
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                          📚 정보성
+                        </div>
+                        <p className="text-xs text-gray-600">목록·인용구 중심</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyReviewPreset}
+                        className="flex flex-col items-start gap-1 rounded-md border border-blue-200 bg-white p-3 text-left hover:bg-blue-50 hover:border-blue-300 transition-all"
+                      >
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                          ⭐ 리뷰성
+                        </div>
+                        <p className="text-xs text-gray-600">사진 다량·경험 중심</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyListiclePreset}
+                        className="flex flex-col items-start gap-1 rounded-md border border-blue-200 bg-white p-3 text-left hover:bg-blue-50 hover:border-blue-300 transition-all"
+                      >
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                          🏆 추천형
+                        </div>
+                        <p className="text-xs text-gray-600">순위·비교표 중심</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 내 템플릿 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold text-blue-800">💾 내 템플릿</Label>
+                      <button
+                        type="button"
+                        onClick={saveCurrentAsTemplate}
+                        disabled={savingTemplate}
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+                      >
+                        {savingTemplate ? '저장 중...' : '현재 설정 저장'}
+                      </button>
+                    </div>
+                    {templates.length > 0 ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white p-2"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => loadTemplate(template)}
+                              className="flex-1 text-left"
+                            >
+                              <div className="text-xs font-medium text-gray-900">{template.name}</div>
+                              {template.description && (
+                                <p className="text-[10px] text-gray-500 truncate">{template.description}</p>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteTemplate(template.id, template.name)}
+                              className="text-gray-400 hover:text-red-600 transition-colors"
+                              title="삭제"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">저장된 템플릿이 없습니다. "현재 설정 저장"을 클릭하여 템플릿을 만드세요.</p>
+                    )}
+                  </div>
+
+                  {/* 구조/레이아웃 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-blue-800">🏗️ 구조/레이아웃</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="imageCount" className="text-xs">이미지 개수</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[{ value: 'auto' as const, label: '자동' }, { value: 2, label: '2개' }, { value: 3, label: '3개' }, { value: 4, label: '4개' }, { value: 5, label: '5개' }].map(({ value, label }) => (
+                            <Badge
+                              key={value}
+                              variant={imageCount === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setImageCount(value)}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="headingCount" className="text-xs">소제목 개수</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[{ value: 'auto' as const, label: '자동' }, { value: 3, label: '3개' }, { value: 4, label: '4개' }, { value: 5, label: '5개' }, { value: 7, label: '7개' }].map(({ value, label }) => (
+                            <Badge
+                              key={value}
+                              variant={headingCount === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setHeadingCount(value)}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">글 구성 비율</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { value: 'balanced' as const, label: '균형잡힌', desc: '도입 20% · 본문 60% · 결론 20%' },
+                          { value: 'intro-heavy' as const, label: '도입 강조', desc: '도입 30% · 본문 50% · 결론 20%' },
+                          { value: 'content-heavy' as const, label: '본문 강조', desc: '도입 15% · 본문 70% · 결론 15%' },
+                        ].map(({ value, label, desc }) => (
+                          <Badge
+                            key={value}
+                            variant={structureRatio === value ? 'default' : 'outline'}
+                            className="cursor-pointer text-xs"
+                            onClick={() => setStructureRatio(value)}
+                            title={desc}
+                          >
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">특정 섹션 강제 포함</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['장단점 비교', '가격표', '주의사항', '사용 팁', '자주묻는질문'].map((section) => (
+                          <Badge
+                            key={section}
+                            variant={forcedSections.includes(section) ? 'default' : 'outline'}
+                            className="cursor-pointer text-xs"
+                            onClick={() => {
+                              setForcedSections(prev =>
+                                prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
+                              )
+                            }}
+                          >
+                            {section}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SEO/키워드 */}
+                  <div className="space-y-2 border-t border-blue-200 pt-3">
+                    <Label className="text-sm font-semibold text-blue-800">🔍 SEO/키워드</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">키워드 밀도</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { value: 'natural' as const, label: '자연스럽게', desc: '3~5회' },
+                            { value: 'moderate' as const, label: '보통', desc: '5~8회 (권장)' },
+                            { value: 'aggressive' as const, label: '적극적', desc: '8~12회' },
+                          ].map(({ value, label, desc }) => (
+                            <Badge
+                              key={value}
+                              variant={keywordDensity === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setKeywordDensity(value)}
+                              title={desc}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">내부 링크 개수</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[{ value: 'auto' as const, label: '자동' }, { value: 1, label: '1개' }, { value: 2, label: '2개' }, { value: 3, label: '3개' }, { value: 5, label: '5개' }].map(({ value, label }) => (
+                            <Badge
+                              key={value}
+                              variant={internalLinkCount === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setInternalLinkCount(value)}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 스타일/형식 */}
+                  <div className="space-y-2 border-t border-blue-200 pt-3">
+                    <Label className="text-sm font-semibold text-blue-800">🎨 스타일/형식</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { state: forceListFormat, setter: setForceListFormat, label: '리스트 형식 강제' },
+                        { state: includeTable, setter: setIncludeTable, label: '표 포함' },
+                        { state: useEmoji, setter: setUseEmoji, label: '이모지 사용' },
+                        { state: includeQuotes, setter: setIncludeQuotes, label: '인용구/팁박스' },
+                      ].map(({ state, setter, label }) => (
+                        <Badge
+                          key={label}
+                          variant={state ? 'default' : 'outline'}
+                          className="cursor-pointer text-xs"
+                          onClick={() => setter(!state)}
+                        >
+                          {state ? '✓ ' : ''}{label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 타겟 독자 */}
+                  <div className="space-y-2 border-t border-blue-200 pt-3">
+                    <Label className="text-sm font-semibold text-blue-800">👥 타겟 독자</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">독자 수준</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { value: 'beginner' as const, label: '초보자', desc: '쉬운 용어, 단계별 설명' },
+                            { value: 'general' as const, label: '일반인', desc: '보통 수준의 설명' },
+                            { value: 'expert' as const, label: '전문가', desc: '전문 용어, 심화 내용' },
+                          ].map(({ value, label, desc }) => (
+                            <Badge
+                              key={value}
+                              variant={targetAudience === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setTargetAudience(value)}
+                              title={desc}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">연령대</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { value: 'all' as const, label: '전연령' },
+                            { value: '10s' as const, label: '10대' },
+                            { value: '20-30s' as const, label: '20-30대' },
+                            { value: '40-50s' as const, label: '40-50대' },
+                            { value: '60+' as const, label: '60대+' },
+                          ].map(({ value, label }) => (
+                            <Badge
+                              key={value}
+                              variant={ageGroup === value ? 'default' : 'outline'}
+                              className="cursor-pointer text-xs"
+                              onClick={() => setAgeGroup(value)}
+                            >
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 아웃라인 미리보기 */}

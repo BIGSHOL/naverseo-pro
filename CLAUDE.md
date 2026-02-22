@@ -38,7 +38,8 @@ naverseo-pro/
 │   │   │   ├── naver/          # 네이버 API 프록시
 │   │   │   ├── ai/             # Claude AI 엔드포인트
 │   │   │   ├── auth/           # 인증 관련
-│   │   │   └── billing/        # 결제 관련
+│   │   │   ├── billing/        # 결제 관련
+│   │   │   └── templates/      # 콘텐츠 템플릿 관리
 │   │   ├── layout.tsx
 │   │   └── page.tsx            # 랜딩 페이지
 │   ├── components/
@@ -122,12 +123,25 @@ CREATE TABLE projects (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 사용자 정의 콘텐츠 템플릿
+CREATE TABLE content_templates (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  advanced_options JSONB NOT NULL,  -- 14개 고급 옵션 (이미지, 소제목, 구조 등)
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- 템플릿 개수 제한: 사용자당 최대 5개 (트리거로 관리)
+
 -- RLS 정책 (모든 테이블에 적용)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE keyword_research ENABLE ROW LEVEL SECURITY;
 ALTER TABLE generated_content ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rank_tracking ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_templates ENABLE ROW LEVEL SECURITY;
 
 -- 사용자는 본인 데이터만 접근
 CREATE POLICY "Users can view own data" ON profiles FOR ALL USING (auth.uid() = id);
@@ -135,6 +149,7 @@ CREATE POLICY "Users can view own keywords" ON keyword_research FOR ALL USING (a
 CREATE POLICY "Users can view own content" ON generated_content FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can view own tracking" ON rank_tracking FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can view own projects" ON projects FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own templates" ON content_templates FOR ALL USING (auth.uid() = user_id);
 ```
 
 ## 환경변수
@@ -218,15 +233,16 @@ Query:
 2. ✅ 키워드 검색량 조회 (네이버 검색광고 API)
 3. ✅ AI 키워드 추천 (Gemini API)
 4. ✅ AI 블로그 콘텐츠 생성 (Gemini API + 네이버 SEO 최적화)
-5. ✅ SEO 점수 체커
-6. ✅ 대시보드 (사용량, 최근 활동)
-7. ✅ 순위 트래킹 (UI 완성, 데모 데이터 지원)
-8. ✅ 콘텐츠 캘린더
-9. ✅ 리포트 PDF 생성
-10. ✅ 블로그 지수 분석 (레이더 차트, 벤치마크)
-11. ✅ 상위노출 분석 (상위 블로그 패턴 분석)
-12. ✅ 키워드 발굴 (블루오션 키워드)
-13. ⬜ 결제 연동 (토스페이먼츠 - 코드 준비 완료, 프로덕션 키 필요) ← 최종 완성 후 마지막에 진행
+5. ✅ 콘텐츠 템플릿 시스템 (프리셋 3종 + 사용자 정의 템플릿 저장/불러오기)
+6. ✅ SEO 점수 체커
+7. ✅ 대시보드 (사용량, 최근 활동)
+8. ✅ 순위 트래킹 (UI 완성, 데모 데이터 지원)
+9. ✅ 콘텐츠 캘린더
+10. ✅ 리포트 PDF 생성
+11. ✅ 블로그 지수 분석 (레이더 차트, 벤치마크)
+12. ✅ 상위노출 분석 (상위 블로그 패턴 분석)
+13. ✅ 키워드 발굴 (블루오션 키워드)
+14. ⬜ 결제 연동 (토스페이먼츠 - 코드 준비 완료, 프로덕션 키 필요) ← 최종 완성 후 마지막에 진행
 
 ## AI 프롬프트 가이드라인
 콘텐츠 생성 시 Claude API에 보내는 시스템 프롬프트:
