@@ -448,11 +448,11 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                   style={{ width: `${profile.credits_monthly_quota ? Math.min(100, ((profile.credits_balance ?? 0) / profile.credits_monthly_quota) * 100) : 0}%` }}
                 />
               </div>
-              {profile.credits_reset_at && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  다음 리셋: {new Date(profile.credits_reset_at).toLocaleDateString('ko-KR')}
-                </p>
-              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                다음 리셋: {profile.credits_reset_at
+                  ? new Date(profile.credits_reset_at).toLocaleDateString('ko-KR')
+                  : '미설정 (첫 사용 시 자동 설정)'}
+              </p>
             </div>
 
             {/* 크레딧 주입 */}

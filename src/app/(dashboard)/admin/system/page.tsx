@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CheckCircle2, XCircle, Server } from 'lucide-react'
+import { CheckCircle2, XCircle, Server, Coins } from 'lucide-react'
 
 interface ApiStatusItem {
   name: string
@@ -13,16 +13,24 @@ interface ApiStatusItem {
 
 interface SystemData {
   apiStatus: Record<string, ApiStatusItem>
-  planLimits: Record<string, {
-    keywordsPerMonth: number
-    contentPerMonth: number
-    trackingKeywords: number
-    analysisPerDay: number
-  }>
+  creditCosts: Record<string, number>
+  planCredits: Record<string, number>
   environment: {
     nodeEnv: string
     vercelEnv: string
   }
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  keyword_research: '키워드 리서치',
+  keyword_discovery: '키워드 발굴',
+  content_generation: 'AI 콘텐츠 생성',
+  seo_check: 'SEO 점수 체크',
+  competitor_analysis: '상위노출 분석',
+  blog_index: '블로그 지수 분석',
+  tracking_per_keyword: '순위 트래킹',
+  seo_report: 'SEO 리포트',
+  content_improve: '콘텐츠 개선',
 }
 
 export default function AdminSystemPage() {
@@ -79,12 +87,6 @@ export default function AdminSystemPage() {
   const configuredCount = Object.values(data.apiStatus).filter((s) => s.configured).length
   const totalApis = Object.values(data.apiStatus).length
 
-  function formatLimit(value: number): string {
-    if (value === -1) return '무제한'
-    if (value === 0) return 'X'
-    return String(value)
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -92,7 +94,7 @@ export default function AdminSystemPage() {
         <div>
           <h1 className="text-2xl font-bold">시스템 설정</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            API 연동 상태와 플랜 설정을 확인합니다
+            API 연동 상태와 크레딧 설정을 확인합니다
           </p>
         </div>
       </div>
@@ -151,10 +153,43 @@ export default function AdminSystemPage() {
         </Card>
       </div>
 
-      {/* 플랜 제한 설정 */}
+      {/* 기능별 크레딧 비용 */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <Coins className="h-5 w-5" />
+          <CardTitle className="text-lg">기능별 크레딧 비용</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left font-medium text-muted-foreground">기능</th>
+                  <th className="py-2 text-center font-medium text-muted-foreground">크레딧</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(data.creditCosts || {}).map(([feature, cost]) => (
+                  <tr key={feature} className="border-b last:border-0">
+                    <td className="py-3">
+                      <span className="font-medium">{FEATURE_LABELS[feature] || feature}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{feature}</span>
+                    </td>
+                    <td className="py-3 text-center">
+                      <Badge variant="secondary">{cost}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 플랜별 월간 크레딧 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">플랜별 제한 설정</CardTitle>
+          <CardTitle className="text-lg">플랜별 월간 크레딧</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -162,22 +197,18 @@ export default function AdminSystemPage() {
               <thead>
                 <tr className="border-b">
                   <th className="py-2 text-left font-medium text-muted-foreground">플랜</th>
-                  <th className="py-2 text-center font-medium text-muted-foreground">키워드/월</th>
-                  <th className="py-2 text-center font-medium text-muted-foreground">콘텐츠/월</th>
-                  <th className="py-2 text-center font-medium text-muted-foreground">트래킹 키워드</th>
-                  <th className="py-2 text-center font-medium text-muted-foreground">분석/일</th>
+                  <th className="py-2 text-center font-medium text-muted-foreground">월간 크레딧</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(data.planLimits).map(([plan, limits]) => (
+                {Object.entries(data.planCredits || {}).map(([plan, credits]) => (
                   <tr key={plan} className="border-b last:border-0">
                     <td className="py-3">
                       <Badge variant="outline" className="uppercase">{plan}</Badge>
                     </td>
-                    <td className="py-3 text-center">{formatLimit(limits.keywordsPerMonth)}</td>
-                    <td className="py-3 text-center">{formatLimit(limits.contentPerMonth)}</td>
-                    <td className="py-3 text-center">{formatLimit(limits.trackingKeywords)}</td>
-                    <td className="py-3 text-center">{formatLimit(limits.analysisPerDay)}</td>
+                    <td className="py-3 text-center">
+                      {credits >= 999999 ? '무제한' : credits.toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -88,8 +88,17 @@ export async function checkCredits(
 
   let balance = profile?.credits_balance ?? 0
 
-  // Lazy 월간 리셋
-  if (profile?.credits_reset_at && new Date(profile.credits_reset_at) <= new Date()) {
+  // Lazy 월간 리셋 (null이면 초기화, 만료되면 리셋)
+  if (!profile?.credits_reset_at) {
+    // credits_reset_at이 설정되지 않은 경우 → 다음 달 1일로 초기화
+    await supabase
+      .from('profiles')
+      .update({
+        credits_reset_at: getNextMonthReset(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+  } else if (new Date(profile.credits_reset_at) <= new Date()) {
     balance = profile.credits_monthly_quota ?? 30
     await supabase
       .from('profiles')

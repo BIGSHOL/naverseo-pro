@@ -49,6 +49,7 @@ interface DailyActivity {
   date: string
   keywords: number
   content: number
+  seo: number
   tracking: number
 }
 
@@ -438,7 +439,7 @@ export default function DashboardPage() {
           <CardTitle className="text-base">주간 활동</CardTitle>
         </CardHeader>
         <CardContent className="relative">
-          {dailyActivity.every(d => d.keywords === 0 && d.content === 0 && d.tracking === 0) ? (
+          {dailyActivity.every(d => d.keywords === 0 && d.content === 0 && d.seo === 0 && d.tracking === 0) ? (
             <div className="flex h-52 flex-col items-center justify-center text-center">
               <Activity className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">최근 7일간 활동이 없습니다</p>
@@ -457,6 +458,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="seoGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
@@ -478,12 +483,16 @@ export default function DashboardPage() {
                 />
                 <Legend iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
                 <Area
-                  type="monotone" dataKey="keywords" name="키워드 조회"
+                  type="monotone" dataKey="keywords" name="키워드"
                   stroke="#3b82f6" fill="url(#kwGrad)" strokeWidth={2}
                 />
                 <Area
-                  type="monotone" dataKey="content" name="콘텐츠 생성"
-                  stroke="#22c55e" fill="url(#ctGrad)" strokeWidth={2}
+                  type="monotone" dataKey="content" name="콘텐츠"
+                  stroke="#a855f7" fill="url(#ctGrad)" strokeWidth={2}
+                />
+                <Area
+                  type="monotone" dataKey="seo" name="SEO 분석"
+                  stroke="#22c55e" fill="url(#seoGrad)" strokeWidth={2}
                 />
                 <Area
                   type="monotone" dataKey="tracking" name="순위 트래킹"

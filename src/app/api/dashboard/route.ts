@@ -99,10 +99,8 @@ export async function GET() {
       { data: allKeywords },
       { data: recentContent },
       { data: allContent },
-      { data: recentKeywordActivity },
-      { data: recentContentActivity },
+      { data: creditActivityLogs },
       { data: trackedKeywords },
-      { data: recentTrackingActivity },
     ] = await Promise.all([
       // 최근 키워드 검색 (5개)
       supabase
@@ -130,16 +128,10 @@ export async function GET() {
         .from('generated_content')
         .select('status, seo_score')
         .eq('user_id', user.id),
-      // 7일 활동: 키워드 검색
+      // 7일 활동: credit_usage_log에서 전체 기능 집계
       supabase
-        .from('keyword_research')
-        .select('created_at')
-        .eq('user_id', user.id)
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-      // 7일 활동: 콘텐츠 생성
-      supabase
-        .from('generated_content')
-        .select('created_at')
+        .from('credit_usage_log')
+        .select('feature, created_at')
         .eq('user_id', user.id)
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
       // 트래킹 키워드 수
@@ -147,12 +139,6 @@ export async function GET() {
         .from('rank_tracking')
         .select('keyword')
         .eq('user_id', user.id),
-      // 7일 활동: 순위 트래킹
-      supabase
-        .from('rank_tracking')
-        .select('checked_at')
-        .eq('user_id', user.id)
-        .gte('checked_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     ])
 
     // 콘텐츠 통계 집계
@@ -165,30 +151,31 @@ export async function GET() {
       ? Math.round(scoresWithValue.reduce((a, b) => a + b, 0) / scoresWithValue.length)
       : 0
 
-    // 7일 활동 일별 집계
-    const dailyActivity: { date: string; keywords: number; content: number; tracking: number }[] = []
+    // 7일 활동 일별 집계 (credit_usage_log 기반 4카테고리)
+    const keywordFeatures = ['keyword_research', 'keyword_discovery']
+    const contentFeatures = ['content_generation', 'content_improve']
+    const seoFeatures = ['seo_check', 'seo_report', 'competitor_analysis', 'blog_index']
+    const trackingFeatures = ['tracking_per_keyword']
+
+    const dailyActivity: { date: string; keywords: number; content: number; seo: number; tracking: number }[] = []
     for (let i = 6; i >= 0; i--) {
       const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
       const dateStr = `${d.getMonth() + 1}/${d.getDate()}`
       const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate())
       const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)
 
-      const kwCount = (recentKeywordActivity || []).filter(r => {
+      const logsForDay = (creditActivityLogs || []).filter(r => {
         const t = new Date(r.created_at)
         return t >= dayStart && t < dayEnd
-      }).length
+      })
 
-      const ctCount = (recentContentActivity || []).filter(r => {
-        const t = new Date(r.created_at)
-        return t >= dayStart && t < dayEnd
-      }).length
-
-      const trkCount = (recentTrackingActivity || []).filter(r => {
-        const t = new Date(r.checked_at)
-        return t >= dayStart && t < dayEnd
-      }).length
-
-      dailyActivity.push({ date: dateStr, keywords: kwCount, content: ctCount, tracking: trkCount })
+      dailyActivity.push({
+        date: dateStr,
+        keywords: logsForDay.filter(r => keywordFeatures.includes(r.feature)).length,
+        content: logsForDay.filter(r => contentFeatures.includes(r.feature)).length,
+        seo: logsForDay.filter(r => seoFeatures.includes(r.feature)).length,
+        tracking: logsForDay.filter(r => trackingFeatures.includes(r.feature)).length,
+      })
     }
 
     // 트래킹 키워드 distinct 카운트

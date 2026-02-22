@@ -88,9 +88,11 @@ export default function CreditsPage() {
   const planInfo = PLANS[plan]
   const usedCredits = data.quota - data.balance
   const usagePercent = data.quota > 0 ? (usedCredits / data.quota) * 100 : 0
-  const daysUntilReset = data.resetAt
-    ? Math.max(0, Math.ceil((new Date(data.resetAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : 0
+  // 리셋 날짜 계산: null이면 다음 달 1일 기준으로 표시
+  const resetDate = data.resetAt
+    ? new Date(data.resetAt)
+    : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+  const daysUntilReset = Math.max(0, Math.ceil((resetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
 
   // 기능별 사용 비율 차트 데이터
   const featureChartData = Object.entries(data.featureSummary)
