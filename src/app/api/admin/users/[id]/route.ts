@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/admin-check'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PLAN_CREDITS, type Plan } from '@/types/database'
 
 export async function GET(
   _request: NextRequest,
@@ -95,6 +96,8 @@ export async function PATCH(
 
     if (body.plan && ['free', 'lite', 'starter', 'pro', 'business', 'agency'].includes(body.plan)) {
       allowedFields.plan = body.plan
+      // 플랜 변경 시 월간 할당량 자동 동기화
+      allowedFields.credits_monthly_quota = PLAN_CREDITS[body.plan as Plan]
     }
 
     if (body.role && ['user', 'admin'].includes(body.role)) {

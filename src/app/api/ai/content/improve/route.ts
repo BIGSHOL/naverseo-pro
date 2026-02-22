@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 import {
   buildImprovementSystemPrompt,
   buildImprovementUserPrompt,
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
     }
 
     const provider = await getUserAiProvider(supabase, user.id)
+
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'content_improve')
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        { error: creditCheck.message || '크레딧이 부족합니다.' },
+        { status: 403 }
+      )
+    }
 
     // API 키 체크
     if (!hasAiApiKey(provider)) {
@@ -60,6 +70,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'content_improve', {
+      keyword,
+      categories: categories.map(c => c.id).join(', '),
+    })
 
     return NextResponse.json({
       title: parsed.title,

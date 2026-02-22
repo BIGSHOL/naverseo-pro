@@ -1,5 +1,5 @@
 import { Navbar } from '@/components/landing/navbar'
-import { FaqSection } from '@/components/landing/faq-section'
+import { FaqSection } from '@/components/faq/faq-section'
 import { Footer } from '@/components/landing/footer'
 
 export const metadata = {

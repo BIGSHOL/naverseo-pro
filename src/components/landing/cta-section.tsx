@@ -30,11 +30,11 @@ export function CtaSection() {
         </p>
 
         {/* 가치 요약 */}
-        <div className="mx-auto mt-8 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {valuePoints.map((point) => (
             <div key={point.text} className="flex flex-col items-center gap-2 rounded-lg bg-background p-4 shadow-sm">
               <point.icon className="h-5 w-5 text-primary" />
-              <span className="text-xs font-medium text-center">{point.text}</span>
+              <span className="whitespace-nowrap text-xs font-medium">{point.text}</span>
             </div>
           ))}
         </div>
