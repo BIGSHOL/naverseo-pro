@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText,
-  CalendarDays, FileDown, Activity, Users, Lightbulb, Lock, CheckCircle2,
+  CalendarDays, FileDown, Activity, Users, Lightbulb,
   Globe, ExternalLink,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -65,15 +65,6 @@ interface BlogProfile {
   updatedAt: string | null
 }
 
-// ---------- 유틸 ----------
-
-/** "10회/월" → 10, "무제한" → Infinity */
-function parseLimit(str: string): number {
-  if (str.includes('무제한')) return Infinity
-  const match = str.match(/(\d+)/)
-  return match ? parseInt(match[1], 10) : 0
-}
-
 // ---------- 인라인 컴포넌트 ----------
 
 function CircularProgress({ percent, size = 48, stroke = 4, color = '#3b82f6' }: {
@@ -120,8 +111,8 @@ const quickActions = [
 export default function DashboardPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<Plan>('free')
-  const [keywordsUsed, setKeywordsUsed] = useState(0)
-  const [contentGenerated, setContentGenerated] = useState(0)
+  const [creditsBalance, setCreditsBalance] = useState(0)
+  const [creditsQuota, setCreditsQuota] = useState(30)
   const [recentKeywords, setRecentKeywords] = useState<RecentKeyword[]>([])
   const [recentContent, setRecentContent] = useState<RecentContent[]>([])
   const [contentStats, setContentStats] = useState<ContentStats>({ total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
@@ -149,8 +140,8 @@ export default function DashboardPage() {
         const data = await res.json()
 
         setPlan((data.profile?.plan || 'free') as Plan)
-        setKeywordsUsed(data.profile?.keywords_used_this_month || 0)
-        setContentGenerated(data.profile?.content_generated_this_month || 0)
+        setCreditsBalance(data.profile?.credits_balance ?? 30)
+        setCreditsQuota(data.profile?.credits_monthly_quota ?? 30)
         setRecentKeywords(data.recentKeywords || [])
         setRecentContent(data.recentContent || [])
         setContentStats(data.contentStats || { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
@@ -172,51 +163,9 @@ export default function DashboardPage() {
   const today = new Date()
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`
 
-  // 사용량 통계 계산
-  const kwLimit = parseLimit(planInfo.keywords)
-  const ctLimit = parseLimit(planInfo.content)
-  const kwPercent = kwLimit === Infinity ? 0 : kwLimit > 0 ? (keywordsUsed / kwLimit) * 100 : 0
-  const ctPercent = ctLimit === Infinity ? 0 : ctLimit > 0 ? (contentGenerated / ctLimit) * 100 : 0
-  const trackingEnabled = planInfo.tracking !== 'X'
-
-  const stats = [
-    {
-      title: '키워드 조회',
-      value: keywordsUsed,
-      limitStr: planInfo.keywords,
-      percent: kwPercent,
-      infinite: kwLimit === Infinity,
-      color: '#3b82f6',
-      icon: Search,
-    },
-    {
-      title: 'AI 콘텐츠',
-      value: contentGenerated,
-      limitStr: planInfo.content,
-      percent: ctPercent,
-      infinite: ctLimit === Infinity,
-      color: '#8b5cf6',
-      icon: Wand2,
-    },
-    {
-      title: 'SEO 체크',
-      value: null,
-      limitStr: '무제한',
-      percent: -1, // 특수: 무제한
-      infinite: true,
-      color: '#22c55e',
-      icon: BarChart3,
-    },
-    {
-      title: '순위 트래킹',
-      value: trackingEnabled ? trackedKeywordsCount : null,
-      limitStr: planInfo.tracking,
-      percent: trackingEnabled ? 0 : -2, // -2: 잠금
-      infinite: false,
-      color: '#f97316',
-      icon: TrendingUp,
-    },
-  ]
+  // 크레딧 사용량 계산
+  const creditsUsed = creditsQuota - creditsBalance
+  const creditPercent = creditsQuota > 0 ? (creditsBalance / creditsQuota) * 100 : 0
 
   // ---------- 로딩 스켈레톤 ----------
 
@@ -346,47 +295,65 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ===== 섹션 2: 사용량 통계 (4카드 + 원형 프로그레스) ===== */}
+      {/* ===== 섹션 2: 크레딧 + 주요 지표 (4카드) ===== */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="flex items-center gap-4 p-5">
-              {/* 원형 프로그레스 / 특수 아이콘 */}
-              {stat.percent === -1 ? (
-                // SEO 체크: 무제한
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 shrink-0">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                </div>
-              ) : stat.percent === -2 ? (
-                // 순위 트래킹: 잠금
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted shrink-0">
-                  <Lock className="h-5 w-5 text-muted-foreground" />
-                </div>
-              ) : stat.infinite ? (
-                <CircularProgress percent={Infinity} color={stat.color} />
-              ) : (
-                <CircularProgress percent={stat.percent} color={stat.color} />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{stat.title}</p>
-                {stat.percent === -1 ? (
-                  <p className="text-lg font-bold">무제한</p>
-                ) : stat.percent === -2 ? (
-                  <Link href="/settings" className="text-xs text-primary hover:underline">
-                    업그레이드 필요
-                  </Link>
-                ) : (
-                  <p className="text-lg font-bold">
-                    {stat.value}
-                    <span className="ml-1 text-sm font-normal text-muted-foreground">
-                      / {stat.limitStr}
-                    </span>
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {/* 크레딧 잔여 */}
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <CircularProgress percent={creditPercent} color="#3b82f6" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">크레딧 잔여</p>
+              <p className="text-lg font-bold">
+                {creditsBalance.toLocaleString()}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  / {creditsQuota.toLocaleString()}
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        {/* 콘텐츠 현황 */}
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 shrink-0">
+              <Wand2 className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">총 콘텐츠</p>
+              <p className="text-lg font-bold">{contentStats.total}편</p>
+            </div>
+          </CardContent>
+        </Card>
+        {/* 평균 SEO 점수 */}
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full shrink-0 ${
+              contentStats.avgSeoScore >= 80 ? 'bg-green-100' : contentStats.avgSeoScore >= 60 ? 'bg-amber-100' : 'bg-red-100'
+            }`}>
+              <BarChart3 className={`h-5 w-5 ${
+                contentStats.avgSeoScore >= 80 ? 'text-green-600' : contentStats.avgSeoScore >= 60 ? 'text-amber-600' : 'text-red-600'
+              }`} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">평균 SEO</p>
+              <p className="text-lg font-bold">
+                {contentStats.avgSeoScore > 0 ? `${contentStats.avgSeoScore}점` : '-'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        {/* 순위 트래킹 */}
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 shrink-0">
+              <TrendingUp className="h-5 w-5 text-orange-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">트래킹 키워드</p>
+              <p className="text-lg font-bold">{trackedKeywordsCount}개</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ===== 블로그 프로필 (등록된 경우에만 표시) ===== */}
@@ -537,20 +504,20 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm">오늘의 추천</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {recommendedKeywords.length > 0 && keywordsUsed > 0
+              {recommendedKeywords.length > 0 && recentKeywords.length > 0
                 ? '최근 검색 기록을 바탕으로 추천 키워드를 준비했습니다. 클릭하면 바로 콘텐츠 생성을 시작할 수 있습니다.'
-                : contentGenerated === 0 && keywordsUsed === 0
+                : contentStats.total === 0 && recentKeywords.length === 0
                   ? '키워드 리서치부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
-                  : keywordsUsed > 0 && contentGenerated === 0
+                  : recentKeywords.length > 0 && contentStats.total === 0
                     ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
-                    : contentGenerated > 0 && recentContent.some(c => c.status === 'draft')
+                    : contentStats.total > 0 && recentContent.some(c => c.status === 'draft')
                       ? '초안 상태의 콘텐츠가 있습니다. SEO 점수를 확인하고 발행해보세요!'
-                      : `이번 달 ${contentGenerated}편의 콘텐츠를 생성하셨습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
+                      : `총 ${contentStats.total}편의 콘텐츠를 작성했습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
               }
             </p>
 
             {/* 추천 키워드 목록 */}
-            {recommendedKeywords.length > 0 && keywordsUsed > 0 && (
+            {recommendedKeywords.length > 0 && recentKeywords.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {recommendedKeywords.slice(0, 6).map((kw, idx) => (
                   <Link key={idx} href={`/content?keyword=${encodeURIComponent(kw)}`}>
@@ -568,15 +535,15 @@ export default function DashboardPage() {
 
             <div className="mt-3">
               <Link href={
-                contentGenerated === 0 && keywordsUsed === 0 ? '/keywords'
-                  : keywordsUsed > 0 && contentGenerated === 0 ? '/content'
-                    : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? '/seo-check'
+                contentStats.total === 0 && recentKeywords.length === 0 ? '/keywords'
+                  : recentKeywords.length > 0 && contentStats.total === 0 ? '/content'
+                    : contentStats.total > 0 && recentContent.some(c => c.status === 'draft') ? '/seo-check'
                       : '/keywords'
               }>
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                  {contentGenerated === 0 && keywordsUsed === 0 ? '키워드 조회하기'
-                    : keywordsUsed > 0 && contentGenerated === 0 ? '글 작성하기'
-                      : contentGenerated > 0 && recentContent.some(c => c.status === 'draft') ? 'SEO 체크하기'
+                  {contentStats.total === 0 && recentKeywords.length === 0 ? '키워드 조회하기'
+                    : recentKeywords.length > 0 && contentStats.total === 0 ? '글 작성하기'
+                      : contentStats.total > 0 && recentContent.some(c => c.status === 'draft') ? 'SEO 체크하기'
                         : '더 많은 키워드 찾기'
                   }
                   <ArrowRight className="h-3 w-3" />

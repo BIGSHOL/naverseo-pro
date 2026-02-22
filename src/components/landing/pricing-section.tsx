@@ -5,14 +5,26 @@ import { Badge } from '@/components/ui/badge'
 import { PLANS, type Plan } from '@/types/database'
 import Link from 'next/link'
 
-const planOrder: Plan[] = ['free', 'starter', 'pro', 'agency']
+const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'business', 'agency']
 
 // 각 플랜별 단가 비교 메시지
 const planValueProps: Partial<Record<Plan, string | null>> = {
   free: null,
-  starter: '글 1편당 2,900원 · 커피 한 잔 값',
-  pro: '글 1편당 1,180원 · 하루 2,000원 미만',
-  agency: '글 1편당 745원 · 대행사 대비 99% 절감',
+  lite: '크레딧당 ₩99',
+  starter: '크레딧당 ₩75 · ~25% 할인',
+  pro: '크레딧당 ₩67 · ~33% 할인',
+  business: '크레딧당 ₩59 · ~41% 할인',
+  agency: '크레딧당 ₩50 · ~50% 할인',
+}
+
+// 기능 수 표시
+const planFeatureCount: Partial<Record<Plan, string>> = {
+  free: '3가지 기능',
+  lite: '5가지 기능',
+  starter: '전체 기능',
+  pro: '전체 기능',
+  business: '전체 기능',
+  agency: '전체 기능',
 }
 
 export function PricingSection() {
@@ -31,16 +43,17 @@ export function PricingSection() {
           </p>
         </div>
 
-        <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {planOrder.map((planKey) => {
             const plan = PLANS[planKey]
             const valueMessage = planValueProps[planKey]
+            const featureCount = planFeatureCount[planKey]
             return (
               <Card
                 key={planKey}
                 className={`relative flex flex-col ${
                   plan.popular
-                    ? 'border-primary shadow-lg scale-[1.02]'
+                    ? 'border-primary shadow-lg ring-1 ring-primary'
                     : ''
                 }`}
               >
@@ -49,22 +62,29 @@ export function PricingSection() {
                     가장 인기
                   </Badge>
                 )}
-                <CardHeader className="text-center pb-2">
-                  <CardTitle className="text-lg">{plan.name}</CardTitle>
-                  <div className="mt-4">
-                    <span className="text-4xl font-bold">{plan.priceLabel}</span>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{plan.name}</CardTitle>
+                    {featureCount && (
+                      <Badge variant="secondary" className="text-[10px] font-normal">
+                        {featureCount}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-3xl font-bold">{plan.priceLabel}</span>
                     {plan.price > 0 && (
-                      <span className="text-muted-foreground">/월</span>
+                      <span className="text-sm text-muted-foreground">/월</span>
                     )}
                   </div>
                   {valueMessage && (
-                    <p className="mt-2 text-xs text-primary font-medium">
+                    <p className="mt-1 text-xs text-primary font-medium">
                       {valueMessage}
                     </p>
                   )}
                 </CardHeader>
-                <CardContent className="flex flex-1 flex-col pt-4">
-                  <ul className="flex-1 space-y-3">
+                <CardContent className="flex flex-1 flex-col pt-3">
+                  <ul className="flex-1 space-y-2">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex items-start gap-2">
                         <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -74,10 +94,11 @@ export function PricingSection() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/signup" className="mt-6 block">
+                  <Link href="/signup" className="mt-5 block">
                     <Button
                       className="w-full"
                       variant={plan.popular ? 'default' : 'outline'}
+                      size="sm"
                     >
                       {plan.price === 0 ? '무료로 체험하기' : '시작하기'}
                     </Button>

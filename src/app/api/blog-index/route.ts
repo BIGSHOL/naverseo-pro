@@ -13,7 +13,7 @@ import {
 } from '@/lib/blog-index/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { getUserAiProvider } from '@/lib/ai/gemini'
-import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
 
@@ -36,12 +36,12 @@ export async function POST(request: NextRequest) {
     // 사용자의 AI 제공자 조회
     const provider = await getUserAiProvider(supabase, user.id)
 
-    // 일간 분석 제한 체크
-    const limitCheck = await checkAnalysisLimit(supabase, user.id)
-    if (!limitCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'blog_index')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
-        { status: 429 }
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
       )
     }
 
@@ -230,40 +230,10 @@ export async function POST(request: NextRequest) {
       scrapedData  // 스크래핑 데이터 전달 (null이면 description 기반 폴백)
     )
 
-    // AI 심층 분석 (v2.5) — 알고리즘 분석과 병렬이 아닌 순차 실행 (결과에 보정값 적용)
-    try {
-      const aiAnalysis = isDemo
-        ? generateDemoAiAnalysis()
-        : await analyzeWithAi(posts, isDemo, provider)
+    // AI 심층 분석은 별도 API(/api/blog-index/ai)에서 온디맨드로 실행
 
-      if (aiAnalysis) {
-        result.aiAnalysis = aiAnalysis
-
-        // AI 점수 보정 적용 (알고리즘 점수에 AI 보정값 가산/감산)
-        if (aiAnalysis.scoreAdjustment !== 0) {
-          const adjusted = Math.max(0, Math.min(100, result.totalScore + aiAnalysis.scoreAdjustment))
-          console.log(`[BlogIndex AI] 점수 보정: ${result.totalScore} → ${adjusted} (${aiAnalysis.scoreAdjustment > 0 ? '+' : ''}${aiAnalysis.scoreAdjustment})`)
-          result.totalScore = adjusted
-          // 등급도 보정된 점수로 재계산
-          result.level = determineLevelInfo(result.totalScore)
-        }
-
-        // AI 추천을 기존 추천에 병합 (중복 제거)
-        if (aiAnalysis.recommendations.length > 0) {
-          const existingSet = new Set(result.recommendations.map(r => r.substring(0, 20)))
-          const newRecs = aiAnalysis.recommendations.filter(
-            r => !existingSet.has(r.substring(0, 20))
-          )
-          result.recommendations = [...result.recommendations, ...newRecs].slice(0, 8)
-        }
-      }
-    } catch (aiError) {
-      // AI 분석 실패해도 알고리즘 결과는 정상 반환
-      console.error('[BlogIndex AI] AI 분석 오류 (무시):', aiError)
-    }
-
-    // 분석 사용량 증가
-    await incrementAnalysisUsage(supabase, user.id)
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'blog_index', { blogUrl: blogUrl.trim() })
 
     return NextResponse.json(result)
   } catch (error) {

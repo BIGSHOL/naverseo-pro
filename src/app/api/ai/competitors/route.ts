@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
-import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 
 // === 타입 정의 ===
@@ -344,12 +344,12 @@ export async function POST(request: NextRequest) {
     // 사용자의 AI 제공자 조회
     const provider = await getUserAiProvider(supabase, user.id)
 
-    // 일간 분석 제한 체크
-    const limitCheck = await checkAnalysisLimit(supabase, user.id)
-    if (!limitCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'competitor_analysis')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
-        { status: 429 }
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
       )
     }
 
@@ -372,7 +372,7 @@ export async function POST(request: NextRequest) {
       const demoTitlePatterns = extractTitlePatterns(demoCompetitors, cleanKeyword)
       const demoAi = includeAi ? getDemoAiInsights(cleanKeyword) : null
 
-      await incrementAnalysisUsage(supabase, user.id)
+      await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
       return NextResponse.json({
         keyword: cleanKeyword,
         competitors: demoCompetitors,
@@ -423,7 +423,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await incrementAnalysisUsage(supabase, user.id)
+    await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
     return NextResponse.json({
       keyword: cleanKeyword,
       competitors,

@@ -286,7 +286,7 @@ export async function analyzeWithAi(
           if (content.length > 2000) {
             const head = content.substring(0, 1500)
             const tail = content.substring(content.length - 500)
-            truncated = head + '\n...(중략)...\n' + tail
+            truncated = head + '\n\n' + tail
           } else {
             truncated = content
           }
@@ -317,6 +317,7 @@ export async function analyzeWithAi(
 
     // Gemini에 보낼 사용자 메시지 구성
     const userMessage = `아래는 하나의 네이버 블로그에서 가져온 ${postContents.length}개 포스트입니다. 이 블로그의 전체적인 콘텐츠 품질을 분석해주세요.
+참고: 긴 본문은 앞부분과 뒷부분만 발췌되었을 수 있습니다. 본문이 잘렸다는 언급 없이 제공된 내용만으로 분석해주세요.
 
 ${postContents.map((p, i) => `--- 포스트 ${i + 1} ---
 제목: ${p.title}

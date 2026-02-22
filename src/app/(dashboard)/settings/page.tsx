@@ -26,6 +26,9 @@ import { useRouter } from 'next/navigation'
 
 interface ProfileData {
   plan: Plan
+  credits_balance: number
+  credits_monthly_quota: number
+  credits_reset_at: string | null
   keywords_used_this_month: number
   content_generated_this_month: number
   analysis_used_today: number
@@ -344,18 +347,17 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">사용량</p>
+              <p className="text-sm text-muted-foreground">크레딧</p>
               <div className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">월간</span>{' '}
-                  키워드 {profile?.keywords_used_this_month || 0}/{currentPlanInfo.keywords}
-                  {' · '}
-                  콘텐츠 {profile?.content_generated_this_month || 0}/{currentPlanInfo.content}
+                <p className="font-medium">
+                  {(profile?.credits_balance ?? 0).toLocaleString()} / {(profile?.credits_monthly_quota ?? 30).toLocaleString()} 크레딧
                 </p>
-                <p>
-                  <span className="text-muted-foreground">일간</span>{' '}
-                  분석 {profile?.analysis_used_today || 0}/{currentPlanInfo.analysis}
-                </p>
+                <div className="h-1.5 w-40 rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${profile?.credits_monthly_quota ? Math.min(100, ((profile?.credits_balance ?? 0) / profile.credits_monthly_quota) * 100) : 0}%` }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -644,7 +646,7 @@ export default function SettingsPage() {
             <AlertCircle className="h-4 w-4 shrink-0" />
             결제 기능은 준비 중입니다. 플랜 업그레이드는 추후 공개 예정입니다.
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).filter(
               ([key]) => key !== 'admin'
             ).map(
@@ -654,42 +656,50 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={planKey}
-                    className={`relative flex flex-col rounded-lg border p-4 ${
+                    className={`relative flex flex-col rounded-lg border p-3 ${
                       isCurrent
                         ? 'border-primary bg-primary/5'
                         : ''
-                    }`}
+                    } ${planInfo.popular ? 'ring-1 ring-primary' : ''}`}
                   >
                     {isCurrent && (
-                      <Badge variant="outline" className="absolute -top-2.5 left-1/2 -translate-x-1/2 border-primary bg-white">
+                      <Badge variant="outline" className="absolute -top-2.5 left-1/2 -translate-x-1/2 border-primary bg-white text-[10px]">
                         현재 플랜
                       </Badge>
                     )}
+                    {planInfo.popular && !isCurrent && (
+                      <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px]">
+                        인기
+                      </Badge>
+                    )}
 
-                    <div className="mt-2">
-                      <h3 className="font-semibold">{planInfo.name}</h3>
-                      <p className="mt-1 text-2xl font-bold">
+                    <div className="mt-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold">{planInfo.name}</h3>
+                        <span className="text-xs text-muted-foreground">{planInfo.credits} 크레딧/월</span>
+                      </div>
+                      <p className="mt-0.5 text-lg font-bold">
                         {planInfo.priceLabel}
-                        <span className="text-sm font-normal text-muted-foreground">/월</span>
+                        <span className="text-xs font-normal text-muted-foreground">/월</span>
                       </p>
                     </div>
 
-                    <ul className="mt-4 space-y-2">
+                    <ul className="mt-2 space-y-1">
                       {planInfo.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-xs">
+                        <li key={feature} className="flex items-start gap-1.5 text-[11px] leading-tight">
                           <Check className="mt-0.5 h-3 w-3 shrink-0 text-green-600" />
                           {feature}
                         </li>
                       ))}
                     </ul>
 
-                    <div className="mt-auto pt-4">
+                    <div className="mt-auto pt-3">
                       {isCurrent ? (
-                        <Button variant="outline" size="sm" className="w-full" disabled>
+                        <Button variant="outline" size="sm" className="h-7 w-full text-xs" disabled>
                           사용 중
                         </Button>
                       ) : (
-                        <Button size="sm" className="w-full" disabled>
+                        <Button size="sm" className="h-7 w-full text-xs" disabled>
                           준비 중
                         </Button>
                       )}

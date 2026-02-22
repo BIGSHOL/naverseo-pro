@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { discoverKeywords, getDemoDiscoveryResult } from '@/lib/keyword-discovery'
-import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
 
@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 일간 분석 제한 체크
-    const limitCheck = await checkAnalysisLimit(supabase, user.id)
-    if (!limitCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'keyword_discovery')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
-        { status: 429 }
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
       )
     }
 
@@ -72,14 +72,14 @@ export async function POST(request: NextRequest) {
 
     if (!hasGeminiKey || !hasNaverAdKey) {
       const demoResult = getDemoDiscoveryResult(cleanTopic)
-      await incrementAnalysisUsage(supabase, user.id)
+      await deductCredits(supabase, user.id, 'keyword_discovery', { keyword: cleanTopic })
       return NextResponse.json({ ...demoResult, isDemo: true, blogName: blogName || undefined })
     }
 
     // 키워드 발굴 엔진 실행
     const result = await discoverKeywords(cleanTopic)
 
-    await incrementAnalysisUsage(supabase, user.id)
+    await deductCredits(supabase, user.id, 'keyword_discovery', { keyword: cleanTopic })
     return NextResponse.json({ ...result, isDemo: false, blogName: blogName || undefined })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

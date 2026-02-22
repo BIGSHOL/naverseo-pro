@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               <li>
                 <span className="font-medium text-foreground">요금 결제</span>
                 <br />
-                유료 플랜(Starter, Pro, Agency) 서비스 이용 시 결제 처리를 목적으로 개인정보를 처리합니다.
+                유료 플랜(Lite, Starter, Pro, Business, Agency) 서비스 이용 시 결제 처리를 목적으로 개인정보를 처리합니다.
               </li>
               <li>
                 <span className="font-medium text-foreground">마케팅 및 서비스 개선</span>

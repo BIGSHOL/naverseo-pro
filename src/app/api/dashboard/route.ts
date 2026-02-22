@@ -79,7 +79,7 @@ export async function GET() {
     // 프로필 쿼리 (별도 실행 - SSR 세션 경합 방지)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('plan, role, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, recommended_keywords, recommendations_updated_at, blog_url, blog_id, blog_name, blog_thumbnail, blog_total_posts, blog_score, blog_level, blog_category_keywords, blog_last_post_date, blog_updated_at, blog_verification_code, blog_verified, blog_verified_at')
+      .select('plan, role, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, recommended_keywords, recommendations_updated_at, blog_url, blog_id, blog_name, blog_thumbnail, blog_total_posts, blog_score, blog_level, blog_category_keywords, blog_last_post_date, blog_updated_at, blog_verification_code, blog_verified, blog_verified_at')
       .eq('id', user.id)
       .single()
 
@@ -234,7 +234,7 @@ export async function GET() {
     } : null
 
     return NextResponse.json({
-      profile: profile || { plan: 'free', role: 'user', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
+      profile: profile || { plan: 'free', role: 'user', credits_balance: 30, credits_monthly_quota: 30, credits_reset_at: '', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       blogProfile,
       recentKeywords: recentKeywords || [],
       recentContent: recentContent || [],
@@ -246,7 +246,7 @@ export async function GET() {
   } catch (error) {
     console.error('[Dashboard] 오류:', error)
     return NextResponse.json({
-      profile: { plan: 'free', role: 'user', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
+      profile: { plan: 'free', role: 'user', credits_balance: 30, credits_monthly_quota: 30, credits_reset_at: '', keywords_used_this_month: 0, content_generated_this_month: 0, analysis_used_today: 0, analysis_reset_date: '' },
       recentKeywords: [],
       recentContent: [],
       contentStats: { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 },

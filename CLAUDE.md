@@ -33,6 +33,7 @@ naverseo-pro/
 │   │   │   ├── content/        # AI 콘텐츠 생성
 │   │   │   ├── seo-check/      # SEO 점수 체커
 │   │   │   ├── tracking/       # 순위 트래킹
+│   │   │   ├── credits/        # 크레딧 관리
 │   │   │   └── settings/       # 계정 설정/결제
 │   │   ├── api/                # API Routes
 │   │   │   ├── naver/          # 네이버 API 프록시
@@ -72,11 +73,26 @@ naverseo-pro/
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users PRIMARY KEY,
   email TEXT NOT NULL,
-  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'starter', 'pro', 'agency')),
-  keywords_used_this_month INT DEFAULT 0,
-  content_generated_this_month INT DEFAULT 0,
+  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'lite', 'starter', 'pro', 'business', 'agency')),
+  credits_balance INT DEFAULT 30,
+  credits_monthly_quota INT DEFAULT 30,
+  credits_reset_at TIMESTAMPTZ,
+  keywords_used_this_month INT DEFAULT 0,       -- 레거시 (참고용)
+  content_generated_this_month INT DEFAULT 0,    -- 레거시 (참고용)
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 크레딧 사용 내역 로그
+CREATE TABLE credit_usage_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  feature TEXT NOT NULL,
+  credits_spent INT NOT NULL,
+  credits_before INT NOT NULL,
+  credits_after INT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 키워드 리서치 결과 저장
@@ -211,13 +227,41 @@ Query:
   sort: "sim" | "date"
 ```
 
-## 가격 정책
-| 플랜 | 월 가격 | 키워드 조회 | AI 콘텐츠 생성 | 순위 트래킹 |
-|------|--------|-----------|-------------|-----------|
-| Free | ₩0 | 10회/월 | 3편/월 | X |
-| Starter | ₩29,000 | 50회/월 | 10편/월 | 키워드 5개 |
-| Pro | ₩59,000 | 무제한 | 50편/월 | 키워드 30개 |
-| Agency | ₩149,000 | 무제한 | 200편/월 | 키워드 100개 |
+## 가격 정책 (통합 크레딧 시스템)
+
+### 플랜별 월 크레딧 (6개 요금제)
+| 플랜 | 월 가격 | 월 크레딧 | 크레딧당 단가 |
+|------|--------|----------|-------------|
+| Free | ₩0 | 30 | - |
+| Lite | ₩9,900 | 100 | ₩99 |
+| Starter | ₩29,900 | 400 | ₩75 (~25% 할인) |
+| Pro | ₩49,900 | 750 | ₩67 (~33% 할인) |
+| Business | ₩99,900 | 1,700 | ₩59 (~41% 할인) |
+| Agency | ₩149,900 | 3,000 | ₩50 (~50% 할인) |
+| Admin | - | 무제한 | - |
+
+### 기능별 크레딧 소모
+| 기능 | 크레딧 | Free 기준 |
+|------|--------|----------|
+| 키워드 리서치 | 1 | ~30회 |
+| 키워드 발굴 | 3 | Starter+ |
+| AI 콘텐츠 생성 | 5 | Lite+ |
+| SEO 점수 체크 | 2 | ~15회 |
+| 상위노출 분석 | 3 | Starter+ |
+| 블로그 지수 | 3 | ~10회 |
+| 순위 트래킹 (1키워드) | 1 | Starter+ |
+| SEO 리포트 | 2 | Lite+ |
+| 콘텐츠 개선 | 3 | Starter+ |
+
+### 플랜별 기능 게이트
+- Free (3기능): keyword_research, seo_check, blog_index
+- Lite (5기능): Free + content_generation, seo_report
+- Starter 이상: 모든 기능 사용 가능 (크레딧만 있으면 OK)
+
+### 크레딧 관련 모듈
+- `src/lib/credit-check.ts`: checkCredits() + deductCredits() (통합 사용량 관리)
+- `src/app/api/credits/route.ts`: 크레딧 사용 내역 API
+- `src/app/(dashboard)/credits/page.tsx`: 크레딧 관리 페이지 (차트 + 내역)
 
 ## 코딩 컨벤션
 - 모든 컴포넌트는 함수형 + TypeScript
@@ -275,7 +319,7 @@ Query:
 | `verify-dashboard-pages` | 대시보드/인증 페이지의 클라이언트 선언, 한국어 UI, shadcn/ui 사용, 로딩/에러 상태 검증 |
 | `verify-landing-pages` | 랜딩 페이지의 한국어 마케팅 텍스트, 가격 일관성, shadcn/ui, 아이콘 통일 검증 |
 | `verify-security` | 봇 차단/Rate Limiting/robots.txt/보안 헤더 3레이어 일관성 검증 |
-| `verify-plan-limits` | 플랜별 사용량 제한(키워드/콘텐츠/분석/트래킹) 일관 적용 검증 |
+| `verify-plan-limits` | 통합 크레딧 시스템(CREDIT_COSTS/PLAN_CREDITS/FREE_ALLOWED_FEATURES) 및 checkCredits/deductCredits 일관 적용 검증 |
 | `verify-shared-utils` | 공유 유틸리티 중복 코드 재발 방지, import 경로, 미사용 export 검증 |
 | `verify-seo-engine` | SEO 점수 체계(100점 만점) 및 등급 판정의 엔진/API/UI 일관성 검증 |
 | `verify-ai-provider` | AI 제공자(Gemini/Claude) 라우팅, Free 플랜 Gemini 강제, 키워드 Gemini 고정 검증 |

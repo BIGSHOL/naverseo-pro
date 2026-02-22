@@ -93,7 +93,7 @@ export async function PATCH(
     // 허용된 필드만 업데이트
     const allowedFields: Record<string, unknown> = {}
 
-    if (body.plan && ['free', 'starter', 'pro', 'agency'].includes(body.plan)) {
+    if (body.plan && ['free', 'lite', 'starter', 'pro', 'business', 'agency'].includes(body.plan)) {
       allowedFields.plan = body.plan
     }
 
@@ -111,6 +111,41 @@ export async function PATCH(
 
     if (typeof body.analysis_used_today === 'number') {
       allowedFields.analysis_used_today = body.analysis_used_today
+    }
+
+    // 크레딧 관련 필드
+    if (typeof body.credits_balance === 'number') {
+      allowedFields.credits_balance = Math.max(0, body.credits_balance)
+    }
+
+    if (typeof body.credits_monthly_quota === 'number') {
+      allowedFields.credits_monthly_quota = Math.max(0, body.credits_monthly_quota)
+    }
+
+    // 크레딧 추가 (현재 잔액에 더함)
+    if (typeof body.add_credits === 'number' && body.add_credits > 0) {
+      const { data: currentProfile } = await adminDb
+        .from('profiles')
+        .select('credits_balance')
+        .eq('id', id)
+        .single()
+      allowedFields.credits_balance = (currentProfile?.credits_balance ?? 0) + body.add_credits
+    }
+
+    // 크레딧 리셋 (잔액을 월간 할당량으로 복원)
+    if (body.reset_credits === true) {
+      const { data: currentProfile } = await adminDb
+        .from('profiles')
+        .select('credits_monthly_quota')
+        .eq('id', id)
+        .single()
+      const quota = body.credits_monthly_quota ?? currentProfile?.credits_monthly_quota ?? 30
+      allowedFields.credits_balance = quota
+      allowedFields.credits_monthly_quota = quota
+      const nextMonth = new Date()
+      nextMonth.setMonth(nextMonth.getMonth() + 1, 1)
+      nextMonth.setHours(0, 0, 0, 0)
+      allowedFields.credits_reset_at = nextMonth.toISOString()
     }
 
     if (body.ai_provider && ['gemini', 'claude'].includes(body.ai_provider)) {

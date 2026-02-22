@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/admin-check'
-import { PLAN_LIMITS } from '@/lib/plan-check'
+import { CREDIT_COSTS } from '@/lib/credit-check'
+import { PLAN_CREDITS } from '@/types/database'
 
 export async function GET() {
   const auth = await verifyAdmin()
@@ -51,7 +52,8 @@ export async function GET() {
 
     return NextResponse.json({
       apiStatus,
-      planLimits: PLAN_LIMITS,
+      creditCosts: CREDIT_COSTS,
+      planCredits: PLAN_CREDITS,
       environment: {
         nodeEnv: process.env.NODE_ENV || 'development',
         vercelEnv: process.env.VERCEL_ENV || 'local',

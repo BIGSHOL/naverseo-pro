@@ -1,0 +1,166 @@
+/* ===== NaverSEO Pro Dark Landing Mockup ===== */
+
+.mockup-root {
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #050505 !important;
+  color: #E2E8F0 !important;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  isolation: isolate;
+  /* 모든 border-color 리셋 (globals.css의 * { border-border } 오버라이드) */
+  --border: 0 0% 100% / 0.08;
+}
+
+.mockup-root *::selection {
+  background-color: #CCFF00;
+  color: #000;
+}
+
+/* globals.css의 * { border-border } 오버라이드 */
+.mockup-root *,
+.mockup-root *::before,
+.mockup-root *::after {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Glass morphism panel */
+.glass-panel {
+  background: rgba(15, 16, 18, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Gradient text */
+.text-gradient-primary {
+  background: linear-gradient(135deg, #CCFF00 0%, #00FF99 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hero mesh background */
+.bg-hero-mesh {
+  background:
+    radial-gradient(at 0% 0%, rgba(204, 255, 0, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(100, 100, 255, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(204, 255, 0, 0.05) 0px, transparent 50%);
+}
+
+/* Bento card */
+.bento-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.bento-card:hover {
+  border-color: rgba(204, 255, 0, 0.3);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+}
+
+/* Glow button */
+.glow-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.glow-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: 0.6s;
+}
+
+.glow-button:hover::after {
+  left: 100%;
+}
+
+.glow-button:hover {
+  box-shadow: 0 0 35px rgba(204, 255, 0, 0.35);
+}
+
+/* 3D perspective */
+.perspective-container {
+  perspective: 1500px;
+}
+
+.rotate-3d {
+  transform: rotateX(15deg) rotateY(-5deg) rotateZ(2deg) scale(0.95);
+  transition: transform 0.6s ease-out;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+.rotate-3d:hover {
+  transform: rotateX(5deg) rotateY(-2deg) rotateZ(0deg) scale(1);
+}
+
+/* Stat card */
+.stat-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 20px rgba(255,255,255,0.02);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: rgba(204, 255, 0, 0.2);
+  box-shadow: 0 0 30px rgba(204, 255, 0, 0.05), inset 0 0 20px rgba(255,255,255,0.02);
+}
+
+/* Float 3D animation */
+@keyframes float-3d {
+  0% { transform: translateY(0px) rotateX(15deg) rotateY(-5deg) rotateZ(2deg) scale(0.95); }
+  50% { transform: translateY(-20px) rotateX(15deg) rotateY(-5deg) rotateZ(2deg) scale(0.95); }
+  100% { transform: translateY(0px) rotateX(15deg) rotateY(-5deg) rotateZ(2deg) scale(0.95); }
+}
+
+.animate-float-3d {
+  animation: float-3d 8s ease-in-out infinite;
+}
+
+.animate-float-3d:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbar */
+.mockup-root::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mockup-root::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+.mockup-root::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+.mockup-root::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Cursor blink */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s infinite;
+}
+
+/* Line expand on hover */
+.line-expand {
+  transition: width 0.5s ease;
+}

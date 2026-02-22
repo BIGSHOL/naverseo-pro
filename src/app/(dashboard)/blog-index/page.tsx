@@ -161,16 +161,17 @@ interface BlogIndexResult {
 
 // ===== SVG 레이더 차트 =====
 
-function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
-  const size = 260
-  const center = size / 2
-  const radius = 75
-  const levels = 4
+function RadarChart({ categories, size = 220 }: { categories: AnalysisCategory[]; size?: number }) {
+  const pad = 48 // 라벨용 여백
+  const totalSize = size + pad * 2
+  const center = totalSize / 2
+  const radius = size / 2
 
   // 4축 각도 (12시 방향 시작, 시계 방향)
   const angles = categories.map((_, i) => (Math.PI * 2 * i) / categories.length - Math.PI / 2)
 
   // 레벨 그리드 그리기
+  const levels = 4
   const gridPaths = Array.from({ length: levels }, (_, level) => {
     const r = (radius * (level + 1)) / levels
     const points = angles.map((angle) => `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`)
@@ -181,25 +182,42 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
   const dataPoints = categories.map((cat, i) => {
     const ratio = cat.score / cat.maxScore
     const r = radius * ratio
-    return `${center + r * Math.cos(angles[i])},${center + r * Math.sin(angles[i])}`
+    return { x: center + r * Math.cos(angles[i]), y: center + r * Math.sin(angles[i]) }
   })
+  const dataPolygon = dataPoints.map(p => `${p.x},${p.y}`).join(' ')
 
-  // 축 라벨 위치 (충분한 여백)
-  const labelPositions = categories.map((cat, i) => {
-    const labelRadius = radius + 35
-    const x = center + labelRadius * Math.cos(angles[i])
-    const y = center + labelRadius * Math.sin(angles[i])
-    return { name: cat.name, x, y, score: cat.score, maxScore: cat.maxScore }
+  // 축 끝 라벨 위치
+  const labelOffset = radius + 28
+  const labels = categories.map((cat, i) => {
+    const x = center + labelOffset * Math.cos(angles[i])
+    const y = center + labelOffset * Math.sin(angles[i])
+    // 텍스트 정렬
+    const angleDeg = (angles[i] * 180) / Math.PI
+    let anchor: 'start' | 'middle' | 'end' = 'middle'
+    if (angleDeg > 10 && angleDeg < 170) anchor = 'start'
+    else if (angleDeg > -170 && angleDeg < -10) anchor = 'end'
+    // 왼쪽 축은 end, 오른쪽 축은 start
+    if (Math.abs(angleDeg + 90) < 5 || Math.abs(angleDeg - 90) < 5) anchor = 'middle'
+    if (angleDeg > 5 && angleDeg < 175) anchor = 'start'
+    if (angleDeg < -5 && angleDeg > -175) anchor = 'end'
+    return { name: cat.name, score: cat.score, maxScore: cat.maxScore, x, y, anchor }
   })
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto w-full max-w-[260px]">
+    <svg viewBox={`0 0 ${totalSize} ${totalSize}`} className="mx-auto w-full max-w-[320px]">
+      <defs>
+        <radialGradient id="radarFill" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.08" />
+        </radialGradient>
+      </defs>
       {/* 배경 그리드 */}
       {gridPaths.map((points, i) => (
         <polygon
           key={i}
           points={points}
-          fill="none"
+          fill={i === levels - 1 ? 'hsl(var(--muted))' : 'none'}
+          fillOpacity={i === levels - 1 ? 0.3 : 0}
           stroke="currentColor"
           strokeWidth="0.5"
           className="text-muted-foreground/20"
@@ -215,49 +233,60 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
           y2={center + radius * Math.sin(angle)}
           stroke="currentColor"
           strokeWidth="0.5"
-          className="text-muted-foreground/20"
+          className="text-muted-foreground/15"
         />
       ))}
       {/* 데이터 영역 */}
       <polygon
-        points={dataPoints.join(' ')}
-        fill="hsl(var(--primary))"
-        fillOpacity="0.15"
+        points={dataPolygon}
+        fill="url(#radarFill)"
         stroke="hsl(var(--primary))"
         strokeWidth="2"
       />
       {/* 데이터 점 */}
-      {dataPoints.map((point, i) => {
-        const [x, y] = point.split(',').map(Number)
-        return <circle key={i} cx={x} cy={y} r="3" fill="hsl(var(--primary))" />
-      })}
-      {/* 라벨 */}
-      {labelPositions.map((lbl, i) => (
-        <text
-          key={i}
-          x={lbl.x}
-          y={lbl.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          className="fill-foreground text-[9px] font-medium"
-        >
-          {lbl.name}
-        </text>
+      {dataPoints.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="5" fill="hsl(var(--primary))" fillOpacity="0.2" />
+          <circle cx={p.x} cy={p.y} r="3" fill="hsl(var(--primary))" />
+        </g>
       ))}
-      {/* 중앙 등급 */}
+      {/* 라벨: 카테고리명 + 점수 */}
+      {labels.map((lbl, i) => (
+        <g key={i}>
+          <text
+            x={lbl.x}
+            y={lbl.y - 6}
+            textAnchor={lbl.anchor}
+            dominantBaseline="middle"
+            className="fill-foreground text-[10px] font-semibold"
+          >
+            {lbl.name}
+          </text>
+          <text
+            x={lbl.x}
+            y={lbl.y + 8}
+            textAnchor={lbl.anchor}
+            dominantBaseline="middle"
+            className="fill-muted-foreground text-[9px]"
+          >
+            {lbl.score}/{lbl.maxScore}
+          </text>
+        </g>
+      ))}
+      {/* 중앙 점수 */}
       <text
         x={center}
-        y={center - 4}
+        y={center - 5}
         textAnchor="middle"
-        className="fill-primary text-[16px] font-bold"
+        className="fill-primary text-[20px] font-bold"
       >
         {categories.reduce((s, c) => s + c.score, 0)}
       </text>
       <text
         x={center}
-        y={center + 12}
+        y={center + 13}
         textAnchor="middle"
-        className="fill-muted-foreground text-[8px]"
+        className="fill-muted-foreground text-[9px]"
       >
         / 100
       </text>
@@ -317,12 +346,12 @@ function getCategoryIcon(name: string) {
 
 
 function getDaysAgoBadge(daysAgo: number) {
-  if (daysAgo === 0) return <Badge className="bg-green-100 text-green-700 text-[10px]">오늘</Badge>
-  if (daysAgo <= 3) return <Badge className="bg-green-100 text-green-700 text-[10px]">{daysAgo}일 전</Badge>
-  if (daysAgo <= 7) return <Badge className="bg-blue-100 text-blue-700 text-[10px]">{daysAgo}일 전</Badge>
-  if (daysAgo <= 14) return <Badge className="bg-cyan-100 text-cyan-700 text-[10px]">{daysAgo}일 전</Badge>
-  if (daysAgo <= 30) return <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">{daysAgo}일 전</Badge>
-  return <Badge variant="outline" className="text-[10px]">{daysAgo}일 전</Badge>
+  if (daysAgo === 0) return <Badge className="bg-green-100 text-green-700 text-[10px] whitespace-nowrap">오늘</Badge>
+  if (daysAgo <= 3) return <Badge className="bg-green-100 text-green-700 text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
+  if (daysAgo <= 7) return <Badge className="bg-blue-100 text-blue-700 text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
+  if (daysAgo <= 14) return <Badge className="bg-cyan-100 text-cyan-700 text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
+  if (daysAgo <= 30) return <Badge className="bg-yellow-100 text-yellow-700 text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
+  return <Badge variant="outline" className="text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
 }
 
 // ===== 벤치마크 바 컴포넌트 =====
@@ -367,8 +396,10 @@ export default function BlogIndexPage() {
   const [blogUrl, setBlogUrl] = useState('')
   const [testKeywords, setTestKeywords] = useState('')
   const [loading, setLoading] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<BlogIndexResult | null>(null)
+  const [userPlan, setUserPlan] = useState<string>('free')
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -393,6 +424,14 @@ export default function BlogIndexPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || '블로그 지수 측정에 실패했습니다.'); return }
       setResult(data)
+      // 플랜 정보 가져오기
+      try {
+        const profileRes = await fetch('/api/dashboard')
+        if (profileRes.ok) {
+          const profileData = await profileRes.json()
+          setUserPlan(profileData.plan || 'free')
+        }
+      } catch { /* 무시 */ }
       // 키워드를 비워둔 경우, 자동 추출된 키워드를 입력란에 채워넣기
       if (keywords.length === 0 && data.keywordResults?.length > 0) {
         setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
@@ -403,6 +442,45 @@ export default function BlogIndexPage() {
       setLoading(false)
     }
   }
+
+  const handleAiAnalysis = async () => {
+    if (!result || aiLoading) return
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/blog-index/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogUrl: result.blogUrl }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'AI 심층 분석에 실패했습니다.')
+        return
+      }
+      // 결과에 AI 분석 병합
+      const updated = { ...result }
+      updated.aiAnalysis = data.aiAnalysis
+      // 점수 보정 적용
+      if (data.aiAnalysis.scoreAdjustment !== 0) {
+        updated.totalScore = Math.max(0, Math.min(100, updated.totalScore + data.aiAnalysis.scoreAdjustment))
+      }
+      // AI 추천 병합
+      if (data.aiAnalysis.recommendations?.length > 0) {
+        const existingSet = new Set(updated.recommendations.map((r: string) => r.substring(0, 20)))
+        const newRecs = data.aiAnalysis.recommendations.filter(
+          (r: string) => !existingSet.has(r.substring(0, 20))
+        )
+        updated.recommendations = [...updated.recommendations, ...newRecs].slice(0, 8)
+      }
+      setResult(updated)
+    } catch {
+      setError('AI 분석 중 네트워크 오류가 발생했습니다.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const canUseAi = userPlan !== 'free'
 
   return (
     <>
@@ -537,52 +615,56 @@ export default function BlogIndexPage() {
                 </CardContent>
               </Card>
 
-              {/* 종합 점수 + 등급 */}
-              <Card className="lg:col-span-5">
+              {/* 종합 점수 + 레이더 + 등급 (통합) */}
+              <Card className="lg:col-span-9">
                 <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    {/* 도넛 스코어 */}
-                    <div className="flex flex-col items-center gap-1.5">
-                      <div className={`flex h-24 w-24 items-center justify-center rounded-full border-[5px] ${getScoreRingColor(result.totalScore)} bg-background`}>
-                        <div className="text-center">
-                          <span className="text-3xl font-bold">{result.totalScore}</span>
-                          <p className="text-[10px] text-muted-foreground">/100</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* 왼쪽: 레이더 차트 */}
+                    <div className="flex items-center justify-center">
+                      <RadarChart categories={result.categories} />
+                    </div>
+                    {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(result.totalScore)} bg-background`}>
+                          <div className="text-center">
+                            <span className="text-2xl font-bold">{result.totalScore}</span>
+                            <p className="text-[9px] text-muted-foreground">/100</p>
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <Badge className={`text-xs font-bold ${result.level.badgeColor}`}>
+                            {result.level.label}
+                          </Badge>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">{result.level.category}</Badge>
+                            {result.benchmark && (
+                              <Badge variant="outline" className="text-[10px] text-primary">
+                                상위 {result.benchmark.categoryPercentile}%
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{result.level.description}</p>
                         </div>
                       </div>
-                      <Badge className={`text-xs font-bold ${result.level.badgeColor}`}>
-                        {result.level.label}
-                      </Badge>
-                    </div>
-                    {/* 등급 정보 */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">{result.level.category}</Badge>
-                        {result.benchmark && (
-                          <Badge variant="outline" className="text-[10px] text-primary">
-                            전체 상위 {result.benchmark.categoryPercentile}%
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{result.level.description}</p>
 
-                      {/* 최적화 수치 바 */}
+                      {/* 최적화 수치 */}
                       {result.benchmark && (
-                        <div className="mt-2.5 rounded-lg bg-muted/50 p-2.5">
+                        <div className="mt-3 rounded-lg bg-muted/50 p-2.5">
                           <div className="flex items-center justify-between text-xs">
                             <span className="flex items-center gap-1 font-medium"><Gauge className="h-3 w-3" />최적화 수치</span>
                             <span className="font-bold text-primary">{result.benchmark.optimizationPct}%</span>
                           </div>
-                          <div className="mt-1.5 h-3 rounded-full bg-muted overflow-hidden">
+                          <div className="mt-1.5 h-2.5 rounded-full bg-muted overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all ${result.benchmark.optimizationPct >= 70 ? 'bg-green-500' : result.benchmark.optimizationPct >= 40 ? 'bg-blue-500' : 'bg-orange-400'
-                                }`}
+                              className={`h-full rounded-full transition-all ${result.benchmark.optimizationPct >= 70 ? 'bg-green-500' : result.benchmark.optimizationPct >= 40 ? 'bg-blue-500' : 'bg-orange-400'}`}
                               style={{ width: `${result.benchmark.optimizationPct}%` }}
                             />
                           </div>
                         </div>
                       )}
 
-                      {/* 다음 등급 프로그레스 */}
+                      {/* 다음 등급 */}
                       {result.level.nextTierScore !== null && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
@@ -607,10 +689,9 @@ export default function BlogIndexPage() {
                         const passed = t < result.level.tier
                         const tierLabels: Record<number, string> = { 1: '저품질1', 2: '저품질2', 3: '일반1', 4: '일반2', 5: '일반3', 6: '준최적화1', 7: '준최적화2', 8: '준최적화3', 9: '최적화1', 10: '최적화2', 11: '파워' }
                         let bg = 'bg-muted'
-                        let textCls = 'text-muted-foreground'
+                        const textCls = 'text-foreground font-bold'
                         if (active) {
                           bg = t >= 11 ? 'bg-emerald-500' : t >= 9 ? 'bg-green-500' : t >= 6 ? 'bg-blue-500' : t >= 3 ? 'bg-yellow-500' : 'bg-red-500'
-                          textCls = 'text-foreground font-bold'
                         } else if (passed) {
                           bg = t >= 11 ? 'bg-emerald-200' : t >= 9 ? 'bg-green-200' : t >= 6 ? 'bg-blue-200' : t >= 3 ? 'bg-yellow-200' : 'bg-red-200'
                         }
@@ -635,25 +716,6 @@ export default function BlogIndexPage() {
                       <span className="text-green-500">최적화</span>
                       <span className="text-emerald-500">파워</span>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 레이더 차트 */}
-              <Card className="lg:col-span-4">
-                <CardHeader className="pb-0">
-                  <CardTitle className="text-sm">4축 분석 레이더</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4">
-                  <RadarChart categories={result.categories} />
-                  {/* 축 점수 요약 */}
-                  <div className="mt-1 grid grid-cols-4 gap-1 text-center">
-                    {result.categories.map((cat) => (
-                      <div key={cat.name}>
-                        <p className="text-[9px] text-muted-foreground">{cat.name.replace(' ', '\n')}</p>
-                        <p className="text-xs font-bold">{cat.score}<span className="text-[9px] text-muted-foreground">/{cat.maxScore}</span></p>
-                      </div>
-                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -733,7 +795,38 @@ export default function BlogIndexPage() {
               </Card>
             )}
 
-            {/* ===== AI 심층 분석 인사이트 (v2.5) ===== */}
+            {/* ===== AI 심층 분석 (온디맨드) ===== */}
+            {!result.aiAnalysis && (
+              <Card className="border-purple-200 dark:border-purple-800">
+                <CardContent className="py-6">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <Brain className="h-8 w-8 text-purple-400" />
+                    <div>
+                      <h3 className="text-sm font-semibold">AI 심층 분석</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {canUseAi
+                          ? 'AI가 포스트 본문을 분석하여 경험 정보, 콘텐츠 품질, 어뷰징 위험도를 평가합니다.'
+                          : 'AI 심층 분석은 Starter 플랜 이상에서 사용할 수 있습니다.'}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleAiAnalysis}
+                      disabled={!canUseAi || aiLoading}
+                      variant={canUseAi ? 'default' : 'outline'}
+                      className="gap-2"
+                    >
+                      {aiLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" />분석 중... (10~20초 소요)</>
+                      ) : canUseAi ? (
+                        <><Brain className="h-4 w-4" />AI 심층 분석 실행</>
+                      ) : (
+                        <><Brain className="h-4 w-4" />Starter 플랜 이상 전용</>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {result.aiAnalysis && (
               <Card className="border-purple-200 dark:border-purple-800">
                 <CardHeader className="pb-3">
@@ -933,15 +1026,15 @@ export default function BlogIndexPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                    <table className="w-full min-w-[520px] text-sm">
+                    <table className="w-full min-w-[580px] text-sm">
                       <thead>
                         <tr className="border-b text-left">
                           <th className="pb-2 pr-2 font-medium text-muted-foreground min-w-[120px]">제목</th>
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">지수</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-20">지수</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground w-24 whitespace-nowrap">작성일</th>
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-12">경과</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16 whitespace-nowrap">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
-                          <th className="pb-2 font-medium text-muted-foreground text-center w-12">이미지</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-center w-14">이미지</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -955,7 +1048,7 @@ export default function BlogIndexPage() {
                             </td>
                             <td className="py-2 pr-2 text-center">
                               {post.quality ? (
-                                <Badge className={`text-[10px] ${getQualityBadgeStyle(post.quality.category)}`}>
+                                <Badge className={`text-[10px] whitespace-nowrap ${getQualityBadgeStyle(post.quality.category)}`}>
                                   {post.quality.label}
                                 </Badge>
                               ) : (

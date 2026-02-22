@@ -4,7 +4,7 @@ import {
   calculateKeywordScore,
   type NaverKeywordResult,
 } from '@/lib/naver/search-ad'
-import { checkKeywordLimit } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 // 데모 데이터 (API 키 없을 때 사용) - 30개 다양한 롱테일 키워드 생성
 function generateDemoData(keyword: string): NaverKeywordResult[] {
@@ -58,8 +58,8 @@ async function saveKeywordResearch(seedKeyword: string, results: unknown[]) {
       results: { keywords: results },
     })
 
-    // 사용량 증가
-    await supabase.rpc('increment_keyword_usage', { uid: user.id }).maybeSingle()
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'keyword_research', { keyword: seedKeyword })
   } catch {
     // DB 저장 실패해도 API 응답은 정상 반환
     console.error('[Keywords] DB 저장 실패')
@@ -87,11 +87,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 플랜 사용량 체크
-    const planCheck = await checkKeywordLimit(supabase, user.id)
-    if (!planCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'keyword_research')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
         { status: 403 }
       )
     }

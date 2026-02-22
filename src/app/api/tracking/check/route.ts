@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkTrackingAccess } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 // 기존 키워드 순위 재확인
 export async function POST(request: NextRequest) {
@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 플랜 체크 (Free 플랜은 트래킹 불가)
-    const planCheck = await checkTrackingAccess(supabase, user.id)
-    if (!planCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'tracking_per_keyword')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
         { status: 403 }
       )
     }
@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
       rank_position: rankResult.rank,
       section: rankResult.section,
     })
+
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'tracking_per_keyword', { keyword: keyword.trim(), blogUrl: blogUrl.trim() })
 
     return NextResponse.json({
       keyword: keyword.trim(),

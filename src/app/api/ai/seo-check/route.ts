@@ -3,7 +3,7 @@ import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/se
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
 import type { AiSeoAnalysis } from '@/lib/seo/ai-analyzer'
 import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
-import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 interface SeoCheckResponse {
   totalScore: number
@@ -37,11 +37,11 @@ export async function POST(request: NextRequest) {
     // 사용자의 AI 제공자 조회
     const provider = await getUserAiProvider(supabase, user.id)
 
-    const limitCheck = await checkAnalysisLimit(supabase, user.id)
-    if (!limitCheck.allowed) {
+    const creditCheck = await checkCredits(supabase, user.id, 'seo_check')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
-        { status: 429 }
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
       )
     }
 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
     }
 
-    await incrementAnalysisUsage(supabase, user.id)
+    await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
 
     return NextResponse.json(response)
   } catch (error) {

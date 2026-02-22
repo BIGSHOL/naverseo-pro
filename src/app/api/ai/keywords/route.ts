@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callGemini, parseGeminiJson, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gemini'
 import { getKeywordStats, calculateKeywordScore, type NaverKeywordResult } from '@/lib/naver/search-ad'
-import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 interface AiRecommendation {
   keyword: string
@@ -130,12 +130,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 일간 분석 제한 체크
-    const limitCheck = await checkAnalysisLimit(supabase, user.id)
-    if (!limitCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'keyword_discovery')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: limitCheck.message, limit: limitCheck.limit, used: limitCheck.used },
-        { status: 429 }
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
       )
     }
 
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
       const demo = getDemoRecommendations(keyword.trim())
       const enriched = await enrichWithSearchData(demo.recommendations)
-      await incrementAnalysisUsage(supabase, user.id)
+      await deductCredits(supabase, user.id, 'keyword_discovery', { keyword: keyword.trim() })
       return NextResponse.json({ recommendations: enriched, isDemo: true })
     }
 
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     // AI 추천 키워드의 실제 검색량 데이터 병합
     const enriched = await enrichWithSearchData(parsed.recommendations || [])
 
-    await incrementAnalysisUsage(supabase, user.id)
+    await deductCredits(supabase, user.id, 'keyword_discovery', { keyword: keyword.trim() })
     return NextResponse.json({ recommendations: enriched, isDemo: false })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

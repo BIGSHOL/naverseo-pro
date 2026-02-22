@@ -68,7 +68,7 @@ export function ProblemSection() {
         {/* 전환 문구 */}
         <div className="mt-16 text-center">
           <p className="text-xl font-semibold">
-            이 모든 문제를 <span className="text-primary">월 29,000원</span>으로 해결할 수 있다면?
+            이 모든 문제를 <span className="text-primary">월 9,900원</span>부터 해결할 수 있다면?
           </p>
         </div>
       </div>

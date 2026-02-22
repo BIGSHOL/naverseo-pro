@@ -15,6 +15,7 @@ import {
   Compass,
   BarChart3,
   PenTool,
+  Coins,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -79,6 +80,8 @@ export default function ContentCalendarPage() {
   const [month, setMonth] = useState(now.getMonth())
   const [contents, setContents] = useState<ContentItem[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [dailyCredits, setDailyCredits] = useState<Record<string, number>>({})
+  const [monthlyCreditsSpent, setMonthlyCreditsSpent] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -102,6 +105,8 @@ export default function ContentCalendarPage() {
       const data = await res.json()
       setContents(data.contents || [])
       setActivities(data.activities || [])
+      setDailyCredits(data.dailyCredits || {})
+      setMonthlyCreditsSpent(data.monthlyCreditsSpent || 0)
     } catch {
       setError('캘린더 데이터를 불러오는 중 오류가 발생했습니다.')
     } finally {
@@ -233,7 +238,7 @@ export default function ContentCalendarPage() {
       </div>
 
       {/* 월별 통계 */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-7">
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">총 활동</p>
@@ -285,6 +290,15 @@ export default function ContentCalendarPage() {
             </p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-1.5">
+              <Coins className="h-3.5 w-3.5 text-amber-600" />
+              <p className="text-sm text-muted-foreground">크레딧 소모</p>
+            </div>
+            <p className="mt-1 text-2xl font-bold text-amber-600">{monthlyCreditsSpent.toLocaleString()}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 캘린더 (전체 너비) */}
@@ -333,6 +347,7 @@ export default function ContentCalendarPage() {
                 const day = i + 1
                 const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
                 const dayActivities = activitiesByDate[dateKey] || []
+                const dayCreditsSpent = dailyCredits[dateKey] || 0
                 const isToday =
                   year === now.getFullYear() &&
                   month === now.getMonth() &&
@@ -387,6 +402,12 @@ export default function ContentCalendarPage() {
                             />
                           ))}
                         </div>
+                      </div>
+                    )}
+                    {dayCreditsSpent > 0 && (
+                      <div className="mt-0.5 flex items-center gap-0.5 px-1">
+                        <Coins className="h-2.5 w-2.5 text-amber-500" />
+                        <span className="text-[10px] text-amber-600 font-medium">-{dayCreditsSpent}</span>
                       </div>
                     )}
                   </div>

@@ -10,7 +10,7 @@ import {
   validateContentStructure,
   type ContentGenerationRequest,
 } from '@/lib/content/engine'
-import { checkContentLimit } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { getKeywordStats, type NaverKeywordResult } from '@/lib/naver/search-ad'
 import { fetchKeywordTrend } from '@/lib/naver/datalab'
@@ -251,8 +251,8 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
       seo_score: seoScore,
     }).select('id').single()
 
-    // 사용량 증가
-    await supabase.rpc('increment_content_usage', { uid: user.id }).maybeSingle()
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'content_generation', { keyword })
 
     return { id: data?.id || null, seoScore }
   } catch {
@@ -275,11 +275,11 @@ export async function POST(request: NextRequest) {
     // 사용자의 AI 제공자 조회
     const provider = await getUserAiProvider(supabase, user.id)
 
-    // 플랜 사용량 체크
-    const planCheck = await checkContentLimit(supabase, user.id)
-    if (!planCheck.allowed) {
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'content_generation')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
         { status: 403 }
       )
     }

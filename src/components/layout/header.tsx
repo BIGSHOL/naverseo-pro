@@ -19,7 +19,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MobileSidebar } from './mobile-sidebar'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
-import { PLANS, type Plan } from '@/types/database'
 
 interface Notification {
   icon: LucideIcon
@@ -30,44 +29,24 @@ interface Notification {
   href?: string
 }
 
-function parseLimit(str: string): number {
-  if (str.includes('무제한')) return Infinity
-  const match = str.match(/(\d+)/)
-  return match ? parseInt(match[1], 10) : 0
-}
-
 function buildNotifications(data: {
-  profile?: { plan?: string; keywords_used_this_month?: number; content_generated_this_month?: number }
+  profile?: { credits_balance?: number; credits_monthly_quota?: number }
   blogProfile?: { blogUrl: string } | null
   contentStats?: { draft: number; avgSeoScore: number; total: number }
   dailyActivity?: { date: string; keywords: number; content: number }[]
 }): Notification[] {
   const notifications: Notification[] = []
-  const plan = (data.profile?.plan || 'free') as Plan
-  const planInfo = PLANS[plan]
-  if (!planInfo) return staticNotifications()
 
-  // 1. 사용량 한도 임박 (80% 이상)
-  const kwLimit = parseLimit(planInfo.keywords)
-  const kwUsed = data.profile?.keywords_used_this_month || 0
-  if (kwLimit !== Infinity && kwLimit > 0 && kwUsed / kwLimit >= 0.8) {
+  // 1. 크레딧 한도 임박 (잔여 20% 이하)
+  const balance = data.profile?.credits_balance ?? 0
+  const quota = data.profile?.credits_monthly_quota ?? 30
+  if (quota > 0 && balance / quota <= 0.2) {
     notifications.push({
       icon: AlertTriangle,
-      title: kwUsed >= kwLimit ? '키워드 조회 한도 도달' : '키워드 조회 한도 임박',
-      message: `이번 달 키워드 조회 ${kwUsed}/${kwLimit}회 사용했습니다.${kwUsed >= kwLimit ? ' 플랜 업그레이드를 고려해보세요.' : ''}`,
-      time: '사용량',
-      actionable: true,
-      href: '/settings',
-    })
-  }
-
-  const ctLimit = parseLimit(planInfo.content)
-  const ctUsed = data.profile?.content_generated_this_month || 0
-  if (ctLimit !== Infinity && ctLimit > 0 && ctUsed / ctLimit >= 0.8) {
-    notifications.push({
-      icon: AlertTriangle,
-      title: ctUsed >= ctLimit ? 'AI 콘텐츠 한도 도달' : 'AI 콘텐츠 한도 임박',
-      message: `이번 달 콘텐츠 생성 ${ctUsed}/${ctLimit}편 사용했습니다.${ctUsed >= ctLimit ? ' 플랜 업그레이드를 고려해보세요.' : ''}`,
+      title: balance === 0 ? '크레딧 소진' : '크레딧 부족',
+      message: balance === 0
+        ? '크레딧을 모두 사용했습니다. 플랜 업그레이드를 고려해보세요.'
+        : `크레딧이 ${balance}/${quota} 남았습니다. 플랜 업그레이드를 고려해보세요.`,
       time: '사용량',
       actionable: true,
       href: '/settings',

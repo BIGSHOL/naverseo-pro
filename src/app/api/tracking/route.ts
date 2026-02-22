@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkTrackingAccess, checkTrackingCount } from '@/lib/plan-check'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 // 트래킹 키워드 목록 조회
 export async function GET() {
@@ -12,11 +12,11 @@ export async function GET() {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // 플랜 체크 (Free 플랜은 트래킹 불가)
-    const planCheck = await checkTrackingAccess(supabase, user.id)
-    if (!planCheck.allowed) {
+    // 크레딧 체크 (잔액 확인만, GET이므로 차감하지 않음)
+    const creditCheck = await checkCredits(supabase, user.id, 'tracking_per_keyword')
+    if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
         { status: 403 }
       )
     }
@@ -111,26 +111,14 @@ export async function POST(request: NextRequest) {
       .eq('blog_url', blogUrl.trim())
       .limit(1)
 
-    // 플랜 체크
+    // 크레딧 체크
     const isNew = !existing || existing.length === 0
-    if (isNew) {
-      // 새 키워드: 플랜 접근 + 키워드 수 한도 체크
-      const planCheck = await checkTrackingCount(supabase, user.id)
-      if (!planCheck.allowed) {
-        return NextResponse.json(
-          { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
-          { status: 403 }
-        )
-      }
-    } else {
-      // 기존 키워드 재확인: 플랜 접근만 체크
-      const planCheck = await checkTrackingAccess(supabase, user.id)
-      if (!planCheck.allowed) {
-        return NextResponse.json(
-          { error: planCheck.message, planLimit: true, plan: planCheck.plan, limit: planCheck.limit, used: planCheck.used },
-          { status: 403 }
-        )
-      }
+    const creditCheck = await checkCredits(supabase, user.id, 'tracking_per_keyword')
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
+      )
     }
 
     // 즉시 순위 체크
@@ -161,6 +149,9 @@ export async function POST(request: NextRequest) {
       console.error('[Tracking] 저장 오류:', insertError)
       return NextResponse.json({ error: '저장에 실패했습니다.' }, { status: 500 })
     }
+
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'tracking_per_keyword', { keyword: keyword.trim(), blogUrl: blogUrl.trim() })
 
     return NextResponse.json({
       keyword: keyword.trim(),

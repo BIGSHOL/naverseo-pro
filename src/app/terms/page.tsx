@@ -57,7 +57,7 @@ export default function TermsPage() {
               <li>&quot;서비스&quot;란 NaverSEO Pro가 제공하는 네이버 키워드 검색량 조회, AI 블로그 콘텐츠 생성, SEO 점수 분석, 블로그 순위 트래킹 등 모든 온라인 서비스를 의미합니다.</li>
               <li>&quot;회원&quot;이란 본 약관에 동의하고 서비스에 가입하여 계정을 부여받은 자를 의미합니다.</li>
               <li>&quot;비회원&quot;이란 회원가입 없이 서비스의 일부 기능(랜딩 페이지 열람 등)을 이용하는 자를 의미합니다.</li>
-              <li>&quot;유료 플랜&quot;이란 Starter, Pro, Agency 등 월정액 요금을 지불하고 이용하는 서비스를 의미합니다.</li>
+              <li>&quot;유료 플랜&quot;이란 Lite, Starter, Pro, Business, Agency 등 월정액 요금을 지불하고 이용하는 서비스를 의미합니다.</li>
               <li>&quot;콘텐츠&quot;란 서비스를 통해 AI가 생성한 블로그 글, 분석 결과, 키워드 데이터 등 일체의 정보를 의미합니다.</li>
             </ol>
           </section>
@@ -155,7 +155,7 @@ export default function TermsPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-foreground">제8조 (이용 요금 및 결제)</h2>
             <ol className="list-decimal space-y-2 pl-6">
-              <li>서비스는 무료 플랜(Free)과 유료 플랜(Starter, Pro, Agency)을 제공합니다. 각 플랜별 제공 기능 및 이용 한도는 서비스 내 가격 안내 페이지에 명시합니다.</li>
+              <li>서비스는 무료 플랜(Free)과 유료 플랜(Lite, Starter, Pro, Business, Agency)을 제공합니다. 각 플랜별 제공 기능 및 이용 한도는 서비스 내 가격 안내 페이지에 명시합니다.</li>
               <li>유료 플랜은 월 단위로 자동 갱신되며, 회원이 해지하지 않는 한 매월 동일한 결제 수단으로 결제됩니다.</li>
               <li>결제는 토스페이먼츠를 통해 처리되며, 회사는 결제 정보를 직접 저장하지 않습니다.</li>
               <li>각 플랜의 월간 사용량(키워드 조회 횟수, AI 콘텐츠 생성 횟수 등)은 매월 1일에 초기화됩니다.</li>

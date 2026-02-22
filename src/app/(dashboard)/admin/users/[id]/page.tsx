@@ -24,13 +24,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, Bot, Save, Shield, User } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { ArrowLeft, Bot, Coins, Save, Shield, User } from 'lucide-react'
 
 interface UserProfile {
   id: string
   email: string
   plan: string
   role: string
+  credits_balance: number
+  credits_monthly_quota: number
+  credits_reset_at: string
   keywords_used_this_month: number
   content_generated_this_month: number
   analysis_used_today: number
@@ -65,8 +69,10 @@ interface UserDetailData {
 
 const planColors: Record<string, string> = {
   free: 'bg-gray-100 text-gray-700',
+  lite: 'bg-green-100 text-green-700',
   starter: 'bg-blue-100 text-blue-700',
   pro: 'bg-purple-100 text-purple-700',
+  business: 'bg-orange-100 text-orange-700',
   agency: 'bg-amber-100 text-amber-700',
 }
 
@@ -81,6 +87,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
   const [editPlan, setEditPlan] = useState('')
   const [editRole, setEditRole] = useState('')
   const [editAiProvider, setEditAiProvider] = useState('')
+  const [addCreditsAmount, setAddCreditsAmount] = useState('')
 
   useEffect(() => {
     async function loadUser() {
@@ -204,6 +211,68 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     }
   }
 
+  async function handleResetCredits() {
+    if (!data) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reset_credits: true }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '크레딧 리셋 중 오류가 발생했습니다.')
+        return
+      }
+
+      setData({ ...data, profile: result.profile })
+      setSuccess('크레딧이 월간 할당량으로 리셋되었습니다.')
+    } catch {
+      setError('크레딧 리셋 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAddCredits() {
+    if (!data) return
+    const amount = parseInt(addCreditsAmount, 10)
+    if (!amount || amount <= 0) {
+      setError('추가할 크레딧 수를 입력해주세요.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add_credits: amount }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '크레딧 추가 중 오류가 발생했습니다.')
+        return
+      }
+
+      setData({ ...data, profile: result.profile })
+      setAddCreditsAmount('')
+      setSuccess(`${amount} 크레딧이 추가되었습니다.`)
+    } catch {
+      setError('크레딧 추가 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -281,8 +350,10 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="lite">Lite</SelectItem>
                     <SelectItem value="starter">Starter</SelectItem>
                     <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="business">Business</SelectItem>
                     <SelectItem value="agency">Agency</SelectItem>
                   </SelectContent>
                 </Select>
@@ -351,87 +422,127 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
           </CardContent>
         </Card>
 
-        {/* 사용량 통계 */}
+        {/* 크레딧 관리 */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">사용량 통계</CardTitle>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">전체 초기화</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>전체 사용량 초기화</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    이 사용자의 월간/일간 사용량을 모두 0으로 초기화합니다. 계속하시겠습니까?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>취소</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleResetUsage}>전체 초기화</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Coins className="h-5 w-5" />
+              크레딧 관리
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <span className="text-sm">키워드 조회 (월간)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-semibold">{profile.keywords_used_this_month}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    disabled={saving || profile.keywords_used_this_month === 0}
-                    onClick={() => handleResetSingle('keywords_used_this_month', '키워드 조회')}
-                  >
-                    초기화
+          <CardContent className="space-y-4">
+            {/* 현재 크레딧 잔액 */}
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">크레딧 잔액</span>
+                <span className="text-2xl font-bold">
+                  {(profile.credits_balance ?? 0).toLocaleString()}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {' '}/ {(profile.credits_monthly_quota ?? 30).toLocaleString()}
+                  </span>
+                </span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${profile.credits_monthly_quota ? Math.min(100, ((profile.credits_balance ?? 0) / profile.credits_monthly_quota) * 100) : 0}%` }}
+                />
+              </div>
+              {profile.credits_reset_at && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  다음 리셋: {new Date(profile.credits_reset_at).toLocaleDateString('ko-KR')}
+                </p>
+              )}
+            </div>
+
+            {/* 크레딧 주입 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">크레딧 추가 (강제 주입)</label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="추가할 크레딧 수"
+                  value={addCreditsAmount}
+                  onChange={(e) => setAddCreditsAmount(e.target.value)}
+                  min={1}
+                  className="w-40"
+                />
+                <Button onClick={handleAddCredits} disabled={saving} size="sm">
+                  추가
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                현재 잔액에 입력한 수만큼 크레딧을 즉시 추가합니다.
+              </p>
+            </div>
+
+            {/* 빠른 주입 버튼 */}
+            <div className="flex flex-wrap gap-2">
+              {[10, 50, 100, 500].map((amount) => (
+                <Button
+                  key={amount}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={saving}
+                  onClick={() => {
+                    setAddCreditsAmount(String(amount))
+                  }}
+                >
+                  +{amount}
+                </Button>
+              ))}
+            </div>
+
+            {/* 크레딧 리셋 */}
+            <div className="border-t pt-4">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    크레딧 리셋
                   </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>크레딧 리셋</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      이 사용자의 크레딧을 월간 할당량({(profile.credits_monthly_quota ?? 30).toLocaleString()})으로 리셋합니다. 계속하시겠습니까?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetCredits}>리셋</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+
+            {/* 기존 사용량 (deprecated - 참고용) */}
+            <div className="border-t pt-4">
+              <p className="text-xs text-muted-foreground mb-2">기존 카운터 (참고용)</p>
+              <div className="grid gap-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">키워드 조회 (월간)</span>
+                  <span>{profile.keywords_used_this_month}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">콘텐츠 생성 (월간)</span>
+                  <span>{profile.content_generated_this_month}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">블로그 분석 (일간)</span>
+                  <span>{profile.analysis_used_today}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <span className="text-sm">콘텐츠 생성 (월간)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-semibold">{profile.content_generated_this_month}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    disabled={saving || profile.content_generated_this_month === 0}
-                    onClick={() => handleResetSingle('content_generated_this_month', '콘텐츠 생성')}
-                  >
-                    초기화
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <span className="text-sm">블로그 분석 (일간)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-semibold">{profile.analysis_used_today}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    disabled={saving || profile.analysis_used_today === 0}
-                    onClick={() => handleResetSingle('analysis_used_today', '블로그 분석')}
-                  >
-                    초기화
-                  </Button>
-                </div>
-              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 border-t pt-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <span className="text-sm">전체 콘텐츠</span>
                 <span className="text-lg font-semibold">{totalContent}</span>
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
-                <span className="text-sm">전체 키워드 검색</span>
+                <span className="text-sm">전체 키워드</span>
                 <span className="text-lg font-semibold">{totalKeywords}</span>
               </div>
             </div>

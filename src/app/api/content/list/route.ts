@@ -88,6 +88,29 @@ export async function GET(request: NextRequest) {
 
     const { data: trackings } = await trackingQuery.limit(100)
 
+    // 5) 크레딧 사용 내역 조회
+    let creditQuery = supabase
+      .from('credit_usage_log')
+      .select('credits_spent, created_at')
+      .eq('user_id', user.id)
+
+    if (startDate && endDate) {
+      creditQuery = creditQuery.gte('created_at', startDate).lte('created_at', endDate)
+    }
+
+    const { data: creditLogs } = await creditQuery.limit(500)
+
+    // 일별 크레딧 합계 계산
+    const dailyCredits: Record<string, number> = {}
+    for (const log of (creditLogs || [])) {
+      const d = new Date(log.created_at)
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      dailyCredits[dateKey] = (dailyCredits[dateKey] || 0) + log.credits_spent
+    }
+
+    // 월간 총 크레딧 소모
+    const monthlyCreditsSpent = (creditLogs || []).reduce((sum, l) => sum + l.credits_spent, 0)
+
     // 통합 활동 데이터 구성
     const activities = [
       ...(contents || []).map((c) => ({
@@ -131,6 +154,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       contents: contents || [],
       activities,
+      dailyCredits,
+      monthlyCreditsSpent,
     })
   } catch (error) {
     console.error('[Content List] 오류:', error)

@@ -10,6 +10,7 @@ import {
   Activity,
   Users,
   Lightbulb,
+  Coins,
   Shield,
   UserCog,
   ServerCog,
@@ -34,6 +35,7 @@ export const navItems: NavItem[] = [
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
   { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
   { label: 'SEO 리포트', href: '/report', icon: FileDown },
+  { label: '크레딧', href: '/credits', icon: Coins },
   { label: '설정', href: '/settings', icon: Settings },
 ]
 

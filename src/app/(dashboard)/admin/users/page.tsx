@@ -21,6 +21,8 @@ interface UserItem {
   email: string
   plan: string
   role: string
+  credits_balance: number
+  credits_monthly_quota: number
   keywords_used_this_month: number
   content_generated_this_month: number
   analysis_used_today: number
@@ -37,8 +39,10 @@ interface UsersResponse {
 
 const planColors: Record<string, string> = {
   free: 'bg-gray-100 text-gray-700',
+  lite: 'bg-green-100 text-green-700',
   starter: 'bg-blue-100 text-blue-700',
   pro: 'bg-purple-100 text-purple-700',
+  business: 'bg-orange-100 text-orange-700',
   agency: 'bg-amber-100 text-amber-700',
 }
 
@@ -115,8 +119,10 @@ export default function AdminUsersPage() {
               <SelectContent>
                 <SelectItem value="all">전체 플랜</SelectItem>
                 <SelectItem value="free">Free</SelectItem>
+                <SelectItem value="lite">Lite</SelectItem>
                 <SelectItem value="starter">Starter</SelectItem>
                 <SelectItem value="pro">Pro</SelectItem>
+                <SelectItem value="business">Business</SelectItem>
                 <SelectItem value="agency">Agency</SelectItem>
               </SelectContent>
             </Select>
@@ -155,7 +161,7 @@ export default function AdminUsersPage() {
                 <span className="col-span-2">이메일</span>
                 <span>플랜</span>
                 <span>역할</span>
-                <span>사용량</span>
+                <span>크레딧</span>
                 <span>가입일</span>
               </div>
 
@@ -179,9 +185,7 @@ export default function AdminUsersPage() {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    <span>KW:{user.keywords_used_this_month}</span>
-                    <span className="mx-1">/</span>
-                    <span>CT:{user.content_generated_this_month}</span>
+                    <span>{(user.credits_balance ?? 0).toLocaleString()}/{(user.credits_monthly_quota ?? 30).toLocaleString()}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {new Date(user.created_at).toLocaleDateString('ko-KR')}

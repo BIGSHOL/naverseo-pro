@@ -18,13 +18,13 @@ export async function GET(request: NextRequest) {
 
     let query = adminDb
       .from('profiles')
-      .select('id, email, plan, role, keywords_used_this_month, content_generated_this_month, analysis_used_today, created_at', { count: 'exact' })
+      .select('id, email, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, created_at', { count: 'exact' })
 
     if (search) {
       query = query.ilike('email', `%${search}%`)
     }
 
-    if (planFilter && ['free', 'starter', 'pro', 'agency'].includes(planFilter)) {
+    if (planFilter && ['free', 'lite', 'starter', 'pro', 'business', 'agency'].includes(planFilter)) {
       query = query.eq('plan', planFilter)
     }
 
