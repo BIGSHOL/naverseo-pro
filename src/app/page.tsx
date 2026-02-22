@@ -4,7 +4,6 @@ import { ProblemSection } from '@/components/landing/problem-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { ComparisonSection } from '@/components/landing/comparison-section'
 import { PricingSection } from '@/components/landing/pricing-section'
-import { FaqSection } from '@/components/landing/faq-section'
 import { CtaSection } from '@/components/landing/cta-section'
 import { Footer } from '@/components/landing/footer'
 
@@ -17,7 +16,6 @@ export default function Home() {
       <FeaturesSection />
       <ComparisonSection />
       <PricingSection />
-      <FaqSection />
       <CtaSection />
       <Footer />
     </main>

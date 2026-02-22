@@ -188,7 +188,7 @@ export default function TermsPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-foreground">제10조 (AI 생성 콘텐츠에 관한 특칙)</h2>
             <ol className="list-decimal space-y-2 pl-6">
-              <li>서비스에서 제공하는 AI 콘텐츠 생성 기능은 Google Gemini API를 활용하며, AI가 생성한 콘텐츠의 정확성, 완전성, 적합성을 보장하지 않습니다.</li>
+              <li>서비스에서 제공하는 AI 콘텐츠 생성 및 분석 기능은 Google Gemini API, Anthropic Claude API 등을 활용하며, AI가 생성한 콘텐츠의 정확성, 완전성, 적합성을 보장하지 않습니다.</li>
               <li>AI가 생성한 콘텐츠를 블로그에 게시하거나 활용할 경우, 해당 콘텐츠에 대한 법적 책임(저작권, 명예훼손, 허위사실 유포 등)은 이를 게시한 회원에게 있습니다.</li>
               <li>회원은 AI가 생성한 콘텐츠를 반드시 검토·수정한 후 활용하여야 하며, AI 생성 결과물을 무검토로 대량 게시하여 발생하는 문제에 대해 회사는 책임을 부담하지 않습니다.</li>
               <li>회사는 AI 콘텐츠 생성 품질 향상을 위해 회원의 입력 키워드 및 생성 결과를 익명화하여 분석할 수 있습니다.</li>

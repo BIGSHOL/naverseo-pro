@@ -102,6 +102,7 @@ export async function GET() {
       { data: recentKeywordActivity },
       { data: recentContentActivity },
       { data: trackedKeywords },
+      { data: recentTrackingActivity },
     ] = await Promise.all([
       // 최근 키워드 검색 (5개)
       supabase
@@ -120,7 +121,7 @@ export async function GET() {
       // 최근 생성 콘텐츠 (5개) - seo_score 추가
       supabase
         .from('generated_content')
-        .select('id, target_keyword, title, status, seo_score, created_at')
+        .select('id, target_keyword, title, content, status, seo_score, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5),
@@ -146,6 +147,12 @@ export async function GET() {
         .from('rank_tracking')
         .select('keyword')
         .eq('user_id', user.id),
+      // 7일 활동: 순위 트래킹
+      supabase
+        .from('rank_tracking')
+        .select('checked_at')
+        .eq('user_id', user.id)
+        .gte('checked_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     ])
 
     // 콘텐츠 통계 집계
@@ -159,7 +166,7 @@ export async function GET() {
       : 0
 
     // 7일 활동 일별 집계
-    const dailyActivity: { date: string; keywords: number; content: number }[] = []
+    const dailyActivity: { date: string; keywords: number; content: number; tracking: number }[] = []
     for (let i = 6; i >= 0; i--) {
       const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
       const dateStr = `${d.getMonth() + 1}/${d.getDate()}`
@@ -176,7 +183,12 @@ export async function GET() {
         return t >= dayStart && t < dayEnd
       }).length
 
-      dailyActivity.push({ date: dateStr, keywords: kwCount, content: ctCount })
+      const trkCount = (recentTrackingActivity || []).filter(r => {
+        const t = new Date(r.checked_at)
+        return t >= dayStart && t < dayEnd
+      }).length
+
+      dailyActivity.push({ date: dateStr, keywords: kwCount, content: ctCount, tracking: trkCount })
     }
 
     // 트래킹 키워드 distinct 카운트

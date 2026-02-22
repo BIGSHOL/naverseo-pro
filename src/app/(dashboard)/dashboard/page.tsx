@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText,
   CalendarDays, FileDown, Activity, Users, Lightbulb, Lock, CheckCircle2,
@@ -30,6 +31,7 @@ interface RecentContent {
   id: string
   target_keyword: string
   title: string
+  content: string
   status: string
   seo_score: number | null
   created_at: string
@@ -47,6 +49,7 @@ interface DailyActivity {
   date: string
   keywords: number
   content: number
+  tracking: number
 }
 
 interface BlogProfile {
@@ -115,6 +118,7 @@ const quickActions = [
 // ---------- 메인 컴포넌트 ----------
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [plan, setPlan] = useState<Plan>('free')
   const [keywordsUsed, setKeywordsUsed] = useState(0)
   const [contentGenerated, setContentGenerated] = useState(0)
@@ -275,6 +279,8 @@ export default function DashboardPage() {
       type: 'keyword' as const,
       id: kw.id,
       title: kw.seed_keyword,
+      body: null as string | null,
+      targetKeyword: null as string | null,
       date: kw.created_at,
       status: null as string | null,
       seoScore: null as number | null,
@@ -285,6 +291,8 @@ export default function DashboardPage() {
       type: 'content' as const,
       id: c.id,
       title: c.title,
+      body: c.content as string | null,
+      targetKeyword: c.target_keyword as string | null,
       date: c.created_at,
       status: c.status,
       seoScore: c.seo_score,
@@ -463,7 +471,7 @@ export default function DashboardPage() {
           <CardTitle className="text-base">주간 활동</CardTitle>
         </CardHeader>
         <CardContent className="relative">
-          {dailyActivity.every(d => d.keywords === 0 && d.content === 0) ? (
+          {dailyActivity.every(d => d.keywords === 0 && d.content === 0 && d.tracking === 0) ? (
             <div className="flex h-52 flex-col items-center justify-center text-center">
               <Activity className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">최근 7일간 활동이 없습니다</p>
@@ -485,6 +493,10 @@ export default function DashboardPage() {
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="trkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
@@ -505,6 +517,10 @@ export default function DashboardPage() {
                 <Area
                   type="monotone" dataKey="content" name="콘텐츠 생성"
                   stroke="#22c55e" fill="url(#ctGrad)" strokeWidth={2}
+                />
+                <Area
+                  type="monotone" dataKey="tracking" name="순위 트래킹"
+                  stroke="#f97316" fill="url(#trkGrad)" strokeWidth={2}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -670,7 +686,21 @@ export default function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{item.title}</p>
+                        {item.type === 'content' && item.body ? (
+                          <p
+                            className="text-sm font-medium truncate cursor-pointer hover:text-primary hover:underline"
+                            onClick={() => {
+                              sessionStorage.setItem('naverseo-workflow:content-body', item.body!)
+                              sessionStorage.setItem('naverseo-workflow:content-title', item.title)
+                              sessionStorage.setItem('naverseo-workflow:content-keyword', item.targetKeyword!)
+                              router.push('/seo-check?keyword=' + encodeURIComponent(item.targetKeyword!))
+                            }}
+                          >
+                            {item.title}
+                          </p>
+                        ) : (
+                          <p className="text-sm font-medium truncate">{item.title}</p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {item.type === 'keyword' ? '키워드 검색' : '콘텐츠 생성'} · {timeAgo(item.date)}
                         </p>
@@ -690,11 +720,25 @@ export default function DashboardPage() {
                             {item.status === 'draft' ? '초안' : item.status === 'published' ? '발행' : '보관'}
                           </Badge>
                         )}
-                        <Link href={item.actionHref}>
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-primary">
-                            {item.actionLabel}
+                        {item.type === 'content' && item.body ? (
+                          <Button
+                            variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-primary"
+                            onClick={() => {
+                              sessionStorage.setItem('naverseo-workflow:content-body', item.body!)
+                              sessionStorage.setItem('naverseo-workflow:content-title', item.title)
+                              sessionStorage.setItem('naverseo-workflow:content-keyword', item.targetKeyword!)
+                              router.push('/seo-check?keyword=' + encodeURIComponent(item.targetKeyword!))
+                            }}
+                          >
+                            SEO 체크
                           </Button>
-                        </Link>
+                        ) : (
+                          <Link href={item.actionHref}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-primary">
+                              {item.actionLabel}
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>

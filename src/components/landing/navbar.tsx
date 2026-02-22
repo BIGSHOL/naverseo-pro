@@ -12,7 +12,7 @@ export function Navbar() {
   const navLinks = [
     { label: '기능', href: '/#features' },
     { label: '가격', href: '/#pricing' },
-    { label: 'FAQ', href: '/#faq' },
+    { label: 'FAQ', href: '/faq' },
   ]
 
   return (

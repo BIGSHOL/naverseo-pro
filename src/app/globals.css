@@ -73,6 +73,12 @@
   }
 }
 
+/* Mockup 페이지 다크 배경 오버라이드 */
+body:has(.mockup-root) {
+  background-color: #050505 !important;
+  color: #E2E8F0 !important;
+}
+
 /* PDF 프린트용 스타일 */
 @media print {
   body {

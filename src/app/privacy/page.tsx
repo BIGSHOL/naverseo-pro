@@ -158,7 +158,12 @@ export default function PrivacyPage() {
                   </tr>
                   <tr className="border-b">
                     <td className="py-2.5 px-3">Google LLC (Gemini API)</td>
-                    <td className="py-2.5 px-3">AI 콘텐츠 생성 처리</td>
+                    <td className="py-2.5 px-3">AI 콘텐츠 생성 및 분석 처리</td>
+                    <td className="py-2.5 px-3">위탁계약 종료 시</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2.5 px-3">Anthropic PBC (Claude API)</td>
+                    <td className="py-2.5 px-3">AI 콘텐츠 생성 및 분석 처리</td>
                     <td className="py-2.5 px-3">위탁계약 종료 시</td>
                   </tr>
                 </tbody>
