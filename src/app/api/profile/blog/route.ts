@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { extractBlogId } from '@/lib/utils/text'
+import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,51 +81,51 @@ export async function POST(req: Request) {
       )
     }
 
-    // 2. 블로그 지수 측정 API 호출 (내부 API) - 블로그 존재 여부 및 접근 가능 여부 확인
-    const blogIndexResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/blog-index`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blogUrl, keywords: '' }),
-    })
+    // 2. 블로그 존재 여부 직접 확인 (RSS/크롤링)
+    const blogId = extractBlogId(blogUrl.trim())
+    if (!blogId) {
+      return NextResponse.json(
+        { error: '올바른 네이버 블로그 URL이 아닙니다. (예: https://blog.naver.com/아이디)' },
+        { status: 400 }
+      )
+    }
 
-    if (!blogIndexResponse.ok) {
-      const errorData = await blogIndexResponse.json()
-      const errorMsg = errorData.error || '블로그 정보를 가져올 수 없습니다.'
-
-      // 블로그를 찾을 수 없는 경우 더 친절한 메시지
-      if (errorMsg.includes('찾을 수 없습니다') || errorMsg.includes('존재하지 않습니다')) {
+    let blogName: string | null = null
+    let totalPosts = 0
+    try {
+      const crawlResult = await fetchBlogPosts(blogId, 10)
+      if (crawlResult.posts.length === 0) {
         return NextResponse.json(
-          { error: '블로그를 찾을 수 없습니다. URL이 정확한지, 블로그가 공개 상태인지 확인해주세요.' },
+          { error: '블로그를 찾을 수 없거나 포스트가 없습니다. URL이 정확한지, 블로그가 공개 상태인지 확인해주세요.' },
           { status: 400 }
         )
       }
-
-      return NextResponse.json({ error: errorMsg }, { status: 400 })
+      blogName = crawlResult.blogName
+      totalPosts = crawlResult.posts.length
+    } catch (crawlError) {
+      console.error('[Blog Profile] 블로그 크롤링 실패:', crawlError)
+      return NextResponse.json(
+        { error: '블로그 정보를 가져올 수 없습니다. 잠시 후 다시 시도해주세요.' },
+        { status: 400 }
+      )
     }
-
-    const blogData = await blogIndexResponse.json()
-
-    // 블로그 ID 추출
-    const blogId = blogData.blogId || extractBlogId(blogUrl)
 
     // 3. 소유권 인증 코드 생성 (6자리 영숫자)
     const verificationCode = generateVerificationCode()
 
-    // profiles 테이블 업데이트
+    // profiles 테이블 업데이트 (기본 정보만 저장, 점수는 블로그 지수 분석 시 업데이트)
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        blog_url: blogUrl,
+        blog_url: blogUrl.trim(),
         blog_id: blogId,
-        blog_name: blogData.blogProfile?.blogName || blogId,
-        blog_thumbnail: blogData.blogProfile?.thumbnail || null,
-        blog_total_posts: blogData.blogProfile?.totalPosts || blogData.postAnalysis?.totalFound || 0,
-        blog_score: blogData.totalScore || 0,
-        blog_level: blogData.level?.label || '',
-        blog_category_keywords: blogData.blogProfile?.categoryKeywords || [],
-        blog_last_post_date: blogData.postAnalysis?.recentPostDays !== null
-          ? new Date(Date.now() - blogData.postAnalysis.recentPostDays * 24 * 60 * 60 * 1000).toISOString()
-          : null,
+        blog_name: blogName || blogId,
+        blog_thumbnail: null,
+        blog_total_posts: totalPosts,
+        blog_score: 0,
+        blog_level: '',
+        blog_category_keywords: [],
+        blog_last_post_date: null,
         blog_updated_at: new Date().toISOString(),
         blog_verification_code: verificationCode,
         blog_verification_code_created_at: new Date().toISOString(),
@@ -145,12 +147,12 @@ export async function POST(req: Request) {
       verificationCode,
       needsVerification: true,
       blogProfile: {
-        blogUrl,
+        blogUrl: blogUrl.trim(),
         blogId,
-        blogName: blogData.blogProfile?.blogName || blogId,
-        blogScore: blogData.totalScore || 0,
-        blogLevel: blogData.level?.label || '',
-        totalPosts: blogData.blogProfile?.totalPosts || 0,
+        blogName: blogName || blogId,
+        blogScore: 0,
+        blogLevel: '',
+        totalPosts,
       },
     })
   } catch (error) {
@@ -195,12 +197,6 @@ export async function DELETE() {
     console.error('[Blog Profile] 삭제 오류:', error)
     return NextResponse.json({ error: '블로그 삭제 중 오류가 발생했습니다.' }, { status: 500 })
   }
-}
-
-// 블로그 URL에서 ID 추출
-function extractBlogId(url: string): string | null {
-  const match = url.match(/blog\.naver\.com\/([^/?]+)/)
-  return match ? match[1] : null
 }
 
 // 6자리 인증 코드 생성 (영숫자 대문자)

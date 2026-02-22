@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash } from 'lucide-react'
+import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -105,15 +105,27 @@ export default function CompetitorsPage() {
   const [difficulty, setDifficulty] = useState<DifficultyAssessment | null>(null)
   const [titlePatterns, setTitlePatterns] = useState<TitlePatternWord[]>([])
 
+  const [dateFilter, setDateFilter] = useState<'all' | '1m' | '3m' | '6m'>('all')
+
   const [aiInsights, setAiInsights] = useState<AiInsights | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+
+  // 날짜 필터 적용
+  const filteredCompetitors = competitors.filter(comp => {
+    if (dateFilter === 'all') return true
+    if (dateFilter === '1m') return comp.daysSincePosted <= 30
+    if (dateFilter === '3m') return comp.daysSincePosted <= 90
+    if (dateFilter === '6m') return comp.daysSincePosted <= 180
+    return true
+  })
 
   const handleSearch = async (keyword: string) => {
     setLoading(true)
     setError('')
     setSearched(true)
     setSearchedKeyword(keyword)
+    setDateFilter('all')
     setAiInsights(null)
     setAiError('')
 
@@ -306,7 +318,37 @@ export default function CompetitorsPage() {
           {/* 경쟁사 테이블 */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">상위 {competitors.length}개 블로그</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-lg">
+                  상위 블로그
+                  {dateFilter !== 'all' && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      ({filteredCompetitors.length}/{competitors.length}개)
+                    </span>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  {([
+                    ['all', '전체'],
+                    ['1m', '1개월'],
+                    ['3m', '3개월'],
+                    ['6m', '6개월'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setDateFilter(value)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                        dateFilter === value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -321,7 +363,14 @@ export default function CompetitorsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {competitors.map(comp => (
+                    {filteredCompetitors.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                          해당 기간에 작성된 글이 없습니다
+                        </td>
+                      </tr>
+                    )}
+                    {filteredCompetitors.map(comp => (
                       <tr key={comp.rank} className="border-b last:border-0">
                         <td className="py-3 pr-4">
                           <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${

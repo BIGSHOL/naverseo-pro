@@ -68,25 +68,73 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-lg">
             검색 결과 ({keywords.length}개)
           </CardTitle>
-          {isDemo && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="gap-1 cursor-help">
-                  <Info className="h-3 w-3" />
-                  데모 데이터
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
-            </Tooltip>
-          )}
+          <div className="flex items-center gap-2">
+            {isDemo && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="gap-1 cursor-help">
+                    <Info className="h-3 w-3" />
+                    데모 데이터
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent><p>API 키 미설정 시 표시되는 예시 데이터입니다</p></TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+        {/* 모바일 정렬 버튼 */}
+        <div className="flex items-center gap-1 mt-2 md:hidden">
+          <span className="text-xs text-muted-foreground shrink-0">정렬:</span>
+          {([['score', '점수'], ['totalSearch', '검색량'], ['compIdx', '경쟁도']] as const).map(([key, label]) => (
+            <Button
+              key={key}
+              variant={sortKey === key ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => handleSort(key)}
+            >
+              {label}
+              {sortKey === key && (sortDir === 'asc' ? <ArrowUp className="ml-0.5 h-3 w-3" /> : <ArrowDown className="ml-0.5 h-3 w-3" />)}
+            </Button>
+          ))}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* 모바일: 카드 리스트 */}
+        <div className="space-y-3 md:hidden">
+          {sorted.map((kw, i) => (
+            <div key={i} className="rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium truncate">{kw.relKeyword}</span>
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0 ${getScoreColor(kw.score)}`}>
+                  {kw.score}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">검색량 {formatNumber(kw.totalSearch)}</span>
+                <span className="flex items-center gap-1">경쟁 {getCompBadge(kw.compIdx)}</span>
+                <span className="tabular-nums text-muted-foreground/70">
+                  PC {formatNumber(kw.monthlyPcQcCnt)} / M {formatNumber(kw.monthlyMobileQcCnt)}
+                </span>
+              </div>
+              <div className="mt-2">
+                <Link href={`/content?keyword=${encodeURIComponent(kw.relKeyword)}`}>
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs w-full">
+                    <Wand2 className="h-3 w-3" />
+                    이 키워드로 글쓰기
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 데스크탑: 테이블 */}
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
@@ -105,7 +153,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <th
-                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
+                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
                       onClick={() => handleSort('monthlyPcQcCnt')}
                     >
                       PC<SortIcon columnKey="monthlyPcQcCnt" />
@@ -116,7 +164,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <th
-                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap hidden sm:table-cell"
+                      className="cursor-pointer pb-3 px-3 text-right font-medium text-muted-foreground whitespace-nowrap"
                       onClick={() => handleSort('monthlyMobileQcCnt')}
                     >
                       모바일<SortIcon columnKey="monthlyMobileQcCnt" />
@@ -158,10 +206,10 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                   <td className="py-3 px-3 text-right tabular-nums">
                     {formatNumber(kw.totalSearch)}
                   </td>
-                  <td className="py-3 px-3 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                  <td className="py-3 px-3 text-right tabular-nums text-muted-foreground">
                     {formatNumber(kw.monthlyPcQcCnt)}
                   </td>
-                  <td className="py-3 px-3 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                  <td className="py-3 px-3 text-right tabular-nums text-muted-foreground">
                     {formatNumber(kw.monthlyMobileQcCnt)}
                   </td>
                   <td className="py-3 px-3 text-center">{getCompBadge(kw.compIdx)}</td>

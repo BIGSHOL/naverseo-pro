@@ -85,8 +85,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(response)
     }
 
-    // API 키가 있으면 실제 AI 심층 분석 실행
-    const aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, provider)
+    // API 키가 있으면 실제 AI 심층 분석 실행 (실패해도 기본 결과 반환)
+    let aiAnalysis: AiSeoAnalysis | null = null
+    try {
+      aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, provider)
+    } catch (aiError) {
+      console.error('[SEO Check] AI 심층 분석 실패 (기본 결과로 대체):', aiError)
+    }
 
     // AI 점수 보정 적용 + 등급 재계산
     let finalScore = baseResult.totalScore
@@ -107,8 +112,8 @@ export async function POST(request: NextRequest) {
       ...baseResult,
       totalScore: finalScore,
       grade: finalGrade,
-      isDemo: false,
-      aiAnalysis,
+      isDemo: !aiAnalysis,
+      aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
     }
 
     await incrementAnalysisUsage(supabase, user.id)

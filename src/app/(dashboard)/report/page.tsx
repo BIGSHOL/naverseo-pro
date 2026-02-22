@@ -254,7 +254,35 @@ export default function ReportPage() {
               <CardTitle className="text-base">생성된 콘텐츠</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* 모바일: 카드 리스트 */}
+              <div className="space-y-3 md:hidden">
+                {data.contents.map((c, i) => (
+                  <div key={c.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-sm line-clamp-2 flex-1">
+                        <span className="text-muted-foreground mr-1">{i + 1}.</span>
+                        {c.title}
+                      </p>
+                      {c.seo_score !== null ? (
+                        <span className={`text-sm font-bold shrink-0 ${
+                          c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {c.seo_score}점
+                        </span>
+                      ) : <span className="text-muted-foreground shrink-0">-</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px]">{c.target_keyword}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                      </Badge>
+                      <span>{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 데스크탑: 테이블 */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
@@ -311,7 +339,37 @@ export default function ReportPage() {
               <CardTitle className="text-base">순위 트래킹 현황</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* 모바일: 카드 리스트 */}
+              <div className="space-y-3 md:hidden">
+                {data.tracking.map((t, i) => (
+                  <div key={`${t.keyword}-${t.blog_url}-${i}`} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm">
+                        <span className="text-muted-foreground mr-1">{i + 1}.</span>
+                        {t.keyword}
+                      </span>
+                      {t.rank_position !== null ? (
+                        <span className={`text-sm font-bold shrink-0 ${
+                          t.rank_position <= 5 ? 'text-green-600' : t.rank_position <= 10 ? 'text-blue-600' : ''
+                        }`}>
+                          {t.rank_position}위
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground shrink-0">100+</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px]">
+                        {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                      </Badge>
+                      <span className="truncate">{t.blog_url}</span>
+                      <span className="shrink-0">{new Date(t.checked_at).toLocaleDateString('ko-KR')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 데스크탑: 테이블 */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">

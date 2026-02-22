@@ -174,7 +174,15 @@ export default function SeoCheckPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: keyword.trim(), title: title.trim(), content: content.trim() }),
       })
-      const data = await res.json()
+
+      // 응답이 JSON이 아닐 수 있음 (서버 에러, 타임아웃 등)
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
+        return
+      }
 
       if (!res.ok) {
         setError(data.error || 'SEO 분석에 실패했습니다.')
@@ -182,8 +190,13 @@ export default function SeoCheckPage() {
       }
 
       setResult(data)
-    } catch {
-      setError('네트워크 오류가 발생했습니다.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('abort') || msg.includes('timeout')) {
+        setError('요청 시간이 초과되었습니다. 본문을 줄이거나 다시 시도해주세요.')
+      } else {
+        setError('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.')
+      }
     } finally {
       setLoading(false)
     }
@@ -206,7 +219,7 @@ export default function SeoCheckPage() {
         {/* 좌측: 입력 폼 */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between text-lg">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-lg">
               <span>콘텐츠 입력</span>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -214,9 +227,10 @@ export default function SeoCheckPage() {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="h-7 text-xs sm:h-8 sm:text-sm"
                     onClick={() => setShowUrlInput(!showUrlInput)}
                   >
-                    <Link2 className="mr-1.5 h-4 w-4" />
+                    <Link2 className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
                     URL로 가져오기
                   </Button>
                 </TooltipTrigger>
@@ -254,8 +268,8 @@ export default function SeoCheckPage() {
             )}
 
             {fetchSource && (
-              <div className="mb-4 flex items-center gap-2">
-                <Badge variant="secondary" className="gap-1">
+              <div className="mb-4 flex items-center gap-2 overflow-hidden">
+                <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
                   <ExternalLink className="h-3 w-3" />
                   URL에서 가져옴
                 </Badge>
@@ -263,7 +277,7 @@ export default function SeoCheckPage() {
                   href={fetchSource}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:underline truncate max-w-[300px]"
+                  className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
                 >
                   {fetchSource}
                 </a>

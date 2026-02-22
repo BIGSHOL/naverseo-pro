@@ -162,12 +162,12 @@ interface BlogIndexResult {
 // ===== SVG 레이더 차트 =====
 
 function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
-  const size = 200
+  const size = 260
   const center = size / 2
-  const radius = 70
+  const radius = 75
   const levels = 4
 
-  // 5축 각도 (12시 방향 시작, 시계 방향)
+  // 4축 각도 (12시 방향 시작, 시계 방향)
   const angles = categories.map((_, i) => (Math.PI * 2 * i) / categories.length - Math.PI / 2)
 
   // 레벨 그리드 그리기
@@ -184,16 +184,16 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
     return `${center + r * Math.cos(angles[i])},${center + r * Math.sin(angles[i])}`
   })
 
-  // 축 라벨 위치
+  // 축 라벨 위치 (충분한 여백)
   const labelPositions = categories.map((cat, i) => {
-    const labelRadius = radius + 24
+    const labelRadius = radius + 35
     const x = center + labelRadius * Math.cos(angles[i])
     const y = center + labelRadius * Math.sin(angles[i])
     return { name: cat.name, x, y, score: cat.score, maxScore: cat.maxScore }
   })
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto w-full max-w-[220px]">
+    <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto w-full max-w-[260px]">
       {/* 배경 그리드 */}
       {gridPaths.map((points, i) => (
         <polygon
@@ -239,7 +239,7 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
           y={lbl.y}
           textAnchor="middle"
           dominantBaseline="middle"
-          className="fill-foreground text-[8px] font-medium"
+          className="fill-foreground text-[9px] font-medium"
         >
           {lbl.name}
         </text>
@@ -249,15 +249,15 @@ function RadarChart({ categories }: { categories: AnalysisCategory[] }) {
         x={center}
         y={center - 4}
         textAnchor="middle"
-        className="fill-primary text-[14px] font-bold"
+        className="fill-primary text-[16px] font-bold"
       >
         {categories.reduce((s, c) => s + c.score, 0)}
       </text>
       <text
         x={center}
-        y={center + 10}
+        y={center + 12}
         textAnchor="middle"
-        className="fill-muted-foreground text-[7px]"
+        className="fill-muted-foreground text-[8px]"
       >
         / 100
       </text>
@@ -932,13 +932,13 @@ export default function BlogIndexPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                    <table className="w-full min-w-[520px] text-sm">
                       <thead>
                         <tr className="border-b text-left">
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground w-24">제목</th>
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">지수</th>
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground w-24">작성일</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground min-w-[120px]">제목</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">지수</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground w-24 whitespace-nowrap">작성일</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-12">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
                           <th className="pb-2 font-medium text-muted-foreground text-center w-12">이미지</th>

@@ -355,12 +355,74 @@ export default function OpportunitiesPage() {
           {/* 기회 키워드 테이블 */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">
-                블루오션 키워드 ({result.opportunities.length}개)
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg">
+                  블루오션 키워드 ({result.opportunities.length}개)
+                </CardTitle>
+                {/* 모바일 정렬 버튼 */}
+                <div className="flex items-center gap-1 md:hidden">
+                  <span className="text-xs text-muted-foreground shrink-0">정렬:</span>
+                  {([['score', '점수'], ['monthlySearch', '검색량'], ['compIdx', '경쟁도']] as const).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      variant={sortKey === key ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => handleSort(key)}
+                    >
+                      {label}
+                      {sortKey === key && (sortDir === 'asc' ? <ArrowUp className="ml-0.5 h-3 w-3" /> : <ArrowDown className="ml-0.5 h-3 w-3" />)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* 모바일: 카드 리스트 */}
+              <div className="space-y-3 md:hidden">
+                {sorted.map((opp, i) => (
+                  <div key={i} className="rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">{opp.keyword}</span>
+                        {opp.source === 'ai' ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-300 text-purple-600 bg-purple-50 shrink-0">
+                            AI
+                          </Badge>
+                        ) : opp.source === 'naver' ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-600 bg-green-50 shrink-0">
+                            N
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shrink-0 ${getScoreColor(opp.score)}`}>
+                        {opp.score}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                      {getCategoryBadge(opp.category)}
+                      <span className="tabular-nums">
+                        검색량 {opp.monthlySearch <= 20 ? '< 10' : formatNumber(opp.monthlySearch)}
+                      </span>
+                      <span className="flex items-center gap-1">경쟁 {getCompBadge(opp.compIdx)}</span>
+                    </div>
+                    {opp.reason && (
+                      <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{opp.reason}</p>
+                    )}
+                    <div className="mt-2">
+                      <Link href={`/content?keyword=${encodeURIComponent(opp.keyword)}`}>
+                        <Button variant="outline" size="sm" className="h-7 gap-1 text-xs w-full">
+                          <Wand2 className="h-3 w-3" />
+                          이 키워드로 글쓰기
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 데스크탑: 테이블 */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">

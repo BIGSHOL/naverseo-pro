@@ -1694,8 +1694,8 @@ export default function ContentPage() {
       {result && (
         <>
           {/* 저장 확인 + SEO 점수 배너 */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-green-200 bg-green-50 p-4">
-            <div className="flex items-center gap-2 text-green-800">
+          <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2 text-green-800">
               <CheckCircle className="h-5 w-5 shrink-0" />
               <span className="text-sm font-medium">콘텐츠가 자동 저장되었습니다</span>
               {result.contentTypeName && (
@@ -1709,11 +1709,11 @@ export default function ContentPage() {
                 </Badge>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100"
+                className="gap-1.5 border-green-300 text-green-700 hover:bg-green-100 text-xs sm:text-sm"
                 onClick={() => { setPageTab('history'); loadHistory() }}
               >
                 <FileText className="h-4 w-4" />
@@ -1849,70 +1849,70 @@ export default function ContentPage() {
 
               {/* DIA 품질 분석 */}
               <DiaScoreCard keyword={keyword} title={result.title} content={result.content} />
-            </div>
-          )}
 
-          {/* SEO 상세 분석 (토글) */}
-          {showSeoDetail && result.seoAnalysis && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">SEO 분석 상세 (10개 항목)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 세부 항목 */}
-                <div className="space-y-2">
-                  {result.seoAnalysis.categories.map((cat) => {
-                    const pct = Math.round((cat.score / cat.maxScore) * 100)
-                    return (
-                      <div key={cat.name} className="flex items-center gap-3">
-                        <span className="w-24 shrink-0 text-sm">{cat.name}</span>
-                        <div className="flex-1">
-                          <div className="h-2 rounded-full bg-muted">
-                            <div
-                              className={`h-full rounded-full ${getContentScoreBgColor(pct)}`}
-                              style={{ width: `${pct}%` }}
-                            />
+              {/* SEO 상세 분석 (토글) - grid 안에 col-span-full */}
+              {showSeoDetail && result.seoAnalysis && (
+                <Card className="col-span-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">SEO 분석 상세 (10개 항목)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 세부 항목 */}
+                    <div className="space-y-2">
+                      {result.seoAnalysis.categories.map((cat) => {
+                        const pct = Math.round((cat.score / cat.maxScore) * 100)
+                        return (
+                          <div key={cat.name} className="flex items-center gap-3">
+                            <span className="w-24 shrink-0 text-sm">{cat.name}</span>
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted">
+                                <div
+                                  className={`h-full rounded-full ${getContentScoreBgColor(pct)}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
+                              {cat.score}/{cat.maxScore}
+                            </span>
                           </div>
-                        </div>
-                        <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
-                          {cat.score}/{cat.maxScore}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+                        )
+                      })}
+                    </div>
 
-                {/* 강점 / 개선점 */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {result.seoAnalysis.strengths.length > 0 && (
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="mb-2 text-xs font-medium text-green-700">강점</p>
-                      <ul className="space-y-1">
-                        {result.seoAnalysis.strengths.map((s, i) => (
-                          <li key={i} className="flex items-start gap-1.5 text-xs text-green-700">
-                            <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
+                    {/* 강점 / 개선점 */}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {result.seoAnalysis.strengths.length > 0 && (
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                          <p className="mb-2 text-xs font-medium text-green-700">강점</p>
+                          <ul className="space-y-1">
+                            {result.seoAnalysis.strengths.map((s, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-xs text-green-700">
+                                <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {result.seoAnalysis.improvements.length > 0 && (
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                          <p className="mb-2 text-xs font-medium text-yellow-700">개선점</p>
+                          <ul className="space-y-1">
+                            {result.seoAnalysis.improvements.map((s, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
+                                <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {result.seoAnalysis.improvements.length > 0 && (
-                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                      <p className="mb-2 text-xs font-medium text-yellow-700">개선점</p>
-                      <ul className="space-y-1">
-                        {result.seoAnalysis.improvements.map((s, i) => (
-                          <li key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
-                            <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
 
           {/* 메타 설명 */}
@@ -1935,39 +1935,39 @@ export default function ContentPage() {
           {/* 생성된 콘텐츠 */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {result.isDemo && (
                     <Badge variant="outline">데모</Badge>
                   )}
                   {/* 탭 버튼 */}
-                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                  <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 sm:gap-1 sm:p-1">
                     <button
-                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm ${
                         activeTab === 'preview'
                           ? 'bg-background text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                       onClick={() => setActiveTab('preview')}
                     >
-                      <Eye className="mr-1.5 inline h-3.5 w-3.5" />
+                      <Eye className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
                       미리보기
                     </button>
                     <button
-                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm ${
                         activeTab === 'edit'
                           ? 'bg-background text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                       onClick={() => setActiveTab('edit')}
                     >
-                      <Pencil className="mr-1.5 inline h-3.5 w-3.5" />
+                      <Pencil className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
                       편집
                     </button>
                   </div>
                   {/* 복사 버튼 */}
-                  <Button variant="outline" size="sm" onClick={handleCopy}>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm" onClick={handleCopy}>
                     {copied ? (
                       <>
                         <Check className="mr-1 h-3 w-3" />

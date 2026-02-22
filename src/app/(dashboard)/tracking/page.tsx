@@ -231,37 +231,39 @@ export default function TrackingPage() {
   const avgRank =
     inRankCount > 0
       ? Math.round(
-          keywords
-            .filter((k) => k.latest.rank_position !== null)
-            .reduce((sum, k) => sum + (k.latest.rank_position || 0), 0) / inRankCount
-        )
+        keywords
+          .filter((k) => k.latest.rank_position !== null)
+          .reduce((sum, k) => sum + (k.latest.rank_position || 0), 0) / inRankCount
+      )
       : null
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">순위 트래킹</h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             타겟 키워드의 네이버 블로그 검색 순위를 추적합니다
             <span className="ml-1 text-xs text-muted-foreground/70">
               (광고 제외 기준, 실제 검색 결과와 1~2위 차이가 있을 수 있습니다)
             </span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {keywords.length > 0 && (
             <Button
               variant="outline"
               onClick={handleBulkCheck}
               disabled={bulkChecking}
               className="gap-2"
+              size="sm"
             >
               <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
-              {bulkChecking ? '확인 중...' : '전체 새로고침'}
+              <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침'}</span>
+              <span className="sm:hidden">{bulkChecking ? '확인 중' : '새로고침'}</span>
             </Button>
           )}
-          <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2">
+          <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2" size="sm">
             <Plus className="h-4 w-4" />
             키워드 추가
           </Button>
