@@ -32,12 +32,14 @@ interface OpportunityResult {
   seedCount?: number
   naverExpandedCount?: number
   filteredCount?: number
+  blogName?: string
 }
 
 type SortKey = 'monthlySearch' | 'compIdx' | 'score'
 type SortDir = 'asc' | 'desc'
 
-const EXAMPLE_TOPICS = ['캠핑', '다이어트', '인테리어', '육아', '요리', '부업', '여행', '운동']
+const EXAMPLE_TOPICS = ['캠핑', '다이어트', '인테리어', '육아', '요리', '부업']
+const EXAMPLE_BLOG_URL = 'blog.naver.com/example'
 
 
 export default function OpportunitiesPage() {
@@ -61,10 +63,14 @@ export default function OpportunitiesPage() {
     setError('')
 
     try {
+      // URL 감지: blog.naver.com 포함 여부
+      const isBlogUrl = t.includes('blog.naver.com')
+      const payload = isBlogUrl ? { blogUrl: t } : { topic: t }
+
       const res = await fetch('/api/ai/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: t }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
 
@@ -196,7 +202,7 @@ export default function OpportunitiesPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="주제 키워드를 입력하세요 (예: 캠핑, 다이어트, 인테리어)"
+                placeholder="주제 또는 블로그 URL을 입력하세요 (예: 캠핑, blog.naver.com/example)"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 disabled={loading}
@@ -245,6 +251,13 @@ export default function OpportunitiesPage() {
                       {t}
                     </Badge>
                   ))}
+                  <Badge
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent transition-colors border-dashed"
+                    onClick={() => handleSearch(EXAMPLE_BLOG_URL)}
+                  >
+                    {EXAMPLE_BLOG_URL}
+                  </Badge>
                 </div>
               </div>
             )}
@@ -285,7 +298,9 @@ export default function OpportunitiesPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold">AI 분석 요약</h3>
+                    <h3 className="font-semibold">
+                      {result.blogName ? `"${result.blogName}" 블로그 분석` : 'AI 분석 요약'}
+                    </h3>
                     {result.isDemo && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -345,30 +360,25 @@ export default function OpportunitiesPage() {
                     </div>
                   </div>
                 )}
-                <div className="relative w-full h-[420px]">
-                  {/* 존 라벨 (HTML 오버레이) */}
-                  <span className="absolute top-7 right-12 z-10 text-[11px] font-semibold text-emerald-600/50 pointer-events-none select-none">최고 기회</span>
-                  <span className="absolute bottom-[68px] right-12 z-10 text-[11px] font-semibold text-blue-500/50 pointer-events-none select-none">틈새 기회</span>
-                  <span className="absolute top-7 left-[58px] z-10 text-[11px] font-semibold text-amber-500/50 pointer-events-none select-none">경쟁 치열</span>
-                  <span className="absolute bottom-[68px] left-[58px] z-10 text-[11px] font-semibold text-gray-400/50 pointer-events-none select-none">관망</span>
+                <div className="relative w-full h-[340px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 24, right: 30, bottom: 50, left: 40 }}>
-                      {/* 4분면 배경 존 */}
-                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={searchMedian} y2={yAxisMax} fill="#10b981" fillOpacity={0.06} stroke="none" />
-                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={0} y2={searchMedian} fill="#3b82f6" fillOpacity={0.05} stroke="none" />
-                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={searchMedian} y2={yAxisMax} fill="#f59e0b" fillOpacity={0.04} stroke="none" />
-                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={0} y2={searchMedian} fill="#9ca3af" fillOpacity={0.03} stroke="none" />
+                    <ScatterChart margin={{ top: 20, right: 24, bottom: 45, left: 48 }}>
+                      {/* 4분면 배경 존 - 더 미묘하게 */}
+                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={searchMedian} y2={yAxisMax} fill="#10b981" fillOpacity={0.04} stroke="none" />
+                      <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={0} y2={searchMedian} fill="#3b82f6" fillOpacity={0.03} stroke="none" />
+                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={searchMedian} y2={yAxisMax} fill="#f59e0b" fillOpacity={0.025} stroke="none" />
+                      <ReferenceArea x1={scoreRange.min - 2} x2={scoreRange.threshold} y1={0} y2={searchMedian} fill="#9ca3af" fillOpacity={0.02} stroke="none" />
                       {/* 존 경계선 */}
-                      <ReferenceLine x={scoreRange.threshold} stroke="#e5e7eb" strokeDasharray="6 4" />
-                      <ReferenceLine y={searchMedian} stroke="#e5e7eb" strokeDasharray="6 4" />
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.06} />
+                      <ReferenceLine x={scoreRange.threshold} stroke="#e5e7eb" strokeDasharray="4 3" strokeWidth={1} />
+                      <ReferenceLine y={searchMedian} stroke="#e5e7eb" strokeDasharray="4 3" strokeWidth={1} />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.04} />
                       <XAxis
                         type="number"
                         dataKey="x"
                         domain={[scoreRange.min, scoreRange.max]}
-                        label={{ value: '기회 점수 →', position: 'insideBottom', offset: -32, style: { fontSize: 12, fontWeight: 500, fill: '#6b7280' } }}
+                        label={{ value: '기회 점수 →', position: 'insideBottom', offset: -30, style: { fontSize: 12, fontWeight: 600, fill: '#6b7280' } }}
                         tick={{ fontSize: 11, fill: '#6b7280' }}
-                        axisLine={{ stroke: '#e5e7eb' }}
+                        axisLine={{ stroke: '#d1d5db', strokeWidth: 1.5 }}
                         tickLine={false}
                       />
                       <YAxis
@@ -376,11 +386,11 @@ export default function OpportunitiesPage() {
                         dataKey="y"
                         domain={[0, yAxisMax]}
                         tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(1)}만` : v >= 1000 ? `${(v / 1000).toFixed(0)}천` : String(Math.round(v))}
-                        label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -22, style: { fontSize: 12, fontWeight: 500, fill: '#6b7280' } }}
+                        label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -26, style: { fontSize: 12, fontWeight: 600, fill: '#6b7280' } }}
                         tick={{ fontSize: 11, fill: '#6b7280' }}
-                        axisLine={{ stroke: '#e5e7eb' }}
+                        axisLine={{ stroke: '#d1d5db', strokeWidth: 1.5 }}
                         tickLine={false}
-                        width={50}
+                        width={56}
                       />
                       <RechartsTooltip
                         cursor={{ strokeDasharray: '3 3', stroke: '#d1d5db' }}
@@ -389,11 +399,11 @@ export default function OpportunitiesPage() {
                           const d = payload[0].payload as (typeof matrixData)[0]
                           const compLabel = d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : d.compIdx === 'HIGH' ? '높음' : '미확인'
                           return (
-                            <div className="rounded-xl border bg-background/95 backdrop-blur-sm px-4 py-3 shadow-xl text-sm min-w-[200px]">
+                            <div className="rounded-xl border-2 bg-background/98 backdrop-blur-sm px-4 py-3 shadow-2xl text-sm min-w-[200px]">
                               <div className="flex items-center gap-2 mb-2 pb-2 border-b">
                                 <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${d.source === 'ai' ? 'bg-purple-500' : 'bg-emerald-500'}`} />
-                                <span className="font-semibold truncate">{d.keyword}</span>
-                                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${d.source === 'ai' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                <span className="font-bold truncate">{d.keyword}</span>
+                                <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${d.source === 'ai' ? 'bg-purple-500 text-white' : 'bg-emerald-500 text-white'}`}>
                                   {d.source === 'ai' ? 'AI' : 'N'}
                                 </span>
                               </div>
@@ -416,18 +426,29 @@ export default function OpportunitiesPage() {
                           if (!cx || !cy) return <g />
                           const isAi = payload.source === 'ai'
                           const isTop = payload.isTopRanked
-                          const r = isTop ? 9 : 6
+                          const r = isTop ? 11 : 5.5
                           const fill = isAi ? '#a855f7' : '#10b981'
                           const stroke = isAi ? '#7c3aed' : '#059669'
+                          const opacity = isTop ? 0.95 : 0.65
                           return (
                             <g>
-                              {isTop && <circle cx={cx} cy={cy} r={r + 5} fill={fill} fillOpacity={0.1} />}
-                              <circle cx={cx} cy={cy} r={r} fill={fill} fillOpacity={0.75} stroke={stroke} strokeWidth={1.5} />
+                              {/* 상위 5개만 후광 효과 */}
                               {isTop && (
-                                <text x={cx + r + 4} y={cy + 4} fontSize={10} fontWeight={500} fill="#374151">
-                                  {payload.keyword.length > 8 ? payload.keyword.slice(0, 8) + '…' : payload.keyword}
-                                </text>
+                                <>
+                                  <circle cx={cx} cy={cy} r={r + 8} fill={fill} fillOpacity={0.08} />
+                                  <circle cx={cx} cy={cy} r={r + 4} fill={fill} fillOpacity={0.15} />
+                                </>
                               )}
+                              {/* 메인 점 - 더 진하고 크게 */}
+                              <circle
+                                cx={cx}
+                                cy={cy}
+                                r={r}
+                                fill={fill}
+                                fillOpacity={opacity}
+                                stroke={stroke}
+                                strokeWidth={isTop ? 2.5 : 1.5}
+                              />
                             </g>
                           )
                         }}
@@ -436,22 +457,28 @@ export default function OpportunitiesPage() {
                   </ResponsiveContainer>
                 </div>
                 {/* 범례 */}
-                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mt-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-purple-500" /> AI 추천
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-emerald-500" /> 네이버 연관
-                  </span>
-                  <span className="border-l pl-4 ml-1 flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5 rounded-sm bg-emerald-500/15 border border-emerald-500/20" /> 최고 기회
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5 rounded-sm bg-blue-500/15 border border-blue-500/20" /> 틈새 기회
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5 rounded-sm bg-amber-500/15 border border-amber-500/20" /> 경쟁 치열
-                  </span>
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-4 text-xs">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200">
+                    <span className="inline-block h-3 w-3 rounded-full bg-purple-500 shadow-sm" />
+                    <span className="font-medium text-purple-700">AI 추천</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+                    <span className="inline-block h-3 w-3 rounded-full bg-emerald-500 shadow-sm" />
+                    <span className="font-medium text-emerald-700">네이버 연관</span>
+                  </div>
+                  <div className="h-4 w-px bg-border mx-1" />
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-emerald-500/10 border border-emerald-500/30" />
+                    <span>최고 기회</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-blue-500/10 border border-blue-500/30" />
+                    <span>틈새</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="inline-block h-2.5 w-5 rounded-sm bg-amber-500/10 border border-amber-500/30" />
+                    <span>경쟁</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>

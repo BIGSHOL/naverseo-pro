@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
+import { stripHtml } from '@/lib/utils/text'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,30 +88,10 @@ export async function POST(req: Request) {
       })
       .eq('id', user.id)
 
-    // 네이버 블로그 검색 API로 최신 글 가져오기
-    const searchResponse = await fetch(
-      `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(profile.blog_id || '')}&display=5&sort=date`,
-      {
-        headers: {
-          'X-Naver-Client-Id': process.env.NAVER_CLIENT_ID || '',
-          'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET || '',
-        },
-      }
-    )
+    // 통합 블로그 크롤러 사용 (RSS → 검색 API → 페이지 크롤링)
+    const crawlResult = await fetchBlogPosts(profile.blog_id || '', 5)
 
-    if (!searchResponse.ok) {
-      return NextResponse.json({ error: '블로그 검색에 실패했습니다.' }, { status: 500 })
-    }
-
-    const searchData = await searchResponse.json()
-    const items = searchData.items || []
-
-    // 사용자의 블로그 글만 필터링 (link에 blog_id 포함된 것만)
-    const userPosts = items.filter((item: { link: string }) =>
-      item.link.includes(`blog.naver.com/${profile.blog_id}`)
-    )
-
-    if (userPosts.length === 0) {
+    if (crawlResult.posts.length === 0) {
       return NextResponse.json(
         { error: '최신 글을 찾을 수 없습니다. 블로그에 최소 1개 이상의 공개 글이 있어야 합니다.' },
         { status: 400 }
@@ -123,8 +105,8 @@ export async function POST(req: Request) {
     )
 
     let codeFound = false
-    for (const post of userPosts) {
-      const description = stripHtmlTags(post.description || '')
+    for (const post of crawlResult.posts) {
+      const description = stripHtml(post.description || '')
       if (verificationPattern.test(description)) {
         codeFound = true
         break
@@ -164,9 +146,4 @@ export async function POST(req: Request) {
     console.error('[Blog Verify] 오류:', error)
     return NextResponse.json({ error: '인증 중 오류가 발생했습니다.' }, { status: 500 })
   }
-}
-
-// HTML 태그 제거
-function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ')
 }

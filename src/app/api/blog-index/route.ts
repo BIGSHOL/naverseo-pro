@@ -14,148 +14,8 @@ import {
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { getUserAiProvider } from '@/lib/ai/gemini'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
-import { STOPWORDS, stripHtml, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
-
-/**
- * 수집된 블로그 포스트 제목에서 검색용 키워드를 자동 추출
- * 빈출 바이그램(2단어 조합) 우선, 부족하면 단일 키워드로 보충
- */
-function extractKeywordsFromPosts(posts: BlogPost[]): string[] {
-  const wordFreq: Record<string, number> = {}
-  const bigramFreq: Record<string, number> = {}
-
-  posts.forEach((p) => {
-    const title = stripHtml(p.title)
-    const words = extractKoreanKeywords(title, STOPWORDS)
-
-    words.forEach((w) => {
-      wordFreq[w] = (wordFreq[w] || 0) + 1
-    })
-
-    // 인접 단어 바이그램 생성 (더 구체적인 검색 키워드)
-    for (let i = 0; i < words.length - 1; i++) {
-      const bigram = `${words[i]} ${words[i + 1]}`
-      bigramFreq[bigram] = (bigramFreq[bigram] || 0) + 1
-    }
-  })
-
-  const keywords: string[] = []
-
-  // 1단계: 빈도 2회 이상 바이그램 (구체적인 검색어)
-  const topBigrams = Object.entries(bigramFreq)
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([phrase]) => phrase)
-  keywords.push(...topBigrams)
-
-  // 2단계: 바이그램에 포함되지 않은 단일 키워드로 보충
-  const usedWords = new Set(topBigrams.flatMap((b) => b.split(' ')))
-  const topWords = Object.entries(wordFreq)
-    .filter(([word]) => !usedWords.has(word))
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5 - keywords.length)
-    .map(([word]) => word)
-  keywords.push(...topWords)
-
-  return keywords.slice(0, 5)
-}
-
-/**
- * 네이버 블로그 RSS 피드로 실제 포스트 가져오기
- * RSS URL: https://rss.blog.naver.com/{blogId}.xml
- *
- * 이전 방식(검색 API에 blogId를 키워드로 넣음)은 해당 블로그의 포스트를
- * 찾지 못하는 문제가 있었음. RSS는 해당 블로그의 실제 최근 포스트를 반환.
- */
-async function fetchBlogPostsViaRss(blogId: string): Promise<{ posts: BlogPost[]; blogName: string | null }> {
-  try {
-    const rssUrl = `https://rss.blog.naver.com/${blogId}.xml`
-    const res = await fetch(rssUrl, {
-      headers: { 'User-Agent': 'NaverSEO-Pro/1.0' },
-    })
-
-    if (!res.ok) {
-      console.error(`[BlogIndex] RSS 피드 오류: ${res.status}`)
-      return { posts: [], blogName: null }
-    }
-
-    const xml = await res.text()
-    const posts = parseRssXml(xml, blogId)
-    const blogName = extractBlogNameFromRss(xml)
-    return { posts, blogName }
-  } catch (error) {
-    console.error('[BlogIndex] RSS 피드 가져오기 실패:', error)
-    return { posts: [], blogName: null }
-  }
-}
-
-/**
- * RSS XML에서 블로그 이름(title) 추출
- */
-function extractBlogNameFromRss(xml: string): string | null {
-  // <channel> 내의 <title> (첫 번째 title이 블로그 이름)
-  const channelMatch = xml.match(/<channel>([\s\S]*?)<item>/)
-  if (channelMatch) {
-    const channelXml = channelMatch[1]
-    const titleMatch = channelXml.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)
-      || channelXml.match(/<title>([\s\S]*?)<\/title>/)
-    if (titleMatch) return titleMatch[1].trim()
-  }
-  return null
-}
-
-/**
- * RSS XML을 파싱하여 BlogPost 배열로 변환
- */
-function parseRssXml(xml: string, blogId: string): BlogPost[] {
-  const posts: BlogPost[] = []
-
-  // <item> 블록 추출
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g
-  let itemMatch: RegExpExecArray | null
-
-  while ((itemMatch = itemRegex.exec(xml)) !== null) {
-    const itemXml = itemMatch[1]
-
-    // 제목 추출
-    const titleMatch = itemXml.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)
-      || itemXml.match(/<title>([\s\S]*?)<\/title>/)
-    const title = titleMatch ? titleMatch[1].trim() : ''
-
-    // 링크 추출
-    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/)
-    const link = linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`
-
-    // 설명 추출 (HTML 원본 보존 - 이미지 태그 감지에 필요)
-    const descMatch = itemXml.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)
-      || itemXml.match(/<description>([\s\S]*?)<\/description>/)
-    const description = descMatch ? descMatch[1].trim() : ''
-
-    // 날짜 추출 (pubDate)
-    const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/)
-    let postdate = ''
-    if (dateMatch) {
-      try {
-        const d = new Date(dateMatch[1].trim())
-        if (!isNaN(d.getTime())) {
-          const y = d.getFullYear()
-          const m = String(d.getMonth() + 1).padStart(2, '0')
-          const day = String(d.getDate()).padStart(2, '0')
-          postdate = `${y}${m}${day}`
-        }
-      } catch {
-        // 날짜 파싱 실패 시 빈 문자열 유지
-      }
-    }
-
-    if (title) {
-      posts.push({ title, link, description, postdate })
-    }
-  }
-
-  return posts
-}
+import { extractBlogId } from '@/lib/utils/text'
+import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
 
 export async function POST(request: NextRequest) {
   try {
@@ -228,6 +88,16 @@ export async function POST(request: NextRequest) {
     } else {
       const { searchNaverBlog } = await import('@/lib/naver/blog-search')
 
+      // === 1단계: 통합 블로그 크롤러 사용 (RSS → 검색 API → 페이지 크롤링) ===
+      if (blogId) {
+        const crawlResult = await fetchBlogPosts(blogId, 100)
+        posts = crawlResult.posts
+        blogName = crawlResult.blogName
+        console.log(`[BlogIndex] 크롤링 완료: ${posts.length}개 포스트 (${crawlResult.source}), 블로그명: ${blogName || '(없음)'}`)
+      } else {
+        posts = []
+      }
+
       const matchTarget = blogId
         ? blogId.toLowerCase()
         : blogUrl
@@ -235,96 +105,6 @@ export async function POST(request: NextRequest) {
           .toLowerCase()
           .replace(/^https?:\/\//, '')
           .replace(/\/$/, '')
-
-      // === 1단계: 블로그 포스트 수집 (RSS 우선, 검색 API 폴백) ===
-      if (blogId) {
-        const rssResult = await fetchBlogPostsViaRss(blogId)
-        posts = rssResult.posts
-        blogName = rssResult.blogName
-        console.log(`[BlogIndex] RSS에서 ${posts.length}개 포스트 수집 (blogId: ${blogId}, name: ${blogName})`)
-      } else {
-        posts = []
-      }
-
-      // RSS에서 포스트를 못 가져온 경우 검색 API + 블로그 직접 크롤링 폴백
-      if (posts.length === 0) {
-        // 방법 1: 검색 API로 blogId 관련 포스트 수집
-        try {
-          // 네이버 검색 API는 site: 연산자를 지원하지 않으므로
-          // blogId를 직접 검색어로 사용하고, bloggerlink로 필터링
-          const searchQuery = blogId || blogUrl.trim()
-          const postResult = await searchNaverBlog(searchQuery, 100)
-
-          posts = postResult.items
-            .filter((item) => {
-              const link = item.link.toLowerCase()
-              const bloggerlink = item.bloggerlink.toLowerCase()
-              if (blogId) {
-                const pattern = new RegExp(
-                  `blog\\.naver\\.com/${matchTarget}(?:/|$)`,
-                  'i'
-                )
-                return pattern.test(link) || pattern.test(bloggerlink)
-              }
-              const normalizedLink = link
-                .replace(/^https?:\/\//, '')
-                .replace(/\/$/, '')
-              return normalizedLink.startsWith(matchTarget)
-            })
-            .map((item) => ({
-              title: item.title,
-              link: item.link,
-              description: item.description,
-              postdate: item.postdate,
-            }))
-
-          console.log(`[BlogIndex] 검색 API: ${postResult.items.length}개 중 ${posts.length}개 필터됨 (query: "${searchQuery}")`)
-        } catch {
-          posts = []
-        }
-
-        // 방법 2: 블로그 페이지 직접 크롤링으로 포스트 목록 수집 (검색 API 보충)
-        if (posts.length < 10 && blogId) {
-          try {
-            const blogPageUrl = `https://m.blog.naver.com/${blogId}`
-            const blogRes = await fetch(blogPageUrl, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-                'Accept': 'text/html',
-                'Accept-Language': 'ko-KR,ko;q=0.9',
-              },
-              cache: 'no-store' as RequestCache,
-            })
-            if (blogRes.ok) {
-              const html = await blogRes.text()
-              // 포스트 링크 패턴 추출: /blogId/숫자 형태
-              const linkRegex = new RegExp(`/${blogId}/(\\d{12,15})`, 'g')
-              const foundLinks = new Set<string>()
-              let linkMatch: RegExpExecArray | null
-              while ((linkMatch = linkRegex.exec(html)) !== null) {
-                foundLinks.add(`https://blog.naver.com/${blogId}/${linkMatch[1]}`)
-              }
-              // 기존에 없는 링크만 추가
-              const existingLinks = new Set(posts.map(p => p.link))
-              const newLinks = Array.from(foundLinks).filter(l => !existingLinks.has(l))
-              if (newLinks.length > 0) {
-                const crawledPosts = newLinks.slice(0, 30 - posts.length).map(link => ({
-                  title: '',  // 제목은 스크래핑에서 추출
-                  link,
-                  description: '',
-                  postdate: '',
-                }))
-                posts = [...posts, ...crawledPosts]
-                console.log(`[BlogIndex] 블로그 페이지 크롤링: ${newLinks.length}개 추가 발견 (총 ${posts.length}개)`)
-              }
-            }
-          } catch (crawlError) {
-            console.error('[BlogIndex] 블로그 페이지 크롤링 실패 (무시):', crawlError)
-          }
-        }
-
-        console.log(`[BlogIndex] 최종 포스트 수: ${posts.length}개`)
-      }
 
       // === 2단계: 키워드 결정 (사용자 입력 또는 포스트에서 자동 추출) ===
       const keywords = userKeywords.length > 0

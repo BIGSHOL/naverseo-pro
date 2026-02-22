@@ -7,7 +7,7 @@ import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
   Pencil, Save, Link2, ListOrdered, MessageSquareQuote, Sparkles,
-  Search, Filter, Clock, Trash2, ExternalLink,
+  Search, Trash2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
@@ -371,13 +370,14 @@ export default function ContentPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const enterEditMode = () => {
-    if (!result) return
-    setEditTitle(result.title)
-    setEditContent(result.content)
-    setEditTags(result.tags || [])
-    setActiveTab('edit')
-  }
+  // 탭 전환 시 편집 상태 자동 초기화
+  useEffect(() => {
+    if (activeTab === 'edit' && result) {
+      setEditTitle(result.title)
+      setEditContent(result.content)
+      setEditTags(result.tags || [])
+    }
+  }, [activeTab, result])
 
   const handleSave = async () => {
     if (!result?.contentId || saving) return
@@ -1415,14 +1415,36 @@ export default function ContentPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {result.isDemo && (
                     <Badge variant="outline">데모</Badge>
                   )}
-                  <Button variant="outline" size="sm" onClick={enterEditMode}>
-                    <Pencil className="mr-1 h-3 w-3" />
-                    편집
-                  </Button>
+                  {/* 탭 버튼 */}
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    <button
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        activeTab === 'preview'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => setActiveTab('preview')}
+                    >
+                      <Eye className="mr-1.5 inline h-3.5 w-3.5" />
+                      미리보기
+                    </button>
+                    <button
+                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                        activeTab === 'edit'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      onClick={() => setActiveTab('edit')}
+                    >
+                      <Pencil className="mr-1.5 inline h-3.5 w-3.5" />
+                      편집
+                    </button>
+                  </div>
+                  {/* 복사 버튼 */}
                   <Button variant="outline" size="sm" onClick={handleCopy}>
                     {copied ? (
                       <>
@@ -1440,20 +1462,9 @@ export default function ContentPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="preview">
-                    <Eye className="mr-1 h-3.5 w-3.5" />
-                    미리보기
-                  </TabsTrigger>
-                  <TabsTrigger value="edit">
-                    <Pencil className="mr-1 h-3.5 w-3.5" />
-                    편집
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* 미리보기 탭 - 마크다운 렌더링 */}
-                <TabsContent value="preview" className="space-y-6">
+              {/* 미리보기 탭 */}
+              {activeTab === 'preview' && (
+                <div className="space-y-6">
                   <div>
                     <Label className="text-xs text-muted-foreground">제목</Label>
                     <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
@@ -1483,10 +1494,12 @@ export default function ContentPage() {
                       </div>
                     </div>
                   )}
-                </TabsContent>
+                </div>
+              )}
 
-                {/* 편집 탭 */}
-                <TabsContent value="edit">
+              {/* 편집 탭 */}
+              {activeTab === 'edit' && (
+                <div>
                   <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
                     {/* 좌측: 편집 영역 */}
                     <div className="space-y-4">
@@ -1584,8 +1597,8 @@ export default function ContentPage() {
                       compact
                     />
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              )}
             </CardContent>
           </Card>
 

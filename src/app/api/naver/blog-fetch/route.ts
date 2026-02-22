@@ -7,6 +7,8 @@ import {
   extractContent,
   htmlToPlainText,
 } from '@/lib/naver/blog-fetch'
+import { scrapeBlogPost, toMobileUrl } from '@/lib/naver/blog-scraper'
+import { extractPostMetaData, type PostMetaData } from '@/lib/naver/post-meta-extractor'
 
 // === 데모 데이터 ===
 
@@ -168,12 +170,76 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(getDemoData())
     }
 
-    return NextResponse.json({
+    // ===== 상세 분석 추가 (블로그 스크래핑 시스템 통합) =====
+    let detailedAnalysis: PostMetaData | null = null
+    let scrapedData: { charCount: number; imageCount: number; hasImage: boolean } | null = null
+
+    try {
+      // 모바일 URL로 변환하여 상세 스크래핑 시도
+      const blogUrl = `https://blog.naver.com/${parsed.blogId}/${parsed.postNo}`
+      const mobilePostUrl = toMobileUrl(blogUrl)
+
+      if (mobilePostUrl && html) {
+        // 1. 스크래핑 데이터 추출 (글자수, 이미지 수)
+        const scraped = await scrapeBlogPost(blogUrl)
+        if (scraped && scraped.isScrapped) {
+          scrapedData = {
+            charCount: scraped.charCount,
+            imageCount: scraped.imageCount,
+            hasImage: scraped.hasImage,
+          }
+        }
+
+        // 2. 메타 데이터 추출 (태그, 링크 분석 등)
+        detailedAnalysis = extractPostMetaData(html, parsed.blogId)
+      }
+    } catch (err) {
+      console.log('[BlogFetch] 상세 분석 실패 (무시하고 계속):', err)
+      // 상세 분석 실패는 무시하고 기본 정보만 반환
+    }
+
+    // 응답 데이터 구성
+    const response: {
+      title: string
+      content: string
+      source: string
+      isDemo: boolean
+      detailedAnalysis?: {
+        tags?: string[]
+        category?: string | null
+        linkCount?: { internal: number; external: number }
+        scrapedData?: {
+          charCount: number
+          imageCount: number
+          hasImage: boolean
+        }
+      }
+    } = {
       title: extracted.title,
       content: extracted.content,
       source: `https://blog.naver.com/${parsed.blogId}/${parsed.postNo}`,
       isDemo: false,
-    })
+    }
+
+    // 상세 분석 데이터 추가
+    if (detailedAnalysis || scrapedData) {
+      response.detailedAnalysis = {}
+
+      if (detailedAnalysis) {
+        response.detailedAnalysis.tags = detailedAnalysis.tags.length > 0 ? detailedAnalysis.tags : undefined
+        response.detailedAnalysis.category = detailedAnalysis.category
+        response.detailedAnalysis.linkCount = {
+          internal: detailedAnalysis.linkAnalysis.internalCount,
+          external: detailedAnalysis.linkAnalysis.externalCount,
+        }
+      }
+
+      if (scrapedData) {
+        response.detailedAnalysis.scrapedData = scrapedData
+      }
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[BlogFetch] 오류:', errorMessage)

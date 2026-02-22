@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { discoverKeywords, getDemoDiscoveryResult } from '@/lib/keyword-discovery'
 import { checkAnalysisLimit, incrementAnalysisUsage } from '@/lib/plan-check'
+import { extractBlogId } from '@/lib/utils/text'
+import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,16 +24,47 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { topic } = await request.json()
+    const { topic, blogUrl } = await request.json()
 
-    if (!topic || topic.trim().length === 0) {
+    if ((!topic || topic.trim().length === 0) && (!blogUrl || blogUrl.trim().length === 0)) {
       return NextResponse.json(
-        { error: '주제 키워드를 입력해주세요.' },
+        { error: '주제 키워드 또는 블로그 URL을 입력해주세요.' },
         { status: 400 }
       )
     }
 
-    const cleanTopic = topic.trim()
+    // 블로그 URL이 제공된 경우 블로그 분석
+    let cleanTopic = ''
+    let blogName = ''
+
+    if (blogUrl && blogUrl.trim().length > 0) {
+      const blogId = extractBlogId(blogUrl.trim())
+      if (!blogId) {
+        return NextResponse.json(
+          { error: '유효한 네이버 블로그 URL을 입력해주세요.' },
+          { status: 400 }
+        )
+      }
+
+      // 통합 블로그 크롤러 사용 (RSS → 검색 API → 페이지 크롤링)
+      const crawlResult = await fetchBlogPosts(blogId, 20)
+
+      if (crawlResult.posts.length === 0) {
+        return NextResponse.json(
+          { error: '블로그 글을 찾을 수 없습니다. 공개 글이 있는지 확인해주세요.' },
+          { status: 400 }
+        )
+      }
+
+      blogName = crawlResult.blogName || blogId
+
+      // 포스트에서 한국어 키워드 자동 추출
+      const extractedKeywords = extractKeywordsFromPosts(crawlResult.posts, 5)
+      cleanTopic = extractedKeywords.join(', ') || blogId
+      console.log(`[Opportunities] 블로그 분석: ${crawlResult.posts.length}개 포스트 (${crawlResult.source}), 키워드: ${cleanTopic}`)
+    } else {
+      cleanTopic = topic.trim()
+    }
 
     // API 키 확인 — 키워드 발굴은 항상 Gemini
     const hasGeminiKey = !!process.env.GEMINI_API_KEY
@@ -40,14 +73,14 @@ export async function POST(request: NextRequest) {
     if (!hasGeminiKey || !hasNaverAdKey) {
       const demoResult = getDemoDiscoveryResult(cleanTopic)
       await incrementAnalysisUsage(supabase, user.id)
-      return NextResponse.json({ ...demoResult, isDemo: true })
+      return NextResponse.json({ ...demoResult, isDemo: true, blogName: blogName || undefined })
     }
 
     // 키워드 발굴 엔진 실행
     const result = await discoverKeywords(cleanTopic)
 
     await incrementAnalysisUsage(supabase, user.id)
-    return NextResponse.json({ ...result, isDemo: false })
+    return NextResponse.json({ ...result, isDemo: false, blogName: blogName || undefined })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Opportunities] 오류:', errorMessage)
