@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import {
   TrendingUp,
   TrendingDown,
@@ -17,8 +18,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { RankHistoryChart } from '@/components/charts/rank-history-chart'
 import { timeAgo } from '@/lib/utils/date'
+
+const RankHistoryChart = dynamic(
+  () => import('@/components/charts/rank-history-chart').then(mod => ({ default: mod.RankHistoryChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[200px] flex items-center justify-center bg-muted/30 rounded-lg">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+)
 
 interface TrackingHistory {
   id: string
