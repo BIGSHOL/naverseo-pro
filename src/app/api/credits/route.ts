@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       supabase
         .from('profiles')
-        .select('credits_balance, credits_monthly_quota, credits_reset_at, plan')
+        .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, created_at')
         .eq('id', user.id)
         .single(),
       // 최근 사용 내역
@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       balance: profile?.credits_balance ?? 0,
       quota: profile?.credits_monthly_quota ?? 30,
       resetAt: profile?.credits_reset_at ?? null,
+      createdAt: profile?.created_at ?? null,
       plan: profile?.plan ?? 'free',
       featureSummary,
       dailyStats,

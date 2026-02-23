@@ -51,7 +51,7 @@ export async function checkCredits(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, role')
+    .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, role, created_at')
     .eq('id', userId)
     .single()
 
@@ -88,23 +88,30 @@ export async function checkCredits(
 
   let balance = profile?.credits_balance ?? 0
 
-  // Lazy 월간 리셋 (null이면 초기화, 만료되면 리셋)
+  // Lazy 월간 리셋
+  // - Free: 가입일(created_at) 기준 매월 같은 날 리셋
+  // - 유료: 과금일(현재 시점) 기준 매월 1일 리셋
   if (!profile?.credits_reset_at) {
-    // credits_reset_at이 설정되지 않은 경우 → 다음 달 1일로 초기화
+    const nextReset = plan === 'free' && profile?.created_at
+      ? getNextResetFromSignup(profile.created_at)
+      : getNextMonthReset()
     await supabase
       .from('profiles')
       .update({
-        credits_reset_at: getNextMonthReset(),
+        credits_reset_at: nextReset,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
   } else if (new Date(profile.credits_reset_at) <= new Date()) {
     balance = profile.credits_monthly_quota ?? 30
+    const nextReset = plan === 'free' && profile?.created_at
+      ? getNextResetFromSignup(profile.created_at)
+      : getNextMonthReset()
     await supabase
       .from('profiles')
       .update({
         credits_balance: balance,
-        credits_reset_at: getNextMonthReset(),
+        credits_reset_at: nextReset,
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
@@ -179,8 +186,32 @@ export async function deductCredits(
   return { success: true, remaining: newBalance }
 }
 
+/** 유료 플랜: 다음 달 1일 리셋 */
 function getNextMonthReset(): string {
   const now = new Date()
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   return next.toISOString()
+}
+
+/** Free 플랜: 가입일 기준 매월 같은 날 리셋 (예: 2/15 가입 → 매월 15일) */
+function getNextResetFromSignup(createdAt: string): string {
+  const signup = new Date(createdAt)
+  const signupDay = signup.getDate()
+  const now = new Date()
+
+  // 이번 달의 가입일에 해당하는 날짜 (월말 보정 포함)
+  let next = clampToMonth(now.getFullYear(), now.getMonth(), signupDay)
+
+  // 이미 지났으면 다음 달로
+  if (next <= now) {
+    next = clampToMonth(now.getFullYear(), now.getMonth() + 1, signupDay)
+  }
+
+  return next.toISOString()
+}
+
+/** 월말 보정: 31일 가입인데 2월이면 28일로 클램프 */
+function clampToMonth(year: number, month: number, day: number): Date {
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  return new Date(year, month, Math.min(day, lastDay))
 }

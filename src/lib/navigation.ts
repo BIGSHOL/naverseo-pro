@@ -15,6 +15,8 @@ import {
   UserCog,
   ServerCog,
   ToggleRight,
+  Ticket,
+  Gift,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -42,6 +44,8 @@ export const navItems: NavItem[] = [
 export const adminNavItems: NavItem[] = [
   { label: '관리자 대시보드', href: '/admin', icon: Shield },
   { label: '사용자 관리', href: '/admin/users', icon: UserCog },
+  { label: '프로모 코드', href: '/admin/promo-codes', icon: Ticket },
+  { label: '추천인 관리', href: '/admin/referrals', icon: Gift },
   { label: '기능 관리', href: '/admin/features', icon: ToggleRight },
   { label: '시스템 설정', href: '/admin/system', icon: ServerCog },
 ]

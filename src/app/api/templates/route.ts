@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { PLAN_TEMPLATE_LIMITS, type Plan } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,16 @@ export async function GET() {
       )
     }
 
+    // 사용자 플랜 조회
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan')
+      .eq('id', user.id)
+      .single()
+
+    const plan = (profile?.plan || 'free') as Plan
+    const maxTemplates = PLAN_TEMPLATE_LIMITS[plan]
+
     const { data: templates, error } = await supabase
       .from('content_templates')
       .select('*')
@@ -24,7 +35,11 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ templates: templates || [] })
+    return NextResponse.json({
+      templates: templates || [],
+      maxTemplates: maxTemplates === Infinity ? null : maxTemplates,
+      plan,
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Templates GET] 오류:', errorMessage)
@@ -66,6 +81,34 @@ export async function POST(request: Request) {
       )
     }
 
+    // 사용자 플랜 조회 + 현재 템플릿 수 확인
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan')
+      .eq('id', user.id)
+      .single()
+
+    const plan = (profile?.plan || 'free') as Plan
+    const maxTemplates = PLAN_TEMPLATE_LIMITS[plan]
+
+    const { count } = await supabase
+      .from('content_templates')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+
+    const currentCount = count ?? 0
+
+    if (currentCount >= maxTemplates) {
+      const limitText = maxTemplates === Infinity ? '무제한' : `${maxTemplates}개`
+      return NextResponse.json(
+        {
+          error: `현재 플랜(${plan.charAt(0).toUpperCase() + plan.slice(1)})에서는 템플릿을 ${limitText}까지 저장할 수 있습니다. 기존 템플릿을 삭제하거나 플랜을 업그레이드해주세요.`,
+          planGate: true,
+        },
+        { status: 400 }
+      )
+    }
+
     // 템플릿 저장
     const { data: template, error } = await supabase
       .from('content_templates')
@@ -78,16 +121,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) {
-      // 템플릿 개수 제한 에러 처리
-      if (error.message.includes('최대 5개')) {
-        return NextResponse.json(
-          { error: '템플릿은 최대 5개까지만 저장할 수 있습니다. 기존 템플릿을 삭제한 후 다시 시도해주세요.' },
-          { status: 400 }
-        )
-      }
-      throw error
-    }
+    if (error) throw error
 
     return NextResponse.json({ template })
   } catch (error) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Coins, TrendingDown, Clock, Zap } from 'lucide-react'
+import { Coins, TrendingDown, Clock, Zap, Ticket, CheckCircle2 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -13,11 +13,13 @@ import {
 import { CREDIT_COSTS, CREDIT_FEATURE_LABELS, PLANS, type CreditFeature, type Plan } from '@/types/database'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 interface CreditsData {
   balance: number
   quota: number
   resetAt: string | null
+  createdAt: string | null
   plan: string
   featureSummary: Record<string, { count: number; totalSpent: number }>
   dailyStats: { date: string; spent: number }[]
@@ -45,21 +47,51 @@ const FEATURE_COLORS: Record<string, string> = {
 export default function CreditsPage() {
   const [data, setData] = useState<CreditsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [promoInput, setPromoInput] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
+  const [promoError, setPromoError] = useState('')
+  const [promoSuccess, setPromoSuccess] = useState('')
+
+  const loadCredits = async () => {
+    try {
+      const res = await fetch('/api/credits')
+      if (!res.ok) return
+      setData(await res.json())
+    } catch {
+      // 로드 실패
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/credits')
-        if (!res.ok) return
-        setData(await res.json())
-      } catch {
-        // 로드 실패
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    loadCredits()
   }, [])
+
+  const handlePromoRedeem = async () => {
+    setPromoError('')
+    setPromoSuccess('')
+    setPromoLoading(true)
+    try {
+      const res = await fetch('/api/promo/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoInput.trim() }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setPromoError(result.error || '코드 적용 실패')
+      } else {
+        setPromoSuccess(result.message)
+        setPromoInput('')
+        loadCredits()
+      }
+    } catch {
+      setPromoError('프로모 코드 적용 중 오류가 발생했습니다.')
+    } finally {
+      setPromoLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -88,10 +120,27 @@ export default function CreditsPage() {
   const planInfo = PLANS[plan]
   const usedCredits = data.quota - data.balance
   const usagePercent = data.quota > 0 ? (usedCredits / data.quota) * 100 : 0
-  // 리셋 날짜 계산: null이면 다음 달 1일 기준으로 표시
-  const resetDate = data.resetAt
-    ? new Date(data.resetAt)
-    : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+  // 리셋 날짜 계산
+  // - Free: 가입일 기준 매월 같은 날
+  // - 유료: 매월 1일 (또는 DB에 저장된 값)
+  function calcResetDate(): Date {
+    if (data!.resetAt) return new Date(data!.resetAt)
+    if (data!.plan === 'free' && data!.createdAt) {
+      const signup = new Date(data!.createdAt)
+      const signupDay = signup.getDate()
+      const now = new Date()
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+      const day = Math.min(signupDay, lastDay)
+      let next = new Date(now.getFullYear(), now.getMonth(), day)
+      if (next <= now) {
+        const nextLastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate()
+        next = new Date(now.getFullYear(), now.getMonth() + 1, Math.min(signupDay, nextLastDay))
+      }
+      return next
+    }
+    return new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+  }
+  const resetDate = calcResetDate()
   const daysUntilReset = Math.max(0, Math.ceil((resetDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
 
   // 기능별 사용 비율 차트 데이터
@@ -191,10 +240,50 @@ export default function CreditsPage() {
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               {planInfo.name} 플랜 · 매월 {data.quota.toLocaleString()} 크레딧 충전
+              <br />
+              다음 리셋: {resetDate.toLocaleDateString('ko-KR')}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* 프로모 코드 입력 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Ticket className="h-4 w-4" />
+            프로모 코드
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {promoError && (
+            <div className="rounded-md bg-destructive/10 p-2.5 text-sm text-destructive">
+              {promoError}
+            </div>
+          )}
+          {promoSuccess && (
+            <div className="flex items-center gap-2 rounded-md bg-green-50 p-2.5 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-200">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {promoSuccess}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="프로모 코드를 입력하세요"
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+              className="max-w-xs"
+            />
+            <Button
+              size="sm"
+              disabled={promoLoading || !promoInput.trim()}
+              onClick={handlePromoRedeem}
+            >
+              {promoLoading ? '적용 중...' : '적용'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 7일간 크레딧 소모 추이 */}
       <Card>

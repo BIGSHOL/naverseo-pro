@@ -14,6 +14,9 @@ import {
   ExternalLink,
   Trash2,
   BarChart3,
+  Gift,
+  Copy,
+  Ticket,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -74,6 +77,17 @@ export default function SettingsPage() {
   const [verifyError, setVerifyError] = useState('')
   const [verifySuccess, setVerifySuccess] = useState(false)
 
+  // 추천 코드
+  const [referralCode, setReferralCode] = useState('')
+  const [referralStats, setReferralStats] = useState({ totalReferrals: 0, totalCreditsEarned: 0 })
+  const [referralCopied, setReferralCopied] = useState(false)
+
+  // 프로모 코드
+  const [promoInput, setPromoInput] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
+  const [promoError, setPromoError] = useState('')
+  const [promoSuccess, setPromoSuccess] = useState('')
+
   const loadProfile = useCallback(async () => {
     try {
       const [billingRes, dashboardRes] = await Promise.all([
@@ -92,6 +106,21 @@ export default function SettingsPage() {
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json()
         setBlogProfile(dashboardData.blogProfile || null)
+      }
+
+      // 추천 코드 정보 로드
+      try {
+        const referralRes = await fetch('/api/referral/my')
+        if (referralRes.ok) {
+          const refData = await referralRes.json()
+          setReferralCode(refData.referralCode || '')
+          setReferralStats({
+            totalReferrals: refData.totalReferrals,
+            totalCreditsEarned: refData.totalCreditsEarned,
+          })
+        }
+      } catch {
+        // 추천 정보 로드 실패 무시
       }
     } catch {
       setFetchError('설정 데이터를 불러오는 중 오류가 발생했습니다.')
@@ -629,6 +658,133 @@ export default function SettingsPage() {
               {pwLoading ? '변경 중...' : '비밀번호 변경'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* 추천인 코드 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gift className="h-4 w-4" />
+            추천인 코드
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border bg-muted/30 p-4">
+            <p className="mb-2 text-sm text-muted-foreground">내 추천 코드</p>
+            <div className="flex items-center gap-2">
+              <code className="rounded bg-primary/10 px-3 py-2 text-lg font-mono font-bold tracking-widest text-primary">
+                {referralCode || '로딩중...'}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  navigator.clipboard.writeText(referralCode)
+                  setReferralCopied(true)
+                  setTimeout(() => setReferralCopied(false), 2000)
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {referralCopied ? '복사됨!' : '복사'}
+              </Button>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              공유 링크:{' '}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                {typeof window !== 'undefined' ? window.location.origin : ''}/signup?ref={referralCode}
+              </code>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-1 h-6 px-1.5"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/signup?ref=${referralCode}`)
+                  setReferralCopied(true)
+                  setTimeout(() => setReferralCopied(false), 2000)
+                }}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">총 추천 수</p>
+              <p className="text-xl font-bold">{referralStats.totalReferrals}명</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">적립 크레딧</p>
+              <p className="text-xl font-bold">{referralStats.totalCreditsEarned}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            친구를 초대하면 나와 친구 모두 보너스 크레딧을 받을 수 있습니다.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 프로모 코드 입력 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Ticket className="h-4 w-4" />
+            프로모 코드
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {promoError && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {promoError}
+            </div>
+          )}
+          {promoSuccess && (
+            <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-200">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {promoSuccess}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="프로모 코드를 입력하세요"
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+            />
+            <Button
+              size="sm"
+              disabled={promoLoading || !promoInput.trim()}
+              onClick={async () => {
+                setPromoError('')
+                setPromoSuccess('')
+                setPromoLoading(true)
+                try {
+                  const res = await fetch('/api/promo/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: promoInput.trim() }),
+                  })
+                  const data = await res.json()
+                  if (!res.ok) {
+                    setPromoError(data.error || '코드 적용 실패')
+                  } else {
+                    setPromoSuccess(data.message)
+                    setPromoInput('')
+                    loadProfile()
+                  }
+                } catch {
+                  setPromoError('프로모 코드 적용 중 오류가 발생했습니다.')
+                } finally {
+                  setPromoLoading(false)
+                }
+              }}
+            >
+              {promoLoading ? '적용 중...' : '적용'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            프로모 코드가 있다면 입력하여 보너스 크레딧을 받으세요.
+          </p>
         </CardContent>
       </Card>
 

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { AlertTriangle, Mail, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { AlertTriangle, Mail, CheckCircle2, ArrowRight, RotateCcw, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,14 +19,22 @@ import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [referralCode, setReferralCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
   const supabaseReady = isSupabaseConfigured()
+
+  // URL ?ref=XXXX 쿼리 파라미터로 추천 코드 자동 채우기
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) setReferralCode(ref.toUpperCase())
+  }, [searchParams])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,6 +64,9 @@ export default function SignupPage() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+          data: {
+            referral_code_used: referralCode.trim().toUpperCase() || null,
+          },
         },
       })
 
@@ -241,6 +252,23 @@ export default function SignupPage() {
               required
               minLength={6}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="referralCode" className="flex items-center gap-1.5">
+              <Gift className="h-3.5 w-3.5 text-muted-foreground" />
+              추천인 코드 <span className="text-xs text-muted-foreground">(선택)</span>
+            </Label>
+            <Input
+              id="referralCode"
+              type="text"
+              placeholder="6자리 추천 코드를 입력하세요"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              maxLength={6}
+            />
+            <p className="text-xs text-muted-foreground">
+              추천인이 있다면 코드를 입력하세요. 가입 시 보너스 크레딧을 받을 수 있습니다.
+            </p>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">

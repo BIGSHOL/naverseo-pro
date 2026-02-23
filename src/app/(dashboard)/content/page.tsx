@@ -214,6 +214,7 @@ export default function ContentPage() {
   // 사용자 정의 템플릿
   const [templates, setTemplates] = useState<any[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
+  const [maxTemplates, setMaxTemplates] = useState<number | null>(null) // null = 무제한
 
   // 템플릿 목록 로드
   useEffect(() => {
@@ -226,6 +227,7 @@ export default function ContentPage() {
       if (!res.ok) throw new Error('템플릿 로드 실패')
       const data = await res.json()
       setTemplates(data.templates || [])
+      setMaxTemplates(data.maxTemplates ?? null)
     } catch (err) {
       console.error('[Templates] 로드 오류:', err)
     }
@@ -1389,15 +1391,33 @@ export default function ContentPage() {
                   {/* 내 템플릿 */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold text-blue-800">💾 내 템플릿</Label>
-                      <button
-                        type="button"
-                        onClick={saveCurrentAsTemplate}
-                        disabled={savingTemplate}
-                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
-                      >
-                        {savingTemplate ? '저장 중...' : '현재 설정 저장'}
-                      </button>
+                      <Label className="text-sm font-semibold text-blue-800">
+                        💾 내 템플릿
+                        {maxTemplates !== null && (
+                          <span className="ml-1.5 font-normal text-gray-500">
+                            ({templates.length}/{maxTemplates})
+                          </span>
+                        )}
+                        {maxTemplates === null && templates.length > 0 && (
+                          <span className="ml-1.5 font-normal text-gray-500">
+                            ({templates.length}개)
+                          </span>
+                        )}
+                      </Label>
+                      {maxTemplates !== null && templates.length >= maxTemplates ? (
+                        <span className="text-xs text-orange-600">
+                          플랜 업그레이드 시 더 저장 가능
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={saveCurrentAsTemplate}
+                          disabled={savingTemplate}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+                        >
+                          {savingTemplate ? '저장 중...' : '현재 설정 저장'}
+                        </button>
+                      )}
                     </div>
                     {templates.length > 0 ? (
                       <div className="grid gap-2 sm:grid-cols-2">

@@ -12,6 +12,9 @@ export interface Profile {
   credits_balance: number
   credits_monthly_quota: number
   credits_reset_at: string
+  // 추천인 시스템
+  referral_code: string
+  referred_by: string | null
   // DEPRECATED (마이그레이션 기간 유지)
   keywords_used_this_month: number
   content_generated_this_month: number
@@ -80,6 +83,51 @@ export interface WaitlistEntry {
   created_at: string
 }
 
+// ─── 추천인 & 프로모 코드 시스템 ───
+
+export interface PromoCode {
+  id: string
+  code: string
+  description: string | null
+  reward_type: 'credits' | 'plan_upgrade'
+  bonus_credits: number
+  upgrade_plan: Plan | null
+  upgrade_days: number
+  max_uses: number | null
+  current_uses: number
+  expires_at: string | null
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PromoRedemption {
+  id: string
+  user_id: string
+  promo_code_id: string
+  reward_type: string
+  bonus_credits: number
+  upgrade_plan: string | null
+  created_at: string
+}
+
+export interface ReferralReward {
+  id: string
+  referrer_id: string
+  referee_id: string
+  referrer_credits: number
+  referee_credits: number
+  status: 'completed' | 'reverted'
+  created_at: string
+}
+
+export interface ReferralConfig {
+  referrer_credits: number
+  referee_credits: number
+  enabled: boolean
+}
+
 // ─── 크레딧 시스템 상수 ───
 
 /** 기능별 크레딧 소모량 */
@@ -138,6 +186,17 @@ export const LITE_ALLOWED_FEATURES: CreditFeature[] = [
   'content_generation',
   'seo_report',
 ]
+
+/** 플랜별 템플릿 저장 개수 제한 */
+export const PLAN_TEMPLATE_LIMITS: Record<Plan, number> = {
+  free: 1,
+  lite: 3,
+  starter: 10,
+  pro: 30,
+  business: 50,
+  agency: Infinity,
+  admin: Infinity,
+}
 
 // ─── 플랜 정보 ───
 

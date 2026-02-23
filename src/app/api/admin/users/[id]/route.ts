@@ -98,6 +98,13 @@ export async function PATCH(
       allowedFields.plan = body.plan
       // 플랜 변경 시 월간 할당량 자동 동기화
       allowedFields.credits_monthly_quota = PLAN_CREDITS[body.plan as Plan]
+      // 유료 플랜 전환 시 리셋일을 다음 달 1일로 설정
+      if (body.plan !== 'free') {
+        const nextMonth = new Date()
+        nextMonth.setMonth(nextMonth.getMonth() + 1, 1)
+        nextMonth.setHours(0, 0, 0, 0)
+        allowedFields.credits_reset_at = nextMonth.toISOString()
+      }
     }
 
     if (body.role && ['user', 'admin'].includes(body.role)) {
