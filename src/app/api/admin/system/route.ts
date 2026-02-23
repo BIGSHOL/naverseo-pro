@@ -33,11 +33,11 @@ export async function GET() {
         name: 'Anthropic Claude',
         configured: !!process.env.ANTHROPIC_API_KEY,
       },
-      toss: {
-        name: '토스페이먼츠',
+      portone: {
+        name: '포트원 (PortOne)',
         configured: !!(
-          process.env.TOSS_CLIENT_KEY &&
-          process.env.TOSS_SECRET_KEY
+          process.env.NEXT_PUBLIC_PORTONE_STORE_ID &&
+          process.env.PORTONE_API_SECRET
         ),
       },
       supabase: {

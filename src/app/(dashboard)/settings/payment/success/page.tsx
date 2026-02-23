@@ -15,12 +15,10 @@ export default function PaymentSuccessPage() {
 
   useEffect(() => {
     async function confirmPayment() {
-      const paymentKey = searchParams.get('paymentKey')
-      const orderId = searchParams.get('orderId')
-      const amount = searchParams.get('amount')
+      const paymentId = searchParams.get('paymentId')
       const plan = searchParams.get('plan')
 
-      if (!paymentKey || !orderId || !amount || !plan) {
+      if (!paymentId || !plan) {
         setStatus('error')
         setErrorMessage('결제 정보가 올바르지 않습니다.')
         return
@@ -30,7 +28,7 @@ export default function PaymentSuccessPage() {
         const res = await fetch('/api/billing/confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentKey, orderId, amount: Number(amount), plan }),
+          body: JSON.stringify({ paymentId, plan }),
         })
 
         const data = await res.json()

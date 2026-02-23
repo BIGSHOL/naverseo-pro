@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import * as PortOne from '@portone/browser-sdk/v2'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,12 +17,14 @@ export default function BillingPage() {
   const [email, setEmail] = useState('')
   const [userId, setUserId] = useState('')
   const [creditsResetAt, setCreditsResetAt] = useState<string | null>(null)
-  const [tossClientKey, setTossClientKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [downgradeConfirm, setDowngradeConfirm] = useState<Plan | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID || ''
+  const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY || ''
 
   useEffect(() => {
     async function loadBilling() {
@@ -36,7 +39,6 @@ export default function BillingPage() {
         setEmail(data.profile?.email || '')
         setUserId(data.profile?.id || '')
         setCreditsResetAt(data.profile?.credits_reset_at || null)
-        setTossClientKey(data.tossClientKey)
       } catch {
         setError('결제 정보를 불러오는 중 오류가 발생했습니다.')
       } finally {
@@ -46,12 +48,12 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
-  // 업그레이드 (토스 결제)
+  // 업그레이드 (포트원 결제)
   const handleUpgrade = async (planKey: Plan) => {
     const planInfo = PLANS[planKey]
     if (!planInfo || planInfo.price === 0) return
 
-    if (!tossClientKey) {
+    if (!storeId || !channelKey) {
       setError('결제 시스템이 설정되지 않았습니다. 관리자에게 문의해주세요.')
       return
     }
@@ -61,52 +63,41 @@ export default function BillingPage() {
     setSuccess('')
 
     try {
-      const { loadTossPayments } = await import('@tosspayments/tosspayments-sdk')
-      const tossPayments = await loadTossPayments(tossClientKey)
-
-      const payment = tossPayments.payment({
-        customerKey: userId,
-      })
-
       const timestamp = Date.now()
       const random = Math.random().toString(36).substring(2, 8)
-      const orderId = `NSEO_${planKey}_${timestamp}_${random}`
+      const paymentId = `NSEO_${planKey}_${timestamp}_${random}`
 
-      await payment.requestPayment({
-        method: 'CARD',
-        amount: {
-          currency: 'KRW',
-          value: planInfo.price,
-        },
-        orderId,
+      const response = await PortOne.requestPayment({
+        storeId,
+        channelKey,
+        paymentId,
         orderName: `NaverSEO Pro ${planInfo.name} 플랜 (월간)`,
-        successUrl: `${window.location.origin}/settings/payment/success?plan=${planKey}`,
-        failUrl: `${window.location.origin}/settings/payment/fail`,
-        customerEmail: email || undefined,
-        customerName: '고객',
-        card: {
-          useEscrow: false,
-          flowMode: 'DEFAULT',
-          useCardPoint: false,
-          useAppCardOnly: false,
+        totalAmount: planInfo.price,
+        currency: 'CURRENCY_KRW',
+        payMethod: 'CARD',
+        customer: {
+          email: email || undefined,
+          customerId: userId,
         },
+        redirectUrl: `${window.location.origin}/settings/payment/success?plan=${planKey}`,
       })
-    } catch (err: unknown) {
-      // 사용자가 결제 취소한 경우
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      const errorCode = (err as { code?: string })?.code
 
-      if (
-        errorMessage.includes('cancel') ||
-        errorMessage.includes('Cancel') ||
-        errorCode === 'USER_CANCEL' ||
-        errorCode === 'PAY_PROCESS_CANCELED'
-      ) {
-        // 취소는 에러가 아님
+      // 데스크톱: response에서 바로 결과 확인
+      if (response?.code != null) {
+        // 사용자 취소 또는 에러
+        if (response.code === 'USER_CANCEL') {
+          // 취소는 에러가 아님
+        } else {
+          setError(`결제 오류: ${response.message || '알 수 없는 오류'}`)
+        }
       } else {
-        console.error('[Billing] 결제 SDK 오류:', err)
-        setError(`결제 요청 중 오류: ${errorMessage}`)
+        // 결제 성공 → 서버에서 검증
+        router.push(`/settings/payment/success?paymentId=${paymentId}&plan=${planKey}`)
       }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('[Billing] 결제 오류:', err)
+      setError(`결제 요청 중 오류: ${errorMessage}`)
     } finally {
       setPaymentLoading(null)
     }
@@ -204,7 +195,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      {!tossClientKey && (
+      {!storeId && (
         <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
           <AlertCircle className="h-4 w-4 shrink-0" />
           결제 시스템이 아직 설정되지 않았습니다. 테스트 모드에서는 실제 결제가 이루어지지 않습니다.
@@ -344,7 +335,7 @@ export default function BillingPage() {
             <p>- 매월 이용을 원하시면 결제 기간 만료 전 다시 결제해주세요.</p>
             <p>- 크레딧은 매월 리셋일에 자동으로 충전됩니다.</p>
             <p>- 플랜 변경(업그레이드/다운그레이드) 시 크레딧이 즉시 조정됩니다.</p>
-            <p>- 결제는 토스페이먼츠를 통해 안전하게 처리됩니다.</p>
+            <p>- 결제는 포트원을 통해 안전하게 처리됩니다.</p>
           </div>
         </CardContent>
       </Card>

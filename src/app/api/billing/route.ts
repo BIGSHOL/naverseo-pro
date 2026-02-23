@@ -33,7 +33,7 @@ export async function GET() {
         email: user.email,
         created_at: user.created_at,
       },
-      tossClientKey: process.env.TOSS_CLIENT_KEY || null,
+      portoneConfigured: !!(process.env.NEXT_PUBLIC_PORTONE_STORE_ID && process.env.PORTONE_API_SECRET),
     })
   } catch (error) {
     console.error('[Billing] 오류:', error)

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { confirmPayment, isTossConfigured } from '@/lib/toss/payments'
+import { verifyPayment, isPortOneConfigured } from '@/lib/portone/payments'
 import { PLANS, PLAN_CREDITS, type Plan } from '@/types/database'
 
-// 결제 승인 처리
+// 결제 검증 처리 (포트원)
 export async function POST(request: NextRequest) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -13,7 +13,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { paymentKey, orderId, amount, plan } = await request.json()
+    const { paymentId, plan } = await request.json()
+
+    if (!paymentId) {
+      return NextResponse.json({ error: '결제 ID가 필요합니다.' }, { status: 400 })
+    }
 
     if (!plan || !PLANS[plan as Plan]) {
       return NextResponse.json({ error: '유효하지 않은 플랜입니다.' }, { status: 400 })
@@ -22,22 +26,33 @@ export async function POST(request: NextRequest) {
     const targetPlan = plan as Plan
     const expectedAmount = PLANS[targetPlan].price
 
-    // 금액 검증
-    if (Number(amount) !== expectedAmount) {
-      return NextResponse.json(
-        { error: '결제 금액이 일치하지 않습니다.' },
-        { status: 400 }
-      )
-    }
-
-    // 토스페이먼츠 결제 승인
-    if (!isTossConfigured()) {
+    // 포트원 결제 검증
+    if (!isPortOneConfigured()) {
       return NextResponse.json(
         { error: '결제 시스템이 설정되지 않았습니다. 관리자에게 문의해주세요.' },
         { status: 503 }
       )
     }
-    await confirmPayment(paymentKey, orderId, Number(amount))
+
+    const payment = await verifyPayment(paymentId)
+
+    // 결제 상태 확인
+    if (payment.status !== 'PAID') {
+      return NextResponse.json(
+        { error: `결제가 완료되지 않았습니다. (상태: ${payment.status})` },
+        { status: 400 }
+      )
+    }
+
+    // 금액 검증
+    const paidAmount = payment.amount?.total
+    if (paidAmount !== expectedAmount) {
+      console.error('[Billing] 금액 불일치:', { paidAmount, expectedAmount })
+      return NextResponse.json(
+        { error: '결제 금액이 일치하지 않습니다.' },
+        { status: 400 }
+      )
+    }
 
     // 플랜 업그레이드 + 크레딧 동기화
     const newQuota = PLAN_CREDITS[targetPlan]
@@ -66,7 +81,7 @@ export async function POST(request: NextRequest) {
       success: true,
       plan: targetPlan,
       planName: PLANS[targetPlan].name,
-      orderId,
+      paymentId,
     })
   } catch (error) {
     console.error('[Billing Confirm] 오류:', error)
