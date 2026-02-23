@@ -15,12 +15,13 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('plan, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, email, created_at')
+      .select('id, plan, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, email, created_at')
       .eq('id', user.id)
       .single()
 
     return NextResponse.json({
       profile: profile || {
+        id: user.id,
         plan: 'free',
         credits_balance: 30,
         credits_monthly_quota: 30,

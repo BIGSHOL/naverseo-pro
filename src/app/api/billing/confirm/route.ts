@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { confirmPayment, isTossConfigured } from '@/lib/toss/payments'
-import { PLANS, type Plan } from '@/types/database'
+import { PLANS, PLAN_CREDITS, type Plan } from '@/types/database'
 
 // 결제 승인 처리
 export async function POST(request: NextRequest) {
@@ -39,11 +39,17 @@ export async function POST(request: NextRequest) {
     }
     await confirmPayment(paymentKey, orderId, Number(amount))
 
-    // 플랜 업그레이드
+    // 플랜 업그레이드 + 크레딧 동기화
+    const newQuota = PLAN_CREDITS[targetPlan]
+    const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
+
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
         plan: targetPlan,
+        credits_balance: newQuota,
+        credits_monthly_quota: newQuota,
+        credits_reset_at: nextReset,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)

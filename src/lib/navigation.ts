@@ -11,6 +11,7 @@ import {
   Users,
   Lightbulb,
   Coins,
+  CreditCard,
   Shield,
   UserCog,
   ServerCog,
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
   { label: 'SEO 리포트', href: '/report', icon: FileDown },
   { label: '크레딧', href: '/credits', icon: Coins },
+  { label: '요금제', href: '/billing', icon: CreditCard },
   { label: '설정', href: '/settings', icon: Settings },
 ]
 

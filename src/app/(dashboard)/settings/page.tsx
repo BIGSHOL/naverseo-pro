@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { PLANS, type Plan } from '@/types/database'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface ProfileData {
   plan: Plan
@@ -788,20 +789,15 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 플랜 변경 - 결제 기능 준비 중 */}
+      {/* 플랜 변경 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <CreditCard className="h-4 w-4" />
             플랜 변경
-            <Badge variant="secondary" className="ml-2 text-xs">추후 공개</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            결제 기능은 준비 중입니다. 플랜 업그레이드는 추후 공개 예정입니다.
-          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).filter(
               ([key]) => key !== 'admin'
@@ -855,9 +851,11 @@ export default function SettingsPage() {
                           사용 중
                         </Button>
                       ) : (
-                        <Button size="sm" className="h-7 w-full text-xs" disabled>
-                          준비 중
-                        </Button>
+                        <Link href="/billing">
+                          <Button size="sm" className="h-7 w-full text-xs">
+                            업그레이드
+                          </Button>
+                        </Link>
                       )}
                     </div>
                   </div>
