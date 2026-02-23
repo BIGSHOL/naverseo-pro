@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     console.error('[Content Improve] 오류:', error)
     return NextResponse.json(
-      { error: 'AI 약점 개선 중 오류가 발생했습니다.' },
+      { error: `AI 약점 개선 중 오류가 발생했습니다: ${msg}` },
       { status: 500 }
     )
   }
