@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Bot, Coins, Save, Shield, User } from 'lucide-react'
+import { ArrowLeft, Bot, Coins, Save, Shield, ShieldOff, User } from 'lucide-react'
 
 interface UserProfile {
   id: string
@@ -40,6 +40,9 @@ interface UserProfile {
   analysis_used_today: number
   analysis_reset_date: string
   ai_provider: string
+  blog_verification_blocked: boolean | null
+  blog_verification_attempts: number | null
+  blog_verification_last_attempt_at: string | null
   created_at: string
   updated_at: string
 }
@@ -239,6 +242,42 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
     }
   }
 
+  async function handleUnblockVerification() {
+    if (!data) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch('/api/admin/blog-verification/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: id }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '차단 해제 중 오류가 발생했습니다.')
+        return
+      }
+
+      setData({
+        ...data,
+        profile: {
+          ...data.profile,
+          blog_verification_blocked: false,
+          blog_verification_attempts: 0,
+          blog_verification_last_attempt_at: null,
+        },
+      })
+      setSuccess('블로그 인증 차단이 해제되었습니다.')
+    } catch {
+      setError('차단 해제 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleAddCredits() {
     if (!data) return
     const amount = parseInt(addCreditsAmount, 10)
@@ -419,6 +458,47 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 {saving ? '저장 중...' : '변경사항 저장'}
               </Button>
             </div>
+
+            {/* 블로그 인증 차단 상태 */}
+            {profile.blog_verification_blocked && (
+              <div className="border-t pt-4">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                        <ShieldOff className="h-4 w-4" />
+                        블로그 인증 차단됨
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        시도 횟수: {profile.blog_verification_attempts ?? 0}회
+                        {profile.blog_verification_last_attempt_at && (
+                          <> · 마지막 시도: {new Date(profile.blog_verification_last_attempt_at).toLocaleDateString('ko-KR')}</>
+                        )}
+                      </p>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={saving}>
+                          차단 해제
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>블로그 인증 차단 해제</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            이 사용자의 블로그 인증 차단을 해제하고 시도 횟수를 초기화합니다. 계속하시겠습니까?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleUnblockVerification}>해제</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
