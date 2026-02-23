@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,15 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // 크레딧 체크
+    const creditCheck = await checkCredits(supabase, user.id, 'seo_report')
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
+      )
     }
 
     // 프로필
@@ -51,6 +61,9 @@ export async function GET() {
       const key = `${t.keyword}||${t.blog_url}`
       if (!latestRanks[key]) latestRanks[key] = t
     }
+
+    // 크레딧 차감
+    await deductCredits(supabase, user.id, 'seo_report')
 
     return NextResponse.json({
       profile: profile || { plan: 'free', email: user.email },

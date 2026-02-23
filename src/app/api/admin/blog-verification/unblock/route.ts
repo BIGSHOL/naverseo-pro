@@ -1,28 +1,13 @@
 import { NextResponse } from 'next/server'
+import { verifyAdmin } from '@/lib/admin-check'
 
 export const dynamic = 'force-dynamic'
 
 // 블로그 인증 차단 해제 (관리자 전용)
 export async function POST(req: Request) {
   try {
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
-    }
-
-    // 관리자 권한 확인
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (adminProfile?.role !== 'admin') {
-      return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
-    }
+    const auth = await verifyAdmin()
+    if (auth.error) return auth.error
 
     const { userId } = await req.json()
 
@@ -31,6 +16,8 @@ export async function POST(req: Request) {
     }
 
     // 차단 해제
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
     const { error: updateError } = await supabase
       .from('profiles')
       .update({

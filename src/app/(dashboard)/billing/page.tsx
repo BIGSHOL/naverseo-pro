@@ -83,6 +83,13 @@ export default function BillingPage() {
         successUrl: `${window.location.origin}/settings/payment/success?plan=${planKey}`,
         failUrl: `${window.location.origin}/settings/payment/fail`,
         customerEmail: email || undefined,
+        customerName: '고객',
+        card: {
+          useEscrow: false,
+          flowMode: 'DEFAULT',
+          useCardPoint: false,
+          useAppCardOnly: false,
+        },
       })
     } catch (err: unknown) {
       // 사용자가 결제 취소한 경우

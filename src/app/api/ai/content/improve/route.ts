@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const creditCheck = await checkCredits(supabase, user.id, 'content_improve')
     if (!creditCheck.allowed) {
       return NextResponse.json(
-        { error: creditCheck.message || '크레딧이 부족합니다.' },
+        { error: creditCheck.message || '크레딧이 부족합니다.', creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
         { status: 403 }
       )
     }

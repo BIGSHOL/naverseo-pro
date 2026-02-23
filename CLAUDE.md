@@ -324,6 +324,7 @@ Query:
 | `verify-seo-engine` | SEO 점수 체계(100점 만점) 및 등급 판정의 엔진/API/UI 일관성 검증 |
 | `verify-ai-provider` | AI 제공자(Gemini/Claude) 라우팅, Free 플랜 Gemini 강제, 키워드 Gemini 고정 검증 |
 | `verify-admin-system` | 관리자 인증(verifyAdmin), 시스템 설정/사용자 관리 API, 관리자 UI 일관성 검증 |
+| `verify-blog-learning` | 블로그 학습 파이프라인 수집 경로 연동, 프롬프트 주입, barrel export, admin client 사용 일관성 검증 |
 
 ## Agents
 

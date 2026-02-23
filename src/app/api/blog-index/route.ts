@@ -12,7 +12,6 @@ import {
   type VisitorData,
 } from '@/lib/blog-index/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
-import { getUserAiProvider } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
@@ -33,9 +32,6 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
-
-    // 사용자의 AI 제공자 조회
-    const provider = await getUserAiProvider(supabase, user.id)
 
     // 크레딧 체크
     const creditCheck = await checkCredits(supabase, user.id, 'blog_index')

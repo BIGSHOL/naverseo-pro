@@ -19,6 +19,7 @@ Disallow: /settings
 Disallow: /competitors
 Disallow: /blog-index
 Disallow: /opportunities
+Disallow: /admin
 
 # 차단: 인증 페이지
 Disallow: /login

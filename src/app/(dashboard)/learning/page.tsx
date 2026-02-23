@@ -60,6 +60,7 @@ const SOURCE_COLORS: Record<string, string> = {
 export default function LearningPage() {
   const [stats, setStats] = useState<LearningStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -67,9 +68,11 @@ export default function LearningPage() {
         const res = await fetch('/api/blog-learning/stats')
         if (res.ok) {
           setStats(await res.json())
+        } else {
+          setError('통계를 불러오는데 실패했습니다.')
         }
       } catch {
-        // 로드 실패
+        setError('네트워크 오류가 발생했습니다.')
       } finally {
         setLoading(false)
       }
@@ -94,11 +97,13 @@ export default function LearningPage() {
     )
   }
 
-  if (!stats) {
+  if (error || !stats) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold">학습 데이터</h1>
-        <p className="mt-4 text-muted-foreground">통계를 불러올 수 없습니다.</p>
+        <div className="mt-4 rounded-lg bg-destructive/10 p-4 text-destructive">
+          {error || '통계를 불러올 수 없습니다.'}
+        </div>
       </div>
     )
   }

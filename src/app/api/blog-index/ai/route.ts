@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeWithAi } from '@/lib/blog-index/ai-analyzer'
 import { determineLevelInfo, type BlogPost } from '@/lib/blog-index/engine'
-import { getUserAiProvider } from '@/lib/ai/gemini'
+import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
 
@@ -53,6 +53,14 @@ export async function POST(request: NextRequest) {
     }
 
     const provider = await getUserAiProvider(supabase, user.id)
+
+    if (!hasAiApiKey(provider)) {
+      return NextResponse.json(
+        { error: 'AI API 키가 설정되지 않았습니다. 데모 모드에서는 AI 심층 분석을 사용할 수 없습니다.' },
+        { status: 400 }
+      )
+    }
+
     const blogId = extractBlogId(blogUrl.trim())
 
     // 블로그 포스트 가져오기
