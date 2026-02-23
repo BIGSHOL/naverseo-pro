@@ -11,10 +11,11 @@ import {
   type ContentGenerationRequest,
 } from '@/lib/content/engine'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
-import { searchNaverBlog } from '@/lib/naver/blog-search'
+import { searchNaverBlog, type NaverBlogSearchItem } from '@/lib/naver/blog-search'
 import { getKeywordStats, type NaverKeywordResult } from '@/lib/naver/search-ad'
 import { fetchKeywordTrend } from '@/lib/naver/datalab'
 import { getSearchEnrichmentData } from '@/lib/naver/search-enrichment'
+import { scheduleCollection, collectFromSearchResults, getPatternPromptSection } from '@/lib/blog-learning'
 
 // 간단한 SEO 점수 계산 (DB 저장용, 100점 만점)
 function calculateBasicSeoScore(keyword: string, title: string, content: string, additionalKeywords?: string[]): number {
@@ -27,7 +28,7 @@ function calculateBasicSeoScore(keyword: string, title: string, content: string,
 /**
  * SERP 자동 참조: 네이버 블로그 상위 결과 + 1위 글 구조 분석
  */
-async function fetchSerpReference(keyword: string): Promise<{ text: string; count: number } | null> {
+async function fetchSerpReference(keyword: string): Promise<{ text: string; count: number; items: NaverBlogSearchItem[] } | null> {
   const hasNaverApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
   if (!hasNaverApi) return null
 
@@ -66,7 +67,7 @@ ${topPosts.join('\n')}${structureInfo}
 - 더 구체적인 수치, 날짜, 경험 정보를 포함하세요
 - 더 체계적인 구조와 깊이 있는 분석을 제공하세요`
 
-    return { text, count: topPosts.length }
+    return { text, count: topPosts.length, items: result.items }
   } catch {
     return null
   }
@@ -320,17 +321,24 @@ export async function POST(request: NextRequest) {
       : contentRequest.contentType === 'comparison' ? 'comparison'
       : 'other'
 
-    const [serpResult, keywordsResult, trendResult, searchEnrichmentResult] = await Promise.allSettled([
+    const [serpResult, keywordsResult, trendResult, searchEnrichmentResult, learningResult] = await Promise.allSettled([
       fetchSerpReference(keyword.trim()),
       fetchRelatedKeywordsForContent(keyword.trim()),
       fetchKeywordTrendForContent(keyword.trim()),
       getSearchEnrichmentData(keyword.trim(), enrichmentType),
+      getPatternPromptSection(keyword.trim(), contentRequest.contentType || 'informational'),
     ])
 
     const serpRef = serpResult.status === 'fulfilled' ? serpResult.value : null
     const keywordsRef = keywordsResult.status === 'fulfilled' ? keywordsResult.value : null
     const trendRef = trendResult.status === 'fulfilled' ? trendResult.value : null
     const searchEnrichment = searchEnrichmentResult.status === 'fulfilled' ? searchEnrichmentResult.value : null
+    const learningRef = learningResult.status === 'fulfilled' ? learningResult.value : null
+
+    // 블로그 학습 파이프라인: 백그라운드 수집
+    if (serpRef?.items) {
+      scheduleCollection(() => collectFromSearchResults(keyword.trim(), serpRef.items, 'content_generation'))
+    }
 
     // 연관 키워드 상위 5개를 additionalKeywords에 자동 병합
     if (keywordsRef && keywordsRef.topKeywords.length > 0) {
@@ -360,6 +368,11 @@ export async function POST(request: NextRequest) {
 
     if (serpRef) {
       userMessage += '\n\n' + serpRef.text
+    }
+
+    // 학습된 패턴 주입 (축적된 상위 노출 포스트 패턴)
+    if (learningRef && learningRef.sampleCount >= 3) {
+      userMessage += '\n\n' + learningRef.text
     }
 
     // 실제 검색 결과에서 추출한 업체명/제품명 주입 (local/comparison 타입)
@@ -403,6 +416,10 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
     }
     if (serpRef) {
       enrichment.serpRefCount = serpRef.count
+    }
+    if (learningRef) {
+      enrichment.learningPatternCount = learningRef.sampleCount
+      enrichment.learningMatchType = learningRef.matchType
     }
     const hasEnrichment = Object.keys(enrichment).length > 0
 

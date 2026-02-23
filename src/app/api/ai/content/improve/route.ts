@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Content Improve] ${categories.length}개 약점 개선 요청: ${categories.map(c => c.id).join(', ')}`)
 
-    const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
+    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true })
     const parsed = parseGeminiJson<{ title: string; content: string }>(response)
 
     if (!parsed.title || !parsed.content) {
