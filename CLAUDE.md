@@ -15,7 +15,7 @@
 - **스타일링**: Tailwind CSS + shadcn/ui
 - **DB**: Supabase (PostgreSQL + Auth + Row Level Security)
 - **AI**: Google Gemini Flash API (콘텐츠 생성/분석)
-- **결제**: 토스페이먼츠 (한국 결제) + Stripe (해외 결제)
+- **결제**: 포트원 PortOne V2 (한국 결제 PG 통합 게이트웨이)
 - **배포**: Vercel
 - **외부 API**: 네이버 검색광고 API, 네이버 데이터랩 API, 네이버 검색 API
 
@@ -185,9 +185,10 @@ NAVER_CLIENT_SECRET=        # 네이버 개발자 센터 시크릿
 # Google Gemini
 GEMINI_API_KEY=
 
-# 결제
-TOSS_CLIENT_KEY=
-TOSS_SECRET_KEY=
+# 결제 (포트원 PortOne V2)
+NEXT_PUBLIC_PORTONE_STORE_ID=
+NEXT_PUBLIC_PORTONE_CHANNEL_KEY=
+PORTONE_API_SECRET=
 ```
 
 ## 핵심 API 엔드포인트
@@ -286,7 +287,7 @@ Query:
 11. ✅ 블로그 지수 분석 (레이더 차트, 벤치마크)
 12. ✅ 상위노출 분석 (상위 블로그 패턴 분석)
 13. ✅ 키워드 발굴 (블루오션 키워드)
-14. ⬜ 결제 연동 (토스페이먼츠 - 코드 준비 완료, 프로덕션 키 필요) ← 최종 완성 후 마지막에 진행
+14. ✅ 결제 연동 (포트원 PortOne V2 - 코드 완료, 프로덕션 키 발급 대기)
 
 ## AI 프롬프트 가이드라인
 콘텐츠 생성 시 Claude API에 보내는 시스템 프롬프트:
