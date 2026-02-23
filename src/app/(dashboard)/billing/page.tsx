@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CreditCard, Check, ArrowLeft, Zap, AlertCircle } from 'lucide-react'
+import { CreditCard, Check, ArrowLeft, Zap, AlertCircle, ArrowDown, CalendarDays } from 'lucide-react'
 import { PLANS, type Plan, type PlanInfo } from '@/types/database'
 import Link from 'next/link'
 
@@ -15,10 +15,13 @@ export default function BillingPage() {
   const [currentPlan, setCurrentPlan] = useState<Plan>('free')
   const [email, setEmail] = useState('')
   const [userId, setUserId] = useState('')
+  const [creditsResetAt, setCreditsResetAt] = useState<string | null>(null)
   const [tossClientKey, setTossClientKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
+  const [downgradeConfirm, setDowngradeConfirm] = useState<Plan | null>(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     async function loadBilling() {
@@ -32,6 +35,7 @@ export default function BillingPage() {
         setCurrentPlan((data.profile?.plan || 'free') as Plan)
         setEmail(data.profile?.email || '')
         setUserId(data.profile?.id || '')
+        setCreditsResetAt(data.profile?.credits_reset_at || null)
         setTossClientKey(data.tossClientKey)
       } catch {
         setError('결제 정보를 불러오는 중 오류가 발생했습니다.')
@@ -42,6 +46,7 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
+  // 업그레이드 (토스 결제)
   const handleUpgrade = async (planKey: Plan) => {
     const planInfo = PLANS[planKey]
     if (!planInfo || planInfo.price === 0) return
@@ -53,6 +58,7 @@ export default function BillingPage() {
 
     setPaymentLoading(planKey)
     setError('')
+    setSuccess('')
 
     try {
       const { loadTossPayments } = await import('@tosspayments/tosspayments-sdk')
@@ -78,13 +84,52 @@ export default function BillingPage() {
         failUrl: `${window.location.origin}/settings/payment/fail`,
         customerEmail: email || undefined,
       })
-    } catch (err) {
+    } catch (err: unknown) {
       // 사용자가 결제 취소한 경우
-      if (err instanceof Error && err.message?.includes('cancel')) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      const errorCode = (err as { code?: string })?.code
+
+      if (
+        errorMessage.includes('cancel') ||
+        errorMessage.includes('Cancel') ||
+        errorCode === 'USER_CANCEL' ||
+        errorCode === 'PAY_PROCESS_CANCELED'
+      ) {
         // 취소는 에러가 아님
       } else {
-        setError('결제 요청 중 오류가 발생했습니다. 다시 시도해주세요.')
+        console.error('[Billing] 결제 SDK 오류:', err)
+        setError(`결제 요청 중 오류: ${errorMessage}`)
       }
+    } finally {
+      setPaymentLoading(null)
+    }
+  }
+
+  // 다운그레이드 (결제 없이 플랜 변경)
+  const handleDowngrade = async (planKey: Plan) => {
+    setPaymentLoading(planKey)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch('/api/billing/change-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planKey }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || '플랜 변경에 실패했습니다.')
+        return
+      }
+
+      setCurrentPlan(planKey)
+      setDowngradeConfirm(null)
+      setSuccess(`${data.planName} 플랜으로 변경되었습니다. (크레딧: ${data.credits})`)
+    } catch {
+      setError('플랜 변경 중 오류가 발생했습니다.')
     } finally {
       setPaymentLoading(null)
     }
@@ -93,6 +138,13 @@ export default function BillingPage() {
   // 플랜 순서 (admin 제외)
   const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'business', 'agency']
   const currentPlanIndex = planOrder.indexOf(currentPlan)
+
+  // 크레딧 리셋일 포맷
+  const formatResetDate = (dateStr: string | null) => {
+    if (!dateStr) return null
+    const d = new Date(dateStr)
+    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`
+  }
 
   if (loading) {
     return (
@@ -117,9 +169,15 @@ export default function BillingPage() {
         <div className="flex items-center gap-3">
           <CreditCard className="h-6 w-6" />
           <div>
-            <h1 className="text-2xl font-bold">요금제 업그레이드</h1>
+            <h1 className="text-2xl font-bold">요금제 변경</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               현재 플랜: <Badge variant="outline" className="ml-1">{PLANS[currentPlan].name}</Badge>
+              {creditsResetAt && (
+                <span className="ml-2">
+                  <CalendarDays className="mr-1 inline h-3 w-3" />
+                  크레딧 리셋: {formatResetDate(creditsResetAt)}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -132,10 +190,47 @@ export default function BillingPage() {
         </div>
       )}
 
+      {success && (
+        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <Check className="h-4 w-4 shrink-0" />
+          {success}
+        </div>
+      )}
+
       {!tossClientKey && (
         <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
           <AlertCircle className="h-4 w-4 shrink-0" />
           결제 시스템이 아직 설정되지 않았습니다. 테스트 모드에서는 실제 결제가 이루어지지 않습니다.
+        </div>
+      )}
+
+      {/* 다운그레이드 확인 모달 */}
+      {downgradeConfirm && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <p className="font-medium text-amber-900">
+            정말로 <strong>{PLANS[downgradeConfirm].name}</strong> 플랜으로 변경하시겠습니까?
+          </p>
+          <p className="mt-1 text-sm text-amber-700">
+            월간 크레딧이 {PLANS[downgradeConfirm].credits.toLocaleString()}으로 줄어들며, 현재 잔여 크레딧이 새 한도를 초과하면 조정됩니다.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => handleDowngrade(downgradeConfirm)}
+              disabled={!!paymentLoading}
+            >
+              {paymentLoading === downgradeConfirm ? '변경 중...' : '변경 확인'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDowngradeConfirm(null)}
+              disabled={!!paymentLoading}
+            >
+              취소
+            </Button>
+          </div>
         </div>
       )}
 
@@ -146,7 +241,6 @@ export default function BillingPage() {
           const isCurrent = planKey === currentPlan
           const isDowngrade = planOrder.indexOf(planKey) < currentPlanIndex
           const isFree = planKey === 'free'
-          const isUpgradable = !isCurrent && !isDowngrade && !isFree
 
           return (
             <Card
@@ -202,9 +296,15 @@ export default function BillingPage() {
                     <Button variant="outline" className="w-full" disabled>
                       사용 중
                     </Button>
-                  ) : isFree || isDowngrade ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      {isFree ? '무료 플랜' : '다운그레이드 불가'}
+                  ) : isDowngrade || (isFree && currentPlan !== 'free') ? (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => setDowngradeConfirm(planKey)}
+                      disabled={!!paymentLoading || downgradeConfirm === planKey}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                      {isFree ? '무료로 전환' : `${planInfo.name}으로 변경`}
                     </Button>
                   ) : (
                     <Button
@@ -233,10 +333,11 @@ export default function BillingPage() {
       <Card>
         <CardContent className="py-4">
           <div className="space-y-2 text-sm text-muted-foreground">
+            <p>- 결제는 <strong>단건 결제</strong>입니다. (자동 갱신 아님)</p>
+            <p>- 매월 이용을 원하시면 결제 기간 만료 전 다시 결제해주세요.</p>
+            <p>- 크레딧은 매월 리셋일에 자동으로 충전됩니다.</p>
+            <p>- 플랜 변경(업그레이드/다운그레이드) 시 크레딧이 즉시 조정됩니다.</p>
             <p>- 결제는 토스페이먼츠를 통해 안전하게 처리됩니다.</p>
-            <p>- 업그레이드 시 즉시 새 플랜의 크레딧이 적용됩니다.</p>
-            <p>- 플랜 다운그레이드는 현재 지원하지 않습니다. 고객센터에 문의해주세요.</p>
-            <p>- 문의사항은 설정 페이지에서 확인할 수 있습니다.</p>
           </div>
         </CardContent>
       </Card>
