@@ -18,6 +18,7 @@ import {
   ToggleRight,
   Ticket,
   Gift,
+  BrainCircuit,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp },
   { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
   { label: 'SEO 리포트', href: '/report', icon: FileDown },
+  { label: '학습 데이터', href: '/learning', icon: BrainCircuit },
   { label: '크레딧', href: '/credits', icon: Coins },
   { label: '요금제', href: '/billing', icon: CreditCard },
   { label: '설정', href: '/settings', icon: Settings },

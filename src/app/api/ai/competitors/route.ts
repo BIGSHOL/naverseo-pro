@@ -3,6 +3,7 @@ import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
+import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
 // === 타입 정의 ===
 
@@ -386,6 +387,9 @@ export async function POST(request: NextRequest) {
 
     // 네이버 블로그 검색 (상위 10개)
     const searchResult = await searchNaverBlog(cleanKeyword, 10)
+
+    // 블로그 학습 파이프라인: 백그라운드 수집
+    scheduleCollection(() => collectFromSearchResults(cleanKeyword, searchResult.items, 'competitor_analysis'))
 
     // 데이터 가공
     const competitors: CompetitorItem[] = searchResult.items.map((item, i) => {

@@ -5,6 +5,7 @@ import {
   type NaverKeywordResult,
 } from '@/lib/naver/search-ad'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
+import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
 // 데모 데이터 (API 키 없을 때 사용) - 30개 다양한 롱테일 키워드 생성
 function generateDemoData(keyword: string): NaverKeywordResult[] {
@@ -131,6 +132,15 @@ export async function GET(request: NextRequest) {
       score: calculateKeywordScore(kw),
     }))
     resultsWithScore.sort((a, b) => b.score - a.score)
+
+    // 블로그 학습 파이프라인: 백그라운드 수집 (블로그 검색 → 상위 5개 패턴 수집)
+    if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
+      scheduleCollection(async () => {
+        const { searchNaverBlog } = await import('@/lib/naver/blog-search')
+        const blogResults = await searchNaverBlog(trimmed, 5)
+        await collectFromSearchResults(trimmed, blogResults.items, 'keyword_research')
+      })
+    }
 
     // DB에 저장
     await saveKeywordResearch(trimmed, resultsWithScore)

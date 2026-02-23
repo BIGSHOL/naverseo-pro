@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
+import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
 // 트래킹 키워드 목록 조회
 export async function GET() {
@@ -132,8 +133,14 @@ export async function POST(request: NextRequest) {
       const { generateDemoRank } = await import('@/lib/naver/blog-search')
       rankResult = generateDemoRank()
     } else {
-      const { checkBlogRank } = await import('@/lib/naver/blog-search')
+      const { checkBlogRank, searchNaverBlog } = await import('@/lib/naver/blog-search')
       rankResult = await checkBlogRank(keyword.trim(), blogUrl.trim())
+
+      // 블로그 학습 파이프라인: 백그라운드 수집
+      scheduleCollection(async () => {
+        const blogResults = await searchNaverBlog(keyword.trim(), 5)
+        await collectFromSearchResults(keyword.trim(), blogResults.items, 'rank_tracking')
+      })
     }
 
     // DB에 순위 기록 저장

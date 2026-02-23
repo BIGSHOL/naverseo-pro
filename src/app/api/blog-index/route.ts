@@ -16,6 +16,7 @@ import { getUserAiProvider } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
+import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
 export async function POST(request: NextRequest) {
   try {
@@ -158,6 +159,9 @@ export async function POST(request: NextRequest) {
             rank,
             totalResults: searchResult.total,
           })
+
+          // 블로그 학습 파이프라인: 각 키워드 검색 결과에서 상위 포스트 수집
+          scheduleCollection(() => collectFromSearchResults(keyword, searchResult.items.slice(0, 5), 'blog_index'))
 
           // API 호출 간 딜레이 (네이버 rate limit 방지)
           await new Promise((resolve) => setTimeout(resolve, 200))
