@@ -44,6 +44,7 @@ interface SeoResult {
   improvements: string[]
   strengths: string[]
   isDemo: boolean
+  demoReason?: string
   aiAnalysis?: AiAnalysis | null
 }
 
@@ -405,6 +406,9 @@ export default function SeoCheckPage() {
                         <Badge variant="outline" className="text-xs">데모</Badge>
                       )}
                     </div>
+                    {result.isDemo && result.demoReason && (
+                      <p className="text-xs text-amber-600">{result.demoReason}</p>
+                    )}
                     {/* AI 점수 보정 표시 */}
                     {ai && ai.scoreAdjustment !== 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">

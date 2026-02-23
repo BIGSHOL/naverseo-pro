@@ -17,6 +17,7 @@ interface SeoCheckResponse {
   improvements: string[]
   strengths: string[]
   isDemo: boolean
+  demoReason?: string
   aiAnalysis?: AiSeoAnalysis | null
   readabilityAnalysis?: ReadabilityResult
 }
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       const response: SeoCheckResponse = {
         ...baseResult,
         isDemo: true,
+        demoReason: `${provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY'} 환경변수가 설정되지 않았습니다.`,
         aiAnalysis: generateDemoAiAnalysis(),
       }
       return NextResponse.json(response)
@@ -87,9 +89,14 @@ export async function POST(request: NextRequest) {
 
     // API 키가 있으면 실제 AI 심층 분석 실행 (실패해도 기본 결과 반환)
     let aiAnalysis: AiSeoAnalysis | null = null
+    let aiFailReason = ''
     try {
       aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, provider)
+      if (!aiAnalysis) {
+        aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
+      }
     } catch (aiError) {
+      aiFailReason = aiError instanceof Error ? aiError.message : String(aiError)
       console.error('[SEO Check] AI 심층 분석 실패 (기본 결과로 대체):', aiError)
     }
 
@@ -113,6 +120,7 @@ export async function POST(request: NextRequest) {
       totalScore: finalScore,
       grade: finalGrade,
       isDemo: !aiAnalysis,
+      demoReason: aiAnalysis ? undefined : `AI 분석 실패: ${aiFailReason}`,
       aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
     }
 
