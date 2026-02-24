@@ -1,4 +1,4 @@
-export type Plan = 'free' | 'lite' | 'starter' | 'pro' | 'business' | 'agency' | 'admin'
+export type Plan = 'free' | 'lite' | 'starter' | 'pro' | 'enterprise' | 'admin'
 export type UserRole = 'user' | 'admin'
 export type ContentStatus = 'draft' | 'published' | 'archived'
 export type SearchSection = 'blog' | 'smartblock' | 'view'
@@ -12,6 +12,11 @@ export interface Profile {
   credits_balance: number
   credits_monthly_quota: number
   credits_reset_at: string
+  // LemonSqueezy 구독
+  lemonsqueezy_customer_id: string | null
+  lemonsqueezy_subscription_id: string | null
+  lemonsqueezy_variant_id: number | null
+  subscription_status: 'none' | 'on_trial' | 'active' | 'paused' | 'past_due' | 'cancelled' | 'expired'
   // 추천인 시스템
   referral_code: string
   referred_by: string | null
@@ -162,10 +167,9 @@ export const CREDIT_FEATURE_LABELS: Record<CreditFeature, string> = {
 export const PLAN_CREDITS: Record<Plan, number> = {
   free: 30,
   lite: 100,
-  starter: 400,
-  pro: 750,
-  business: 1700,
-  agency: 3000,
+  starter: 250,
+  pro: 600,
+  enterprise: 2000,
   admin: 999999,
 }
 
@@ -193,8 +197,7 @@ export const PLAN_TEMPLATE_LIMITS: Record<Plan, number> = {
   lite: 3,
   starter: 10,
   pro: 30,
-  business: 50,
-  agency: Infinity,
+  enterprise: Infinity,
   admin: Infinity,
 }
 
@@ -214,7 +217,7 @@ export const PLANS: Record<Plan, PlanInfo> = {
   free: {
     name: 'Free',
     price: 0,
-    priceLabel: '₩0',
+    priceLabel: '$0',
     credits: 30,
     aiModel: '기본 AI',
     features: [
@@ -226,8 +229,8 @@ export const PLANS: Record<Plan, PlanInfo> = {
   },
   lite: {
     name: 'Lite',
-    price: 9900,
-    priceLabel: '₩9,900',
+    price: 5,
+    priceLabel: '$5',
     credits: 100,
     aiModel: '프리미엄 AI',
     features: [
@@ -240,12 +243,12 @@ export const PLANS: Record<Plan, PlanInfo> = {
   },
   starter: {
     name: 'Starter',
-    price: 29900,
-    priceLabel: '₩29,900',
-    credits: 400,
+    price: 10,
+    priceLabel: '$10',
+    credits: 250,
     aiModel: '프리미엄 AI',
     features: [
-      '월 400 크레딧 (~25% 할인)',
+      '월 250 크레딧 (~20% 할인)',
       '모든 기능 사용 가능',
       '키워드 발굴 · 상위노출 분석',
       '순위 트래킹 · 콘텐츠 개선',
@@ -254,45 +257,31 @@ export const PLANS: Record<Plan, PlanInfo> = {
   },
   pro: {
     name: 'Pro',
-    price: 49900,
-    priceLabel: '₩49,900',
-    credits: 750,
+    price: 20,
+    priceLabel: '$20',
+    credits: 600,
     aiModel: '프리미엄 AI',
     popular: true,
     features: [
-      '월 750 크레딧 (~33% 할인)',
+      '월 600 크레딧 (~33% 할인)',
       '모든 기능 사용 가능',
-      'AI 콘텐츠 ~150편/월',
+      'AI 콘텐츠 ~120편/월',
       '대량 키워드 발굴·분석',
       '우선 지원',
     ],
   },
-  business: {
-    name: 'Business',
-    price: 99900,
-    priceLabel: '₩99,900',
-    credits: 1700,
+  enterprise: {
+    name: 'Enterprise',
+    price: 50,
+    priceLabel: '$50',
+    credits: 2000,
     aiModel: '프리미엄 AI',
     features: [
-      '월 1,700 크레딧 (~41% 할인)',
+      '월 2,000 크레딧 (~50% 할인)',
       '모든 기능 사용 가능',
-      'AI 콘텐츠 ~340편/월',
+      'AI 콘텐츠 ~400편/월',
       '대규모 순위 트래킹',
       '전담 매니저 지원',
-    ],
-  },
-  agency: {
-    name: 'Agency',
-    price: 149900,
-    priceLabel: '₩149,900',
-    credits: 3000,
-    aiModel: '프리미엄 AI',
-    features: [
-      '월 3,000 크레딧 (~50% 할인)',
-      '모든 기능 사용 가능',
-      'AI 콘텐츠 ~600편/월',
-      '전담 매니저 지원',
-      'API 접근',
     ],
   },
   admin: {

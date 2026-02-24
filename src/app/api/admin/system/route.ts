@@ -33,11 +33,11 @@ export async function GET() {
         name: 'Anthropic Claude',
         configured: !!process.env.ANTHROPIC_API_KEY,
       },
-      portone: {
-        name: '포트원 (PortOne)',
+      lemonSqueezy: {
+        name: 'LemonSqueezy',
         configured: !!(
-          process.env.NEXT_PUBLIC_PORTONE_STORE_ID &&
-          process.env.PORTONE_API_SECRET
+          process.env.LEMONSQUEEZY_API_KEY &&
+          process.env.LEMONSQUEEZY_STORE_ID
         ),
       },
       supabase: {

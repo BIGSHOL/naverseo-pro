@@ -12,7 +12,7 @@ interface AdminStats {
   totalUsers: number
   paidUsers: number
   todaySignups: number
-  planDistribution: { free: number; starter: number; pro: number; agency: number }
+  planDistribution: { free: number; lite: number; starter: number; pro: number; enterprise: number }
   totalContent: number
   totalKeywordSearches: number
   recentSignups: {
@@ -26,9 +26,10 @@ interface AdminStats {
 
 const planColors: Record<string, string> = {
   free: 'bg-gray-100 text-gray-700',
+  lite: 'bg-green-100 text-green-700',
   starter: 'bg-blue-100 text-blue-700',
   pro: 'bg-purple-100 text-purple-700',
-  agency: 'bg-amber-100 text-amber-700',
+  enterprise: 'bg-orange-100 text-orange-700',
 }
 
 export default function AdminDashboardPage() {

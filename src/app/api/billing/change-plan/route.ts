@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // 현재 플랜 확인
     const { data: profile } = await supabase
       .from('profiles')
-      .select('plan, credits_balance')
+      .select('plan, credits_balance, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 유료 → 유료 업그레이드는 결제 필요 (이 API는 다운그레이드/무료 전환용)
-    const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'business', 'agency']
+    const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'enterprise']
     const currentIdx = planOrder.indexOf(currentPlan)
     const targetIdx = planOrder.indexOf(targetPlan)
 
@@ -45,7 +45,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '업그레이드는 결제를 통해 진행해주세요.' }, { status: 400 })
     }
 
-    // 플랜 변경 + 크레딧 동기화
+    // LemonSqueezy 구독이 있으면 API로 취소/변경 처리
+    const subscriptionId = profile?.lemonsqueezy_subscription_id
+    if (subscriptionId) {
+      try {
+        const { isLemonSqueezyConfigured, configureLemonSqueezy } = await import('@/lib/lemonsqueezy')
+
+        if (isLemonSqueezyConfigured()) {
+          configureLemonSqueezy()
+
+          if (targetPlan === 'free') {
+            // 무료 전환 = 구독 취소
+            const { cancelSubscription } = await import('@/lib/lemonsqueezy')
+            await cancelSubscription(subscriptionId)
+            // Webhook에서 subscription_cancelled → subscription_expired 이벤트로 DB 업데이트됨
+            return NextResponse.json({
+              success: true,
+              plan: currentPlan, // 아직 현재 플랜 유지 (기간 만료까지)
+              planName: PLANS[currentPlan].name,
+              message: '구독이 해지 예약되었습니다. 현재 결제 기간 만료 후 무료 플랜으로 전환됩니다.',
+            })
+          } else {
+            // 유료 → 유료 다운그레이드 = variant 변경
+            const { updateSubscription, PLAN_VARIANT_MAP } = await import('@/lib/lemonsqueezy')
+            const newVariantId = PLAN_VARIANT_MAP[targetPlan]
+            if (newVariantId) {
+              await updateSubscription(subscriptionId, {
+                variantId: newVariantId,
+              })
+              // Webhook에서 subscription_updated 이벤트로 DB 업데이트됨
+              return NextResponse.json({
+                success: true,
+                plan: targetPlan,
+                planName: PLANS[targetPlan].name,
+                message: `${PLANS[targetPlan].name} 플랜으로 변경되었습니다. 다음 결제일부터 적용됩니다.`,
+              })
+            }
+          }
+        }
+      } catch (lsError) {
+        console.error('[Billing ChangePlan] LemonSqueezy API 오류:', lsError)
+        // LemonSqueezy 오류 시 데모 모드로 폴백
+      }
+    }
+
+    // 데모 모드 또는 구독 없는 경우: 직접 DB 업데이트
     const newQuota = PLAN_CREDITS[targetPlan]
     const newBalance = Math.min(profile?.credits_balance ?? 0, newQuota)
     const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
@@ -57,6 +101,7 @@ export async function POST(request: NextRequest) {
         credits_balance: targetPlan === 'free' ? newQuota : newBalance,
         credits_monthly_quota: newQuota,
         credits_reset_at: nextReset,
+        subscription_status: targetPlan === 'free' ? 'none' : 'active',
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)

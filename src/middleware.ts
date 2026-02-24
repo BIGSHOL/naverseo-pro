@@ -55,6 +55,11 @@ export async function middleware(request: NextRequest) {
 
   // --- 1) API 보호: Rate Limit + 봇 차단 ---
   if (pathname.startsWith('/api/')) {
+    // Webhook 엔드포인트는 외부 서비스에서 호출하므로 봇 차단 제외
+    if (pathname.startsWith('/api/webhooks/')) {
+      return NextResponse.next()
+    }
+
     // 봇이 API 호출 시 차단
     const isBot = BOT_PATTERNS.some((p) => p.test(ua))
     if (isBot) {

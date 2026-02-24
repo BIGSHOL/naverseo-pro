@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
+import SocialLoginButtons from '@/components/auth/social-login-buttons'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -218,6 +219,7 @@ export default function SignupPage() {
               {error}
             </div>
           )}
+          <SocialLoginButtons redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/auth/callback`} />
           <div className="space-y-2">
             <Label htmlFor="email">이메일</Label>
             <Input

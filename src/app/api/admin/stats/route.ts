@@ -33,12 +33,12 @@ export async function GET() {
     ])
 
     // 플랜 분포 집계
-    const planCounts = { free: 0, starter: 0, pro: 0, agency: 0 }
+    const planCounts = { free: 0, lite: 0, starter: 0, pro: 0, enterprise: 0 }
     ;(planDistribution || []).forEach((p: { plan: string }) => {
       if (p.plan in planCounts) planCounts[p.plan as keyof typeof planCounts]++
     })
 
-    const paidUsers = planCounts.starter + planCounts.pro + planCounts.agency
+    const paidUsers = planCounts.lite + planCounts.starter + planCounts.pro + planCounts.enterprise
 
     return NextResponse.json({
       totalUsers: totalUsers || 0,

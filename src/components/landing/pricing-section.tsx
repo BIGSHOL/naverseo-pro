@@ -5,16 +5,15 @@ import { Badge } from '@/components/ui/badge'
 import { PLANS, type Plan } from '@/types/database'
 import Link from 'next/link'
 
-const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'business', 'agency']
+const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'enterprise']
 
 // 각 플랜별 단가 비교 메시지
 const planValueProps: Partial<Record<Plan, string | null>> = {
   free: null,
-  lite: '크레딧당 ₩99',
-  starter: '크레딧당 ₩75 · ~25% 할인',
-  pro: '크레딧당 ₩67 · ~33% 할인',
-  business: '크레딧당 ₩59 · ~41% 할인',
-  agency: '크레딧당 ₩50 · ~50% 할인',
+  lite: '$0.05/크레딧',
+  starter: '$0.04/크레딧 · ~20% 할인',
+  pro: '$0.033/크레딧 · ~33% 할인',
+  enterprise: '$0.025/크레딧 · ~50% 할인',
 }
 
 // 기능 수 표시
@@ -23,8 +22,7 @@ const planFeatureCount: Partial<Record<Plan, string>> = {
   lite: '5가지 기능',
   starter: '전체 기능',
   pro: '전체 기능',
-  business: '전체 기능',
-  agency: '전체 기능',
+  enterprise: '전체 기능',
 }
 
 export function PricingSection() {

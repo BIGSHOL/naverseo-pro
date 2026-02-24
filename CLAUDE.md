@@ -15,7 +15,7 @@
 - **스타일링**: Tailwind CSS + shadcn/ui
 - **DB**: Supabase (PostgreSQL + Auth + Row Level Security)
 - **AI**: Google Gemini Flash API (콘텐츠 생성/분석)
-- **결제**: 포트원 PortOne V2 (한국 결제 PG 통합 게이트웨이)
+- **결제**: LemonSqueezy (MoR 구독 결제 - 글로벌 SaaS 결제 플랫폼)
 - **배포**: Vercel
 - **외부 API**: 네이버 검색광고 API, 네이버 데이터랩 API, 네이버 검색 API
 
@@ -73,7 +73,7 @@ naverseo-pro/
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users PRIMARY KEY,
   email TEXT NOT NULL,
-  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'lite', 'starter', 'pro', 'business', 'agency')),
+  plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'lite', 'starter', 'pro', 'enterprise')),
   credits_balance INT DEFAULT 30,
   credits_monthly_quota INT DEFAULT 30,
   credits_reset_at TIMESTAMPTZ,
@@ -185,10 +185,14 @@ NAVER_CLIENT_SECRET=        # 네이버 개발자 센터 시크릿
 # Google Gemini
 GEMINI_API_KEY=
 
-# 결제 (포트원 PortOne V2)
-NEXT_PUBLIC_PORTONE_STORE_ID=
-NEXT_PUBLIC_PORTONE_CHANNEL_KEY=
-PORTONE_API_SECRET=
+# 결제 (LemonSqueezy)
+LEMONSQUEEZY_API_KEY=
+LEMONSQUEEZY_STORE_ID=
+LEMONSQUEEZY_WEBHOOK_SECRET=
+LEMONSQUEEZY_VARIANT_LITE=
+LEMONSQUEEZY_VARIANT_STARTER=
+LEMONSQUEEZY_VARIANT_PRO=
+LEMONSQUEEZY_VARIANT_ENTERPRISE=
 ```
 
 ## 핵심 API 엔드포인트
@@ -230,15 +234,14 @@ Query:
 
 ## 가격 정책 (통합 크레딧 시스템)
 
-### 플랜별 월 크레딧 (6개 요금제)
+### 플랜별 월 크레딧 (5개 요금제)
 | 플랜 | 월 가격 | 월 크레딧 | 크레딧당 단가 |
 |------|--------|----------|-------------|
-| Free | ₩0 | 30 | - |
-| Lite | ₩9,900 | 100 | ₩99 |
-| Starter | ₩29,900 | 400 | ₩75 (~25% 할인) |
-| Pro | ₩49,900 | 750 | ₩67 (~33% 할인) |
-| Business | ₩99,900 | 1,700 | ₩59 (~41% 할인) |
-| Agency | ₩149,900 | 3,000 | ₩50 (~50% 할인) |
+| Free | $0 | 30 | - |
+| Lite | $5 | 100 | $0.05 |
+| Starter | $10 | 250 | $0.04 (~20% 할인) |
+| Pro | $20 | 600 | $0.033 (~33% 할인) |
+| Enterprise | $50 | 2,000 | $0.025 (~50% 할인) |
 | Admin | - | 무제한 | - |
 
 ### 기능별 크레딧 소모
@@ -287,7 +290,7 @@ Query:
 11. ✅ 블로그 지수 분석 (레이더 차트, 벤치마크)
 12. ✅ 상위노출 분석 (상위 블로그 패턴 분석)
 13. ✅ 키워드 발굴 (블루오션 키워드)
-14. ✅ 결제 연동 (포트원 PortOne V2 - 코드 완료, 프로덕션 키 발급 대기)
+14. ✅ 결제 연동 (LemonSqueezy MoR 구독 결제 - Webhook 기반 자동 갱신)
 
 ## AI 프롬프트 가이드라인
 콘텐츠 생성 시 Claude API에 보내는 시스템 프롬프트:

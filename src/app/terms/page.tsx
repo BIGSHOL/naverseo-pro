@@ -155,9 +155,9 @@ export default function TermsPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-foreground">제8조 (이용 요금 및 결제)</h2>
             <ol className="list-decimal space-y-2 pl-6">
-              <li>서비스는 무료 플랜(Free)과 유료 플랜(Lite, Starter, Pro, Business, Agency)을 제공합니다. 각 플랜별 제공 기능 및 이용 한도는 서비스 내 가격 안내 페이지에 명시합니다.</li>
+              <li>서비스는 무료 플랜(Free)과 유료 플랜(Lite, Starter, Pro, Enterprise)을 제공합니다. 각 플랜별 제공 기능 및 이용 한도는 서비스 내 가격 안내 페이지에 명시합니다.</li>
               <li>유료 플랜은 월 단위로 자동 갱신되며, 회원이 해지하지 않는 한 매월 동일한 결제 수단으로 결제됩니다.</li>
-              <li>결제는 토스페이먼츠를 통해 처리되며, 회사는 결제 정보를 직접 저장하지 않습니다.</li>
+              <li>결제는 LemonSqueezy를 통해 처리되며, 회사는 결제 정보를 직접 저장하지 않습니다.</li>
               <li>각 플랜의 월간 사용량(키워드 조회 횟수, AI 콘텐츠 생성 횟수 등)은 매월 1일에 초기화됩니다.</li>
               <li>플랜 업그레이드 시 즉시 적용되며, 다운그레이드 시 현재 결제 주기가 끝나는 시점에 적용됩니다.</li>
             </ol>

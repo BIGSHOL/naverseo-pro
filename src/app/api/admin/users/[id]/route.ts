@@ -94,7 +94,7 @@ export async function PATCH(
     // 허용된 필드만 업데이트
     const allowedFields: Record<string, unknown> = {}
 
-    if (body.plan && ['free', 'lite', 'starter', 'pro', 'business', 'agency'].includes(body.plan)) {
+    if (body.plan && ['free', 'lite', 'starter', 'pro', 'enterprise'].includes(body.plan)) {
       allowedFields.plan = body.plan
       // 플랜 변경 시 월간 할당량 자동 동기화
       allowedFields.credits_monthly_quota = PLAN_CREDITS[body.plan as Plan]

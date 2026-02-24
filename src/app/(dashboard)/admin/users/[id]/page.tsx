@@ -75,8 +75,7 @@ const planColors: Record<string, string> = {
   lite: 'bg-green-100 text-green-700',
   starter: 'bg-blue-100 text-blue-700',
   pro: 'bg-purple-100 text-purple-700',
-  business: 'bg-orange-100 text-orange-700',
-  agency: 'bg-amber-100 text-amber-700',
+  enterprise: 'bg-orange-100 text-orange-700',
 }
 
 export default function AdminUserDetailPage({ params }: { params: { id: string } }) {
@@ -392,8 +391,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                     <SelectItem value="lite">Lite</SelectItem>
                     <SelectItem value="starter">Starter</SelectItem>
                     <SelectItem value="pro">Pro</SelectItem>
-                    <SelectItem value="business">Business</SelectItem>
-                    <SelectItem value="agency">Agency</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

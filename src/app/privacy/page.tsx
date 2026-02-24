@@ -111,7 +111,7 @@ export default function PrivacyPage() {
               <div>
                 <h3 className="font-medium text-foreground">3. 유료 결제</h3>
                 <ul className="mt-1 list-disc space-y-1 pl-6">
-                  <li>결제 수단 정보(토스페이먼츠를 통해 처리, 회사가 카드번호를 직접 저장하지 않음)</li>
+                  <li>결제 수단 정보(LemonSqueezy를 통해 처리, 회사가 카드번호를 직접 저장하지 않음)</li>
                   <li>결제 내역(주문번호, 결제금액, 결제일시)</li>
                 </ul>
               </div>
@@ -152,7 +152,7 @@ export default function PrivacyPage() {
                     <td className="py-2.5 px-3">위탁계약 종료 시</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2.5 px-3">주식회사 토스페이먼츠</td>
+                    <td className="py-2.5 px-3">LemonSqueezy Inc.</td>
                     <td className="py-2.5 px-3">결제 처리 및 결제 정보 관리</td>
                     <td className="py-2.5 px-3">위탁계약 종료 시</td>
                   </tr>
@@ -226,7 +226,7 @@ export default function PrivacyPage() {
               <li>
                 <span className="font-medium text-foreground">결제 정보 보안</span>
                 <br />
-                결제 정보는 토스페이먼츠를 통해 안전하게 처리되며, 회사가 카드번호 등
+                결제 정보는 LemonSqueezy를 통해 안전하게 처리되며, 회사가 카드번호 등
                 민감한 결제 정보를 직접 저장하지 않습니다.
               </li>
               <li>

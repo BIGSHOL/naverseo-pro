@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       query = query.ilike('email', `%${search}%`)
     }
 
-    if (planFilter && ['free', 'lite', 'starter', 'pro', 'business', 'agency'].includes(planFilter)) {
+    if (planFilter && ['free', 'lite', 'starter', 'pro', 'enterprise'].includes(planFilter)) {
       query = query.eq('plan', planFilter)
     }
 

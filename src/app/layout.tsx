@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import Script from 'next/script'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -58,6 +59,10 @@ export default function RootLayout({
       >
         {children}
         <Toaster />
+        <Script
+          src="https://app.lemonsqueezy.com/js/lemon.js"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   )

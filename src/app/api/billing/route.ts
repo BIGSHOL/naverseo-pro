@@ -15,7 +15,7 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, plan, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, email, created_at')
+      .select('id, plan, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, email, created_at, subscription_status, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
@@ -33,7 +33,7 @@ export async function GET() {
         email: user.email,
         created_at: user.created_at,
       },
-      portoneConfigured: !!(process.env.NEXT_PUBLIC_PORTONE_STORE_ID && process.env.PORTONE_API_SECRET),
+      lemonSqueezyConfigured: !!(process.env.LEMONSQUEEZY_API_KEY && process.env.LEMONSQUEEZY_STORE_ID),
     })
   } catch (error) {
     console.error('[Billing] 오류:', error)
