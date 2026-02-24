@@ -19,6 +19,7 @@ import {
   Ticket,
   Link2,
   Unlink,
+  Plus,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -277,6 +278,24 @@ export default function SettingsPage() {
       setIdentityError('연동 해제 중 오류가 발생했습니다.')
     } finally {
       setUnlinkLoading(null)
+    }
+  }
+
+  const handleLinkIdentity = async (provider: 'google' | 'kakao') => {
+    setIdentityError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.linkIdentity({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/api/auth/callback?next=/settings`,
+        },
+      })
+      if (error) {
+        setIdentityError(error.message)
+      }
+    } catch {
+      setIdentityError('계정 연동 중 오류가 발생했습니다.')
     }
   }
 
@@ -539,8 +558,34 @@ export default function SettingsPage() {
               ))}
             </div>
           )}
+          {/* 연동 추가 버튼 */}
+          {(() => {
+            const linkedProviders = identities.map(i => i.provider)
+            const availableProviders = [
+              { id: 'google' as const, label: 'Google', color: 'border hover:bg-gray-50' },
+              { id: 'kakao' as const, label: '카카오', color: 'bg-[#FEE500]/10 hover:bg-[#FEE500]/20 text-[#191919]' },
+            ].filter(p => !linkedProviders.includes(p.id))
+            if (availableProviders.length === 0) return null
+            return (
+              <div className="flex flex-wrap gap-2 border-t pt-3">
+                {availableProviders.map(p => (
+                  <Button
+                    key={p.id}
+                    variant="outline"
+                    size="sm"
+                    className={`gap-1.5 text-xs ${p.color}`}
+                    onClick={() => handleLinkIdentity(p.id)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {p.label} 연동
+                  </Button>
+                ))}
+              </div>
+            )
+          })()}
           <p className="text-xs text-muted-foreground">
             소셜 계정을 연동하면 해당 계정으로도 로그인할 수 있습니다. 최소 1개는 유지해야 합니다.
+            이미 다른 계정으로 가입된 소셜 계정은 연동할 수 없습니다.
           </p>
         </CardContent>
       </Card>

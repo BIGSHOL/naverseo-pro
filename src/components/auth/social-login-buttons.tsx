@@ -28,11 +28,6 @@ export default function SocialLoginButtons({ redirectTo }: SocialLoginButtonsPro
     }
   }
 
-  const handleNaver = () => {
-    setLoading('naver')
-    window.location.href = '/api/auth/naver'
-  }
-
   return (
     <div className="space-y-3">
       {/* Google */}
@@ -86,26 +81,6 @@ export default function SocialLoginButtons({ redirectTo }: SocialLoginButtonsPro
               <path d="M12 3C6.48 3 2 6.36 2 10.44c0 2.62 1.75 4.93 4.38 6.24l-1.12 4.12c-.1.35.3.64.6.44l4.8-3.18c.44.04.88.06 1.34.06 5.52 0 10-3.36 10-7.68S17.52 3 12 3z" />
             </svg>
             카카오로 계속하기
-          </>
-        )}
-      </Button>
-
-      {/* Naver */}
-      <Button
-        type="button"
-        className="w-full gap-3 border-0 text-white hover:opacity-90"
-        style={{ backgroundColor: '#03C75A' }}
-        onClick={handleNaver}
-        disabled={!!loading}
-      >
-        {loading === 'naver' ? (
-          '연결 중...'
-        ) : (
-          <>
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="white">
-              <path d="M16.27 12.27L7.47 3H3v18h4.73V12.73L16.53 21H21V3h-4.73z" />
-            </svg>
-            네이버로 계속하기
           </>
         )}
       </Button>

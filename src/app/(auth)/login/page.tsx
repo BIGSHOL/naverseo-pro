@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,14 +18,27 @@ import {
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import SocialLoginButtons from '@/components/auth/social-login-buttons'
 
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  auth_callback_error: '소셜 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
+  identity_already_exists: '이 소셜 계정은 이미 다른 계정에 연동되어 있습니다. 기존 계정으로 로그인하거나, 해당 계정에서 연동을 해제한 후 다시 시도해주세요.',
+}
+
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const supabaseReady = isSupabaseConfigured()
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      setError(AUTH_ERROR_MESSAGES[errorParam] || `로그인 오류: ${errorParam}`)
+    }
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
