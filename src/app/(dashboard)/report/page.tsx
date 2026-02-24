@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PLANS, type Plan } from '@/types/database'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 
 interface ReportData {
   profile: {
@@ -48,6 +49,7 @@ export default function ReportPage() {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [planGateMessage, setPlanGateMessage] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -55,7 +57,12 @@ export default function ReportPage() {
       try {
         const res = await fetch('/api/report')
         if (!res.ok) {
-          setError('리포트 데이터를 불러오지 못했습니다.')
+          const json = await res.json().catch(() => ({}))
+          if (json.planGate) {
+            setPlanGateMessage(json.error)
+          } else {
+            setError(json.error || '리포트 데이터를 불러오지 못했습니다.')
+          }
           return
         }
         const json = await res.json()
@@ -77,6 +84,15 @@ export default function ReportPage() {
     return (
       <div className="flex items-center justify-center py-16">
         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (planGateMessage) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">SEO 리포트</h1>
+        <PlanGateAlert message={planGateMessage} />
       </div>
     )
   }

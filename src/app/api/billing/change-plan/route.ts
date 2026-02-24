@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, PLAN_CREDITS, type Plan } from '@/types/database'
 
 // 플랜 변경 (다운그레이드 / 무료 전환)
 export async function POST(request: NextRequest) {
   try {
+    // 인증 확인 (사용자 클라이언트)
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -23,14 +25,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '관리자 플랜으로는 변경할 수 없습니다.' }, { status: 400 })
     }
 
+    // DB 작업은 admin 클라이언트 사용 (RLS 우회 - webhook과 동일 패턴)
+    const adminDb = createAdminClient()
+
     // 현재 플랜 확인
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await adminDb
       .from('profiles')
       .select('plan, credits_balance, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
-    const currentPlan = (profile?.plan || 'free') as Plan
+    if (profileError || !profile) {
+      console.error('[Billing ChangePlan] 프로필 조회 실패:', profileError)
+      return NextResponse.json({ error: '프로필 정보를 불러올 수 없습니다.' }, { status: 500 })
+    }
+
+    const currentPlan = (profile.plan || 'free') as Plan
 
     if (currentPlan === targetPlan) {
       return NextResponse.json({ error: '이미 동일한 플랜을 사용 중입니다.' }, { status: 400 })
@@ -46,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // LemonSqueezy 구독이 있으면 API로 취소/변경 처리
-    const subscriptionId = profile?.lemonsqueezy_subscription_id
+    const subscriptionId = profile.lemonsqueezy_subscription_id
     if (subscriptionId) {
       try {
         const { isLemonSqueezyConfigured, configureLemonSqueezy } = await import('@/lib/lemonsqueezy')
@@ -57,11 +67,13 @@ export async function POST(request: NextRequest) {
           if (targetPlan === 'free') {
             // 무료 전환 = 구독 취소
             const { cancelSubscription } = await import('@/lib/lemonsqueezy')
-            await cancelSubscription(subscriptionId)
-            // Webhook에서 subscription_cancelled → subscription_expired 이벤트로 DB 업데이트됨
+            const result = await cancelSubscription(subscriptionId)
+            if (result.error) {
+              console.error('[Billing ChangePlan] 구독 취소 실패:', result.error)
+            }
             return NextResponse.json({
               success: true,
-              plan: currentPlan, // 아직 현재 플랜 유지 (기간 만료까지)
+              plan: currentPlan,
               planName: PLANS[currentPlan].name,
               message: '구독이 해지 예약되었습니다. 현재 결제 기간 만료 후 무료 플랜으로 전환됩니다.',
             })
@@ -70,10 +82,12 @@ export async function POST(request: NextRequest) {
             const { updateSubscription, PLAN_VARIANT_MAP } = await import('@/lib/lemonsqueezy')
             const newVariantId = PLAN_VARIANT_MAP[targetPlan]
             if (newVariantId) {
-              await updateSubscription(subscriptionId, {
+              const result = await updateSubscription(subscriptionId, {
                 variantId: newVariantId,
               })
-              // Webhook에서 subscription_updated 이벤트로 DB 업데이트됨
+              if (result.error) {
+                console.error('[Billing ChangePlan] variant 변경 실패:', result.error)
+              }
               return NextResponse.json({
                 success: true,
                 plan: targetPlan,
@@ -89,12 +103,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 데모 모드 또는 구독 없는 경우: 직접 DB 업데이트
+    // 데모 모드 또는 구독 없는 경우: 직접 DB 업데이트 (admin 클라이언트)
     const newQuota = PLAN_CREDITS[targetPlan]
-    const newBalance = Math.min(profile?.credits_balance ?? 0, newQuota)
+    const newBalance = Math.min(profile.credits_balance ?? 0, newQuota)
     const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await adminDb
       .from('profiles')
       .update({
         plan: targetPlan,
@@ -107,7 +121,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
 
     if (updateError) {
-      console.error('[Billing] 플랜 변경 오류:', updateError)
+      console.error('[Billing ChangePlan] DB 업데이트 오류:', updateError)
       return NextResponse.json({ error: '플랜 변경에 실패했습니다.' }, { status: 500 })
     }
 

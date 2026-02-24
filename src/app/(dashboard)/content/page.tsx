@@ -24,6 +24,7 @@ import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 
 interface SeoCategory {
   id: string
@@ -108,6 +109,7 @@ export default function ContentPage() {
   const [loading, setLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0) // 0: 네이버 데이터, 1: AI 생성, 2: SEO 분석
   const [error, setError] = useState('')
+  const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
@@ -508,6 +510,7 @@ export default function ContentPage() {
     setLoading(true)
     setLoadingStep(0)
     setError('')
+    setPlanGateMessage('')
     setShowSeoDetail(false)
 
     // 로딩 단계 타이머 (UX용)
@@ -564,7 +567,12 @@ export default function ContentPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || '콘텐츠 생성에 실패했습니다.')
+        if (data.planGate) {
+          setPlanGateMessage(data.error)
+          setError('')
+        } else {
+          setError(data.error || '콘텐츠 생성에 실패했습니다.')
+        }
         return
       }
 
@@ -1683,6 +1691,10 @@ export default function ContentPage() {
                   </div>
                 )}
               </div>
+            )}
+
+            {planGateMessage && (
+              <PlanGateAlert message={planGateMessage} />
             )}
 
             {error && (

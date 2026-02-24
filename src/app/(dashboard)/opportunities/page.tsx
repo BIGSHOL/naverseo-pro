@@ -11,6 +11,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 
 const OpportunityMatrixChart = dynamic(() => import('@/components/charts/OpportunityMatrixChart'), {
   ssr: false,
@@ -55,6 +56,7 @@ export default function OpportunitiesPage() {
   const [topic, setTopic] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<OpportunityResult | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -70,6 +72,7 @@ export default function OpportunitiesPage() {
     if (searchTopic) setTopic(searchTopic)
     setLoading(true)
     setError('')
+    setPlanGateMessage('')
 
     try {
       // URL 감지: blog.naver.com 포함 여부
@@ -84,7 +87,11 @@ export default function OpportunitiesPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || '키워드 발굴 분석에 실패했습니다.')
+        if (data.planGate) {
+          setPlanGateMessage(data.error)
+        } else {
+          setError(data.error || '키워드 발굴 분석에 실패했습니다.')
+        }
         return
       }
 
@@ -225,6 +232,12 @@ export default function OpportunitiesPage() {
               </div>
             )}
           </form>
+
+          {planGateMessage && (
+            <div className="mt-4">
+              <PlanGateAlert message={planGateMessage} />
+            </div>
+          )}
 
           {error && (
             <div className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">

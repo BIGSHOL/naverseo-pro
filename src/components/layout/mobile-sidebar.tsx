@@ -3,31 +3,34 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu } from 'lucide-react'
+import { Menu, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
-import type { UserRole } from '@/types/database'
-import { navItems, adminNavItems } from '@/lib/navigation'
+import type { Plan, UserRole } from '@/types/database'
+import { navItems, adminNavItems, canAccessFeature } from '@/lib/navigation'
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
+  const [plan, setPlan] = useState<Plan>('free')
   const [role, setRole] = useState<UserRole>('user')
   const pathname = usePathname()
 
   useEffect(() => {
-    async function loadRole() {
+    async function loadProfile() {
       try {
         const res = await fetch('/api/dashboard')
         if (!res.ok) return
         const data = await res.json()
-        setRole((data.profile?.role || 'user') as UserRole)
+        const userRole = (data.profile?.role || 'user') as UserRole
+        setRole(userRole)
+        setPlan(userRole === 'admin' ? 'admin' : (data.profile?.plan || 'free') as Plan)
       } catch {
         // 로드 실패 시 기본값 유지
       }
     }
-    loadRole()
+    loadProfile()
   }, [pathname])
 
   return (
@@ -45,20 +48,24 @@ export function MobileSidebar() {
           <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
             {navItems.map((item) => {
               const isActive = pathname === item.href
+              const locked = !canAccessFeature(plan, item.minPlan)
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={locked ? '/billing' : item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive
+                    locked
+                      ? 'text-muted-foreground/50'
+                      : isActive
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
+                  <item.icon className={cn('h-5 w-5', locked && 'opacity-40')} />
+                  <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
+                  {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />}
                 </Link>
               )
             })}

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { KeywordSearch } from '@/components/keywords/keyword-search'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 
 // === 타입 ===
 
@@ -96,6 +97,7 @@ export default function CompetitorsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [planGateMessage, setPlanGateMessage] = useState('')
   const [searched, setSearched] = useState(false)
   const [isDemo, setIsDemo] = useState(false)
   const [searchedKeyword, setSearchedKeyword] = useState('')
@@ -123,6 +125,7 @@ export default function CompetitorsPage() {
   const handleSearch = async (keyword: string) => {
     setLoading(true)
     setError('')
+    setPlanGateMessage('')
     setSearched(true)
     setSearchedKeyword(keyword)
     setDateFilter('all')
@@ -137,7 +140,11 @@ export default function CompetitorsPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || '상위노출 분석에 실패했습니다.')
+        if (data.planGate) {
+          setPlanGateMessage(data.error)
+        } else {
+          setError(data.error || '상위노출 분석에 실패했습니다.')
+        }
         return
       }
 
@@ -191,6 +198,11 @@ export default function CompetitorsPage() {
           <KeywordSearch onSearch={handleSearch} loading={loading} />
         </CardContent>
       </Card>
+
+      {/* 플랜 제한 안내 */}
+      {planGateMessage && (
+        <PlanGateAlert message={planGateMessage} />
+      )}
 
       {/* 에러 */}
       {error && (

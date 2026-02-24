@@ -9,7 +9,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PLANS, type Plan } from '@/types/database'
 import type { UserRole } from '@/types/database'
-import { navItems, adminNavItems } from '@/lib/navigation'
+import { navItems, adminNavItems, canAccessFeature } from '@/lib/navigation'
+import { Lock } from 'lucide-react'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 
 export function Sidebar() {
@@ -69,20 +70,32 @@ export function Sidebar() {
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href
+            const locked = !canAccessFeature(plan, item.minPlan)
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={locked ? '/billing' : item.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      locked
+                        ? 'cursor-default text-muted-foreground/50'
+                        : isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )}
+                  >
+                    <item.icon className={cn('h-5 w-5', locked && 'opacity-40')} />
+                    <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
+                    {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                  </Link>
+                </TooltipTrigger>
+                {locked && (
+                  <TooltipContent side="right">
+                    <p>{item.minPlan === 'lite' ? 'Lite' : 'Starter'} 이상 플랜 필요</p>
+                  </TooltipContent>
                 )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </Link>
+              </Tooltip>
             )
           })}
 

@@ -13,6 +13,7 @@ import {
   ExternalLink,
   AlertCircle,
 } from 'lucide-react'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -79,6 +80,7 @@ export default function TrackingPage() {
   const [newKeyword, setNewKeyword] = useState('')
   const [newBlogUrl, setNewBlogUrl] = useState('')
   const [error, setError] = useState('')
+  const [planGateMessage, setPlanGateMessage] = useState('')
   const [isDemo, setIsDemo] = useState(false)
   const [bulkChecking, setBulkChecking] = useState(false)
 
@@ -107,6 +109,7 @@ export default function TrackingPage() {
 
     setAdding(true)
     setError('')
+    setPlanGateMessage('')
 
     try {
       const res = await fetch('/api/tracking', {
@@ -121,7 +124,11 @@ export default function TrackingPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || '등록에 실패했습니다.')
+        if (data.planGate) {
+          setPlanGateMessage(data.error)
+        } else {
+          setError(data.error || '등록에 실패했습니다.')
+        }
         return
       }
 
@@ -305,6 +312,9 @@ export default function TrackingPage() {
                 네이버 블로그 주소를 입력해주세요 (blog.naver.com/아이디)
               </p>
             </div>
+            {planGateMessage && (
+              <PlanGateAlert message={planGateMessage} />
+            )}
             {error && (
               <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
             )}

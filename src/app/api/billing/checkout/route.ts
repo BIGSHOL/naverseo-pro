@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { configureLemonSqueezy, createCheckout, PLAN_VARIANT_MAP, isLemonSqueezyConfigured } from '@/lib/lemonsqueezy'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, PLAN_CREDITS, type Plan } from '@/types/database'
 
 // LemonSqueezy 체크아웃 세션 생성
 export async function POST(request: NextRequest) {
   try {
+    // 인증 확인 (사용자 클라이언트)
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -19,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '유효하지 않은 플랜입니다.' }, { status: 400 })
     }
 
-    // 데모 모드: LemonSqueezy 미설정 시 직접 플랜 변경
+    // 데모 모드: LemonSqueezy 미설정 시 직접 플랜 변경 (admin 클라이언트)
     if (!isLemonSqueezyConfigured()) {
       console.warn('[Billing Checkout] LemonSqueezy 미설정 → 데모 모드')
 
@@ -27,7 +29,8 @@ export async function POST(request: NextRequest) {
       const credits = PLAN_CREDITS[targetPlan]
       const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
 
-      await supabase
+      const adminDb = createAdminClient()
+      const { error: updateError } = await adminDb
         .from('profiles')
         .update({
           plan: targetPlan,
@@ -38,6 +41,11 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id)
+
+      if (updateError) {
+        console.error('[Billing Checkout] DB 업데이트 오류:', updateError)
+        return NextResponse.json({ error: '플랜 변경에 실패했습니다.' }, { status: 500 })
+      }
 
       return NextResponse.json({
         demo: true,
