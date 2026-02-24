@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { TiptapEditor, getEditorHtml } from '@/components/content/TiptapEditor'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
 import { detectContentType, generateOutline, analyzeSeo, type ContentType } from '@/lib/content/engine'
@@ -347,7 +348,8 @@ export default function ContentPage() {
   const [analyzingRef, setAnalyzingRef] = useState(false)
 
   // 편집 모드 상태
-  const [activeTab, setActiveTab] = useState('preview')
+  const [activeTab, setActiveTab] = useState('editor')
+  const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
   const [editTags, setEditTags] = useState<string[]>([])
@@ -607,20 +609,35 @@ export default function ContentPage() {
 
   const handleCopy = async () => {
     if (!result) return
-    const text = `${result.title}\n\n${result.content}`
-    await navigator.clipboard.writeText(text)
+    const contentSource = editContent || result.content
+    const titleSource = editTitle || result.title
+    const html = `<h1>${titleSource}</h1>${getEditorHtml(contentSource)}`
+    const text = `${titleSource}\n\n${contentSource}`
+
+    try {
+      // HTML + 텍스트 동시 클립보드 저장 (네이버 블로그 서식 유지)
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        }),
+      ])
+    } catch {
+      // ClipboardItem 미지원 브라우저 폴백
+      await navigator.clipboard.writeText(text)
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // 탭 전환 시 편집 상태 자동 초기화
+  // result 도착 시 편집 상태 초기화
   useEffect(() => {
-    if (activeTab === 'edit' && result) {
+    if (result) {
       setEditTitle(result.title)
       setEditContent(result.content)
       setEditTags(result.tags || [])
     }
-  }, [activeTab, result])
+  }, [result])
 
   const handleSave = async () => {
     if (!result?.contentId || saving) return
@@ -2008,32 +2025,32 @@ export default function ContentPage() {
                   {result.isDemo && (
                     <Badge variant="outline">데모</Badge>
                   )}
-                  {/* 탭 버튼 */}
+                  {/* 편집기/마크다운 토글 */}
                   <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 sm:gap-1 sm:p-1">
                     <button
                       className={`rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm ${
-                        activeTab === 'preview'
+                        !showRawMarkdown
                           ? 'bg-background text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
-                      onClick={() => setActiveTab('preview')}
+                      onClick={() => setShowRawMarkdown(false)}
                     >
-                      <Eye className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
-                      미리보기
+                      <Pencil className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
+                      편집기
                     </button>
                     <button
                       className={`rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm ${
-                        activeTab === 'edit'
+                        showRawMarkdown
                           ? 'bg-background text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
-                      onClick={() => setActiveTab('edit')}
+                      onClick={() => setShowRawMarkdown(true)}
                     >
-                      <Pencil className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
-                      편집
+                      <FileText className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
+                      마크다운
                     </button>
                   </div>
-                  {/* 복사 버튼 */}
+                  {/* HTML 복사 버튼 (네이버 블로그 서식 유지) */}
                   <Button variant="outline" size="sm" className="h-7 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm" onClick={handleCopy}>
                     {copied ? (
                       <>
@@ -2043,7 +2060,7 @@ export default function ContentPage() {
                     ) : (
                       <>
                         <Copy className="mr-1 h-3 w-3" />
-                        복사
+                        HTML 복사
                       </>
                     )}
                   </Button>
@@ -2051,44 +2068,8 @@ export default function ContentPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* 미리보기 탭 */}
-              {activeTab === 'preview' && (
-                <div className="space-y-6">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">제목</Label>
-                    <h2 className="mt-1 text-xl font-bold">{result.title}</h2>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">본문</Label>
-                    <div className="mt-2 rounded-lg border bg-muted/30 p-4">
-                      <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-li:text-foreground/90">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {result.content}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
-                  {result.tags && result.tags.length > 0 && (
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        <Tag className="mr-1 inline h-3 w-3" />
-                        추천 태그
-                      </Label>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {result.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary">
-                            #{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 편집 탭 */}
-              {activeTab === 'edit' && (
-                <div>
+              {/* 편집기 영역 */}
+              <div>
                   <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
                     {/* 좌측: 편집 영역 */}
                     <div className="space-y-4">
@@ -2101,17 +2082,32 @@ export default function ContentPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="edit-content">본문</Label>
-                        <Textarea
-                          id="edit-content"
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={20}
-                          className="font-mono text-sm"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {editContent.length.toLocaleString()}자
-                        </p>
+                        <Label>본문</Label>
+                        {showRawMarkdown ? (
+                          <>
+                            <Textarea
+                              id="edit-content"
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              rows={20}
+                              className="font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {editContent.length.toLocaleString()}자
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <TiptapEditor
+                              markdown={editContent}
+                              onMarkdownChange={setEditContent}
+                              placeholder="글을 작성하세요..."
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {editContent.length.toLocaleString()}자
+                            </p>
+                          </>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>
@@ -2187,7 +2183,6 @@ export default function ContentPage() {
                     />
                   </div>
                 </div>
-              )}
             </CardContent>
           </Card>
 

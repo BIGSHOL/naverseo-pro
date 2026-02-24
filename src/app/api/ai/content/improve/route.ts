@@ -71,13 +71,38 @@ export async function POST(request: NextRequest) {
     const userMessage = buildImprovementUserPrompt(keyword, title, content, categories)
 
     console.log(`[Content Improve] ${categories.length}개 약점 patch 개선 요청: ${categories.map(c => c.id).join(', ')}`)
+    console.log(`[Content Improve] provider=${provider}, 본문길이=${content.length}자, 제목="${title}"`)
 
     const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
-    const parsed = parseGeminiJson<PatchResponse>(response)
+
+    console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
+    if (!response || response.trim().length === 0) {
+      console.error('[Content Improve] AI가 빈 응답을 반환했습니다.')
+      return NextResponse.json(
+        { error: 'AI가 빈 응답을 반환했습니다. 본문이 너무 길 수 있습니다. 다시 시도해주세요.' },
+        { status: 500 }
+      )
+    }
+    console.log(`[Content Improve] AI 응답 앞 500자:`, response.substring(0, 500))
+
+    let parsed: PatchResponse
+    try {
+      parsed = parseGeminiJson<PatchResponse>(response)
+    } catch (parseError) {
+      const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
+      console.error(`[Content Improve] JSON 파싱 실패. 응답 전체 길이: ${response.length}자`)
+      console.error(`[Content Improve] 응답 앞 1000자:`, response.substring(0, 1000))
+      console.error(`[Content Improve] 응답 뒤 500자:`, response.substring(Math.max(0, response.length - 500)))
+      return NextResponse.json(
+        { error: `AI 응답 파싱 실패: ${parseMsg} (응답 ${response.length}자)` },
+        { status: 500 }
+      )
+    }
 
     if (!parsed.patches || !Array.isArray(parsed.patches)) {
+      console.error('[Content Improve] patches 배열 없음. parsed:', JSON.stringify(parsed).substring(0, 500))
       return NextResponse.json(
-        { error: 'AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.' },
+        { error: 'AI 응답에 patches 배열이 없습니다. 다시 시도해주세요.' },
         { status: 500 }
       )
     }
