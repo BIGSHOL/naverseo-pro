@@ -304,7 +304,7 @@ export default function BillingPage() {
       )}
 
       {/* 플랜 카드 그리드 */}
-      <div className="mx-auto grid max-w-5xl grid-cols-5 gap-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {planOrder.map((planKey) => {
           const planInfo = PLANS[planKey] as PlanInfo
           const isCurrent = planKey === currentPlan
@@ -323,70 +323,70 @@ export default function BillingPage() {
               }`}
             >
               {isCurrent && (
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] px-2">
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
                   현재 플랜
                 </Badge>
               )}
               {planInfo.popular && !isCurrent && (
-                <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] px-2">
+                <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2">
                   인기
                 </Badge>
               )}
 
-              <CardHeader className="px-3 pb-2 pt-4">
-                <CardTitle className="text-sm font-semibold">
-                  {planInfo.name}
+              <CardHeader className="pb-3 pt-6">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-lg">{planInfo.name}</span>
                 </CardTitle>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {planInfo.credits.toLocaleString()} 크레딧/월
                 </p>
-                <div className="mt-1">
-                  <span className="text-xl font-bold">
+                <div className="mt-2">
+                  <span className="text-3xl font-bold">
                     {planInfo.price === 0 ? '무료' : planInfo.priceLabel}
                   </span>
                   {planInfo.price > 0 && (
-                    <span className="text-[11px] text-muted-foreground">/월</span>
+                    <span className="text-sm text-muted-foreground">/월</span>
                   )}
                 </div>
               </CardHeader>
 
-              <CardContent className="flex flex-1 flex-col px-3 pb-3">
-                <ul className="flex-1 space-y-1">
+              <CardContent className="flex flex-1 flex-col">
+                <ul className="flex-1 space-y-2">
                   {planInfo.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-1.5 text-[11px] leading-tight">
-                      <Check className="mt-0.5 h-3 w-3 shrink-0 text-green-600" />
+                    <li key={feature} className="flex items-start gap-2 text-sm">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
                       {feature}
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-3 pt-2">
+                <div className="mt-4 pt-3">
                   {isCurrent ? (
-                    <Button variant="outline" className="w-full h-8 text-xs" disabled>
+                    <Button variant="outline" className="w-full" disabled>
                       사용 중
                     </Button>
                   ) : isDowngrade || (isFree && currentPlan !== 'free') ? (
                     <Button
                       variant="outline"
-                      className="w-full h-8 text-xs gap-1"
+                      className="w-full gap-2"
                       onClick={() => setDowngradeConfirm(planKey)}
                       disabled={!!paymentLoading || downgradeConfirm === planKey}
                     >
-                      <ArrowDown className="h-3 w-3" />
-                      {isFree ? '무료 전환' : '변경'}
+                      <ArrowDown className="h-4 w-4" />
+                      {isFree ? '무료로 전환' : `${planInfo.name}으로 변경`}
                     </Button>
                   ) : (
                     <Button
-                      className="w-full h-8 text-xs gap-1"
+                      className="w-full gap-2"
                       onClick={() => handleUpgrade(planKey)}
                       disabled={!!paymentLoading}
                     >
                       {paymentLoading === planKey ? (
-                        '진행 중...'
+                        '결제 진행 중...'
                       ) : (
                         <>
-                          <Zap className="h-3 w-3" />
-                          {planInfo.priceLabel}/월
+                          <Zap className="h-4 w-4" />
+                          {planInfo.priceLabel}/월 구독
                         </>
                       )}
                     </Button>
