@@ -1,4 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#2563EB"/>
-  <text x="16" y="22" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="18" fill="white">N</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#93C5FD"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#A5B4FC"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#6EE7B7"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Chart bars -->
+  <rect x="100" y="300" width="80" height="130" rx="14" fill="url(#bar1)"/>
+  <rect x="215" y="220" width="80" height="210" rx="14" fill="url(#bar2)"/>
+  <rect x="330" y="150" width="80" height="280" rx="14" fill="url(#bar3)"/>
+  <!-- Trend line (shortened to connect with arrowhead) -->
+  <line x1="130" y1="285" x2="355" y2="140" stroke="white" stroke-width="14" stroke-linecap="round" opacity="0.95"/>
+  <!-- Arrowhead: tip at (400,111), wings at (365,155) and (345,125) -->
+  <polygon points="400,111 365,155 345,125" fill="white" opacity="0.95"/>
 </svg>

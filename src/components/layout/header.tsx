@@ -128,25 +128,42 @@ function staticNotifications(): Notification[] {
 
 export function Header() {
   const router = useRouter()
-  const [blogThumbnail, setBlogThumbnail] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [userInitial, setUserInitial] = useState('U')
   const [notifications, setNotifications] = useState<Notification[]>(staticNotifications())
 
   useEffect(() => {
-    const loadDashboardData = async () => {
+    const loadData = async () => {
       try {
+        // 소셜 프로필 이미지 가져오기
+        if (isSupabaseConfigured()) {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const meta = user.user_metadata
+            if (meta?.avatar_url) setAvatarUrl(meta.avatar_url)
+            else if (meta?.picture) setAvatarUrl(meta.picture)
+            const name = meta?.full_name || meta?.name || user.email || ''
+            setUserInitial(name.charAt(0).toUpperCase() || 'U')
+          }
+        }
+
+        // 대시보드 데이터 (알림용)
         const res = await fetch('/api/dashboard')
         if (!res.ok) return
         const data = await res.json()
-        if (data.blogProfile?.blogThumbnail) {
-          setBlogThumbnail(data.blogProfile.blogThumbnail)
+        // 블로그 썸네일을 폴백으로 사용
+        if (!avatarUrl && data.blogProfile?.blogThumbnail) {
+          setAvatarUrl(data.blogProfile.blogThumbnail)
         }
         setNotifications(buildNotifications(data))
       } catch {
-        // 대시보드 데이터 로드 실패 시 정적 알림 유지
+        // 데이터 로드 실패 시 정적 알림 유지
       }
     }
 
-    loadDashboardData()
+    loadData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const hasActionable = notifications.some(n => n.actionable)
@@ -210,11 +227,11 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
-                {blogThumbnail && (
-                  <AvatarImage src={blogThumbnail} alt="Blog Profile" />
+                {avatarUrl && (
+                  <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />
                 )}
                 <AvatarFallback className="bg-primary/10 text-primary">
-                  U
+                  {userInitial}
                 </AvatarFallback>
               </Avatar>
             </Button>

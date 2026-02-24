@@ -17,6 +17,8 @@ import {
   Gift,
   Copy,
   Ticket,
+  Link2,
+  Unlink,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -57,6 +59,20 @@ interface BlogProfile {
   verifiedAt?: string | null
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  email: '이메일/비밀번호',
+  google: 'Google',
+  kakao: '카카오',
+  naver: '네이버',
+}
+
+const PROVIDER_COLORS: Record<string, string> = {
+  email: 'bg-gray-100 text-gray-700',
+  google: 'bg-white text-gray-700 border',
+  kakao: 'bg-[#FEE500] text-[#191919]',
+  naver: 'bg-[#03C75A] text-white',
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData | null>(null)
@@ -89,6 +105,19 @@ export default function SettingsPage() {
   const [promoError, setPromoError] = useState('')
   const [promoSuccess, setPromoSuccess] = useState('')
 
+  // 연동 계정
+  interface LinkedIdentity {
+    identity_id: string
+    provider: string
+    email?: string
+    name?: string
+    avatar_url?: string
+    created_at: string
+  }
+  const [identities, setIdentities] = useState<LinkedIdentity[]>([])
+  const [unlinkLoading, setUnlinkLoading] = useState<string | null>(null)
+  const [identityError, setIdentityError] = useState('')
+
   const loadProfile = useCallback(async () => {
     try {
       const [billingRes, dashboardRes] = await Promise.all([
@@ -107,6 +136,26 @@ export default function SettingsPage() {
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json()
         setBlogProfile(dashboardData.blogProfile || null)
+      }
+
+      // 연동 계정 정보 로드
+      if (isSupabaseConfigured()) {
+        try {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.identities) {
+            setIdentities(user.identities.map((id) => ({
+              identity_id: id.identity_id || '',
+              provider: id.provider,
+              email: (id.identity_data as Record<string, string>)?.email || '',
+              name: (id.identity_data as Record<string, string>)?.full_name || (id.identity_data as Record<string, string>)?.name || '',
+              avatar_url: (id.identity_data as Record<string, string>)?.avatar_url || (id.identity_data as Record<string, string>)?.picture || '',
+              created_at: id.created_at || '',
+            })))
+          }
+        } catch {
+          // 연동 정보 로드 실패 무시
+        }
       }
 
       // 추천 코드 정보 로드
@@ -205,6 +254,30 @@ export default function SettingsPage() {
     }
     router.push('/')
     router.refresh()
+  }
+
+  const handleUnlinkIdentity = async (identityId: string, provider: string) => {
+    if (identities.length <= 1) {
+      setIdentityError('최소 1개의 로그인 방식은 유지해야 합니다.')
+      return
+    }
+    if (!confirm(`${PROVIDER_LABELS[provider] || provider} 연동을 해제하시겠습니까?`)) return
+
+    setUnlinkLoading(identityId)
+    setIdentityError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.unlinkIdentity({ identity_id: identityId } as Parameters<typeof supabase.auth.unlinkIdentity>[0])
+      if (error) {
+        setIdentityError(error.message)
+        return
+      }
+      setIdentities((prev) => prev.filter((id) => id.identity_id !== identityId))
+    } catch {
+      setIdentityError('연동 해제 중 오류가 발생했습니다.')
+    } finally {
+      setUnlinkLoading(null)
+    }
   }
 
   const handleRegisterBlog = async (e: React.FormEvent) => {
@@ -397,6 +470,78 @@ export default function SettingsPage() {
               로그아웃
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 연동 계정 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="h-4 w-4" />
+            연동 계정
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {identityError && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {identityError}
+            </div>
+          )}
+          {identities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">연동된 계정 정보를 불러오는 중...</p>
+          ) : (
+            <div className="space-y-2">
+              {identities.map((identity) => (
+                <div
+                  key={identity.identity_id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    {identity.avatar_url ? (
+                      <img
+                        src={identity.avatar_url}
+                        alt={identity.provider}
+                        className="h-8 w-8 rounded-full"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${PROVIDER_COLORS[identity.provider] || 'bg-gray-100'}`}>
+                        {(PROVIDER_LABELS[identity.provider] || identity.provider).charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={`text-[10px] ${PROVIDER_COLORS[identity.provider] || ''}`}>
+                          {PROVIDER_LABELS[identity.provider] || identity.provider}
+                        </Badge>
+                        {identity.name && (
+                          <span className="text-sm font-medium">{identity.name}</span>
+                        )}
+                      </div>
+                      {identity.email && (
+                        <p className="text-xs text-muted-foreground">{identity.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  {identities.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => handleUnlinkIdentity(identity.identity_id, identity.provider)}
+                      disabled={unlinkLoading === identity.identity_id}
+                    >
+                      <Unlink className="h-3.5 w-3.5" />
+                      {unlinkLoading === identity.identity_id ? '해제 중...' : '연동 해제'}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            소셜 계정을 연동하면 해당 계정으로도 로그인할 수 있습니다. 최소 1개는 유지해야 합니다.
+          </p>
         </CardContent>
       </Card>
 

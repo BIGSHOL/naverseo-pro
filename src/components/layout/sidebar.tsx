@@ -6,9 +6,11 @@ import { usePathname } from 'next/navigation'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PLANS, type Plan } from '@/types/database'
 import type { UserRole } from '@/types/database'
 import { navItems, adminNavItems } from '@/lib/navigation'
+import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -16,10 +18,25 @@ export function Sidebar() {
   const [role, setRole] = useState<UserRole>('user')
   const [creditsBalance, setCreditsBalance] = useState(0)
   const [creditsQuota, setCreditsQuota] = useState(30)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [userName, setUserName] = useState('')
+  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
     async function load() {
       try {
+        // 소셜 프로필 이미지 가져오기
+        if (isSupabaseConfigured()) {
+          const supabase = createClient()
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const meta = user.user_metadata
+            setAvatarUrl(meta?.avatar_url || meta?.picture || null)
+            setUserName(meta?.full_name || meta?.name || '')
+            setUserEmail(user.email || '')
+          }
+        }
+
         const res = await fetch('/api/dashboard')
         if (!res.ok) return
         const data = await res.json()
@@ -100,8 +117,23 @@ export function Sidebar() {
           )}
         </nav>
 
-        {/* 하단 크레딧 표시 */}
+        {/* 하단 프로필 + 크레딧 표시 */}
         <div className="border-t p-4">
+          {/* 사용자 프로필 */}
+          {(avatarUrl || userEmail) && (
+            <div className="mb-3 flex items-center gap-2.5">
+              <Avatar className="h-8 w-8">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
+                <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                  {(userName || userEmail).charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                {userName && <p className="truncate text-xs font-medium">{userName}</p>}
+                <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
+              </div>
+            </div>
+          )}
           <div className="rounded-lg bg-muted p-3">
             <p className="text-xs font-medium text-muted-foreground">현재 플랜</p>
             <p className="text-sm font-semibold">{planInfo.name}</p>
