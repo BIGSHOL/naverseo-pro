@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -661,7 +662,7 @@ export default function ContentPage() {
     }
   }
 
-  // AI 약점 개선
+  // AI 약점 개선 (Patch 방식)
   const handleImprove = async () => {
     if (improving || !editContent.trim() || !keyword.trim()) return
     setImproving(true)
@@ -708,10 +709,44 @@ export default function ContentPage() {
         return
       }
 
-      // 개선된 콘텐츠 반영
+      // Patch 방식으로 부분 수정 적용
+      let updatedContent = editContent
+      let appliedCount = 0
+      let skippedCount = 0
+
+      if (data.patches && Array.isArray(data.patches)) {
+        for (const patch of data.patches) {
+          if (updatedContent.includes(patch.find)) {
+            updatedContent = updatedContent.replace(patch.find, patch.replace)
+            appliedCount++
+          } else {
+            skippedCount++
+          }
+        }
+      }
+
+      // append (태그/CTA 등 끝에 추가)
+      if (data.append) {
+        updatedContent = updatedContent.trimEnd() + '\n\n' + data.append
+        appliedCount++
+      }
+
+      // 제목 변경
       if (data.title) setEditTitle(data.title)
-      if (data.content) setEditContent(data.content)
-      setImproveMessage(`${weakCategories.length}개 항목 개선 완료! LIVE SEO에서 점수 변화를 확인하세요.`)
+
+      // 콘텐츠 반영
+      if (appliedCount > 0) {
+        setEditContent(updatedContent)
+      }
+
+      const messages: string[] = []
+      if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용 완료!`)
+      if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
+      if (appliedCount === 0 && skippedCount > 0) {
+        setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
+      } else {
+        setImproveMessage(messages.join(', ') + ' LIVE SEO에서 점수를 확인하세요.')
+      }
       setTimeout(() => setImproveMessage(''), 5000)
     } catch {
       setImproveMessage('네트워크 오류가 발생했습니다.')
@@ -1921,7 +1956,7 @@ export default function ContentPage() {
                             {result.seoAnalysis.strengths.map((s, i) => (
                               <li key={i} className="flex items-start gap-1.5 text-xs text-green-700">
                                 <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                                {s}
+                                <InlineMarkdown>{s}</InlineMarkdown>
                               </li>
                             ))}
                           </ul>
@@ -1934,7 +1969,7 @@ export default function ContentPage() {
                             {result.seoAnalysis.improvements.map((s, i) => (
                               <li key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
                                 <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                                {s}
+                                <InlineMarkdown>{s}</InlineMarkdown>
                               </li>
                             ))}
                           </ul>

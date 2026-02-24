@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { KeywordSearch } from '@/components/keywords/keyword-search'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { InlineMarkdown } from '@/components/ui/inline-markdown'
 
 // === 타입 ===
 
@@ -604,8 +607,8 @@ export default function CompetitorsPage() {
               {aiInsights && (
                 <div className="space-y-6">
                   {/* 요약 */}
-                  <div className="rounded-lg bg-purple-50 p-4">
-                    <p className="text-sm leading-relaxed">{aiInsights.summary}</p>
+                  <div className="rounded-lg bg-purple-50 p-4 prose prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiInsights.summary}</ReactMarkdown>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
@@ -619,7 +622,7 @@ export default function CompetitorsPage() {
                         {aiInsights.topPatterns.map((pattern, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm">
                             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600">{i + 1}</span>
-                            {pattern}
+                            <InlineMarkdown>{pattern}</InlineMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -635,7 +638,7 @@ export default function CompetitorsPage() {
                         {aiInsights.contentGaps.map((gap, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm">
                             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-yellow-100 text-xs font-medium text-yellow-600">{i + 1}</span>
-                            {gap}
+                            <InlineMarkdown>{gap}</InlineMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -648,7 +651,9 @@ export default function CompetitorsPage() {
                       <BookOpen className="h-4 w-4 text-green-500" />
                       추천 전략
                     </h4>
-                    <p className="rounded-lg border p-3 text-sm leading-relaxed">{aiInsights.recommendedStrategy}</p>
+                    <div className="rounded-lg border p-3 text-sm leading-relaxed prose prose-sm max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiInsights.recommendedStrategy}</ReactMarkdown>
+                    </div>
                   </div>
 
                   {/* 추천 제목 */}

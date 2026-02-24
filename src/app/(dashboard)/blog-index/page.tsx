@@ -40,6 +40,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 // ===== 타입 정의 =====
 
@@ -512,9 +514,9 @@ export default function BlogIndexPage() {
               />
             </div>
             {/* 전체 분석 내용 */}
-            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-              {aiCardModal?.details}
-            </p>
+            <div className="text-sm text-muted-foreground leading-relaxed prose prose-sm max-w-none dark:prose-invert">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiCardModal?.details ?? ''}</ReactMarkdown>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

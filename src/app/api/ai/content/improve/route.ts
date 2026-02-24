@@ -7,6 +7,17 @@ import {
   type WeakCategory,
 } from '@/lib/content/engine'
 
+interface PatchItem {
+  find: string
+  replace: string
+}
+
+interface PatchResponse {
+  title: string | null
+  patches: PatchItem[]
+  append: string | null
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 인증 체크
@@ -59,27 +70,34 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildImprovementSystemPrompt(categories)
     const userMessage = buildImprovementUserPrompt(keyword, title, content, categories)
 
-    console.log(`[Content Improve] ${categories.length}개 약점 개선 요청: ${categories.map(c => c.id).join(', ')}`)
+    console.log(`[Content Improve] ${categories.length}개 약점 patch 개선 요청: ${categories.map(c => c.id).join(', ')}`)
 
-    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true })
-    const parsed = parseGeminiJson<{ title: string; content: string }>(response)
+    const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
+    const parsed = parseGeminiJson<PatchResponse>(response)
 
-    if (!parsed.title || !parsed.content) {
+    if (!parsed.patches || !Array.isArray(parsed.patches)) {
       return NextResponse.json(
         { error: 'AI 응답 형식이 올바르지 않습니다. 다시 시도해주세요.' },
         { status: 500 }
       )
     }
 
+    // 유효한 patch만 필터 (find, replace 모두 존재)
+    const validPatches = parsed.patches.filter(
+      (p): p is PatchItem => typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0
+    )
+
     // 크레딧 차감
     await deductCredits(supabase, user.id, 'content_improve', {
       keyword,
       categories: categories.map(c => c.id).join(', '),
+      patchCount: validPatches.length,
     })
 
     return NextResponse.json({
-      title: parsed.title,
-      content: parsed.content,
+      title: parsed.title || null,
+      patches: validPatches,
+      append: parsed.append || null,
       improvedCategories: categories.map(c => c.id),
     })
   } catch (error) {

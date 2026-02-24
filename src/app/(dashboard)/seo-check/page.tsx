@@ -12,6 +12,9 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { InlineMarkdown } from '@/components/ui/inline-markdown'
 
 interface SeoCategory {
   name: string
@@ -451,7 +454,7 @@ export default function SeoCheckPage() {
                         style={{ width: `${ai.experienceScore * 10}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{ai.experienceDetails}</p>
+                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.experienceDetails}</InlineMarkdown></div>
                   </div>
 
                   {/* 콘텐츠 품질 */}
@@ -471,7 +474,7 @@ export default function SeoCheckPage() {
                         style={{ width: `${ai.contentQualityScore * 10}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{ai.contentQualityDetails}</p>
+                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.contentQualityDetails}</InlineMarkdown></div>
                   </div>
 
                   {/* 키워드 전략 */}
@@ -491,7 +494,7 @@ export default function SeoCheckPage() {
                         style={{ width: `${ai.keywordStrategyScore * 10}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{ai.keywordStrategyDetails}</p>
+                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.keywordStrategyDetails}</InlineMarkdown></div>
                   </div>
 
                   {/* 독자 참여 */}
@@ -511,14 +514,14 @@ export default function SeoCheckPage() {
                         style={{ width: `${ai.engagementScore * 10}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{ai.engagementDetails}</p>
+                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.engagementDetails}</InlineMarkdown></div>
                   </div>
                 </div>
 
                 {/* 종합 피드백 */}
                 {ai.overallFeedback && (
-                  <div className="rounded-lg border bg-muted/30 p-4">
-                    <p className="text-sm">{ai.overallFeedback}</p>
+                  <div className="rounded-lg border bg-muted/30 p-4 prose prose-sm max-w-none dark:prose-invert">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{ai.overallFeedback}</ReactMarkdown>
                   </div>
                 )}
 
@@ -534,7 +537,7 @@ export default function SeoCheckPage() {
                         {ai.strengths.map((s, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm text-green-700">
                             <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            {s}
+                            <InlineMarkdown>{s}</InlineMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -551,7 +554,7 @@ export default function SeoCheckPage() {
                         {ai.weaknesses.map((w, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm text-red-700">
                             <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            {w}
+                            <InlineMarkdown>{w}</InlineMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -572,7 +575,7 @@ export default function SeoCheckPage() {
                           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold">
                             {i + 1}
                           </span>
-                          {rec}
+                          <InlineMarkdown>{rec}</InlineMarkdown>
                         </li>
                       ))}
                     </ul>
@@ -602,7 +605,7 @@ export default function SeoCheckPage() {
                       style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">{cat.feedback}</p>
+                  <div className="text-xs text-muted-foreground"><InlineMarkdown>{cat.feedback}</InlineMarkdown></div>
                 </div>
               ))}
             </CardContent>
@@ -622,7 +625,7 @@ export default function SeoCheckPage() {
                   {result.strengths.map((s, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                      {s}
+                      <InlineMarkdown>{s}</InlineMarkdown>
                     </li>
                   ))}
                 </ul>
@@ -640,7 +643,7 @@ export default function SeoCheckPage() {
                   {result.improvements.map((imp, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-                      {imp}
+                      <InlineMarkdown>{imp}</InlineMarkdown>
                     </li>
                   ))}
                 </ul>
