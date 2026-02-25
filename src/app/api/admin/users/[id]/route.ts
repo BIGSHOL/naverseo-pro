@@ -118,16 +118,10 @@ export async function PATCH(
 
     if (body.plan && ['free', 'lite', 'starter', 'pro', 'enterprise', 'admin'].includes(body.plan)) {
       allowedFields.plan = body.plan
-      const newQuota = PLAN_CREDITS[body.plan as Plan]
       // 플랜 변경 시 월간 할당량 자동 동기화
-      allowedFields.credits_monthly_quota = newQuota
-      // 크레딧 잔액을 새 플랜의 월간 할당량으로 즉시 충전
-      allowedFields.credits_balance = newQuota
-      // 리셋일을 다음 달 1일로 설정
-      const nextMonth = new Date()
-      nextMonth.setMonth(nextMonth.getMonth() + 1, 1)
-      nextMonth.setHours(0, 0, 0, 0)
-      allowedFields.credits_reset_at = nextMonth.toISOString()
+      allowedFields.credits_monthly_quota = PLAN_CREDITS[body.plan as Plan]
+      // 리셋일을 과거로 설정 → 다음 API 호출 시 lazy 리셋이 새 할당량으로 충전
+      allowedFields.credits_reset_at = new Date(0).toISOString()
     }
 
     if (body.role && ['user', 'admin'].includes(body.role)) {
