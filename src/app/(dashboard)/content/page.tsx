@@ -19,6 +19,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { TiptapEditor, getEditorHtml } from '@/components/content/TiptapEditor'
+import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
 import { detectContentType, generateOutline, analyzeSeo, type ContentType } from '@/lib/content/engine'
@@ -348,7 +350,6 @@ export default function ContentPage() {
   const [analyzingRef, setAnalyzingRef] = useState(false)
 
   // 편집 모드 상태
-  const [activeTab, setActiveTab] = useState('editor')
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
@@ -357,6 +358,7 @@ export default function ContentPage() {
   const [saveMessage, setSaveMessage] = useState('')
   const [improving, setImproving] = useState(false)
   const [improveMessage, setImproveMessage] = useState('')
+  const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
 
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
@@ -611,7 +613,8 @@ export default function ContentPage() {
     if (!result) return
     const contentSource = editContent || result.content
     const titleSource = editTitle || result.title
-    const html = `<h1>${titleSource}</h1>${getEditorHtml(contentSource)}`
+    const rawHtml = `<h1>${titleSource}</h1>${getEditorHtml(contentSource)}`
+    const html = htmlForNaverClipboard(rawHtml)
     const text = `${titleSource}\n\n${contentSource}`
 
     try {
@@ -726,6 +729,13 @@ export default function ContentPage() {
         return
       }
 
+      // 가이드 항목 저장
+      if (data.guidance && Array.isArray(data.guidance) && data.guidance.length > 0) {
+        setGuidanceItems(data.guidance)
+      } else {
+        setGuidanceItems([])
+      }
+
       // Patch 방식으로 부분 수정 적용
       let updatedContent = editContent
       let appliedCount = 0
@@ -759,10 +769,11 @@ export default function ContentPage() {
       const messages: string[] = []
       if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용 완료!`)
       if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
-      if (appliedCount === 0 && skippedCount > 0) {
+      if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
+      if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
         setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
       } else {
-        setImproveMessage(messages.join(', ') + ' LIVE SEO에서 점수를 확인하세요.')
+        setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
       }
       setTimeout(() => setImproveMessage(''), 5000)
     } catch {
@@ -2023,7 +2034,16 @@ export default function ContentPage() {
                 <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>
                 <div className="flex items-center gap-2">
                   {result.isDemo && (
-                    <Badge variant="outline">데모</Badge>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="cursor-help">데모</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>API 연동 전 샘플 콘텐츠입니다</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                   {/* 편집기/마크다운 토글 */}
                   <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 sm:gap-1 sm:p-1">
@@ -2051,19 +2071,28 @@ export default function ContentPage() {
                     </button>
                   </div>
                   {/* HTML 복사 버튼 (네이버 블로그 서식 유지) */}
-                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm" onClick={handleCopy}>
-                    {copied ? (
-                      <>
-                        <Check className="mr-1 h-3 w-3" />
-                        복사됨
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="mr-1 h-3 w-3" />
-                        HTML 복사
-                      </>
-                    )}
-                  </Button>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm" onClick={handleCopy}>
+                          {copied ? (
+                            <>
+                              <Check className="mr-1 h-3 w-3" />
+                              복사됨
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="mr-1 h-3 w-3" />
+                              HTML 복사
+                            </>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>복사 후 네이버 블로그에 붙여넣으면 서식이 유지됩니다</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             </CardHeader>
@@ -2145,11 +2174,32 @@ export default function ContentPage() {
                           </span>
                         )}
                         {improveMessage && (
-                          <span className={`text-sm font-medium ${improveMessage.includes('완료') || improveMessage.includes('양호') ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`text-sm font-medium ${improveMessage.includes('완료') || improveMessage.includes('양호') || improveMessage.includes('가이드') ? 'text-green-600' : 'text-red-600'}`}>
                             {improveMessage}
                           </span>
                         )}
                       </div>
+
+                      {/* 수동 개선 가이드 (약점 개선 후 표시) */}
+                      {guidanceItems.length > 0 && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+                          <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                            <AlertCircle className="h-4 w-4" />
+                            수동 개선이 필요한 항목
+                          </h4>
+                          <div className="space-y-3">
+                            {guidanceItems.map(item => (
+                              <div key={item.id} className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">{item.name}</Badge>
+                                  <span className="text-xs text-muted-foreground">{item.score}/{item.maxScore}점</span>
+                                </div>
+                                <p className="whitespace-pre-line text-sm text-muted-foreground">{item.guidance}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* 우측: 실시간 SEO 패널 */}
@@ -2195,8 +2245,12 @@ export default function ContentPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground mb-3">
+              <p className="text-sm text-muted-foreground mb-1">
                 마음에 들지 않으면 위 설정을 변경하거나 빠르게 재생성해보세요.
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mb-3">
+                <AlertCircle className="mr-1 inline h-3 w-3" />
+                다시 생성 시 5 크레딧이 소모됩니다
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Button

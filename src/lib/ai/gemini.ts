@@ -69,6 +69,10 @@ export async function callClaude(
       messages: [{ role: 'user', content: userMessage }],
     })
 
+    if (message.stop_reason === 'max_tokens') {
+      console.warn(`[callClaude] 응답이 max_tokens(${maxTokens})에서 잘렸습니다.`)
+    }
+
     const block = message.content[0]
     if (block.type === 'text') {
       return block.text

@@ -28,7 +28,7 @@ function calculateBasicSeoScore(keyword: string, title: string, content: string,
 /**
  * SERP 자동 참조: 네이버 블로그 상위 결과 + 1위 글 구조 분석
  */
-async function fetchSerpReference(keyword: string): Promise<{ text: string; count: number; items: NaverBlogSearchItem[] } | null> {
+async function fetchSerpReference(keyword: string): Promise<{ text: string; count: number; items: NaverBlogSearchItem[]; keywordContext: string } | null> {
   const hasNaverApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
   if (!hasNaverApi) return null
 
@@ -58,6 +58,16 @@ async function fetchSerpReference(keyword: string): Promise<{ text: string; coun
       } catch { /* 구조 분석 실패는 무시 */ }
     }
 
+    // 상위 게시물 제목/설명에서 키워드 의미 컨텍스트 추출
+    const keywordContext = `## ⚠️ 키워드 의미 파악 (최우선)
+"${keyword}" 검색 시 네이버에서 실제로 나오는 글들의 제목과 설명입니다:
+${topPosts.join('\n')}
+
+위 검색 결과를 분석하여 "${keyword}"가 실제로 무엇을 의미하는지 정확히 파악한 뒤 콘텐츠를 작성하세요.
+- 검색 결과의 맥락을 무시하고 키워드를 임의로 해석하지 마세요
+- 약어나 신조어일 수 있으므로, 검색 결과에서 드러나는 실제 의미를 따르세요
+- 검색 결과와 전혀 다른 주제의 콘텐츠를 생성하면 안 됩니다`
+
     const text = `## 현재 상위 노출 블로그 분석
 다음은 "${keyword}" 검색 시 상위에 노출되는 글들입니다. 이들보다 더 유용하고 차별화된 콘텐츠를 작성하세요:
 ${topPosts.join('\n')}${structureInfo}
@@ -67,7 +77,7 @@ ${topPosts.join('\n')}${structureInfo}
 - 더 구체적인 수치, 날짜, 경험 정보를 포함하세요
 - 더 체계적인 구조와 깊이 있는 분석을 제공하세요`
 
-    return { text, count: topPosts.length, items: result.items }
+    return { text, count: topPosts.length, items: result.items, keywordContext }
   } catch {
     return null
   }
@@ -353,11 +363,40 @@ export async function POST(request: NextRequest) {
       contentRequest.additionalKeywords = merged.slice(0, 10)
     }
 
+    // 데이터 없는 키워드 감지 (네이버 API 3개 모두 결과 없음)
+    const noSerpData = !serpRef
+    const noKeywordData = !keywordsRef
+    const noTrendData = !trendRef
+    const isUnknownKeyword = noSerpData && noKeywordData && noTrendData
+
     // AI 프롬프트 생성 (additionalKeywords 병합 후)
     const systemPrompt = buildSystemPrompt(contentRequest)
     let userMessage = buildUserPrompt(contentRequest)
 
-    // 프롬프트 주입 순서: 연관 키워드 → 트렌드 → SERP → 참고 블로그
+    // 데이터 없는 키워드 강력 경고 주입
+    if (isUnknownKeyword) {
+      userMessage += `\n\n## ⛔ 중요 경고: 데이터 없는 키워드
+"${keyword.trim()}" 키워드로 네이버 검색 결과, 연관 키워드, 검색 트렌드가 모두 존재하지 않습니다.
+
+이는 다음 중 하나를 의미합니다:
+1. 실제로 존재하지 않는 단어/개념
+2. 검색량이 거의 없는 극히 마이너한 키워드
+3. 오타이거나 의미 없는 문자열
+
+**반드시 다음 규칙을 따르세요:**
+- 만약 이 키워드가 실제로 존재하는 개념이라면 → 정상적으로 콘텐츠를 작성하세요
+- 만약 이 키워드가 존재하지 않거나 의미를 알 수 없다면 → content 필드에 반드시 다음 문구로 시작하세요: "⚠️ 정보 부족: 이 키워드에 대한 검색 데이터가 존재하지 않습니다."
+- 절대 존재하지 않는 개념을 허구로 만들어내지 마세요
+- "~란?", "~의 정의" 같은 식으로 없는 개념을 설명하는 것은 금지입니다
+- 확실하지 않은 정보를 사실인 것처럼 작성하지 마세요`
+    }
+
+    // 프롬프트 주입 순서: 키워드 의미 → 연관 키워드 → 트렌드 → SERP → 참고 블로그
+    // ★ 키워드 의미 컨텍스트를 최우선으로 주입 (약어/신조어 대응)
+    if (serpRef?.keywordContext) {
+      userMessage += '\n\n' + serpRef.keywordContext
+    }
+
     if (keywordsRef) {
       userMessage += '\n\n' + keywordsRef.text
     }
@@ -443,14 +482,22 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
         keyword.trim()
       )
 
+      // 데이터 없는 키워드인데 AI가 허구 콘텐츠를 생성한 경우 경고 추가
+      if (isUnknownKeyword && !processedResult.content.includes('정보 부족')) {
+        validation.warnings.push('이 키워드는 네이버 검색 데이터가 없습니다. AI가 생성한 내용의 정확성을 직접 확인해주세요.')
+        validation.score = Math.max(0, validation.score - 20)
+      }
+
       // DB에 저장
       const saved = await saveGeneratedContent(keyword.trim(), processedResult.title, processedResult.content, contentRequest.additionalKeywords)
 
       return NextResponse.json({
         ...processedResult,
+        isDemo: false,
         contentId: saved?.id,
         seoScore: saved?.seoScore,
         enrichment: hasEnrichment ? enrichment : undefined,
+        unknownKeyword: isUnknownKeyword || undefined,
         validation: {
           score: validation.score,
           warnings: validation.warnings,

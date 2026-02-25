@@ -114,3 +114,27 @@ export function markdownToHtml(md: string): string {
 export function htmlToMarkdown(html: string): string {
   return turndown.turndown(html)
 }
+
+/**
+ * 네이버 블로그 클립보드용 HTML 변환
+ * 시맨틱 태그(h1~h3)를 인라인 스타일로 변환하여
+ * 네이버 스마트에디터 붙여넣기 시 서식이 유지되도록 함
+ */
+export function htmlForNaverClipboard(html: string): string {
+  return html
+    // h1 → 볼드 + 28px
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '<p><b><span style="font-size: 28px;">$1</span></b></p>')
+    // h2 → 볼드 + 22px
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '<p><b><span style="font-size: 22px;">$1</span></b></p>')
+    // h3 → 볼드 + 18px
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '<p><b><span style="font-size: 18px;">$1</span></b></p>')
+    // blockquote → 좌측 테두리 스타일
+    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '<div style="border-left: 3px solid #ccc; padding-left: 12px; color: #666;">$1</div>')
+    // hr → 구분선
+    .replace(/<hr\s*\/?>/gi, '<p style="text-align: center; color: #ccc;">━━━━━━━━━━━━━━━━</p>')
+    // mark (형광펜) → background-color 인라인 스타일
+    .replace(/<mark(?:\s+style="([^"]*)")?>(.*?)<\/mark>/gi, (_m, style, content) => {
+      const bg = style?.match(/background-color:\s*([^;]+)/)?.[1] || '#fef08a'
+      return `<span style="background-color: ${bg};">${content}</span>`
+    })
+}

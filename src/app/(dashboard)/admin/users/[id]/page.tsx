@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Bot, Coins, Save, Shield, ShieldOff, User } from 'lucide-react'
+import { ArrowLeft, Bot, ChevronLeft, ChevronRight, Coins, Link2, Save, Shield, ShieldOff, User } from 'lucide-react'
 
 interface UserProfile {
   id: string
@@ -40,11 +40,19 @@ interface UserProfile {
   analysis_used_today: number
   analysis_reset_date: string
   ai_provider: string
+  lemonsqueezy_subscription_id: string | null
+  subscription_status: string | null
   blog_verification_blocked: boolean | null
   blog_verification_attempts: number | null
   blog_verification_last_attempt_at: string | null
   created_at: string
   updated_at: string
+}
+
+interface Identity {
+  provider: string
+  created_at?: string
+  identity_id?: string
 }
 
 interface RecentKeyword {
@@ -64,10 +72,44 @@ interface RecentContent {
 
 interface UserDetailData {
   profile: UserProfile
+  identities: Identity[]
+  lastSignIn: string | null
   recentKeywords: RecentKeyword[]
   recentContent: RecentContent[]
   totalContent: number
   totalKeywords: number
+  kwPage: number
+  ctPage: number
+  perPage: number
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google: 'Google',
+  kakao: 'Kakao',
+  email: '이메일',
+  phone: '전화번호',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: '초안',
+  published: '발행됨',
+  archived: '보관됨',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: 'bg-yellow-100 text-yellow-700',
+  published: 'bg-green-100 text-green-700',
+  archived: 'bg-gray-100 text-gray-700',
+}
+
+const SUBSCRIPTION_LABELS: Record<string, string> = {
+  none: '없음',
+  on_trial: '체험 중',
+  active: '구독 중',
+  paused: '일시정지',
+  past_due: '결제 지연',
+  cancelled: '해지됨',
+  expired: '만료됨',
 }
 
 const planColors: Record<string, string> = {
@@ -90,28 +132,34 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
   const [editRole, setEditRole] = useState('')
   const [editAiProvider, setEditAiProvider] = useState('')
   const [addCreditsAmount, setAddCreditsAmount] = useState('')
+  const [kwPage, setKwPage] = useState(1)
+  const [ctPage, setCtPage] = useState(1)
+
+  async function loadUser(kwP = 1, ctP = 1) {
+    try {
+      const res = await fetch(`/api/admin/users/${id}?kwPage=${kwP}&ctPage=${ctP}`)
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error || '사용자 정보를 불러올 수 없습니다.')
+        return
+      }
+      const userData: UserDetailData = await res.json()
+      setData(userData)
+      setEditPlan(userData.profile.plan)
+      setEditRole(userData.profile.role)
+      setEditAiProvider(userData.profile.ai_provider || 'gemini')
+      setKwPage(userData.kwPage)
+      setCtPage(userData.ctPage)
+    } catch {
+      setError('사용자 정보를 불러오는 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function loadUser() {
-      try {
-        const res = await fetch(`/api/admin/users/${id}`)
-        if (!res.ok) {
-          const d = await res.json()
-          setError(d.error || '사용자 정보를 불러올 수 없습니다.')
-          return
-        }
-        const userData: UserDetailData = await res.json()
-        setData(userData)
-        setEditPlan(userData.profile.plan)
-        setEditRole(userData.profile.role)
-        setEditAiProvider(userData.profile.ai_provider || 'gemini')
-      } catch {
-        setError('사용자 정보를 불러오는 중 오류가 발생했습니다.')
-      } finally {
-        setLoading(false)
-      }
-    }
     loadUser()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   async function handleSave() {
@@ -340,7 +388,9 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
 
   if (!data) return null
 
-  const { profile, recentKeywords, recentContent, totalContent, totalKeywords } = data
+  const { profile, identities, lastSignIn, recentKeywords, recentContent, totalContent, totalKeywords, perPage } = data
+  const kwTotalPages = Math.ceil(totalKeywords / perPage)
+  const ctTotalPages = Math.ceil(totalContent / perPage)
 
   return (
     <div className="space-y-6">
@@ -378,6 +428,38 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <span className="text-sm text-muted-foreground">가입일</span>
                 <span className="text-sm">{new Date(profile.created_at).toLocaleDateString('ko-KR')}</span>
               </div>
+              {lastSignIn && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">최근 로그인</span>
+                  <span className="text-sm">{new Date(lastSignIn).toLocaleString('ko-KR')}</span>
+                </div>
+              )}
+
+              {/* 연동 계정 */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Link2 className="h-3 w-3" /> 연동 계정
+                </span>
+                <div className="flex gap-1">
+                  {identities && identities.length > 0 ? identities.map((ident, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {PROVIDER_LABELS[ident.provider] || ident.provider}
+                    </Badge>
+                  )) : (
+                    <span className="text-xs text-muted-foreground">정보 없음</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 구독 상태 */}
+              {profile.subscription_status && profile.subscription_status !== 'none' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">구독 상태</span>
+                  <Badge variant={profile.subscription_status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                    {SUBSCRIPTION_LABELS[profile.subscription_status] || profile.subscription_status}
+                  </Badge>
+                </div>
+              )}
 
               {/* 플랜 변경 */}
               <div className="flex items-center justify-between">
@@ -533,43 +615,34 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
               </p>
             </div>
 
-            {/* 크레딧 주입 */}
+            {/* 크레딧 추가 (입력 + 빠른 버튼 한 행) */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">크레딧 추가 (강제 주입)</label>
-              <div className="flex gap-2">
+              <label className="text-sm font-medium">크레딧 추가</label>
+              <div className="flex items-center gap-2 flex-wrap">
                 <Input
                   type="number"
-                  placeholder="추가할 크레딧 수"
+                  placeholder="직접 입력"
                   value={addCreditsAmount}
                   onChange={(e) => setAddCreditsAmount(e.target.value)}
                   min={1}
-                  className="w-40"
+                  className="w-28"
                 />
+                {[10, 50, 100, 500].map((amount) => (
+                  <Button
+                    key={amount}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    disabled={saving}
+                    onClick={() => setAddCreditsAmount(String(amount))}
+                  >
+                    +{amount}
+                  </Button>
+                ))}
                 <Button onClick={handleAddCredits} disabled={saving} size="sm">
                   추가
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                현재 잔액에 입력한 수만큼 크레딧을 즉시 추가합니다.
-              </p>
-            </div>
-
-            {/* 빠른 주입 버튼 */}
-            <div className="flex flex-wrap gap-2">
-              {[10, 50, 100, 500].map((amount) => (
-                <Button
-                  key={amount}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={saving}
-                  onClick={() => {
-                    setAddCreditsAmount(String(amount))
-                  }}
-                >
-                  +{amount}
-                </Button>
-              ))}
             </div>
 
             {/* 크레딧 리셋 */}
@@ -632,7 +705,10 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">최근 키워드 검색</CardTitle>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>최근 키워드 검색</span>
+              <span className="text-sm font-normal text-muted-foreground">{totalKeywords}건</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -648,21 +724,49 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <p className="py-4 text-center text-sm text-muted-foreground">검색 기록이 없습니다</p>
               )}
             </div>
+            {kwTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={kwPage <= 1}
+                  onClick={() => { setKwPage(kwPage - 1); loadUser(kwPage - 1, ctPage) }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {kwPage} / {kwTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={kwPage >= kwTotalPages}
+                  onClick={() => { setKwPage(kwPage + 1); loadUser(kwPage + 1, ctPage) }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">최근 콘텐츠 생성</CardTitle>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>최근 콘텐츠 생성</span>
+              <span className="text-sm font-normal text-muted-foreground">{totalContent}건</span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {recentContent.map((ct) => (
                 <div key={ct.id} className="rounded-lg border p-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{ct.title}</span>
-                    <Badge className={planColors[ct.status] || 'bg-gray-100 text-gray-700'}>
-                      {ct.status}
+                    <Badge className={STATUS_COLORS[ct.status] || 'bg-gray-100 text-gray-700'}>
+                      {STATUS_LABELS[ct.status] || ct.status}
                     </Badge>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
@@ -675,6 +779,31 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <p className="py-4 text-center text-sm text-muted-foreground">생성된 콘텐츠가 없습니다</p>
               )}
             </div>
+            {ctTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={ctPage <= 1}
+                  onClick={() => { setCtPage(ctPage - 1); loadUser(kwPage, ctPage - 1) }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {ctPage} / {ctTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={ctPage >= ctTotalPages}
+                  onClick={() => { setCtPage(ctPage + 1); loadUser(kwPage, ctPage + 1) }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

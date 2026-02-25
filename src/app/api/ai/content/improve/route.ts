@@ -4,6 +4,9 @@ import { checkCredits, deductCredits } from '@/lib/credit-check'
 import {
   buildImprovementSystemPrompt,
   buildImprovementUserPrompt,
+  separateCategories,
+  extractRelevantSections,
+  buildGuidanceText,
   type WeakCategory,
 } from '@/lib/content/engine'
 
@@ -40,14 +43,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // API 키 체크
-    if (!hasAiApiKey(provider)) {
-      return NextResponse.json(
-        { error: 'AI API 키가 설정되지 않았습니다. 데모 모드에서는 약점 개선을 사용할 수 없습니다.' },
-        { status: 400 }
-      )
-    }
-
     const { keyword, title, content, weakCategories } = await request.json()
 
     if (!keyword?.trim() || !title?.trim() || !content?.trim()) {
@@ -67,19 +62,46 @@ export async function POST(request: NextRequest) {
     // 최대 5개 약점만 처리
     const categories: WeakCategory[] = weakCategories.slice(0, 5)
 
-    const systemPrompt = buildImprovementSystemPrompt(categories)
-    const userMessage = buildImprovementUserPrompt(keyword, title, content, categories)
+    // 카테고리 분리: 자동 패치 vs 가이드 전용
+    const { patchable, guidanceOnly } = separateCategories(categories)
+    const guidanceItems = buildGuidanceText(guidanceOnly)
 
-    console.log(`[Content Improve] ${categories.length}개 약점 patch 개선 요청: ${categories.map(c => c.id).join(', ')}`)
-    console.log(`[Content Improve] provider=${provider}, 본문길이=${content.length}자, 제목="${title}"`)
+    // 패치 가능한 카테고리가 없으면 AI 호출 없이 가이드만 반환
+    if (patchable.length === 0) {
+      return NextResponse.json({
+        title: null,
+        patches: [],
+        append: null,
+        guidance: guidanceItems,
+        improvedCategories: categories.map(c => c.id),
+      })
+    }
 
-    const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
+    // API 키 체크 (AI 호출이 필요한 경우만)
+    if (!hasAiApiKey(provider)) {
+      return NextResponse.json(
+        { error: 'AI API 키가 설정되지 않았습니다. 데모 모드에서는 약점 개선을 사용할 수 없습니다.' },
+        { status: 400 }
+      )
+    }
+
+    // 섹션 기반 추출 (필요한 부분만 AI에 전달)
+    const extraction = extractRelevantSections(content, keyword.trim(), patchable)
+
+    console.log(`[Content Improve] ${patchable.length}개 패치 + ${guidanceOnly.length}개 가이드`)
+    console.log(`[Content Improve] 섹션 추출: ${extraction.originalLength}자 → ${extraction.condensedLength}자 (${Math.round(extraction.condensedLength / extraction.originalLength * 100)}%)`)
+    console.log(`[Content Improve] provider=${provider}, 카테고리: ${patchable.map(c => c.id).join(', ')}`)
+
+    const systemPrompt = buildImprovementSystemPrompt(patchable)
+    const userMessage = buildImprovementUserPrompt(keyword, title, content, patchable, extraction)
+
+    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true })
 
     console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
     if (!response || response.trim().length === 0) {
       console.error('[Content Improve] AI가 빈 응답을 반환했습니다.')
       return NextResponse.json(
-        { error: 'AI가 빈 응답을 반환했습니다. 본문이 너무 길 수 있습니다. 다시 시도해주세요.' },
+        { error: 'AI가 빈 응답을 반환했습니다. 다시 시도해주세요.' },
         { status: 500 }
       )
     }
@@ -90,11 +112,10 @@ export async function POST(request: NextRequest) {
       parsed = parseGeminiJson<PatchResponse>(response)
     } catch (parseError) {
       const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
-      console.error(`[Content Improve] JSON 파싱 실패. 응답 전체 길이: ${response.length}자`)
+      console.error(`[Content Improve] JSON 파싱 실패 (${response.length}자): ${parseMsg}`)
       console.error(`[Content Improve] 응답 앞 1000자:`, response.substring(0, 1000))
-      console.error(`[Content Improve] 응답 뒤 500자:`, response.substring(Math.max(0, response.length - 500)))
       return NextResponse.json(
-        { error: `AI 응답 파싱 실패: ${parseMsg} (응답 ${response.length}자)` },
+        { error: `AI 응답 파싱 실패: ${parseMsg} (응답 ${response.length}자). 다시 시도해주세요.` },
         { status: 500 }
       )
     }
@@ -115,7 +136,7 @@ export async function POST(request: NextRequest) {
     // 크레딧 차감
     await deductCredits(supabase, user.id, 'content_improve', {
       keyword,
-      categories: categories.map(c => c.id).join(', '),
+      categories: patchable.map(c => c.id).join(', '),
       patchCount: validPatches.length,
     })
 
@@ -123,6 +144,7 @@ export async function POST(request: NextRequest) {
       title: parsed.title || null,
       patches: validPatches,
       append: parsed.append || null,
+      guidance: guidanceItems,
       improvedCategories: categories.map(c => c.id),
     })
   } catch (error) {

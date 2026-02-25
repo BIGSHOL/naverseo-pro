@@ -1654,6 +1654,217 @@ export interface WeakCategory {
   details: string
 }
 
+/** 가이드 항목 (자동 패치 불가, UI에서 안내 표시) */
+export interface GuidanceItem {
+  id: string
+  name: string
+  score: number
+  maxScore: number
+  guidance: string
+}
+
+/** 섹션 추출 결과 */
+export interface ExtractionResult {
+  condensedContent: string
+  originalLength: number
+  condensedLength: number
+}
+
+// --- 카테고리 분류 ---
+
+/** 자동 패치 불가 카테고리 (사용자 수동 작업 필요) */
+const GUIDANCE_ONLY_CATEGORIES = new Set(['internal_links'])
+
+/** 카테고리별 필요 섹션 타입 */
+type SectionSelector =
+  | 'title_only'    // 제목만
+  | 'intro'         // 도입부
+  | 'outro'         // 마지막 섹션
+  | 'intro_mid_outro' // 도입+중간+결론
+  | 'shortest'      // 가장 짧은 섹션 2개
+  | 'boundaries'    // 모든 섹션 경계 (헤딩+80자)
+  | 'low_keyword'   // 키워드 빈도 낮은 섹션
+  | 'no_formatting' // 서식 없는 섹션
+  | 'long_sentence' // 긴 문장 포함 섹션
+
+const CATEGORY_SECTION_MAP: Record<string, SectionSelector> = {
+  title_keyword: 'title_only',
+  title_length: 'title_only',
+  meta_description: 'intro',
+  tags_cta: 'outro',
+  keyword_distribution: 'intro_mid_outro',
+  keyword_density: 'low_keyword',
+  content_length: 'shortest',
+  heading_structure: 'boundaries',
+  multimedia: 'boundaries',
+  readability_elements: 'no_formatting',
+  mobile_optimization: 'long_sentence',
+  related_keywords: 'intro_mid_outro',
+}
+
+// --- 섹션 분리 ---
+
+interface ContentSection {
+  index: number
+  heading: string
+  content: string
+}
+
+/** ## 기준으로 본문을 섹션 분리 */
+function splitIntoSections(content: string): ContentSection[] {
+  const sections: ContentSection[] = []
+  const parts = content.split(/(?=^## )/m)
+
+  for (const part of parts) {
+    if (!part.trim()) continue
+    let heading: string
+    if (part.startsWith('## ')) {
+      const nl = part.indexOf('\n')
+      heading = nl > 0 ? part.substring(3, nl).trim() : part.substring(3).trim()
+    } else {
+      heading = '도입부'
+    }
+    sections.push({ index: sections.length, heading, content: part })
+  }
+  return sections
+}
+
+// --- 핵심: 섹션 추출 ---
+
+/** 약점 카테고리에 필요한 섹션만 추출 (overlap 포함) */
+export function extractRelevantSections(
+  content: string,
+  keyword: string,
+  categories: WeakCategory[]
+): ExtractionResult {
+  const sections = splitIntoSections(content)
+
+  // 섹션 2개 이하면 전체 반환 (분리 의미 없음)
+  if (sections.length <= 2) {
+    return { condensedContent: content, originalLength: content.length, condensedLength: content.length }
+  }
+
+  const selected = new Set<number>()
+  let useBoundaryMode = false
+
+  for (const cat of categories) {
+    const sel = CATEGORY_SECTION_MAP[cat.id]
+    if (!sel || sel === 'title_only') continue
+
+    switch (sel) {
+      case 'intro':
+        selected.add(0)
+        break
+      case 'outro':
+        selected.add(sections.length - 1)
+        break
+      case 'intro_mid_outro':
+        selected.add(0)
+        selected.add(Math.floor(sections.length / 2))
+        selected.add(sections.length - 1)
+        break
+      case 'shortest': {
+        const sorted = [...sections].sort((a, b) => a.content.length - b.content.length)
+        sorted.slice(0, 2).forEach(s => selected.add(s.index))
+        break
+      }
+      case 'boundaries':
+        useBoundaryMode = true
+        sections.forEach(s => selected.add(s.index))
+        break
+      case 'low_keyword': {
+        const re = new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        const counts = sections.map(s => (s.content.match(re) || []).length)
+        const avg = counts.reduce((a, b) => a + b, 0) / counts.length
+        counts.forEach((c, i) => { if (c <= avg) selected.add(i) })
+        if (selected.size === 0) selected.add(0)
+        break
+      }
+      case 'no_formatting':
+        sections.forEach(s => {
+          if (!/\*\*|^- |^\d+\. |^> /m.test(s.content)) selected.add(s.index)
+        })
+        if (selected.size === 0) selected.add(0)
+        break
+      case 'long_sentence':
+        sections.forEach(s => {
+          const sentences = s.content.split(/[.!?。]\s/)
+          if (sentences.some(sent => sent.trim().length > 40)) selected.add(s.index)
+        })
+        if (selected.size === 0) selected.add(0)
+        break
+    }
+  }
+
+  // 빌드
+  const OVERLAP = 100
+  const indices = Array.from(selected).sort((a, b) => a - b)
+  const parts: string[] = []
+
+  for (const idx of indices) {
+    const sec = sections[idx]
+
+    // boundaries 모드: 헤딩 + 80자만
+    let text = sec.content
+    if (useBoundaryMode && !selected.has(idx)) {
+      // 이 경우는 없지만 안전장치
+    } else if (useBoundaryMode && indices.length === sections.length) {
+      // 모든 섹션 선택 + boundaries: 각 섹션 헤딩+80자
+      const lines = text.split('\n')
+      text = lines[0] + '\n' + text.substring(lines[0].length + 1, lines[0].length + 81)
+      if (sec.content.length > lines[0].length + 81) text += '...'
+    }
+
+    // 앞쪽 overlap
+    let prefix = ''
+    if (idx > 0 && !indices.includes(idx - 1)) {
+      prefix = '...' + sections[idx - 1].content.slice(-OVERLAP) + '\n'
+    }
+
+    // 뒤쪽 overlap
+    let suffix = ''
+    if (idx < sections.length - 1 && !indices.includes(idx + 1)) {
+      suffix = '\n' + sections[idx + 1].content.slice(0, OVERLAP) + '...'
+    }
+
+    parts.push(`[섹션${sec.index}: ${sec.heading}]\n${prefix}${text}${suffix}`)
+  }
+
+  const omitted = sections.length - indices.length
+  let condensed = parts.join('\n\n---\n\n')
+  if (omitted > 0) {
+    condensed = `(전체 ${sections.length}개 섹션 중 ${indices.length}개 발췌)\n\n` + condensed
+  }
+
+  return { condensedContent: condensed, originalLength: content.length, condensedLength: condensed.length }
+}
+
+// --- 카테고리 분리 ---
+
+export function separateCategories(categories: WeakCategory[]): {
+  patchable: WeakCategory[]
+  guidanceOnly: WeakCategory[]
+} {
+  const patchable: WeakCategory[] = []
+  const guidanceOnly: WeakCategory[] = []
+  for (const cat of categories) {
+    if (GUIDANCE_ONLY_CATEGORIES.has(cat.id)) guidanceOnly.push(cat)
+    else patchable.push(cat)
+  }
+  return { patchable, guidanceOnly }
+}
+
+/** 가이드 텍스트 생성 (자동 패치 불가 항목용) */
+export function buildGuidanceText(categories: WeakCategory[]): GuidanceItem[] {
+  return categories.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    score: cat.score,
+    maxScore: cat.maxScore,
+    guidance: IMPROVEMENT_INSTRUCTIONS[cat.id] || '이 항목은 수동으로 개선해주세요.',
+  }))
+}
+
 /** 카테고리 ID별 AI 개선 지시사항 */
 const IMPROVEMENT_INSTRUCTIONS: Record<string, string> = {
   internal_links: `내부 링크를 3개 이상 추가하세요:
@@ -1767,6 +1978,7 @@ ${improvements}
 ## patch 작성 규칙
 - "find"는 원본 본문에 정확히 존재하는 연속 텍스트여야 합니다 (30~100자 권장)
 - "find"가 원본에 없으면 patch가 무시되므로 반드시 원본 텍스트를 정확히 복사하세요
+- "find"에 [섹션N: ...] 마커나 "..." 생략 표시를 포함하지 마세요. 원본 본문의 실제 텍스트만 사용하세요
 - 한 patch는 한 곳만 수정합니다. 여러 곳을 수정하려면 여러 patch를 만드세요
 - 수정이 불필요한 약점 항목은 patch를 만들지 마세요
 - 태그(#해시태그)나 CTA(댓글/공감 유도)는 "append"에 넣으세요
@@ -1780,17 +1992,22 @@ export function buildImprovementUserPrompt(
   keyword: string,
   title: string,
   content: string,
-  weakCategories: WeakCategory[]
+  weakCategories: WeakCategory[],
+  extraction?: ExtractionResult
 ): string {
   const weakNames = weakCategories.map(c => `${c.name}(${c.score}/${c.maxScore})`).join(', ')
+  const displayContent = extraction ? extraction.condensedContent : content
+  const sectionNote = extraction && extraction.condensedLength < extraction.originalLength
+    ? '\n(아래는 약점과 관련된 섹션만 발췌한 것입니다. "find"에는 아래 텍스트에 정확히 존재하는 부분만 넣으세요.)\n'
+    : ''
 
   return `타겟 키워드: "${keyword}"
 
 ## 현재 글
 제목: ${title}
-
+${sectionNote}
 본문:
-${content}
+${displayContent}
 
 ## 개선 요청
 위 글의 약한 항목(${weakNames})을 patch 형식으로 부분 수정해주세요.

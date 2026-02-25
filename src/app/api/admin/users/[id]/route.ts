@@ -13,13 +13,15 @@ export async function GET(
   try {
     const { id } = await params
     const adminDb = createAdminClient()
+    const url = new URL(_request.url)
+    const kwPage = parseInt(url.searchParams.get('kwPage') || '1', 10)
+    const ctPage = parseInt(url.searchParams.get('ctPage') || '1', 10)
+    const perPage = 10
 
     const [
       { data: profile },
-      { data: recentKeywords },
-      { data: recentContent },
-      { count: totalContent },
-      { count: totalKeywords },
+      { data: recentKeywords, count: totalKeywords },
+      { data: recentContent, count: totalContent },
     ] = await Promise.all([
       adminDb
         .from('profiles')
@@ -28,24 +30,16 @@ export async function GET(
         .single(),
       adminDb
         .from('keyword_research')
-        .select('id, seed_keyword, created_at')
+        .select('id, seed_keyword, created_at', { count: 'exact' })
         .eq('user_id', id)
         .order('created_at', { ascending: false })
-        .limit(10),
+        .range((kwPage - 1) * perPage, kwPage * perPage - 1),
       adminDb
         .from('generated_content')
-        .select('id, target_keyword, title, status, seo_score, created_at')
+        .select('id, target_keyword, title, status, seo_score, created_at', { count: 'exact' })
         .eq('user_id', id)
         .order('created_at', { ascending: false })
-        .limit(10),
-      adminDb
-        .from('generated_content')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', id),
-      adminDb
-        .from('keyword_research')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', id),
+        .range((ctPage - 1) * perPage, ctPage * perPage - 1),
     ])
 
     if (!profile) {
@@ -55,12 +49,32 @@ export async function GET(
       )
     }
 
+    // Supabase Auth에서 연동 계정 정보 조회
+    let identities: { provider: string; created_at?: string; identity_id?: string }[] = []
+    let lastSignIn: string | null = null
+    try {
+      const { data: authUser } = await adminDb.auth.admin.getUserById(id)
+      if (authUser?.user) {
+        identities = (authUser.user.identities || []).map((i: { provider: string; created_at?: string; id?: string }) => ({
+          provider: i.provider,
+          created_at: i.created_at,
+          identity_id: i.id,
+        }))
+        lastSignIn = authUser.user.last_sign_in_at || null
+      }
+    } catch { /* auth 조회 실패는 무시 */ }
+
     return NextResponse.json({
       profile,
+      identities,
+      lastSignIn,
       recentKeywords: recentKeywords || [],
       recentContent: recentContent || [],
       totalContent: totalContent || 0,
       totalKeywords: totalKeywords || 0,
+      kwPage,
+      ctPage,
+      perPage,
     })
   } catch (error) {
     console.error('[Admin User Detail] 오류:', error)
@@ -180,8 +194,9 @@ export async function PATCH(
 
     if (error) {
       console.error('[Admin User Update] DB 오류:', error)
+      console.error('[Admin User Update] 시도한 필드:', JSON.stringify(allowedFields))
       return NextResponse.json(
-        { error: '사용자 정보 수정 중 오류가 발생했습니다.' },
+        { error: `사용자 정보 수정 실패: ${error.message || error.code || '알 수 없는 DB 오류'}` },
         { status: 500 }
       )
     }
