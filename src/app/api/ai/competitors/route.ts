@@ -217,8 +217,31 @@ async function getAiInsights(
 
   const difficultyLabel = difficulty.level === 'very_hard' ? '매우 어려움' : difficulty.level === 'hard' ? '어려움' : difficulty.level === 'medium' ? '보통' : '쉬움'
 
-  const userMessage = `키워드: "${keyword}"
+  // 키워드 의미 힌트: 상위 제목에서 키워드를 제거하고 자주 반복되는 2~3어절 추출
+  let keywordHint = ''
+  const cleanKw = keyword.trim()
+  const kwEscaped = cleanKw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const kwRegex = new RegExp(kwEscaped, 'gi')
+  const phraseCounts = new Map<string, number>()
+  for (const c of competitors) {
+    const title = c.title.replace(kwRegex, ' ').trim()
+    const words = title.split(/[\s,·|()!?:]+/).filter(w => w.length >= 2)
+    for (let i = 0; i + 1 < words.length; i++) {
+      const p = `${words[i]} ${words[i + 1]}`
+      phraseCounts.set(p, (phraseCounts.get(p) || 0) + 1)
+    }
+  }
+  let bestPhrase = ''
+  let bestCount = 0
+  phraseCounts.forEach((count, phrase) => {
+    if (count > bestCount && count >= 2) { bestCount = count; bestPhrase = phrase }
+  })
+  if (bestPhrase) {
+    keywordHint = `\n★ 키워드 의미 참고: "${keyword}" 검색 결과에서 "${bestPhrase}"이(가) 반복 등장합니다. 이 맥락에 맞춰 분석하세요.\n`
+  }
 
+  const userMessage = `키워드: "${keyword}"
+${keywordHint}
 네이버 블로그 검색 상위 ${competitors.length}개 결과 분석:
 
 ${competitorList}
