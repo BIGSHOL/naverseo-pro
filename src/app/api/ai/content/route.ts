@@ -23,6 +23,94 @@ function calculateBasicSeoScore(keyword: string, title: string, content: string,
   return result.totalScore
 }
 
+/**
+ * SERP 검색 결과에서 키워드의 실제 카테고리와 최적 콘텐츠 유형을 추론
+ * AI 할루시네이션 방지: 신조어/약어가 informational로 오분류되는 것을 SERP 데이터로 교정
+ *
+ * 예: "두쫀쿠" 검색 시 SERP에 "디저트", "쿠키", "맛있는" 등이 반복 → review 유형으로 교정
+ */
+function inferContentTypeFromSerp(
+  items: Array<{ title: string; description: string }>
+): { suggestedType: string | null; category: string } {
+  if (!items || items.length === 0) return { suggestedType: null, category: '' }
+
+  const allText = items
+    .map(i => `${i.title.replace(/<[^>]*>/g, '')} ${i.description.replace(/<[^>]*>/g, '')}`)
+    .join(' ')
+
+  const scores: Record<string, { score: number; category: string }> = {
+    review: {
+      score: (allText.match(/맛집|카페|디저트|쿠키|빵|케이크|먹방|레시피|요리|달콤|베이커리|초콜릿|커피|음료|식당|간식|과자|아이스크림|떡|치킨|피자|맛있|후기|리뷰|사용기|언박싱|제품|개봉기|솔직|맛|먹어|먹고|주문|배달|포장|가격|구매|쇼핑|화장품|스킨케어/gi) || []).length,
+      category: '음식/제품/후기',
+    },
+    howto: {
+      score: (allText.match(/방법|하는\s?법|만들기|만드는|설치|설정|세팅|따라하기|가이드|튜토리얼|순서|단계|초보|입문/gi) || []).length,
+      category: '방법/가이드',
+    },
+    comparison: {
+      score: (allText.match(/비교|vs|대결|순위|랭킹|TOP|베스트|추천\s?순위|고르는|선택지/gi) || []).length,
+      category: '비교/추천',
+    },
+  }
+
+  const best = Object.entries(scores).sort(([, a], [, b]) => b.score - a.score)[0]
+
+  // 최소 3회 이상 매칭되어야 신뢰할 수 있는 추론
+  if (best[1].score >= 3) {
+    return { suggestedType: best[0], category: best[1].category }
+  }
+
+  return { suggestedType: null, category: '' }
+}
+
+/**
+ * SERP 제목들에서 키워드의 실제 의미(풀네임)를 추출
+ * 예: "두쫀쿠" → SERP 제목 "두쫀쿠 두바이 쫀득 쿠키 맛있는 디저트" → "두바이 쫀득 쿠키"
+ *
+ * 전략: 모든 제목에서 키워드를 제거한 뒤, 가장 자주 반복되는 2~4어절 구문을 추출
+ */
+function extractKeywordMeaning(
+  keyword: string,
+  items: Array<{ title: string; description: string }>
+): string | null {
+  if (!items || items.length === 0) return null
+
+  const cleanKeyword = keyword.trim().replace(/<[^>]*>/g, '')
+  const escaped = cleanKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const keywordRegex = new RegExp(escaped, 'gi')
+
+  // 모든 제목에서 키워드를 제거하고 남은 단어들의 2~3어절 구문 빈도 계산
+  const phraseCounts = new Map<string, number>()
+
+  for (const item of items) {
+    const title = item.title.replace(/<[^>]*>/g, '').replace(keywordRegex, ' ').trim()
+    const words = title.split(/[\s,·|()!?:]+/).filter(w => w.length >= 2)
+
+    // 2어절 구문
+    for (let i = 0; i + 1 < words.length; i++) {
+      const phrase = `${words[i]} ${words[i + 1]}`
+      phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1)
+    }
+    // 3어절 구문
+    for (let i = 0; i + 2 < words.length; i++) {
+      const phrase = `${words[i]} ${words[i + 1]} ${words[i + 2]}`
+      phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1)
+    }
+  }
+
+  // 가장 빈번한 구문 (최소 2회 이상)
+  let bestPhrase = ''
+  let bestCount = 0
+  Array.from(phraseCounts.entries()).forEach(([phrase, count]) => {
+    if (count > bestCount && count >= 2) {
+      bestCount = count
+      bestPhrase = phrase
+    }
+  })
+
+  return bestPhrase || null
+}
+
 // ===== 데이터 강화 헬퍼 함수들 =====
 
 /**
@@ -410,6 +498,34 @@ export async function POST(request: NextRequest) {
       contentRequest.additionalKeywords = merged.slice(0, 10)
     }
 
+    // ===== SERP 기반 키워드 분석: 콘텐츠 유형 교정 + 키워드 의미 파악 =====
+    // 핵심: 신조어/약어 키워드가 informational로 오분류되어 AI가 허구 콘텐츠를 생성하는 문제 방지
+    let serpKeywordMeaning: string | null = null
+    let serpInferredCategory = ''
+
+    if (serpRef && serpRef.items.length > 0) {
+      const serpItems = serpRef.items.map(item => ({
+        title: item.title,
+        description: item.description,
+      }))
+
+      // 1) SERP에서 콘텐츠 유형 추론 (음식/제품 → review, 방법 → howto 등)
+      const inference = inferContentTypeFromSerp(serpItems)
+      serpInferredCategory = inference.category
+
+      // 사용자가 직접 유형을 선택하지 않았고 SERP가 다른 유형을 강하게 제안하면 → 자동 교정
+      if (!requestedType && inference.suggestedType && inference.suggestedType !== contentRequest.contentType) {
+        console.log(`[Content] ★ SERP 기반 콘텐츠 유형 교정: ${contentRequest.contentType} → ${inference.suggestedType} (카테고리: ${serpInferredCategory})`)
+        contentRequest.contentType = inference.suggestedType as 'review' | 'howto' | 'comparison'
+      }
+
+      // 2) SERP 제목에서 키워드의 실제 의미(풀네임) 추출
+      serpKeywordMeaning = extractKeywordMeaning(keyword.trim(), serpItems)
+      if (serpKeywordMeaning) {
+        console.log(`[Content] ★ 키워드 의미 추출: "${keyword.trim()}" = "${serpKeywordMeaning}"`)
+      }
+    }
+
     // 데이터 없는 키워드 감지 (네이버 API 3개 모두 결과 없음)
     const noSerpData = !serpRef
     const noKeywordData = !keywordsRef
@@ -421,24 +537,41 @@ export async function POST(request: NextRequest) {
     console.log(`  SERP: ${serpRef ? `${serpRef.count}개 결과` : 'null'}`)
     console.log(`  키워드: ${keywordsRef ? `${keywordsRef.count}개 연관` : 'null'}`)
     console.log(`  트렌드: ${trendRef ? `${trendRef.direction}(${trendRef.ratio})` : 'null'}`)
+    console.log(`  SERP 추론: 유형=${contentRequest.contentType}, 카테고리=${serpInferredCategory || '없음'}, 의미=${serpKeywordMeaning || '없음'}`)
     console.log(`  isUnknownKeyword: ${isUnknownKeyword}`)
-    if (serpRef?.keywordContext) {
-      console.log(`  keywordContext 앞 200자: ${serpRef.keywordContext.substring(0, 200)}`)
-    }
 
-    // AI 프롬프트 생성 (additionalKeywords 병합 후)
+    // AI 프롬프트 생성 (SERP 기반 유형 교정 적용 후)
     let systemPrompt = buildSystemPrompt(contentRequest)
 
-    // ★ 시스템 프롬프트에도 키워드 컨텍스트 주입 (이중 보강)
-    if (serpRef?.keywordContext) {
-      systemPrompt += `\n\n## ⚠️ 이번 키워드에 대한 필수 참고 정보
-아래는 "${keyword.trim()}" 검색 시 네이버에서 실제로 나오는 결과입니다. 이 키워드가 무엇을 의미하는지 반드시 이 정보를 기반으로 파악하세요.
-키워드의 의미를 모르면 절대 추측하지 말고, 아래 검색 결과에서 드러나는 의미를 따르세요.`
+    // ★ 키워드 정의를 시스템 프롬프트 맨 앞에 배치 (primacy effect)
+    // AI가 구조 가이드보다 키워드 의미를 먼저 읽도록 함
+    if (serpKeywordMeaning || serpRef?.keywordContext) {
+      let keywordDefinition = `## 🔴 키워드 정의 (이 정보를 반드시 먼저 읽고 따르세요)\n`
+
+      if (serpKeywordMeaning) {
+        keywordDefinition += `"${keyword.trim()}"의 실제 의미: "${serpKeywordMeaning}"\n`
+      }
+
+      if (serpRef?.keywordContext) {
+        // keywordContext에서 SERP 제목들 추출 (제목만 간결하게)
+        const contextLines = serpRef.keywordContext.split('\n').filter(l => /^\d+\./.test(l.trim()))
+        if (contextLines.length > 0) {
+          keywordDefinition += `\n네이버 검색 결과:\n${contextLines.join('\n')}\n`
+        }
+      }
+
+      keywordDefinition += `\n**위 정보가 이 키워드의 실제 의미입니다. 이와 다른 의미로 해석하거나 허구의 정의를 만들어내면 안 됩니다.**\n**키워드의 실제 의미에 맞는 콘텐츠를 작성하세요.**\n\n`
+
+      // 시스템 프롬프트 맨 앞에 배치 (기존 내용 앞에)
+      systemPrompt = keywordDefinition + systemPrompt
     }
 
-    // ★ 핵심: 키워드 컨텍스트를 user message 맨 앞에 배치 (primacy effect)
-    // AI가 키워드 의미를 먼저 파악한 뒤 콘텐츠를 생성하도록 함
+    // ★ 키워드 컨텍스트를 user message 맨 앞에도 배치 (이중 보강)
     let userMessagePrefix = ''
+
+    if (serpKeywordMeaning) {
+      userMessagePrefix += `## 키워드 의미 확인\n"${keyword.trim()}" = "${serpKeywordMeaning}"\n이 의미에 맞는 콘텐츠를 작성하세요.\n\n`
+    }
 
     if (serpRef?.keywordContext) {
       userMessagePrefix += serpRef.keywordContext + '\n\n'
