@@ -22,6 +22,8 @@ export interface ScrapedPostData {
     hasImage: boolean
     isScrapped: true     // 스크래핑 성공 여부 (폴백과 구분)
     meta?: PostMetaData  // 메타 데이터 (태그, 카테고리, 링크 분석)
+    commentCount: number | null   // v4: 댓글 수 (추출 실패 시 null)
+    sympathyCount: number | null  // v4: 공감 수 (추출 실패 시 null)
 }
 
 /**
@@ -68,7 +70,45 @@ export function toMobileUrl(link: string): string | null {
  * - SmartEditor 3: .se-main-container (div 깊이 추적으로 정확한 범위 추출)
  * - 구형 에디터: #postViewArea, .post-view
  */
-function parsePostHtml(html: string): { charCount: number; imageCount: number } {
+/**
+ * 댓글 수 추출 (모바일 HTML에서)
+ * 여러 패턴을 시도하여 가장 먼저 매칭되는 값을 반환
+ */
+function extractCommentCount(html: string): number | null {
+    const patterns = [
+        /u_cbox_count[^>]*>(\d+)</i,
+        /"commentCount"\s*:\s*(\d+)/,
+        /comment.*?_count["'][^>]*>(\d+)/i,
+        /댓글\s*(\d+)/,
+        /data-comment-count=["'](\d+)["']/i,
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) return parseInt(match[1], 10)
+    }
+    return null
+}
+
+/**
+ * 공감 수 추출 (모바일 HTML에서)
+ * 여러 패턴을 시도하여 가장 먼저 매칭되는 값을 반환
+ */
+function extractSympathyCount(html: string): number | null {
+    const patterns = [
+        /area_sympathy[\s\S]*?u_cnt[^>]*>(\d+)</i,
+        /"sympathyCount"\s*:\s*(\d+)/,
+        /sympathy.*?_count["'][^>]*>(\d+)/i,
+        /공감\s*(\d+)/,
+        /data-sympathy-count=["'](\d+)["']/i,
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) return parseInt(match[1], 10)
+    }
+    return null
+}
+
+function parsePostHtml(html: string): { charCount: number; imageCount: number; commentCount: number | null; sympathyCount: number | null } {
     // 이미지 카운트 (전체 HTML에서)
     const imgMatches = html.match(/<img[\s>]/gi)
     const imageCount = imgMatches ? imgMatches.length : 0
@@ -152,7 +192,11 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number } 
         .replace(/\s+/g, ' ')
         .trim()
 
-    return { charCount: text.length, imageCount }
+    // 댓글/공감 추출 (전체 HTML에서)
+    const commentCount = extractCommentCount(html)
+    const sympathyCount = extractSympathyCount(html)
+
+    return { charCount: text.length, imageCount, commentCount, sympathyCount }
 }
 
 /** 요청 간 딜레이 (ms) - 네이버 차단 방지 */
@@ -221,14 +265,16 @@ export async function scrapeBlogPost(
             }
 
             const html = await res.text()
-            const { charCount, imageCount } = parsePostHtml(html)
-            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지 ← ${mobileUrl}`)
+            const { charCount, imageCount, commentCount, sympathyCount } = parsePostHtml(html)
+            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, 댓글${commentCount ?? '?'}, 공감${sympathyCount ?? '?'} ← ${mobileUrl}`)
 
             const result: ScrapedPostData = {
                 charCount,
                 imageCount,
                 hasImage: imageCount > 0,
                 isScrapped: true,
+                commentCount,
+                sympathyCount,
             }
 
             // 메타 데이터 추출 (선택적)

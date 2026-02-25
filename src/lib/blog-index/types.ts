@@ -9,6 +9,20 @@ export interface BlogPost {
   postdate: string // YYYYMMDD
 }
 
+/** 블로그 프로필 크롤링 데이터 (v4 신규) */
+export interface BlogProfileData {
+  totalPostCount: number | null
+  blogStartDate: string | null
+  blogAgeDays: number | null
+}
+
+/** 인기도 데이터 집계 (v4 신규) */
+export interface EngagementData {
+  avgCommentCount: number | null
+  avgSympathyCount: number | null
+  isAvailable: boolean
+}
+
 export interface KeywordRankResult {
   keyword: string
   rank: number | null
@@ -66,6 +80,8 @@ export interface PostDetail {
   titleLength: number
   quality: PostQuality   // 개별 포스트 품질 지수
   isScrapped?: boolean   // true면 실제 본문 데이터, false/undefined면 description 추정
+  commentCount?: number | null   // v4: 댓글 수
+  sympathyCount?: number | null  // v4: 공감 수
 }
 
 export interface BlogProfile {
@@ -78,6 +94,8 @@ export interface BlogProfile {
   isActive: boolean
   blogAgeDays: number | null    // 블로그 운영 일수 (분석 기간 기준)
   postsPerWeek: number | null   // 주간 포스팅 수
+  totalPostCount?: number | null  // v4: 프로필에서 추출한 전체 포스트 수
+  blogCreatedDate?: string | null // v4: 프로필에서 추출한 블로그 개설일
 }
 
 export interface BenchmarkData {
@@ -91,6 +109,12 @@ export interface BenchmarkData {
   avgImageCount: { mine: number; recommended: number }         // 이미지 개수 (v2 추가)
   optimizationPct: number                                     // 최적화 수치 (0~100)
   categoryPercentile: number                                  // 전체 상위 X%
+  // v4 신규
+  avgCommentCount?: { mine: number; recommended: number }      // 평균 댓글 수
+  avgSympathyCount?: { mine: number; recommended: number }     // 평균 공감 수
+  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }  // 일평균 방문자
+  blogAge?: { mine: number; recommended: number }              // 블로그 연차 (일수)
+  totalPostCount?: { mine: number; recommended: number }       // 총 포스팅 수
 }
 
 /** 어뷰징 페널티 결과 (v2 추가) */
@@ -134,6 +158,8 @@ export interface BlogIndexResult {
     topicKeywords: string[]
     postingFrequency: string
     recentPostDays: number | null
+    avgCommentCount?: number | null  // v4 추가
+    avgSympathyCount?: number | null // v4 추가
   }
   recentPosts: PostDetail[]
   blogProfile: BlogProfile

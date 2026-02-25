@@ -1,4 +1,4 @@
-import { Search, Wand2, BarChart3, TrendingUp, Activity, Users, Lightbulb, CalendarDays, FileDown } from 'lucide-react'
+import { Search, Wand2, BarChart3, TrendingUp, Activity, Users, Lightbulb, CalendarDays, FileDown, FileSearch } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
@@ -19,7 +19,7 @@ const coreFeatures = [
       '키워드만 입력하면 AI가 네이버 C-Rank, D.I.A. 알고리즘에 최적화된 2,000~3,000자 블로그 글을 자동 작성합니다.',
     color: 'bg-purple-500/10 text-purple-600',
     saving: '글 작성 3시간 → 10분',
-    detail: '정보형·리뷰·비교·가이드·리스트 5가지 유형',
+    detail: '다른 SEO 도구에는 없는 유일한 AI 글쓰기 기능',
   },
   {
     icon: BarChart3,
@@ -42,6 +42,12 @@ const coreFeatures = [
 ]
 
 const bonusFeatures = [
+  {
+    icon: FileSearch,
+    title: '포스팅 누락 조회',
+    description: '내 포스트가 네이버 검색에 빠져 있지 않은지 자동 체크. 색인 누락된 글을 찾아 검색 노출 기회를 되찾으세요.',
+    color: 'bg-teal-500/10 text-teal-600',
+  },
   {
     icon: Activity,
     title: '블로그 지수 분석',
@@ -80,7 +86,7 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <Badge variant="secondary" className="mb-4 px-4 py-1.5">
-            9가지 핵심 기능
+            10가지 핵심 기능
           </Badge>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             SEO 전문가가 하는 일,

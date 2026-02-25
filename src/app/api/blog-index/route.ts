@@ -6,10 +6,13 @@ import {
   generateDemoKeywordResults,
   generateDemoKeywordCompetition,
   generateDemoVisitorData,
+  generateDemoBlogProfileData,
+  generateDemoScrapedData,
   type BlogPost,
   type KeywordRankResult,
   type KeywordCompetitionData,
   type VisitorData,
+  type BlogProfileData,
 } from '@/lib/blog-index/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
     let keywordResults: KeywordRankResult[]
     let keywordCompetition: KeywordCompetitionData[] = []
     let visitorData: VisitorData | null = null
+    let blogProfileData: BlogProfileData | null = null
     let blogName: string | null = null
     const isDemo = !hasNaverApi
 
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
       keywordResults = generateDemoKeywordResults(keywords)
       keywordCompetition = generateDemoKeywordCompetition(keywords)
       visitorData = generateDemoVisitorData()
+      blogProfileData = generateDemoBlogProfileData()
       blogName = '데모 블로그'
     } else {
       const { searchNaverBlog } = await import('@/lib/naver/blog-search')
@@ -188,24 +193,37 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // === 5단계: 방문자 데이터 조회 (XML API) ===
+      // === 5단계: 방문자 데이터 + 블로그 프로필 조회 (병렬 실행) ===
       if (blogId) {
-        try {
-          const { fetchBlogVisitors } = await import('@/lib/naver/visitor-stats')
-          visitorData = await fetchBlogVisitors(blogId)
+        const [visitorResult, profileResult] = await Promise.allSettled([
+          import('@/lib/naver/visitor-stats').then(m => m.fetchBlogVisitors(blogId)),
+          import('@/lib/naver/blog-profile-scraper').then(m => m.scrapeBlogProfile(blogId)),
+        ])
+
+        if (visitorResult.status === 'fulfilled') {
+          visitorData = visitorResult.value
           if (visitorData.isAvailable) {
             console.log(`[BlogIndex] 방문자 데이터 조회 완료 (일평균: ${visitorData.avgDailyVisitors}명)`)
           }
-        } catch (visitorError) {
-          console.error('[BlogIndex] 방문자 데이터 조회 실패 (무시):', visitorError)
-          // 실패해도 null → engine에서 중립 점수
+        } else {
+          console.error('[BlogIndex] 방문자 데이터 조회 실패 (무시):', visitorResult.reason)
+        }
+
+        if (profileResult.status === 'fulfilled') {
+          blogProfileData = profileResult.value
+          console.log(`[BlogIndex] 프로필 크롤링 완료: 총 ${blogProfileData.totalPostCount ?? '?'}개 포스트, 연차 ${blogProfileData.blogAgeDays ?? '?'}일`)
+        } else {
+          console.error('[BlogIndex] 프로필 크롤링 실패 (무시):', profileResult.reason)
         }
       }
     }
 
-    // === 6단계: 블로그 포스트 본문 스크래핑 (Rate Limited) ===
+    // === 6단계: 블로그 포스트 본문 스크래핑 (Rate Limited, 댓글/공감 포함) ===
     let scrapedData: Map<string, import('@/lib/naver/blog-scraper').ScrapedPostData> | null = null
-    if (!isDemo && posts.length > 0) {
+    if (isDemo && posts.length > 0) {
+      // 데모 모드: 댓글/공감 포함 스크래핑 데이터 생성
+      scrapedData = generateDemoScrapedData(posts)
+    } else if (!isDemo && posts.length > 0) {
       try {
         const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
         const postUrls = posts.slice(0, 20).map(p => p.link)
@@ -222,12 +240,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4축 블로그 지수 분석 엔진 실행 (알고리즘 기반)
+    // 4축 블로그 지수 분석 엔진 실행 (v4: 새로운 4축 + 프로필 데이터)
     const result = analyzeBlogIndex(
       blogUrl.trim(), posts, keywordResults, isDemo, blogName,
       keywordCompetition.length > 0 ? keywordCompetition : undefined,
       visitorData,
-      scrapedData  // 스크래핑 데이터 전달 (null이면 description 기반 폴백)
+      scrapedData,
+      blogProfileData  // v4: 블로그 프로필 데이터 (연차, 누적 포스팅 수)
     )
 
     // AI 심층 분석은 별도 API(/api/blog-index/ai)에서 온디맨드로 실행

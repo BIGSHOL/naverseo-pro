@@ -28,6 +28,8 @@ import {
   Sparkles,
   ShieldAlert,
   Eye,
+  MessageCircle,
+  Heart,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -88,6 +90,8 @@ interface PostDetail {
   titleLength: number
   quality?: PostQuality
   isScrapped?: boolean   // true면 실제 본문 스크래핑 데이터
+  commentCount?: number | null   // v4: 댓글 수
+  sympathyCount?: number | null  // v4: 공감 수
 }
 
 interface BlogProfile {
@@ -100,6 +104,8 @@ interface BlogProfile {
   isActive: boolean
   blogAgeDays?: number | null
   postsPerWeek?: number | null
+  totalPostCount?: number | null
+  blogCreatedDate?: string | null
 }
 
 interface BenchmarkData {
@@ -112,6 +118,11 @@ interface BenchmarkData {
   avgImageCount?: { mine: number; recommended: number }
   optimizationPct: number
   categoryPercentile: number
+  avgCommentCount?: { mine: number; recommended: number }
+  avgSympathyCount?: { mine: number; recommended: number }
+  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
+  blogAge?: { mine: number; recommended: number }
+  totalPostCount?: { mine: number; recommended: number }
 }
 
 interface AiAnalysis {
@@ -152,6 +163,8 @@ interface BlogIndexResult {
     topicKeywords: string[]
     postingFrequency: string
     recentPostDays: number | null
+    avgCommentCount?: number | null
+    avgSympathyCount?: number | null
   }
   recentPosts?: PostDetail[]
   blogProfile?: BlogProfile
@@ -338,9 +351,13 @@ function getGradeColor(grade: string) {
 
 function getCategoryIcon(name: string) {
   switch (name) {
+    case '검색 성과': return <Zap className="h-4 w-4" />
     case '검색 파워': return <Zap className="h-4 w-4" />
+    case '방문자 & 인기도': return <Eye className="h-4 w-4" />
+    case '콘텐츠 경쟁력': return <FileText className="h-4 w-4" />
     case '콘텐츠 품질': return <FileText className="h-4 w-4" />
     case '주제 전문성': return <BookOpen className="h-4 w-4" />
+    case '활동 & 신뢰도': return <Shield className="h-4 w-4" />
     case '활동성': return <Clock className="h-4 w-4" />
     default: return <Activity className="h-4 w-4" />
   }
@@ -529,6 +546,14 @@ export default function BlogIndexPage() {
           </p>
         </div>
 
+        {/* 면책 문구 */}
+        <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
+          <p>
+            <strong>안내:</strong> 본 분석은 자체 알고리즘 기반 추정치이며, 네이버가 공식 제공하는 지표가 아닙니다.
+            실제 검색 노출 결과와 차이가 있을 수 있습니다.
+          </p>
+        </div>
+
         {/* 입력 폼 */}
         <Card>
           <CardHeader><CardTitle className="text-lg">블로그 정보 입력</CardTitle></CardHeader>
@@ -587,10 +612,10 @@ export default function BlogIndexPage() {
 
                     <div className="mt-3 w-full space-y-1.5 text-left">
                       {[
-                        { icon: <FileText className="h-3 w-3" />, label: '분석 포스트', value: `${result.blogProfile?.totalPosts || result.postAnalysis.totalFound}개` },
+                        { icon: <FileText className="h-3 w-3" />, label: '총 포스팅', value: `${result.blogProfile?.totalPostCount ?? result.blogProfile?.totalPosts ?? result.postAnalysis.totalFound}개` },
                         { icon: <Clock className="h-3 w-3" />, label: '최근 포스팅', value: result.postAnalysis.recentPostDays !== null ? `${result.postAnalysis.recentPostDays}일 전` : '-' },
                         { icon: <TrendingUp className="h-3 w-3" />, label: '포스팅 빈도', value: result.postAnalysis.postingFrequency },
-                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: '분석 기간', value: `${result.blogProfile.blogAgeDays}일` }] : []),
+                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: '블로그 연차', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
                         { icon: <Target className="h-3 w-3" />, label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center justify-between rounded bg-muted/50 px-2.5 py-1.5">
@@ -771,6 +796,15 @@ export default function BlogIndexPage() {
                     <BenchmarkBar label="콘텐츠 깊이" mine={result.benchmark.avgContentLength.mine} target={result.benchmark.avgContentLength.recommended} targetLabel="권장" max={Math.max(200, result.benchmark.avgContentLength.mine)} />
                     <BenchmarkBar label="이미지 포함률 (%)" mine={result.benchmark.imageRate.mine} target={result.benchmark.imageRate.recommended} targetLabel="권장" max={100} />
                     <BenchmarkBar label="주제 집중도 (%)" mine={result.benchmark.topicFocus.mine} target={result.benchmark.topicFocus.recommended} targetLabel="권장" max={100} />
+                    {result.benchmark.dailyVisitors && (
+                      <BenchmarkBar label="일평균 방문자" mine={result.benchmark.dailyVisitors.mine} target={result.benchmark.dailyVisitors.recommended} targetLabel="권장" max={Math.max(result.benchmark.dailyVisitors.topBlogger, result.benchmark.dailyVisitors.mine, 1000)} />
+                    )}
+                    {result.benchmark.avgCommentCount && (
+                      <BenchmarkBar label="평균 댓글 수" mine={result.benchmark.avgCommentCount.mine} target={result.benchmark.avgCommentCount.recommended} targetLabel="권장" max={Math.max(30, result.benchmark.avgCommentCount.mine)} />
+                    )}
+                    {result.benchmark.avgSympathyCount && (
+                      <BenchmarkBar label="평균 공감 수" mine={result.benchmark.avgSympathyCount.mine} target={result.benchmark.avgSympathyCount.recommended} targetLabel="권장" max={Math.max(50, result.benchmark.avgSympathyCount.mine)} />
+                    )}
                     {/* 포스팅 빈도 비교 미니 차트 */}
                     <div className="rounded-lg bg-muted/50 p-2.5">
                       <p className="mb-1 text-[10px] font-medium text-muted-foreground">주간 포스팅 비교</p>
@@ -1028,7 +1062,7 @@ export default function BlogIndexPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                    <table className="w-full min-w-[580px] text-sm">
+                    <table className="w-full min-w-[700px] text-sm">
                       <thead>
                         <tr className="border-b text-left">
                           <th className="pb-2 pr-2 font-medium text-muted-foreground min-w-[120px]">제목</th>
@@ -1036,7 +1070,9 @@ export default function BlogIndexPage() {
                           <th className="pb-2 pr-2 font-medium text-muted-foreground w-24 whitespace-nowrap">작성일</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16 whitespace-nowrap">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
-                          <th className="pb-2 font-medium text-muted-foreground text-center w-14">이미지</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">이미지</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">댓글</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-center w-14">공감</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1070,13 +1106,33 @@ export default function BlogIndexPage() {
                                 {post.isScrapped && <span className="ml-0.5 text-[8px] text-blue-500" title="실제 본문 데이터">✓</span>}
                               </span>
                             </td>
-                            <td className="py-2 text-center">
+                            <td className="py-2 pr-2 text-center">
                               {post.hasImage ? (
                                 <span className="flex items-center justify-center gap-0.5">
                                   <ImageIcon className="h-3.5 w-3.5 text-green-600" />
                                   {(post.imageCount ?? 0) > 1 && (
                                     <span className="text-[9px] font-bold text-green-600">{post.imageCount}</span>
                                   )}
+                                </span>
+                              ) : (
+                                <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
+                              )}
+                            </td>
+                            <td className="py-2 pr-2 text-center">
+                              {post.commentCount != null ? (
+                                <span className="flex items-center justify-center gap-0.5">
+                                  <MessageCircle className="h-3 w-3 text-blue-500" />
+                                  <span className="text-[10px]">{post.commentCount}</span>
+                                </span>
+                              ) : (
+                                <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
+                              )}
+                            </td>
+                            <td className="py-2 text-center">
+                              {post.sympathyCount != null ? (
+                                <span className="flex items-center justify-center gap-0.5">
+                                  <Heart className="h-3 w-3 text-red-400" />
+                                  <span className="text-[10px]">{post.sympathyCount}</span>
                                 </span>
                               ) : (
                                 <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
@@ -1108,7 +1164,7 @@ export default function BlogIndexPage() {
                         },
                         { label: '이미지 포함률', value: `${result.recentPosts.length > 0 ? Math.round((result.recentPosts.filter(p => p.hasImage).length / result.recentPosts.length) * 100) : 0}%` },
                         { label: '최적 제목 비율', value: `${result.recentPosts.length > 0 ? Math.round((result.recentPosts.filter(p => p.titleLength >= 15 && p.titleLength <= 40).length / result.recentPosts.length) * 100) : 0}%` },
-                        { label: '평균 품질', value: result.recentPosts.filter(p => p.quality).length > 0 ? `${(result.recentPosts.filter(p => p.quality).reduce((s, p) => s + (p.quality?.score || 0), 0) / result.recentPosts.filter(p => p.quality).length).toFixed(1)}/12` : '-' },
+                        { label: '평균 품질', value: result.recentPosts.filter(p => p.quality).length > 0 ? `${(result.recentPosts.filter(p => p.quality).reduce((s, p) => s + (p.quality?.score || 0), 0) / result.recentPosts.filter(p => p.quality).length).toFixed(1)}/15` : '-' },
                       ].map((stat, i) => (
                         <div key={i} className="text-center">
                           <p className="text-[9px] text-muted-foreground">{stat.label}</p>
@@ -1271,25 +1327,7 @@ export default function BlogIndexPage() {
 
                   // 카테고리별 맞춤 가이드 매핑
                   const guideMap: Record<string, { title: string; tips: string[] }> = {
-                    '콘텐츠 품질': {
-                      title: 'D.I.A. 콘텐츠 품질 향상',
-                      tips: [
-                        '1,500~2,000자 이상의 깊이 있는 글 작성',
-                        '소제목(H2, H3)으로 구조화하여 가독성 향상',
-                        '직접 촬영한 원본 이미지 3장 이상 삽입',
-                        '구체적 수치, 가격, 날짜 등 실제 정보 포함',
-                      ]
-                    },
-                    '주제 전문성': {
-                      title: 'C-Rank 주제 전문성 강화',
-                      tips: [
-                        '한 가지 주제에 집중하여 블로그 정체성 확립',
-                        '핵심 키워드를 일관되게 사용 (모든 글 70% 이상)',
-                        '관련 키워드를 자연스럽게 본문에 배치',
-                        '주제 관련 시리즈 글로 전문성 어필',
-                      ]
-                    },
-                    '검색 파워': {
+                    '검색 성과': {
                       title: '검색 순위 최적화',
                       tips: [
                         '경쟁이 낮은 롱테일 키워드 공략',
@@ -1298,13 +1336,31 @@ export default function BlogIndexPage() {
                         '상위 노출 경쟁 글 분석 후 차별화된 정보 제공',
                       ]
                     },
-                    '활동성': {
-                      title: '블로그 활동성 개선',
+                    '방문자 & 인기도': {
+                      title: '방문자 & 인기도 향상',
+                      tips: [
+                        '댓글을 유도하는 질문형 마무리 활용',
+                        '공감 버튼 클릭 유도 문구 삽입',
+                        '검색 유입을 늘리는 키워드 최적화',
+                        '이웃 블로그 소통으로 방문자 유입 확대',
+                      ]
+                    },
+                    '콘텐츠 경쟁력': {
+                      title: 'D.I.A. & C-Rank 품질 향상',
+                      tips: [
+                        '1,500~2,000자 이상의 깊이 있는 글 작성',
+                        '소제목(H2, H3)으로 구조화하여 가독성 향상',
+                        '한 가지 주제에 집중하여 블로그 정체성 확립',
+                        '관련 키워드를 자연스럽게 본문에 배치',
+                      ]
+                    },
+                    '활동 & 신뢰도': {
+                      title: '활동성 & 블로그 신뢰도 강화',
                       tips: [
                         '꾸준한 발행 주기 유지 (주 3~5회 권장)',
                         '정해진 요일/시간에 포스팅하여 규칙성 확보',
-                        '최근 7일 이내 포스팅으로 신선도 유지',
-                        '이웃 블로그 방문 및 댓글로 소통 활성화',
+                        '장기간 꾸준히 운영하여 블로그 연차 확보',
+                        '다양한 주제의 글을 축적하여 누적 포스트 수 늘리기',
                       ]
                     }
                   }

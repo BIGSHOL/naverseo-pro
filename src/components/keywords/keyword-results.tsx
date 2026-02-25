@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { getCompBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
+import { getCompBadge, getSaturationBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
 
 export interface KeywordData {
@@ -16,6 +16,7 @@ export interface KeywordData {
   monthlyAvePcClkCnt: number
   monthlyAveMobileClkCnt: number
   compIdx: string
+  plAvgDepth: number
   totalSearch: number
   score: number
 }
@@ -25,7 +26,7 @@ interface KeywordResultsProps {
   isDemo: boolean
 }
 
-type SortKey = 'totalSearch' | 'monthlyPcQcCnt' | 'monthlyMobileQcCnt' | 'compIdx' | 'score'
+type SortKey = 'totalSearch' | 'monthlyPcQcCnt' | 'monthlyMobileQcCnt' | 'compIdx' | 'plAvgDepth' | 'score'
 type SortDir = 'asc' | 'desc'
 
 
@@ -89,7 +90,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
         {/* 모바일 정렬 버튼 */}
         <div className="flex items-center gap-1 mt-2 md:hidden">
           <span className="text-xs text-muted-foreground shrink-0">정렬:</span>
-          {([['score', '점수'], ['totalSearch', '검색량'], ['compIdx', '경쟁도']] as const).map(([key, label]) => (
+          {([['score', '점수'], ['totalSearch', '검색량'], ['compIdx', '경쟁도'], ['plAvgDepth', '포화도']] as const).map(([key, label]) => (
             <Button
               key={key}
               variant={sortKey === key ? 'default' : 'outline'}
@@ -117,6 +118,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
               <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                 <span className="tabular-nums">검색량 {formatNumber(kw.totalSearch)}</span>
                 <span className="flex items-center gap-1">경쟁 {getCompBadge(kw.compIdx)}</span>
+                <span className="flex items-center gap-1">포화 {getSaturationBadge(kw.plAvgDepth)}</span>
                 <span className="tabular-nums text-muted-foreground/70">
                   PC {formatNumber(kw.monthlyPcQcCnt)} / M {formatNumber(kw.monthlyMobileQcCnt)}
                 </span>
@@ -186,6 +188,17 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <th
+                      className="cursor-pointer pb-3 px-3 text-center font-medium text-muted-foreground whitespace-nowrap"
+                      onClick={() => handleSort('plAvgDepth')}
+                    >
+                      포화도<SortIcon columnKey="plAvgDepth" />
+                    </th>
+                  </TooltipTrigger>
+                  <TooltipContent><p>검색 광고 평균 노출 깊이입니다. 높을수록 경쟁이 치열한 포화 시장입니다</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <th
                       className="cursor-pointer pb-3 pl-3 text-center font-medium text-muted-foreground whitespace-nowrap"
                       onClick={() => handleSort('score')}
                     >
@@ -213,6 +226,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                     {formatNumber(kw.monthlyMobileQcCnt)}
                   </td>
                   <td className="py-3 px-3 text-center">{getCompBadge(kw.compIdx)}</td>
+                  <td className="py-3 px-3 text-center">{getSaturationBadge(kw.plAvgDepth)}</td>
                   <td className="py-3 pl-3 text-center">
                     <Tooltip>
                       <TooltipTrigger asChild>

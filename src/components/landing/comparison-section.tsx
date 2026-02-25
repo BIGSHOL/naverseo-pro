@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 
 const comparisonItems = [
   { task: '키워드 리서치', manual: '직접 조사 1시간+', tool: 'AI 자동 분석 30초' },
-  { task: '블로그 글 작성', manual: '3~4시간/편', tool: 'AI 생성 10분/편' },
+  { task: '블로그 글 작성', manual: '3~4시간/편', tool: 'AI 자동 생성 10분/편 (타 도구에 없는 기능)' },
   { task: 'SEO 최적화 검토', manual: 'SEO 지식 필요', tool: '100점 만점 자동 분석' },
   { task: '순위 모니터링', manual: '매일 수동 검색', tool: '자동 트래킹 알림' },
   { task: '상위노출 분석', manual: '일일이 검색 비교', tool: 'AI 자동 분석 리포트' },
@@ -109,6 +109,11 @@ export function ComparisonSection() {
                 </div>
               ))}
             </div>
+
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              다른 블로그 분석 도구를 사용하셨나요? NaverSEO Pro는 포스팅 누락 조회,
+              블로그 지수, AI 콘텐츠 생성까지 올인원으로 제공합니다.
+            </p>
           </CardContent>
         </Card>
       </div>

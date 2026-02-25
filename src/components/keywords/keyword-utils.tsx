@@ -86,6 +86,50 @@ export function getScoreTooltip(score: number): string {
   return '경쟁이 높거나 검색량이 부족한 키워드입니다'
 }
 
+// ===== 포화지수 배지 =====
+
+const SATURATION_TOOLTIPS: Record<string, string> = {
+  '여유': '광고 경쟁이 적은 틈새 키워드입니다. 진입 난이도가 낮습니다',
+  '보통': '적절한 경쟁 수준입니다. 꾸준한 포스팅으로 상위 노출 가능합니다',
+  '포화': '경쟁이 치열한 키워드입니다. 차별화된 콘텐츠가 필요합니다',
+  '과포화': '매우 치열한 레드오션입니다. 롱테일 키워드를 추천합니다',
+}
+
+export function getSaturationLevel(plAvgDepth: number): string {
+  if (plAvgDepth <= 2) return '여유'
+  if (plAvgDepth <= 6) return '보통'
+  if (plAvgDepth <= 11) return '포화'
+  return '과포화'
+}
+
+export function getSaturationBadge(plAvgDepth: number) {
+  const level = getSaturationLevel(plAvgDepth)
+  const badge = (() => {
+    switch (level) {
+      case '여유':
+        return <Badge className="bg-green-100 text-green-700 text-xs hover:bg-green-100">여유</Badge>
+      case '보통':
+        return <Badge className="bg-yellow-100 text-yellow-700 text-xs hover:bg-yellow-100">보통</Badge>
+      case '포화':
+        return <Badge className="bg-orange-100 text-orange-700 text-xs hover:bg-orange-100">포화</Badge>
+      case '과포화':
+        return <Badge variant="destructive" className="text-xs">과포화</Badge>
+      default:
+        return <Badge variant="outline" className="text-xs text-muted-foreground">미확인</Badge>
+    }
+  })()
+
+  const tip = SATURATION_TOOLTIPS[level]
+  if (!tip) return badge
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
+  )
+}
+
 // ===== 숫자 포맷 =====
 
 export function formatNumber(num: number): string {

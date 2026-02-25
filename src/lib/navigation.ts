@@ -11,6 +11,7 @@ import {
   Users,
   Lightbulb,
   Coins,
+  ListChecks,
   CreditCard,
   Shield,
   UserCog,
@@ -19,6 +20,8 @@ import {
   Ticket,
   Gift,
   BrainCircuit,
+  FileSearch,
+  Camera,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -44,11 +47,14 @@ export function canAccessFeature(currentPlan: Plan, minPlan?: Plan): boolean {
 export const navItems: NavItem[] = [
   { label: '대시보드', href: '/dashboard', icon: LayoutDashboard },
   { label: '키워드 리서치', href: '/keywords', icon: Search },
+  { label: '키워드 대량조회', href: '/keywords-bulk', icon: ListChecks, minPlan: 'starter' },
   { label: '키워드 발굴', href: '/opportunities', icon: Lightbulb, minPlan: 'starter' },
   { label: 'AI 콘텐츠 생성', href: '/content', icon: Wand2, minPlan: 'lite' },
   { label: 'SEO 점수 체크', href: '/seo-check', icon: BarChart3 },
   { label: '상위노출 분석', href: '/competitors', icon: Users, minPlan: 'starter' },
   { label: '블로그 지수', href: '/blog-index', icon: Activity },
+  { label: '포스팅 누락 조회', href: '/post-check', icon: FileSearch },
+  { label: '인스타그램 변환', href: '/instagram', icon: Camera, minPlan: 'starter' },
   { label: '순위 트래킹', href: '/tracking', icon: TrendingUp, minPlan: 'starter' },
   { label: '활동 캘린더', href: '/content/calendar', icon: CalendarDays },
   { label: 'SEO 리포트', href: '/report', icon: FileDown, minPlan: 'lite' },

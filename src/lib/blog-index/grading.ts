@@ -1,26 +1,8 @@
 /**
- * 블로그 지수 - 등급 체계 및 추천
+ * 블로그 지수 - 등급 체계 및 추천 (v4 업데이트)
  *
- * 11등급 블로그 지수 체계 (v3)
- *
- * 어뷰징 페널티로 인해 총점이 음수가 될 수 있으므로 0 하한 처리
- *
- * [저품질] 0~24점
- *   Lv.1  저품질 1 (0~12)
- *   Lv.2  저품질 2 (13~24)
- * [일반] 25~47점
- *   Lv.3  일반 1 (25~31)
- *   Lv.4  일반 2 (32~39)
- *   Lv.5  일반 3 (40~47)
- * [준최적화] 48~69점
- *   Lv.6  준최적화 1 (48~54)
- *   Lv.7  준최적화 2 (55~62)
- *   Lv.8  준최적화 3 (63~69)
- * [최적화] 70~89점
- *   Lv.9  최적화 1 (70~79)
- *   Lv.10 최적화 2 (80~89)
- * [파워] 90~100점
- *   Lv.11 파워 (90~100)
+ * 11등급 블로그 지수 체계 (변경 없음)
+ * 추천 로직: 새로운 4축 이름에 맞게 업데이트
  */
 
 import type { BlogLevelInfo, AnalysisCategory, AbusePenalty, BenchmarkData, PostDetail, BlogProfile } from './types'
@@ -122,7 +104,6 @@ export function generateRecommendations(
   // ── 2단계: 다음 등급 목표 + 가장 빠른 개선 카테고리 ──
   if (level?.nextTierScore != null && ctx?.totalScore != null) {
     const gap = level.nextTierScore - ctx.totalScore
-    // 가장 개선 여지가 큰 카테고리 (maxScore 대비 남은 점수가 가장 큰)
     const sorted = [...categories].sort((a, b) =>
       (b.maxScore - b.score) - (a.maxScore - a.score)
     )
@@ -142,53 +123,52 @@ export function generateRecommendations(
     if (pct < 0.4) {
       // [Critical] 40% 미만 - 긴급 개선
       switch (cat.name) {
-        case '검색 파워':
-          recs.push('검색 파워가 매우 낮습니다 - 경쟁이 낮은 롱테일 키워드부터 공략하세요')
+        case '검색 성과':
+          recs.push('검색 성과가 매우 낮습니다 - 경쟁이 낮은 롱테일 키워드부터 공략하세요')
           recs.push('제목에 검색 키워드를 자연스럽게 포함하고, 본문 첫 문단에도 키워드를 배치하세요')
           break
-        case '콘텐츠 품질':
-          recs.push('콘텐츠 품질이 부족합니다 - 글 길이를 1,500~2,000자로 늘리고 소제목으로 구조화하세요')
+        case '방문자 & 인기도':
+          recs.push('방문자와 인기도가 매우 낮습니다 - 검색 유입 키워드를 최적화하고, 글 마무리에 댓글/공감 유도 문구를 넣으세요')
+          recs.push('이웃 블로그 소통과 댓글 달기로 방문자 유입을 늘리세요')
+          break
+        case '콘텐츠 경쟁력':
+          recs.push('콘텐츠 경쟁력이 부족합니다 - 글 길이를 1,500~2,000자로 늘리고 소제목으로 구조화하세요')
           if (bm && bm.avgImageCount.mine < 1) {
             recs.push(`이미지가 거의 없습니다 (평균 ${bm.avgImageCount.mine}개) → 포스트당 3~5장 삽입하세요`)
-          } else {
-            recs.push('직접 촬영한 이미지를 포스트당 3~5장 삽입하고 텍스트와 교차 배치하세요')
           }
           break
-        case '주제 전문성':
-          if (bm && bm.topicFocus.mine < 30) {
-            recs.push(`주제가 분산되어 있습니다 (집중도 ${bm.topicFocus.mine}%) - 하나의 카테고리에 집중하여 C-Rank를 높이세요`)
-          } else {
-            recs.push('하나의 주제 카테고리에 집중하여 C-Rank를 높이세요')
-          }
-          break
-        case '활동성':
+        case '활동 & 신뢰도':
           if (bm && bm.postingFrequency.mine < 1) {
             recs.push(`현재 주 ${bm.postingFrequency.mine}회 포스팅 중입니다 - 최소 주 3회로 늘리세요`)
           } else {
             recs.push('최소 주 3회 이상 꾸준히 포스팅하세요')
+          }
+          if (profile?.blogAgeDays != null && profile.blogAgeDays < 180) {
+            recs.push('블로그 운영 기간이 짧습니다 - 6개월 이상 꾸준히 운영하면 신뢰도가 크게 올라갑니다')
           }
           break
       }
     } else if (pct < 0.6) {
       // [Important] 40~60% - 보강 필요
       switch (cat.name) {
-        case '검색 파워':
-          recs.push('검색 파워를 높이려면 월간 검색량 100~500 사이의 니치 키워드를 공략해보세요')
+        case '검색 성과':
+          recs.push('검색 성과를 높이려면 월간 검색량 100~500 사이의 니치 키워드를 공략해보세요')
           break
-        case '콘텐츠 품질':
+        case '방문자 & 인기도':
+          recs.push('댓글과 공감을 늘리기 위해 글 마무리에 질문형 문구를 사용하세요')
+          if (bm?.dailyVisitors && bm.dailyVisitors.mine < bm.dailyVisitors.recommended) {
+            recs.push(`일평균 방문자 ${bm.dailyVisitors.mine}명 → ${bm.dailyVisitors.recommended}명 달성을 목표로 키워드를 최적화하세요`)
+          }
+          break
+        case '콘텐츠 경쟁력':
           if (bm && bm.imageRate.mine < bm.imageRate.recommended) {
             recs.push(`이미지 포함률 ${bm.imageRate.mine}% → ${bm.imageRate.recommended}% 달성 시 품질 점수가 크게 올라갑니다`)
           }
-          if (bm && bm.avgContentLength.mine < 120) {
-            recs.push('본문이 짧습니다 - 경험담, 비교 정보, 구체적 수치를 추가하여 콘텐츠를 보강하세요')
-          }
-          break
-        case '주제 전문성':
-          if (bm) {
+          if (bm && bm.topicFocus.mine < bm.topicFocus.recommended) {
             recs.push(`주제 집중도 ${bm.topicFocus.mine}% → ${bm.topicFocus.recommended}% 이상으로 올리면 C-Rank 효과가 높아집니다`)
           }
           break
-        case '활동성':
+        case '활동 & 신뢰도':
           if (bm && bm.postingFrequency.mine < bm.postingFrequency.recommended) {
             recs.push(`포스팅 빈도 주 ${bm.postingFrequency.mine}회 → ${bm.postingFrequency.recommended}회로 늘리면 활동성 점수가 올라갑니다`)
           }
@@ -197,18 +177,19 @@ export function generateRecommendations(
     } else if (pct < 0.8) {
       // [Optimization] 60~80% - 최적화 여지
       switch (cat.name) {
-        case '검색 파워':
+        case '검색 성과':
           recs.push('중경쟁 키워드에도 도전해보세요 - 상위 노출 블로그의 제목/구조를 분석한 뒤 차별화하세요')
           break
-        case '콘텐츠 품질':
+        case '방문자 & 인기도':
+          recs.push('방문자 유입을 더 늘리려면 검색 트렌드에 맞는 시의성 있는 콘텐츠를 발행하세요')
+          break
+        case '콘텐츠 경쟁력':
           if (bm && bm.avgImageCount.mine < bm.avgImageCount.recommended) {
             recs.push(`이미지 수 평균 ${bm.avgImageCount.mine}개 → ${bm.avgImageCount.recommended}개로 늘리면 D.I.A. 점수에 유리합니다`)
           }
-          break
-        case '주제 전문성':
           recs.push('연관 키워드를 활용한 시리즈 포스팅으로 주제 깊이를 강화해보세요')
           break
-        case '활동성':
+        case '활동 & 신뢰도':
           if (profile && !profile.isActive) {
             recs.push('최근 30일간 포스팅이 없습니다 - 꾸준한 활동 재개가 검색 노출에 핵심입니다')
           }
@@ -219,7 +200,6 @@ export function generateRecommendations(
 
   // ── 4단계: 벤치마크 기반 구체적 수치 추천 ──
   if (bm && recs.length < 5) {
-    // 제목 길이
     if (bm.avgTitleLength.mine > 0 && Math.abs(bm.avgTitleLength.mine - bm.avgTitleLength.optimal) > 8) {
       if (bm.avgTitleLength.mine < bm.avgTitleLength.optimal - 5) {
         recs.push(`제목이 짧습니다 (평균 ${bm.avgTitleLength.mine}자) → ${bm.avgTitleLength.optimal}자 내외로 키워드와 매력적인 표현을 담으세요`)
@@ -228,7 +208,6 @@ export function generateRecommendations(
       }
     }
 
-    // 키워드 밀도
     if (bm.keywordDensity.mine > 0) {
       if (bm.keywordDensity.mine > bm.keywordDensity.optimal[1]) {
         recs.push(`키워드 밀도 ${bm.keywordDensity.mine}%로 높습니다 → ${bm.keywordDensity.optimal[0]}~${bm.keywordDensity.optimal[1]}% 범위로 조절하세요`)
@@ -240,7 +219,6 @@ export function generateRecommendations(
 
   // ── 5단계: 포스트별 빠른 개선 기회 ──
   if (posts && posts.length > 0 && recs.length < 6) {
-    // 저품질 포스트 중 개선 가능한 것
     const lowQualityPosts = posts.filter(p => p.quality.tier <= 3)
     const improvablePosts = posts.filter(p => p.quality.tier >= 4 && p.quality.tier <= 6)
 
@@ -250,7 +228,6 @@ export function generateRecommendations(
       recs.push(`"일반" 등급 포스트 ${improvablePosts.length}개를 소제목 구조화 + 이미지 추가로 "준최적화"로 업그레이드하세요`)
     }
 
-    // 이미지 없는 포스트
     const noImagePosts = posts.filter(p => !p.hasImage)
     if (noImagePosts.length > 0 && noImagePosts.length <= 5) {
       recs.push(`이미지 없는 포스트 ${noImagePosts.length}개에 관련 이미지를 추가하면 즉시 품질 점수가 올라갑니다`)
@@ -261,11 +238,9 @@ export function generateRecommendations(
   if (recs.length < 2) {
     const tier = level?.tier || 0
     if (tier >= 9) {
-      // 최적화 이상
       recs.push('현재 높은 수준을 유지하고 있습니다 - 경쟁 키워드 분석으로 새로운 상위 노출 기회를 발굴하세요')
       recs.push('기존 인기 글을 주기적으로 업데이트하면 검색 노출이 장기적으로 유지됩니다')
     } else if (tier >= 6) {
-      // 준최적화
       recs.push('콘텐츠에 직접 경험, 비교 정보, 구체적 수치를 추가하면 D.I.A. 품질 점수가 올라갑니다')
       recs.push('같은 주제로 시리즈 포스팅을 작성하면 C-Rank 전문성이 빠르게 쌓입니다')
     } else {

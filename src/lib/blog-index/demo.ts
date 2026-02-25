@@ -1,8 +1,9 @@
 /**
- * 블로그 지수 - 데모 데이터 생성
+ * 블로그 지수 - 데모 데이터 생성 (v4 확장)
  */
 
-import type { BlogPost, KeywordRankResult, KeywordCompetitionData, VisitorData } from './types'
+import type { BlogPost, KeywordRankResult, KeywordCompetitionData, VisitorData, BlogProfileData, EngagementData } from './types'
+import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
 export function generateDemoPosts(blogId: string): BlogPost[] {
   const topics = ['맛집', '여행', '카페', '다이어트', '인테리어', '독서', '자기계발', '헬스']
@@ -57,4 +58,42 @@ export function generateDemoVisitorData(): VisitorData {
   )
   const avg = Math.round(dailyVisitors.reduce((s, v) => s + v, 0) / dailyVisitors.length)
   return { dailyVisitors, avgDailyVisitors: avg, isAvailable: true }
+}
+
+/** 데모용 블로그 프로필 데이터 생성 (v4 신규) */
+export function generateDemoBlogProfileData(): BlogProfileData {
+  const blogAgeDays = Math.floor(Math.random() * 1500) + 180  // 6개월 ~ 5년
+  const startDate = new Date(Date.now() - blogAgeDays * 24 * 60 * 60 * 1000)
+  const blogStartDate = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+
+  return {
+    totalPostCount: Math.floor(Math.random() * 400) + 30,
+    blogStartDate,
+    blogAgeDays,
+  }
+}
+
+/** 데모용 인기도 데이터 생성 (v4 신규) */
+export function generateDemoEngagementData(): EngagementData {
+  return {
+    avgCommentCount: Math.round((Math.random() * 15 + 1) * 10) / 10,
+    avgSympathyCount: Math.round((Math.random() * 25 + 2) * 10) / 10,
+    isAvailable: true,
+  }
+}
+
+/** 데모용 스크래핑 데이터 생성 (댓글/공감 포함, v4 신규) */
+export function generateDemoScrapedData(posts: BlogPost[]): Map<string, ScrapedPostData> {
+  const map = new Map<string, ScrapedPostData>()
+  posts.forEach(p => {
+    map.set(p.link, {
+      charCount: Math.floor(Math.random() * 2000) + 500,
+      imageCount: Math.floor(Math.random() * 5) + 1,
+      hasImage: true,
+      isScrapped: true,
+      commentCount: Math.floor(Math.random() * 20),
+      sympathyCount: Math.floor(Math.random() * 40),
+    })
+  })
+  return map
 }
