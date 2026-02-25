@@ -570,6 +570,7 @@ export async function POST(request: NextRequest) {
     let serpKeywordMeaning: string | null = null
     let serpInferredCategory = ''
     let specificBusiness: { isSpecific: boolean; businessName: string | null } = { isSpecific: false, businessName: null }
+    const originalContentType = contentRequest.contentType // SERP 교정 전 원래 타입 보존
 
     if (serpRef && serpRef.items.length > 0) {
       const serpItems = serpRef.items.map(item => ({
@@ -577,28 +578,34 @@ export async function POST(request: NextRequest) {
         description: item.description,
       }))
 
-      // 1) SERP에서 콘텐츠 유형 추론 (음식/제품 → review, 방법 → howto 등)
-      const inference = inferContentTypeFromSerp(serpItems)
-      serpInferredCategory = inference.category
-
-      // 사용자가 직접 유형을 선택하지 않았고 SERP가 다른 유형을 강하게 제안하면 → 자동 교정
-      if (!requestedType && inference.suggestedType && inference.suggestedType !== contentRequest.contentType) {
-        console.log(`[Content] ★ SERP 기반 콘텐츠 유형 교정: ${contentRequest.contentType} → ${inference.suggestedType} (카테고리: ${serpInferredCategory})`)
-        contentRequest.contentType = inference.suggestedType as 'review' | 'howto' | 'comparison'
-      }
-
-      // 2) SERP 제목에서 키워드의 실제 의미(풀네임) 추출
-      serpKeywordMeaning = extractKeywordMeaning(keyword.trim(), serpItems)
-      if (serpKeywordMeaning) {
-        console.log(`[Content] ★ 키워드 의미 추출: "${keyword.trim()}" = "${serpKeywordMeaning}"`)
-      }
-
-      // 3) 지역 업종 키워드: 특정 상호명 vs 카테고리 판별
-      if (contentRequest.contentType === 'local') {
+      // 1) 지역 업종 키워드: 특정 상호명 vs 카테고리 판별 (SERP 유형 교정보다 먼저!)
+      // 이유: SERP 교정이 local→review로 바꾸면 상호명 감지가 실행되지 않는 버그 방지
+      if (originalContentType === 'local') {
         specificBusiness = detectSpecificBusiness(keyword.trim(), serpItems)
         if (specificBusiness.isSpecific) {
           console.log(`[Content] ★ 특정 상호명 감지: "${specificBusiness.businessName}" → 단일 업체 소개/리뷰 모드`)
         }
+      }
+
+      // 2) SERP에서 콘텐츠 유형 추론 (음식/제품 → review, 방법 → howto 등)
+      const inference = inferContentTypeFromSerp(serpItems)
+      serpInferredCategory = inference.category
+
+      // 사용자가 직접 유형을 선택하지 않았고 SERP가 다른 유형을 강하게 제안하면 → 자동 교정
+      // 단, 특정 상호명이 감지된 경우 local 타입을 유지 (TOP 5가 아닌 단일 업체 모드로 전환)
+      if (!requestedType && inference.suggestedType && inference.suggestedType !== contentRequest.contentType) {
+        if (specificBusiness.isSpecific) {
+          console.log(`[Content] ★ SERP가 ${inference.suggestedType}을 제안했지만, 특정 상호명 감지로 local 유지`)
+        } else {
+          console.log(`[Content] ★ SERP 기반 콘텐츠 유형 교정: ${contentRequest.contentType} → ${inference.suggestedType} (카테고리: ${serpInferredCategory})`)
+          contentRequest.contentType = inference.suggestedType as 'review' | 'howto' | 'comparison'
+        }
+      }
+
+      // 3) SERP 제목에서 키워드의 실제 의미(풀네임) 추출
+      serpKeywordMeaning = extractKeywordMeaning(keyword.trim(), serpItems)
+      if (serpKeywordMeaning) {
+        console.log(`[Content] ★ 키워드 의미 추출: "${keyword.trim()}" = "${serpKeywordMeaning}"`)
       }
     }
 
