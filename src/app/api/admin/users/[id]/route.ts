@@ -22,6 +22,7 @@ export async function GET(
       { data: profile },
       { data: recentKeywords, count: totalKeywords },
       { data: recentContent, count: totalContent },
+      { data: creditLogs },
     ] = await Promise.all([
       adminDb
         .from('profiles')
@@ -40,6 +41,12 @@ export async function GET(
         .eq('user_id', id)
         .order('created_at', { ascending: false })
         .range((ctPage - 1) * perPage, ctPage * perPage - 1),
+      adminDb
+        .from('credit_usage_log')
+        .select('feature, credits_spent, created_at')
+        .eq('user_id', id)
+        .order('created_at', { ascending: false })
+        .limit(500),
     ])
 
     if (!profile) {
@@ -72,6 +79,7 @@ export async function GET(
       recentContent: recentContent || [],
       totalContent: totalContent || 0,
       totalKeywords: totalKeywords || 0,
+      creditLogs: creditLogs || [],
       kwPage,
       ctPage,
       perPage,
@@ -108,7 +116,7 @@ export async function PATCH(
     // 허용된 필드만 업데이트
     const allowedFields: Record<string, unknown> = {}
 
-    if (body.plan && ['free', 'lite', 'starter', 'pro', 'enterprise'].includes(body.plan)) {
+    if (body.plan && ['free', 'lite', 'starter', 'pro', 'enterprise', 'admin'].includes(body.plan)) {
       allowedFields.plan = body.plan
       // 플랜 변경 시 월간 할당량 자동 동기화
       allowedFields.credits_monthly_quota = PLAN_CREDITS[body.plan as Plan]

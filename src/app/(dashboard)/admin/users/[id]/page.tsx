@@ -25,7 +25,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Bot, ChevronLeft, ChevronRight, Coins, Link2, Save, Shield, ShieldOff, User } from 'lucide-react'
+import { ArrowLeft, Bot, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, Link2, Save, Shield, ShieldOff, User } from 'lucide-react'
+import { CREDIT_FEATURE_LABELS, type CreditFeature } from '@/types/database'
 
 interface UserProfile {
   id: string
@@ -70,6 +71,12 @@ interface RecentContent {
   created_at: string
 }
 
+interface CreditLog {
+  feature: string
+  credits_spent: number
+  created_at: string
+}
+
 interface UserDetailData {
   profile: UserProfile
   identities: Identity[]
@@ -78,6 +85,7 @@ interface UserDetailData {
   recentContent: RecentContent[]
   totalContent: number
   totalKeywords: number
+  creditLogs: CreditLog[]
   kwPage: number
   ctPage: number
   perPage: number
@@ -668,25 +676,6 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
               </AlertDialog>
             </div>
 
-            {/* 기존 사용량 (deprecated - 참고용) */}
-            <div className="border-t pt-4">
-              <p className="text-xs text-muted-foreground mb-2">기존 카운터 (참고용)</p>
-              <div className="grid gap-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">키워드 조회 (월간)</span>
-                  <span>{profile.keywords_used_this_month}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">콘텐츠 생성 (월간)</span>
-                  <span>{profile.content_generated_this_month}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">블로그 분석 (일간)</span>
-                  <span>{profile.analysis_used_today}</span>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 gap-2 border-t pt-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <span className="text-sm">전체 콘텐츠</span>
@@ -700,6 +689,9 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
           </CardContent>
         </Card>
       </div>
+
+      {/* 크레딧 사용 내역 */}
+      <CreditUsageCard logs={data.creditLogs} />
 
       {/* 최근 활동 */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -808,5 +800,118 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         </Card>
       </div>
     </div>
+  )
+}
+
+/** 월별/일별 크레딧 소모 요약 카드 */
+function CreditUsageCard({ logs }: { logs: CreditLog[] }) {
+  const [viewMode, setViewMode] = useState<'monthly' | 'daily'>('monthly')
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+
+  if (!logs || logs.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calendar className="h-5 w-5" />
+            크레딧 사용 내역
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="py-4 text-center text-sm text-muted-foreground">사용 내역이 없습니다</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // 월별 또는 일별로 그룹핑
+  const grouped = new Map<string, { total: number; byFeature: Map<string, number> }>()
+  for (const log of logs) {
+    const d = new Date(log.created_at)
+    const key = viewMode === 'monthly'
+      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const entry = grouped.get(key) || { total: 0, byFeature: new Map<string, number>() }
+    entry.total += log.credits_spent
+    entry.byFeature.set(log.feature, (entry.byFeature.get(log.feature) || 0) + log.credits_spent)
+    grouped.set(key, entry)
+  }
+
+  const sortedKeys = Array.from(grouped.keys()).sort((a, b) => b.localeCompare(a))
+
+  function formatKey(key: string) {
+    const parts = key.split('-')
+    if (parts.length === 2) return `${parts[0]}년 ${parseInt(parts[1])}월`
+    return `${parseInt(parts[1])}월 ${parseInt(parts[2])}일`
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-lg">
+          <span className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            크레딧 사용 내역
+          </span>
+          <div className="flex gap-1">
+            <Button
+              variant={viewMode === 'monthly' ? 'default' : 'outline'}
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => { setViewMode('monthly'); setExpandedKey(null) }}
+            >
+              월별
+            </Button>
+            <Button
+              variant={viewMode === 'daily' ? 'default' : 'outline'}
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => { setViewMode('daily'); setExpandedKey(null) }}
+            >
+              일별
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          {sortedKeys.slice(0, viewMode === 'daily' ? 14 : 6).map((key) => {
+            const entry = grouped.get(key)!
+            const isExpanded = expandedKey === key
+            return (
+              <div key={key} className="rounded-lg border">
+                <button
+                  className="flex w-full items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors"
+                  onClick={() => setExpandedKey(isExpanded ? null : key)}
+                >
+                  <span className="text-sm font-medium">{formatKey(key)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-destructive">-{entry.total}</span>
+                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="border-t px-3 pb-3 pt-2 space-y-1">
+                    {Array.from(entry.byFeature.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([feature, spent]) => (
+                        <div key={feature} className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {CREDIT_FEATURE_LABELS[feature as CreditFeature] || feature}
+                          </span>
+                          <span className="text-destructive">-{spent}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground text-center">
+          총 {logs.length}건 · 누적 {logs.reduce((s, l) => s + l.credits_spent, 0)} 크레딧 소모
+        </p>
+      </CardContent>
+    </Card>
   )
 }

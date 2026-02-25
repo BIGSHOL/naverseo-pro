@@ -7,7 +7,7 @@ UPDATE profiles SET plan = 'enterprise' WHERE plan IN ('business', 'agency');
 -- 2. profiles.plan CHECK 제약조건 업데이트
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_plan_check;
 ALTER TABLE profiles ADD CONSTRAINT profiles_plan_check
-  CHECK (plan IN ('free', 'lite', 'starter', 'pro', 'enterprise'));
+  CHECK (plan IN ('free', 'lite', 'starter', 'pro', 'enterprise', 'admin'));
 
 -- 3. promo_codes.upgrade_plan CHECK 제약조건 업데이트
 ALTER TABLE promo_codes DROP CONSTRAINT IF EXISTS promo_codes_upgrade_plan_check;
