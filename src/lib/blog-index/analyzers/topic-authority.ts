@@ -1,16 +1,14 @@
 /**
- * 블로그 지수 - 주제 전문성 분석 (C-Rank proxy) — 10점 (v4: 25→10 축소)
+ * 블로그 지수 - 축3. 주제 전문성 분석 (C-Rank proxy) — 20점 (v5: 10→20 독립 축)
  *
- * "콘텐츠 경쟁력" 축의 일부로 사용됨 (engine.ts에서 콘텐츠 품질과 합산)
- *
- * 집중도(6) + 일관성(4)
+ * 집중도(12) + 일관성(8)
  */
 
 import { stripHtml, extractKoreanKeywords } from '@/lib/utils/text'
 import type { BlogPost, AnalysisCategory } from '../types'
 
 export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCategory; topicKeywords: string[] } {
-  const maxScore = 10
+  const maxScore = 20
   const details: string[] = []
   let score = 0
   const topicKeywords: string[] = []
@@ -40,18 +38,21 @@ export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCa
 
   sorted.slice(0, 5).forEach(([word]) => topicKeywords.push(word))
 
-  // === 주제 집중도 (6점) ===
+  // === 주제 집중도 (12점) ===
   if (sorted.length > 0) {
     const topKeyword = sorted[0]
     const topKeywordRate = topKeyword[1] / posts.length
 
     if (topKeywordRate >= 0.7) {
-      score += 6
-      details.push(`주제 집중도 우수: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
+      score += 12
+      details.push(`주제 집중도 최우수: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
     } else if (topKeywordRate >= 0.5) {
-      score += 4
-      details.push(`주제 집중도 양호: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
+      score += 9
+      details.push(`주제 집중도 우수: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
     } else if (topKeywordRate >= 0.3) {
+      score += 6
+      details.push(`주제 집중도 양호: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
+    } else if (topKeywordRate >= 0.15) {
       score += 3
       details.push(`주제 집중도 보통: "${topKeyword[0]}" 키워드가 ${Math.round(topKeywordRate * 100)}% 포스트에 등장`)
     } else {
@@ -60,22 +61,25 @@ export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCa
     }
   }
 
-  // === 키워드 일관성 (4점) ===
+  // === 키워드 일관성 (8점) ===
   if (sorted.length >= 3) {
     const top3Coverage = sorted.slice(0, 3).reduce((sum, [, count]) => sum + count, 0) / (posts.length * 3)
     if (top3Coverage >= 0.5) {
-      score += 4
+      score += 8
       details.push(`핵심 키워드 일관성 우수 (${sorted.slice(0, 3).map(([w]) => w).join(', ')})`)
     } else if (top3Coverage >= 0.3) {
-      score += 2
+      score += 5
       details.push('핵심 키워드 일관성 양호')
+    } else if (top3Coverage >= 0.15) {
+      score += 3
+      details.push('핵심 키워드 일관성 보통')
     } else {
       score += 1
       details.push('핵심 키워드 일관성 부족 - 관련 키워드를 반복 활용하세요')
     }
   }
 
-  const grade = score >= 8 ? 'S' : score >= 6 ? 'A' : score >= 4 ? 'B' : score >= 2 ? 'C' : 'D'
+  const grade = score >= 16 ? 'S' : score >= 12 ? 'A' : score >= 8 ? 'B' : score >= 4 ? 'C' : 'D'
 
   return {
     category: { name: '주제 전문성', score: Math.min(maxScore, score), maxScore, grade, details },

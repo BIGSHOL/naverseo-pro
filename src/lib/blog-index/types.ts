@@ -14,6 +14,7 @@ export interface BlogProfileData {
   totalPostCount: number | null
   blogStartDate: string | null
   blogAgeDays: number | null
+  dayVisitorCount?: number | null  // 프로필 페이지에서 추출한 오늘 방문자 수 (방문자 API 폴백용)
 }
 
 /** 인기도 데이터 집계 (v4 신규) */
@@ -63,7 +64,7 @@ export interface BlogLevelInfo {
 }
 
 export interface PostQuality {
-  score: number          // 0~12
+  score: number          // 0~15 (v4: 인기도 3점 추가)
   tier: number           // 1~10 (전체 블로그 지수 등급 체계와 동일)
   label: string          // "준최적화2", "최적화1", "일반2" 등
   category: string       // 저품질/일반/준최적화/최적화
@@ -149,6 +150,12 @@ export interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty: AbusePenalty       // v2 추가
   aiAnalysis?: AiAnalysis          // v2.5 추가 (AI 심층 분석)
+  searchBonus: {                   // v5 추가: 검색 보너스 (등급 미반영)
+    score: number      // 0~25
+    maxScore: number   // 25
+    grade: string
+    details: string[]
+  }
   keywordResults: KeywordRankResult[]
   postAnalysis: {
     totalFound: number

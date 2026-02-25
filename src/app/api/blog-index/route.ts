@@ -211,9 +211,19 @@ export async function POST(request: NextRequest) {
 
         if (profileResult.status === 'fulfilled') {
           blogProfileData = profileResult.value
-          console.log(`[BlogIndex] 프로필 크롤링 완료: 총 ${blogProfileData.totalPostCount ?? '?'}개 포스트, 연차 ${blogProfileData.blogAgeDays ?? '?'}일`)
+          console.log(`[BlogIndex] 프로필 크롤링 완료: 총 ${blogProfileData.totalPostCount ?? '?'}개 포스트, 연차 ${blogProfileData.blogAgeDays ?? '?'}일, 오늘 방문자 ${blogProfileData.dayVisitorCount ?? '?'}명`)
         } else {
           console.error('[BlogIndex] 프로필 크롤링 실패 (무시):', profileResult.reason)
+        }
+
+        // 방문자 API 실패 시 프로필 페이지의 dayVisitorCount를 폴백으로 사용
+        if ((!visitorData || !visitorData.isAvailable) && blogProfileData?.dayVisitorCount) {
+          visitorData = {
+            dailyVisitors: [blogProfileData.dayVisitorCount],
+            avgDailyVisitors: blogProfileData.dayVisitorCount,
+            isAvailable: true,
+          }
+          console.log(`[BlogIndex] 방문자 데이터 폴백 (프로필): 오늘 ${blogProfileData.dayVisitorCount}명`)
         }
       }
     }
@@ -240,7 +250,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4축 블로그 지수 분석 엔진 실행 (v4: 새로운 4축 + 프로필 데이터)
+    // 5축 블로그 지수 분석 엔진 실행 (v5: 5축 균등 + 검색 보너스 분리)
     const result = analyzeBlogIndex(
       blogUrl.trim(), posts, keywordResults, isDemo, blogName,
       keywordCompetition.length > 0 ? keywordCompetition : undefined,
@@ -253,6 +263,50 @@ export async function POST(request: NextRequest) {
 
     // 크레딧 차감
     await deductCredits(supabase, user.id, 'blog_index', { blogUrl: blogUrl.trim() })
+
+    // 히스토리 자동 저장 (에러 나도 측정 결과에 영향 없음)
+    try {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+
+      // 5축 + 검색 보너스 점수 추출
+      const popCat = result.categories.find((c: { name: string }) => c.name === '방문자 & 인기도')
+      const contentCat = result.categories.find((c: { name: string }) => c.name === '콘텐츠 품질')
+      const activityCat = result.categories.find((c: { name: string }) => c.name === '활동성')
+      const trustCat = result.categories.find((c: { name: string }) => c.name === '블로그 신뢰도')
+
+      const historyRow = {
+        user_id: user.id,
+        blog_url: blogUrl.trim(),
+        blog_id: blogId || null,
+        total_score: result.totalScore,
+        search_score: result.searchBonus?.score ?? null,  // 검색 보너스 (참고용, 추이에는 미포함)
+        popularity_score: popCat?.score ?? null,
+        content_score: contentCat?.score ?? null,
+        activity_score: activityCat?.score ?? null,
+        abuse_penalty: result.abusePenalty?.score ?? 0,
+        level_tier: result.level.tier,
+        level_label: result.level.label,
+        metrics: {
+          keywords: result.keywordResults?.map((kr: { keyword: string }) => kr.keyword) ?? [],
+          avgCommentCount: result.postAnalysis.avgCommentCount ?? null,
+          avgSympathyCount: result.postAnalysis.avgSympathyCount ?? null,
+          totalPostCount: result.blogProfile?.totalPostCount ?? result.postAnalysis.totalFound,
+          postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
+          trustScore: trustCat?.score ?? null,  // v5: 신뢰도 점수 (JSONB 추가)
+        },
+        full_result: result,
+        is_demo: isDemo,
+        checked_at: new Date().toISOString(),
+      }
+
+      // 항상 새 레코드 삽입 (갱신할 때마다 히스토리로 쌓임)
+      await supabase
+        .from('blog_index_history')
+        .insert(historyRow)
+    } catch (historyError) {
+      console.error('[BlogIndex] 히스토리 저장 실패 (무시):', historyError)
+    }
 
     return NextResponse.json(result)
   } catch (error) {

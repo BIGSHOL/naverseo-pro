@@ -72,15 +72,20 @@ export function toMobileUrl(link: string): string | null {
  */
 /**
  * 댓글 수 추출 (모바일 HTML에서)
- * 여러 패턴을 시도하여 가장 먼저 매칭되는 값을 반환
+ *
+ * 네이버 모바일 블로그 HTML 내 댓글 수 존재 형태:
+ * 1. HTML 속성: commentCount="11" (가장 신뢰도 높음)
+ * 2. 이스케이프 JSON (JS 내): \"commentCount\":11
+ * 3. 순수 JSON: "commentCount": 11
+ * 4. 기타 DOM 패턴
  */
 function extractCommentCount(html: string): number | null {
     const patterns = [
-        /u_cbox_count[^>]*>(\d+)</i,
-        /"commentCount"\s*:\s*(\d+)/,
-        /comment.*?_count["'][^>]*>(\d+)/i,
-        /댓글\s*(\d+)/,
-        /data-comment-count=["'](\d+)["']/i,
+        /commentCount="(\d+)"/,                          // HTML 속성 (네이버 모바일 실제 패턴)
+        /\\?"commentCount\\?"\s*:\s*(\d+)/,              // JSON (이스케이프 여부 무관)
+        /u_cbox_count[^>]*>(\d+)/i,                      // 네이버 댓글 박스 카운트
+        /data-comment-count=["'](\d+)["']/i,             // data 속성
+        /comment_count["'][^>]*>(\d+)/i,                 // 구형 패턴
     ]
     for (const pattern of patterns) {
         const match = html.match(pattern)
@@ -91,15 +96,24 @@ function extractCommentCount(html: string): number | null {
 
 /**
  * 공감 수 추출 (모바일 HTML에서)
- * 여러 패턴을 시도하여 가장 먼저 매칭되는 값을 반환
+ *
+ * 네이버 모바일 블로그의 공감(좋아요) 수 존재 형태:
+ * 1. HTML 속성: sympathyCount="5"
+ * 2. 이스케이프 JSON (JS 내): \"sympathyCount\":5
+ * 3. 순수 JSON: "sympathyCount": 5
+ * 4. likeCount 변형 패턴
+ *
+ * 주의: 공감 수는 동적 로딩(Like API)되는 경우가 많아
+ * 정적 HTML에서 추출 실패할 수 있음 → null 반환 → 중립 점수 부여
  */
 function extractSympathyCount(html: string): number | null {
     const patterns = [
-        /area_sympathy[\s\S]*?u_cnt[^>]*>(\d+)</i,
-        /"sympathyCount"\s*:\s*(\d+)/,
-        /sympathy.*?_count["'][^>]*>(\d+)/i,
-        /공감\s*(\d+)/,
-        /data-sympathy-count=["'](\d+)["']/i,
+        /sympathyCount="(\d+)"/,                         // HTML 속성
+        /\\?"sympathyCount\\?"\s*:\s*(\d+)/,             // JSON (이스케이프 여부 무관)
+        /\\?"likeItCount\\?"\s*:\s*(\d+)/,               // likeItCount 변형
+        /\\?"reactionCount\\?"\s*:\s*(\d+)/,             // reactionCount 변형
+        /area_sympathy[\s\S]{0,200}?(\d+)\s*<\//i,      // 공감 영역 내 숫자 (범위 제한)
+        /data-sympathy-count=["'](\d+)["']/i,            // data 속성
     ]
     for (const pattern of patterns) {
         const match = html.match(pattern)
@@ -199,6 +213,50 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; c
     return { charCount: text.length, imageCount, commentCount, sympathyCount }
 }
 
+/**
+ * 네이버 Like API를 통한 공감(좋아요) 수 조회
+ * 정적 HTML에 공감 수가 포함되지 않으므로 별도 API 호출 필요
+ *
+ * @param contentsId "blogId_postNo" 형식 (예: "mardukas_224130580320")
+ * @returns 공감 수 또는 null
+ */
+async function fetchSympathyFromLikeApi(contentsId: string): Promise<number | null> {
+    try {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 3000) // 3초 타임아웃
+
+        const url = `https://blog.like.naver.com/v1/search/contents?serviceId=BLOG&contentsId=${encodeURIComponent(contentsId)}`
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'Referer': 'https://m.blog.naver.com/',
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+            },
+        })
+
+        clearTimeout(timer)
+
+        if (!res.ok) return null
+
+        const data = await res.json()
+        // 응답 구조: { contents: [{ count: N }] } 또는 { likeCount: N }
+        const count = data?.contents?.[0]?.count ?? data?.contents?.[0]?.likeCount ?? data?.likeCount ?? null
+        if (typeof count === 'number') return count
+        return null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * HTML에서 data-likeContentsId 추출
+ * 공감 수 Like API 호출에 사용
+ */
+function extractLikeContentsId(html: string): string | null {
+    const match = html.match(/data-likeContentsId=["']([^"']+)["']/)
+    return match ? match[1] : null
+}
+
 /** 요청 간 딜레이 (ms) - 네이버 차단 방지 */
 const REQUEST_DELAY_MS = 500
 
@@ -266,7 +324,17 @@ export async function scrapeBlogPost(
 
             const html = await res.text()
             const { charCount, imageCount, commentCount, sympathyCount } = parsePostHtml(html)
-            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, 댓글${commentCount ?? '?'}, 공감${sympathyCount ?? '?'} ← ${mobileUrl}`)
+
+            // 공감 수: HTML에서 추출 실패 시 Like API로 폴백
+            let finalSympathyCount = sympathyCount
+            if (finalSympathyCount === null) {
+                const likeContentsId = extractLikeContentsId(html)
+                if (likeContentsId) {
+                    finalSympathyCount = await fetchSympathyFromLikeApi(likeContentsId)
+                }
+            }
+
+            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, 댓글${commentCount ?? '?'}, 공감${finalSympathyCount ?? '?'} ← ${mobileUrl}`)
 
             const result: ScrapedPostData = {
                 charCount,
@@ -274,7 +342,7 @@ export async function scrapeBlogPost(
                 hasImage: imageCount > 0,
                 isScrapped: true,
                 commentCount,
-                sympathyCount,
+                sympathyCount: finalSympathyCount,
             }
 
             // 메타 데이터 추출 (선택적)

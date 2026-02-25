@@ -91,18 +91,25 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
         for (const selector of blogItemSelectors) {
             const items = $(selector)
             if (items.length > 0) {
-                items.slice(0, 4).each((index, el) => {
+                items.slice(0, 5).each((index, el) => {
                     const $item = $(el)
                     const link = $item.find('a').attr('href') || ''
                     const bloggerName = $item.find('.sub_txt, .writer_info, .blog_name').text().trim()
 
                     if (link) {
                         const { type, typeDetail } = classifyBlogType(link, bloggerName)
+                        let fullUrl: string
+                        try {
+                            fullUrl = new URL(link, 'https://m.naver.com').href
+                        } catch {
+                            fullUrl = link
+                        }
                         topResults.push({
                             rank: index + 1,
                             type,
                             typeDetail,
                             source: new URL(link, 'https://m.naver.com').hostname,
+                            url: fullUrl,
                         })
                     }
                 })
@@ -119,10 +126,16 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                 smartBlockOrder = 1
 
                 if (topResults.length === 0) {
-                    anyBlogContent.slice(0, 4).each((index, el) => {
+                    anyBlogContent.slice(0, 5).each((index, el) => {
                         const href = $(el).attr('href') || ''
                         if (href) {
                             const { type, typeDetail } = classifyBlogType(href)
+                            let fullUrl: string
+                            try {
+                                fullUrl = new URL(href, 'https://m.naver.com').href
+                            } catch {
+                                fullUrl = href
+                            }
                             topResults.push({
                                 rank: index + 1,
                                 type,
@@ -134,6 +147,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                                         return 'unknown'
                                     }
                                 })(),
+                                url: fullUrl,
                             })
                         }
                     })
@@ -145,7 +159,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
             keyword,
             hasSmartBlock,
             smartBlockOrder: hasSmartBlock ? (smartBlockOrder || 1) : null,
-            topResults: topResults.slice(0, 4),
+            topResults: topResults.slice(0, 5),
         }
     } catch (error) {
         console.error(`[Search Rank] 파싱 실패 (${keyword}):`, error)

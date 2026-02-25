@@ -53,6 +53,9 @@ export async function scrapeBlogProfile(blogId: string): Promise<BlogProfileData
         // 블로그 개설일 추출
         const blogStartDate = extractBlogStartDate(html)
 
+        // 일일 방문자 수 추출 (__INITIAL_STATE__ 내 dayVisitorCount)
+        const dayVisitorCount = extractDayVisitorCount(html)
+
         // 블로그 연차 계산
         let blogAgeDays: number | null = null
         if (blogStartDate) {
@@ -62,9 +65,9 @@ export async function scrapeBlogProfile(blogId: string): Promise<BlogProfileData
             }
         }
 
-        console.log(`[ProfileScraper] 프로필 추출: 총 ${totalPostCount ?? '?'}개 포스트, 개설일 ${blogStartDate ?? '추정 불가'}, 연차 ${blogAgeDays ?? '?'}일`)
+        console.log(`[ProfileScraper] 프로필 추출: 총 ${totalPostCount ?? '?'}개 포스트, 개설일 ${blogStartDate ?? '추정 불가'}, 연차 ${blogAgeDays ?? '?'}일, 오늘 방문자 ${dayVisitorCount ?? '?'}명`)
 
-        return { totalPostCount, blogStartDate, blogAgeDays }
+        return { totalPostCount, blogStartDate, blogAgeDays, dayVisitorCount }
     } catch (err) {
         const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : 'Unknown error'
         console.warn(`[ProfileScraper] 오류: ${errMsg}`)
@@ -78,6 +81,9 @@ export async function scrapeBlogProfile(blogId: string): Promise<BlogProfileData
  */
 function extractTotalPostCount(html: string): number | null {
     const patterns = [
+        // __INITIAL_STATE__ 내 JSON 패턴 (가장 신뢰도 높음)
+        /"postCount"\s*:\s*(\d+)/,
+        // 기존 패턴들
         /게시글\s*(\d[\d,]*)/,
         /전체글\s*\((\d[\d,]*)\)/,
         /전체\s*(?:글|게시글)\s*(\d[\d,]*)/,
@@ -93,6 +99,24 @@ function extractTotalPostCount(html: string): number | null {
         }
     }
 
+    return null
+}
+
+/**
+ * HTML에서 일일 방문자 수 추출
+ * __INITIAL_STATE__ 내 dayVisitorCount 또는 "오늘 N" 텍스트에서 추출
+ */
+function extractDayVisitorCount(html: string): number | null {
+    const patterns = [
+        /"dayVisitorCount"\s*:\s*(\d+)/,           // __INITIAL_STATE__ JSON
+        /오늘\s+([\d,]+)/,                          // "오늘 6,623" 텍스트
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) {
+            return parseInt(match[1].replace(/,/g, ''), 10)
+        }
+    }
     return null
 }
 

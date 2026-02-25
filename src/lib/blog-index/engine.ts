@@ -1,14 +1,17 @@
 /**
- * NaverSEO Pro - 블로그 지수 측정 엔진 v4
+ * NaverSEO Pro - 블로그 지수 측정 엔진 v5
  *
- * v4 점수 체계 전면 개편: "실제로 잘 운영되고 있나" 기준
+ * v5 점수 체계: 5축 균등 배분 + 검색 보너스 분리
  *
- * 4대 분석 축 + 어뷰징 페널티:
- * 1. 검색 성과 (구: 검색 파워) - 25점: 키워드 순위, 노출 범위, TOP10, 경쟁 키워드 가치
- * 2. 방문자 & 인기도 (신규) - 25점: 일평균 방문자, 평균 댓글, 평균 공감
- * 3. 콘텐츠 경쟁력 (구: 품질+주제) - 20점: 콘텐츠 품질(10) + 주제 전문성(10)
- * 4. 활동 & 신뢰도 (구: 활동성) - 30점: 빈도, 규칙성, 최근성, 블로그 연차, 누적 포스팅
+ * 5대 분석 축 (각 20점 × 5 = 100점):
+ * 1. 방문자 & 인기도 - 20점: 일평균 방문자, 평균 댓글, 평균 공감
+ * 2. 콘텐츠 품질 - 20점: 깊이, 이미지, 구조
+ * 3. 주제 전문성 - 20점: 집중도, 일관성
+ * 4. 활동성 - 20점: 빈도, 규칙성, 최근성
+ * 5. 블로그 신뢰도 - 20점: 연차, 누적 포스팅
  * P. 어뷰징 감점 - 최대 -20점
+ *
+ * 검색 보너스 +α (25점 만점, 등급 미반영)
  */
 
 import { stripHtml, countImageMarkers, daysBetween, parsePostDate, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
@@ -79,29 +82,27 @@ export function analyzeBlogIndex(
   // 인기도 데이터 집계 (scrapedData에서 댓글/공감 추출)
   const engagementData = aggregateEngagementData(scrapedData)
 
-  // 4대 분석 축 + 어뷰징 페널티 실행
-  const searchPerformance = analyzeSearchPower(keywordResults, keywordCompetition)  // 25점
-  const popularity = analyzePopularity(visitorData, engagementData)                 // 25점 (신규)
-  const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 10점
-  const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 10점
-  const { category: activity, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 30점
+  // 5대 분석 축 + 검색 보너스 + 어뷰징 페널티 실행
+  const searchPerformance = analyzeSearchPower(keywordResults, keywordCompetition)  // 25점 (보너스, 등급 미반영)
+  const popularity = analyzePopularity(visitorData, engagementData)                 // 20점
+  const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 20점
+  const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 20점
+  const { activity, trust, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 활동성(20) + 신뢰도(20)
   const abusePenalty = analyzeAbuse(posts)                                          // -20점 max
 
-  // 콘텐츠 품질(10) + 주제 전문성(10) = 콘텐츠 경쟁력(20)
-  const contentCompetitiveness = {
-    name: '콘텐츠 경쟁력',
-    score: contentQuality.score + topicAuthority.score,
-    maxScore: 20,
-    grade: '',
-    details: [...contentQuality.details, ...topicAuthority.details],
-  }
-  const ccPct = contentCompetitiveness.score / contentCompetitiveness.maxScore
-  contentCompetitiveness.grade = ccPct >= 0.8 ? 'S' : ccPct >= 0.6 ? 'A' : ccPct >= 0.4 ? 'B' : ccPct >= 0.2 ? 'C' : 'D'
-
-  const categories = [searchPerformance, popularity, contentCompetitiveness, activity]
+  // 5축 (각 20점 × 5 = 100점)
+  const categories = [popularity, contentQuality, topicAuthority, activity, trust]
   const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
   const totalScore = Math.max(0, Math.min(100, rawScore + abusePenalty.score))  // 0~100 범위
   const level = determineLevelInfo(totalScore)
+
+  // 검색 보너스 (별도, 등급 미반영)
+  const searchBonus = {
+    score: searchPerformance.score,
+    maxScore: searchPerformance.maxScore,
+    grade: searchPerformance.grade,
+    details: searchPerformance.details,
+  }
 
   // 포스트 분석 요약
   const avgTitleLength = posts.length > 0
@@ -238,20 +239,26 @@ export function analyzeBlogIndex(
     avgImageCount: { mine: avgImageCount, recommended: 3 },
     optimizationPct,
     categoryPercentile,
-    // v4 신규 벤치마크 항목
-    avgCommentCount: {
-      mine: engagementData?.avgCommentCount ?? 0,
-      recommended: 5,
-    },
-    avgSympathyCount: {
-      mine: engagementData?.avgSympathyCount ?? 0,
-      recommended: 10,
-    },
-    dailyVisitors: {
-      mine: visitorData?.isAvailable ? visitorData.avgDailyVisitors : 0,
-      recommended: 200,
-      topBlogger: 1000,
-    },
+    // v4 신규 벤치마크 항목 (데이터 수집 성공 시에만 포함)
+    ...(engagementData?.isAvailable && engagementData.avgCommentCount !== null ? {
+      avgCommentCount: {
+        mine: engagementData.avgCommentCount,
+        recommended: 5,
+      },
+    } : {}),
+    ...(engagementData?.isAvailable && engagementData.avgSympathyCount !== null ? {
+      avgSympathyCount: {
+        mine: engagementData.avgSympathyCount,
+        recommended: 10,
+      },
+    } : {}),
+    ...(visitorData?.isAvailable ? {
+      dailyVisitors: {
+        mine: visitorData.avgDailyVisitors,
+        recommended: 200,
+        topBlogger: 1000,
+      },
+    } : {}),
     blogAge: {
       mine: blogAgeDays ?? 0,
       recommended: 365,
@@ -269,6 +276,7 @@ export function analyzeBlogIndex(
     totalScore,
     recentPosts,
     blogProfile,
+    searchBonus,
   })
 
   return {
@@ -278,6 +286,7 @@ export function analyzeBlogIndex(
     level,
     categories,
     abusePenalty,
+    searchBonus,
     keywordResults,
     postAnalysis: {
       totalFound: posts.length,

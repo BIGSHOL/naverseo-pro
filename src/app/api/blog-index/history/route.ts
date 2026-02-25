@@ -1,0 +1,103 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function GET(request: NextRequest) {
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다.' },
+        { status: 401 }
+      )
+    }
+
+    const blogUrl = request.nextUrl.searchParams.get('blogUrl')
+    if (!blogUrl?.trim()) {
+      return NextResponse.json(
+        { error: '블로그 URL이 필요합니다.' },
+        { status: 400 }
+      )
+    }
+
+    // latest=true: 최신 1건의 full_result 반환 (캐시 즉시 로딩용)
+    const latest = request.nextUrl.searchParams.get('latest') === 'true'
+
+    if (latest) {
+      const { data: latestEntry, error } = await supabase
+        .from('blog_index_history')
+        .select('id, full_result, checked_at')
+        .eq('user_id', user.id)
+        .eq('blog_url', blogUrl.trim())
+        .order('checked_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (error || !latestEntry) {
+        return NextResponse.json({ cached: null })
+      }
+
+      return NextResponse.json({
+        cached: latestEntry.full_result,
+        checkedAt: latestEntry.checked_at,
+      })
+    }
+
+    // 기본: 히스토리 목록 + 통계 (추이 차트용)
+    const { data: history, error } = await supabase
+      .from('blog_index_history')
+      .select('id, total_score, search_score, popularity_score, content_score, activity_score, abuse_penalty, level_tier, level_label, metrics, is_demo, checked_at')
+      .eq('user_id', user.id)
+      .eq('blog_url', blogUrl.trim())
+      .order('checked_at', { ascending: false })
+      .limit(30)
+
+    if (error) {
+      console.error('[BlogIndexHistory] 조회 오류:', error)
+      return NextResponse.json(
+        { error: '히스토리 조회에 실패했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    if (!history || history.length === 0) {
+      return NextResponse.json({ history: [], stats: null })
+    }
+
+    // 통계 계산
+    const scores = history.map(h => h.total_score)
+    const highestScore = Math.max(...scores)
+    const lowestScore = Math.min(...scores)
+    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+
+    // 최근 변화량 (가장 최근 vs 그 이전)
+    let latestChange = 0
+    let trend: 'up' | 'down' | 'stable' = 'stable'
+    if (history.length >= 2) {
+      latestChange = history[0].total_score - history[1].total_score
+      if (latestChange > 0) trend = 'up'
+      else if (latestChange < 0) trend = 'down'
+    }
+
+    return NextResponse.json({
+      history,
+      stats: {
+        measurements: history.length,
+        highestScore,
+        lowestScore,
+        avgScore,
+        latestChange,
+        trend,
+      },
+    })
+  } catch (error) {
+    console.error('[BlogIndexHistory] 오류:', error)
+    return NextResponse.json(
+      { error: '히스토리 조회 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
+  }
+}

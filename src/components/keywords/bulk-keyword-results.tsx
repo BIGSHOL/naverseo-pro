@@ -61,8 +61,14 @@ type SortField =
     | 'compIdx'
     | 'monthlyPostCount'
     | 'avgPostDate'
+    | 'avgPostDate'
     | 'smartBlockOrder'
     | 'autocomplete'
+    | 'rank1'
+    | 'rank2'
+    | 'rank3'
+    | 'rank4'
+    | 'rank5'
     | 'score'
 
 type SortDirection = 'asc' | 'desc'
@@ -106,6 +112,18 @@ function getTypeColor(type: string): string {
         case '포스트': return 'bg-purple-500 text-white'
         case '외부': return 'bg-gray-500 text-white'
         default: return 'bg-muted text-muted-foreground'
+    }
+}
+
+// 유형 정렬용 숫자값
+function typeOrderValue(type?: string): number {
+    switch (type) {
+        case '최적': return 5
+        case '준최': return 4
+        case '카페': return 3
+        case '포스트': return 2
+        case '외부': return 1
+        default: return 0
     }
 }
 
@@ -159,6 +177,10 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                     aVal = a.monthlyPostCount ?? -1
                     bVal = b.monthlyPostCount ?? -1
                     break
+                case 'avgPostDate':
+                    aVal = a.avgPostDate || ''
+                    bVal = b.avgPostDate || ''
+                    break
                 case 'smartBlockOrder':
                     aVal = a.searchRank?.smartBlockOrder ?? 999
                     bVal = b.searchRank?.smartBlockOrder ?? 999
@@ -167,6 +189,16 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                     aVal = a.autocomplete?.included ? 1 : 0
                     bVal = b.autocomplete?.included ? 1 : 0
                     break
+                case 'rank1':
+                case 'rank2':
+                case 'rank3':
+                case 'rank4':
+                case 'rank5': {
+                    const ri = Number(sortField.replace('rank', '')) - 1
+                    aVal = typeOrderValue(a.searchRank?.topResults?.[ri]?.type)
+                    bVal = typeOrderValue(b.searchRank?.topResults?.[ri]?.type)
+                    break
+                }
                 case 'score':
                     aVal = a.score
                     bVal = b.score
@@ -190,7 +222,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
         const headers = [
             '키워드', 'PC조회수', 'MB조회수', '월 검색량', '경쟁도',
             '월발행수', '평균 발행일', '인기글 순서', '자동완성',
-            '1위', '2위', '3위', '4위', '추천점수',
+            '1위', '2위', '3위', '4위', '5위', '추천점수',
         ]
 
         const rows = sortedResults.map((r) => {
@@ -211,6 +243,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                 topResults[1]?.typeDetail || '-',
                 topResults[2]?.typeDetail || '-',
                 topResults[3]?.typeDetail || '-',
+                topResults[4]?.typeDetail || '-',
                 r.score,
             ]
         })
@@ -316,8 +349,13 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         경쟁도 <SortIcon field="compIdx" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-center whitespace-nowrap text-xs font-semibold">
-                                    평균 발행일
+                                <TableHead className="text-center">
+                                    <button
+                                        onClick={() => handleSort('avgPostDate')}
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap"
+                                    >
+                                        평균 발행일 <SortIcon field="avgPostDate" />
+                                    </button>
                                 </TableHead>
                                 <TableHead className="text-center">
                                     <button
@@ -335,10 +373,16 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         자동완성 <SortIcon field="autocomplete" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-center whitespace-nowrap text-xs font-semibold">1위</TableHead>
-                                <TableHead className="text-center whitespace-nowrap text-xs font-semibold">2위</TableHead>
-                                <TableHead className="text-center whitespace-nowrap text-xs font-semibold">3위</TableHead>
-                                <TableHead className="text-center whitespace-nowrap text-xs font-semibold">4위</TableHead>
+                                {([1, 2, 3, 4, 5] as const).map((n) => (
+                                    <TableHead key={n} className="text-center">
+                                        <button
+                                            onClick={() => handleSort(`rank${n}` as SortField)}
+                                            className="flex items-center justify-center text-xs font-semibold whitespace-nowrap"
+                                        >
+                                            {n}위 <SortIcon field={`rank${n}` as SortField} />
+                                        </button>
+                                    </TableHead>
+                                ))}
                                 <TableHead className="text-right">
                                     <button
                                         onClick={() => handleSort('score')}
@@ -432,15 +476,20 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                             )}
                                         </TableCell>
 
-                                        {/* 1~4위 유형 */}
-                                        {[0, 1, 2, 3].map((rankIdx) => (
+                                        {/* 1~5위 유형 (클릭 시 해당 사이트 이동) */}
+                                        {[0, 1, 2, 3, 4].map((rankIdx) => (
                                             <TableCell key={rankIdx} className="text-center">
                                                 {topResults[rankIdx] ? (
                                                     <Tooltip>
-                                                        <TooltipTrigger>
-                                                            <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${getTypeColor(topResults[rankIdx].type)}`}>
+                                                        <TooltipTrigger asChild>
+                                                            <a
+                                                                href={topResults[rankIdx].url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold cursor-pointer hover:opacity-80 transition-opacity ${getTypeColor(topResults[rankIdx].type)}`}
+                                                            >
                                                                 {topResults[rankIdx].typeDetail}
-                                                            </span>
+                                                            </a>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
                                                             <p className="text-xs">{topResults[rankIdx].source}</p>

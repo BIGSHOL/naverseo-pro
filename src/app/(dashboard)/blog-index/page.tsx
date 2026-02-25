@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import {
   Activity,
   Loader2,
@@ -30,6 +31,8 @@ import {
   Eye,
   MessageCircle,
   Heart,
+  RefreshCw,
+  Database,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,9 +44,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
+const BlogIndexHistoryChart = dynamic(
+  () => import('@/components/charts/blog-index-history-chart').then(m => ({ default: m.BlogIndexHistoryChart })),
+  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded bg-muted" /> }
+)
 
 // ===== 타입 정의 =====
 
@@ -146,6 +156,13 @@ interface AbusePenalty {
   flags: string[]
 }
 
+interface SearchBonus {
+  score: number      // 0~25
+  maxScore: number   // 25
+  grade: string
+  details: string[]
+}
+
 interface BlogIndexResult {
   blogUrl: string
   blogId: string | null
@@ -154,6 +171,7 @@ interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty?: AbusePenalty
   aiAnalysis?: AiAnalysis
+  searchBonus?: SearchBonus
   keywordResults: KeywordRankResult[]
   postAnalysis: {
     totalFound: number
@@ -174,9 +192,41 @@ interface BlogIndexResult {
   checkedAt: string
 }
 
+interface BlogIndexHistoryEntry {
+  id: string
+  total_score: number
+  search_score: number | null
+  popularity_score: number | null
+  content_score: number | null
+  activity_score: number | null
+  abuse_penalty: number | null
+  level_tier: number | null
+  level_label: string | null
+  metrics?: {
+    keywords?: string[]
+    [key: string]: unknown
+  } | null
+  is_demo: boolean
+  checked_at: string
+}
+
+interface BlogIndexHistoryStats {
+  measurements: number
+  highestScore: number
+  lowestScore: number
+  avgScore: number
+  latestChange: number
+  trend: 'up' | 'down' | 'stable'
+}
+
+interface BlogIndexHistoryData {
+  history: BlogIndexHistoryEntry[]
+  stats: BlogIndexHistoryStats | null
+}
+
 // ===== SVG 레이더 차트 =====
 
-function RadarChart({ categories, size = 220 }: { categories: AnalysisCategory[]; size?: number }) {
+function RadarChart({ categories, totalScore, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; size?: number }) {
   const pad = 48 // 라벨용 여백
   const totalSize = size + pad * 2
   const center = totalSize / 2
@@ -288,14 +338,14 @@ function RadarChart({ categories, size = 220 }: { categories: AnalysisCategory[]
           </text>
         </g>
       ))}
-      {/* 중앙 점수 */}
+      {/* 중앙 점수 (totalScore = 카테고리 합산 + 어뷰징 감점 적용) */}
       <text
         x={center}
         y={center - 5}
         textAnchor="middle"
         className="fill-primary text-[20px] font-bold"
       >
-        {categories.reduce((s, c) => s + c.score, 0)}
+        {totalScore ?? categories.reduce((s, c) => s + c.score, 0)}
       </text>
       <text
         x={center}
@@ -351,14 +401,11 @@ function getGradeColor(grade: string) {
 
 function getCategoryIcon(name: string) {
   switch (name) {
-    case '검색 성과': return <Zap className="h-4 w-4" />
-    case '검색 파워': return <Zap className="h-4 w-4" />
     case '방문자 & 인기도': return <Eye className="h-4 w-4" />
-    case '콘텐츠 경쟁력': return <FileText className="h-4 w-4" />
     case '콘텐츠 품질': return <FileText className="h-4 w-4" />
     case '주제 전문성': return <BookOpen className="h-4 w-4" />
-    case '활동 & 신뢰도': return <Shield className="h-4 w-4" />
     case '활동성': return <Clock className="h-4 w-4" />
+    case '블로그 신뢰도': return <Shield className="h-4 w-4" />
     default: return <Activity className="h-4 w-4" />
   }
 }
@@ -415,10 +462,14 @@ export default function BlogIndexPage() {
   const [blogUrl, setBlogUrl] = useState('')
   const [testKeywords, setTestKeywords] = useState('')
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<BlogIndexResult | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
+  const [historyData, setHistoryData] = useState<BlogIndexHistoryData | null>(null)
+  const [cachedAt, setCachedAt] = useState<string | null>(null)
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -427,12 +478,35 @@ export default function BlogIndexPage() {
     details: string
   } | null>(null)
 
-  const handleCheck = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!blogUrl.trim() || loading) return
-    setLoading(true)
+  // 히스토리 조회 (추이 차트용)
+  const fetchHistory = (url: string) => {
+    fetch(`/api/blog-index/history?blogUrl=${encodeURIComponent(url)}`)
+      .then(r => r.json())
+      .then(h => setHistoryData(h))
+      .catch(() => {})
+  }
+
+  // 플랜 정보 가져오기
+  const fetchPlan = async () => {
+    try {
+      const profileRes = await fetch('/api/dashboard')
+      if (profileRes.ok) {
+        const profileData = await profileRes.json()
+        setUserPlan(profileData.plan || 'free')
+      }
+    } catch { /* 무시 */ }
+  }
+
+  // 실제 측정 실행 (크레딧 소모)
+  const doMeasure = async () => {
+    const isRefresh = !!result
+    if (isRefresh) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
     setError('')
-    setResult(null)
+    setShowCreditConfirm(false)
     try {
       const keywords = testKeywords.split(',').map((k) => k.trim()).filter(Boolean)
       const res = await fetch('/api/blog-index', {
@@ -443,23 +517,63 @@ export default function BlogIndexPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || '블로그 지수 측정에 실패했습니다.'); return }
       setResult(data)
-      // 플랜 정보 가져오기
-      try {
-        const profileRes = await fetch('/api/dashboard')
-        if (profileRes.ok) {
-          const profileData = await profileRes.json()
-          setUserPlan(profileData.plan || 'free')
-        }
-      } catch { /* 무시 */ }
+      setCachedAt(new Date().toISOString())
+      // 히스토리 조회 (새 측정이 히스토리에 추가됨)
+      fetchHistory(blogUrl.trim())
+      fetchPlan()
       // 키워드를 비워둔 경우, 자동 추출된 키워드를 입력란에 채워넣기
       if (keywords.length === 0 && data.keywordResults?.length > 0) {
         setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
       }
-    } catch (error) {
+    } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  // "측정하기" 클릭 → DB 캐시 먼저 조회
+  const handleCheck = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!blogUrl.trim() || loading) return
+    setLoading(true)
+    setError('')
+    setResult(null)
+    setCachedAt(null)
+    setHistoryData(null)
+    try {
+      // 1) DB에서 캐시 조회
+      const cacheRes = await fetch(`/api/blog-index/history?blogUrl=${encodeURIComponent(blogUrl.trim())}&latest=true`)
+      const cacheData = await cacheRes.json()
+
+      if (cacheData.cached) {
+        // 캐시 있음 → 즉시 표시 (크레딧 0)
+        setResult(cacheData.cached)
+        setCachedAt(cacheData.checkedAt)
+        // 히스토리도 조회
+        fetchHistory(blogUrl.trim())
+        fetchPlan()
+        // 자동 추출 키워드 채우기
+        if (!testKeywords.trim() && cacheData.cached.keywordResults?.length > 0) {
+          setTestKeywords(cacheData.cached.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+        }
+        setLoading(false)
+        return
+      }
+
+      // 2) 캐시 없음 → 크레딧 소모 안내
+      setLoading(false)
+      setShowCreditConfirm(true)
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+      setLoading(false)
+    }
+  }
+
+  // "갱신" 버튼 → 크레딧 소모 확인
+  const handleRefreshClick = () => {
+    setShowCreditConfirm(true)
   }
 
   const handleAiAnalysis = async () => {
@@ -538,11 +652,41 @@ export default function BlogIndexPage() {
         </DialogContent>
       </Dialog>
 
+      {/* 크레딧 소모 확인 팝업 */}
+      <Dialog open={showCreditConfirm} onOpenChange={setShowCreditConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>블로그 지수 측정</DialogTitle>
+            <DialogDescription>
+              {result
+                ? '최신 데이터로 지수를 갱신합니다.'
+                : '이 블로그의 측정 기록이 없습니다.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
+            <p className="font-medium">크레딧 3개가 소모됩니다</p>
+            <p className="mt-0.5 text-xs opacity-70">네이버 API 호출 + AI 분석이 포함됩니다</p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowCreditConfirm(false)}>
+              취소
+            </Button>
+            <Button onClick={doMeasure} disabled={loading || refreshing}>
+              {(loading || refreshing) ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
+              ) : (
+                <><Activity className="mr-2 h-4 w-4" />{result ? '갱신하기 (3크레딧)' : '측정하기 (3크레딧)'}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">블로그 지수 측정</h1>
           <p className="mt-1 text-muted-foreground">
-            4대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
+            5대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
           </p>
         </div>
 
@@ -580,12 +724,42 @@ export default function BlogIndexPage() {
                   <AlertCircle className="h-4 w-4 shrink-0" />{error}
                 </div>
               )}
-              <Button type="submit" disabled={loading || !blogUrl.trim()} className="w-full">
-                {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />블로그 지수 측정 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 측정하기</>)}
+              <Button type="submit" disabled={loading || refreshing || !blogUrl.trim()} className="w-full">
+                {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회</>)}
               </Button>
             </form>
           </CardContent>
         </Card>
+
+        {/* ========== 캐시 상태 + 갱신 버튼 ========== */}
+        {result && cachedAt && (
+          <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Database className="h-4 w-4" />
+              <span>
+                마지막 측정: <strong className="text-foreground">
+                  {new Date(cachedAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </strong>
+                <span className="ml-1 text-xs">
+                  ({new Date(cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })})
+                </span>
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshClick}
+              disabled={refreshing || loading}
+              className="gap-1.5"
+            >
+              {refreshing ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />갱신 중...</>
+              ) : (
+                <><RefreshCw className="h-3.5 w-3.5" />지수 갱신</>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* ========== 측정 결과 ========== */}
         {result && (
@@ -648,7 +822,7 @@ export default function BlogIndexPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     {/* 왼쪽: 레이더 차트 */}
                     <div className="flex items-center justify-center">
-                      <RadarChart categories={result.categories} />
+                      <RadarChart categories={result.categories} totalScore={result.totalScore} />
                     </div>
                     {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
                     <div className="flex flex-col justify-center">
@@ -674,6 +848,18 @@ export default function BlogIndexPage() {
                           <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{result.level.description}</p>
                         </div>
                       </div>
+
+                      {/* 검색 보너스 */}
+                      {result.searchBonus && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2 dark:bg-purple-950/30">
+                          <Zap className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-purple-600 dark:text-purple-300 font-medium">검색 보너스</span>
+                            <span className="font-bold text-purple-700 dark:text-purple-200">+α {result.searchBonus.score}/{result.searchBonus.maxScore}</span>
+                          </div>
+                          <span className="ml-auto text-[9px] text-purple-500/70 dark:text-purple-400/70">기본 지수에 반영되지 않습니다</span>
+                        </div>
+                      )}
 
                       {/* 최적화 수치 */}
                       {result.benchmark && (
@@ -748,8 +934,26 @@ export default function BlogIndexPage() {
               </Card>
             </div>
 
-            {/* ===== 2행: 5축 상세 카드 (전체 너비) ===== */}
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
+            {/* ===== 지수 변동 추이 ===== */}
+            {historyData && historyData.history.length > 0 && historyData.stats && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="h-4 w-4 text-purple-500" />
+                    지수 변동 추이
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <BlogIndexHistoryChart
+                    history={historyData.history}
+                    stats={historyData.stats}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ===== 2행: 5축 + 검색 보너스 상세 카드 (전체 너비) ===== */}
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               {result.categories.map((cat) => {
                 const pct = Math.round((cat.score / cat.maxScore) * 100)
                 return (
@@ -781,6 +985,41 @@ export default function BlogIndexPage() {
                 )
               })}
             </div>
+            {/* 검색 보너스 별도 카드 */}
+            {result.searchBonus && (
+              <Card className="overflow-hidden border-purple-200 dark:border-purple-800">
+                <div className="h-1 bg-purple-500" />
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-purple-500" />
+                      <p className="text-xs font-medium">검색 보너스</p>
+                      <Badge className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">+α</Badge>
+                    </div>
+                    <Badge className={`text-[10px] ${getGradeColor(result.searchBonus.grade)}`}>{result.searchBonus.grade}</Badge>
+                  </div>
+                  <div className="mt-2 flex items-end gap-4">
+                    <div>
+                      <div className="flex items-end gap-1">
+                        <span className="text-xl font-bold text-purple-600">{result.searchBonus.score}</span>
+                        <span className="text-[10px] text-muted-foreground">/{result.searchBonus.maxScore}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-24 rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.round((result.searchBonus.score / result.searchBonus.maxScore) * 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] text-purple-500/80 dark:text-purple-400/80">
+                        이 점수는 키워드별로 달라지며, 기본 지수에 반영되지 않습니다
+                      </p>
+                      {result.searchBonus.details[0] && (
+                        <p className="mt-1 text-[10px] text-muted-foreground line-clamp-1">{result.searchBonus.details[0]}</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ===== 3행: 벤치마크 비교 (컴팩트 가로 레이아웃) ===== */}
             {result.benchmark && (
@@ -1327,15 +1566,6 @@ export default function BlogIndexPage() {
 
                   // 카테고리별 맞춤 가이드 매핑
                   const guideMap: Record<string, { title: string; tips: string[] }> = {
-                    '검색 성과': {
-                      title: '검색 순위 최적화',
-                      tips: [
-                        '경쟁이 낮은 롱테일 키워드 공략',
-                        '제목에 핵심 키워드를 앞쪽에 배치',
-                        '메타 설명(첫 150자)에 검색 의도 명확히 반영',
-                        '상위 노출 경쟁 글 분석 후 차별화된 정보 제공',
-                      ]
-                    },
                     '방문자 & 인기도': {
                       title: '방문자 & 인기도 향상',
                       tips: [
@@ -1345,22 +1575,40 @@ export default function BlogIndexPage() {
                         '이웃 블로그 소통으로 방문자 유입 확대',
                       ]
                     },
-                    '콘텐츠 경쟁력': {
-                      title: 'D.I.A. & C-Rank 품질 향상',
+                    '콘텐츠 품질': {
+                      title: 'D.I.A. 콘텐츠 품질 향상',
                       tips: [
                         '1,500~2,000자 이상의 깊이 있는 글 작성',
                         '소제목(H2, H3)으로 구조화하여 가독성 향상',
-                        '한 가지 주제에 집중하여 블로그 정체성 확립',
-                        '관련 키워드를 자연스럽게 본문에 배치',
+                        '포스트당 이미지 3~5장 삽입으로 시각적 풍성함 확보',
+                        '리스트, 구체적 수치 등 구조화 서식 활용',
                       ]
                     },
-                    '활동 & 신뢰도': {
-                      title: '활동성 & 블로그 신뢰도 강화',
+                    '주제 전문성': {
+                      title: 'C-Rank 주제 전문성 강화',
+                      tips: [
+                        '한 가지 주제에 집중하여 블로그 정체성 확립',
+                        '관련 키워드를 자연스럽게 본문에 배치',
+                        '같은 주제로 시리즈 포스팅 작성',
+                        '해당 분야 전문 용어와 인사이트 포함',
+                      ]
+                    },
+                    '활동성': {
+                      title: '활동성 강화',
                       tips: [
                         '꾸준한 발행 주기 유지 (주 3~5회 권장)',
                         '정해진 요일/시간에 포스팅하여 규칙성 확보',
+                        '최소 주 1회 이상 포스팅하여 활성 상태 유지',
+                        '검색 트렌드에 맞는 시의성 있는 콘텐츠 발행',
+                      ]
+                    },
+                    '블로그 신뢰도': {
+                      title: '블로그 신뢰도 강화',
+                      tips: [
                         '장기간 꾸준히 운영하여 블로그 연차 확보',
-                        '다양한 주제의 글을 축적하여 누적 포스트 수 늘리기',
+                        '다양한 주제의 양질 글을 축적하여 누적 포스트 수 늘리기',
+                        '기존 인기 글을 주기적으로 업데이트',
+                        '독자와의 소통으로 블로그 커뮤니티 구축',
                       ]
                     }
                   }
