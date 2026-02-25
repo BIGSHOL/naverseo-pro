@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
-  Pencil, Save, Link2, ListOrdered, MessageSquareQuote, Sparkles,
+  Pencil, Save, Link2, MessageSquareQuote, Sparkles,
   Search, Trash2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -23,7 +23,7 @@ import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
-import { detectContentType, generateOutline, analyzeSeo, type ContentType } from '@/lib/content/engine'
+import { analyzeSeo, type ContentType } from '@/lib/content/engine'
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
 import Link from 'next/link'
@@ -120,7 +120,6 @@ export default function ContentPage() {
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [contentType, setContentType] = useState<ContentType | ''>('')
   const [includeFaq, setIncludeFaq] = useState(true)
-  const [showOutline, setShowOutline] = useState(false)
 
   // 고급 옵션
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
@@ -592,16 +591,6 @@ export default function ContentPage() {
     }
   }
 
-  // 아웃라인 미리보기 계산
-  const effectiveContentType = (contentType as ContentType) || detectContentType(keyword.trim())
-  const currentOutline = keyword.trim()
-    ? generateOutline({
-        keyword: keyword.trim(),
-        contentType: effectiveContentType,
-        targetLength,
-        businessInfo: isPromoMode ? { name: businessName.trim() || '내 업체', topic: businessTopic.trim() || undefined } : undefined,
-      })
-    : null
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1714,45 +1703,13 @@ export default function ContentPage() {
               )}
             </div>
 
-            {/* 아웃라인 미리보기 */}
-            {keyword.trim() && currentOutline && (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setShowOutline(!showOutline)}
-                >
-                  <ListOrdered className="h-3.5 w-3.5" />
-                  아웃라인 미리보기
-                  {showOutline ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
-                {showOutline && (
-                  <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1.5">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-muted-foreground">
-                        예상 {currentOutline.estimatedLength.toLocaleString()}자 · {
-                          isPromoMode
-                            ? '내 업체 홍보글'
-                            : contentType
-                              ? { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형', local: '지역업종형' }[contentType]
-                              : '자동 감지: ' + { informational: '정보형', comparison: '비교/추천형', review: '후기/리뷰형', howto: '방법/가이드형', listicle: '리스트형', local: '지역업종형' }[detectContentType(keyword.trim())]
-                        }
-                      </span>
-                    </div>
-                    {currentOutline.sections.map((sec, i) => (
-                      <div key={i} className={sec.level === 3 ? 'ml-4' : ''}>
-                        <span className="text-muted-foreground">{sec.level === 2 ? '##' : '###'}</span>{' '}
-                        <span className="font-medium">{sec.heading}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          ({sec.keyPoints.join(', ')})
-                        </span>
-                      </div>
-                    ))}
-                    <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      키워드 배치: {currentOutline.keywordPlacements.join(' → ')}
-                    </div>
-                  </div>
-                )}
+            {/* SERP 기반 자동 최적화 안내 */}
+            {keyword.trim() && (
+              <div className="flex items-center gap-2 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
+                <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                <span>
+                  검색 데이터(SERP) 기반으로 콘텐츠 유형과 구조가 자동 최적화됩니다.
+                </span>
               </div>
             )}
 
