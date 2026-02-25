@@ -76,6 +76,8 @@ export function TiptapEditor({ markdown, onMarkdownChange, placeholder, classNam
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
+        link: false,      // 별도 확장으로 추가
+        underline: false,  // 별도 확장으로 추가
       }),
       Link.configure({
         openOnClick: false,

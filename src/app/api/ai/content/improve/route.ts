@@ -105,15 +105,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-    console.log(`[Content Improve] AI 응답 앞 500자:`, response.substring(0, 500))
-
     let parsed: PatchResponse
     try {
       parsed = parseGeminiJson<PatchResponse>(response)
     } catch (parseError) {
       const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
       console.error(`[Content Improve] JSON 파싱 실패 (${response.length}자): ${parseMsg}`)
-      console.error(`[Content Improve] 응답 앞 1000자:`, response.substring(0, 1000))
       return NextResponse.json(
         { error: `AI 응답 파싱 실패: ${parseMsg} (응답 ${response.length}자). 다시 시도해주세요.` },
         { status: 500 }

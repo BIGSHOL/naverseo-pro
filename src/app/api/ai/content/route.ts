@@ -26,7 +26,32 @@ function calculateBasicSeoScore(keyword: string, title: string, content: string,
 // ===== 데이터 강화 헬퍼 함수들 =====
 
 /**
+ * 네이버 웹 검색 API 폴백 (블로그 검색 결과 없을 때 키워드 의미 파악용)
+ */
+async function fetchNaverWebSearch(keyword: string, display: number = 5): Promise<{ title: string; description: string }[]> {
+  const clientId = process.env.NAVER_CLIENT_ID?.trim()
+  const clientSecret = process.env.NAVER_CLIENT_SECRET?.trim()
+  if (!clientId || !clientSecret) return []
+
+  try {
+    const params = new URLSearchParams({ query: keyword, display: String(display) })
+    const res = await fetch(`https://openapi.naver.com/v1/search/webkr.json?${params}`, {
+      headers: { 'X-Naver-Client-Id': clientId, 'X-Naver-Client-Secret': clientSecret },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.items || []).map((item: { title: string; description: string }) => ({
+      title: item.title.replace(/<[^>]*>/g, ''),
+      description: item.description.replace(/<[^>]*>/g, ''),
+    }))
+  } catch {
+    return []
+  }
+}
+
+/**
  * SERP 자동 참조: 네이버 블로그 상위 결과 + 1위 글 구조 분석
+ * 블로그 검색 결과 없으면 웹 검색으로 폴백하여 키워드 의미 파악
  */
 async function fetchSerpReference(keyword: string): Promise<{ text: string; count: number; items: NaverBlogSearchItem[]; keywordContext: string } | null> {
   const hasNaverApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
@@ -34,7 +59,29 @@ async function fetchSerpReference(keyword: string): Promise<{ text: string; coun
 
   try {
     const result = await searchNaverBlog(keyword, 5)
-    if (!result.items || result.items.length === 0) return null
+    const hasBlogResults = result.items && result.items.length > 0
+
+    // 블로그 검색 결과가 없으면 웹 검색으로 폴백
+    if (!hasBlogResults) {
+      console.log(`[Content SERP] 블로그 검색 결과 0건 → 웹 검색 폴백 시도: "${keyword}"`)
+      const webResults = await fetchNaverWebSearch(keyword, 5)
+      if (webResults.length === 0) return null
+
+      // 웹 검색 결과로 키워드 컨텍스트만 생성 (SERP 분석 없이)
+      const topPosts = webResults.map((item, i) =>
+        `${i + 1}. "${item.title}" - ${item.description.substring(0, 100)}`
+      )
+      const keywordContext = `## ⚠️ 키워드 의미 파악 (최우선 - 반드시 읽고 따르세요)
+"${keyword}" 검색 시 네이버에서 실제로 나오는 결과입니다:
+${topPosts.join('\n')}
+
+**위 검색 결과를 분석하여 "${keyword}"가 실제로 무엇을 의미하는지 정확히 파악한 뒤 콘텐츠를 작성하세요.**
+- 이 키워드는 약어, 신조어, 줄임말일 수 있습니다. 검색 결과에서 드러나는 실제 의미를 따르세요
+- 검색 결과와 전혀 다른 주제의 콘텐츠를 생성하면 안 됩니다
+- 키워드를 임의로 해석하거나 허구의 정의를 만들어내지 마세요`
+
+      return { text: '', count: 0, items: [], keywordContext }
+    }
 
     const topPosts = result.items.slice(0, 5).map((item, i) => {
       const cleanTitle = item.title.replace(/<[^>]*>/g, '')
@@ -59,14 +106,14 @@ async function fetchSerpReference(keyword: string): Promise<{ text: string; coun
     }
 
     // 상위 게시물 제목/설명에서 키워드 의미 컨텍스트 추출
-    const keywordContext = `## ⚠️ 키워드 의미 파악 (최우선)
+    const keywordContext = `## ⚠️ 키워드 의미 파악 (최우선 - 반드시 읽고 따르세요)
 "${keyword}" 검색 시 네이버에서 실제로 나오는 글들의 제목과 설명입니다:
 ${topPosts.join('\n')}
 
-위 검색 결과를 분석하여 "${keyword}"가 실제로 무엇을 의미하는지 정확히 파악한 뒤 콘텐츠를 작성하세요.
-- 검색 결과의 맥락을 무시하고 키워드를 임의로 해석하지 마세요
-- 약어나 신조어일 수 있으므로, 검색 결과에서 드러나는 실제 의미를 따르세요
-- 검색 결과와 전혀 다른 주제의 콘텐츠를 생성하면 안 됩니다`
+**위 검색 결과를 분석하여 "${keyword}"가 실제로 무엇을 의미하는지 정확히 파악한 뒤 콘텐츠를 작성하세요.**
+- 이 키워드는 약어, 신조어, 줄임말일 수 있습니다. 검색 결과에서 드러나는 실제 의미를 따르세요
+- 검색 결과와 전혀 다른 주제의 콘텐츠를 생성하면 안 됩니다
+- 키워드를 임의로 해석하거나 허구의 정의를 만들어내지 마세요`
 
     const text = `## 현재 상위 노출 블로그 분석
 다음은 "${keyword}" 검색 시 상위에 노출되는 글들입니다. 이들보다 더 유용하고 차별화된 콘텐츠를 작성하세요:
@@ -369,13 +416,36 @@ export async function POST(request: NextRequest) {
     const noTrendData = !trendRef
     const isUnknownKeyword = noSerpData && noKeywordData && noTrendData
 
-    // AI 프롬프트 생성 (additionalKeywords 병합 후)
-    const systemPrompt = buildSystemPrompt(contentRequest)
-    let userMessage = buildUserPrompt(contentRequest)
+    // 상세 로깅: 각 API 결과 확인
+    console.log(`[Content] 키워드="${keyword.trim()}" enrichment 결과:`)
+    console.log(`  SERP: ${serpRef ? `${serpRef.count}개 결과` : 'null'}`)
+    console.log(`  키워드: ${keywordsRef ? `${keywordsRef.count}개 연관` : 'null'}`)
+    console.log(`  트렌드: ${trendRef ? `${trendRef.direction}(${trendRef.ratio})` : 'null'}`)
+    console.log(`  isUnknownKeyword: ${isUnknownKeyword}`)
+    if (serpRef?.keywordContext) {
+      console.log(`  keywordContext 앞 200자: ${serpRef.keywordContext.substring(0, 200)}`)
+    }
 
-    // 데이터 없는 키워드 강력 경고 주입
+    // AI 프롬프트 생성 (additionalKeywords 병합 후)
+    let systemPrompt = buildSystemPrompt(contentRequest)
+
+    // ★ 시스템 프롬프트에도 키워드 컨텍스트 주입 (이중 보강)
+    if (serpRef?.keywordContext) {
+      systemPrompt += `\n\n## ⚠️ 이번 키워드에 대한 필수 참고 정보
+아래는 "${keyword.trim()}" 검색 시 네이버에서 실제로 나오는 결과입니다. 이 키워드가 무엇을 의미하는지 반드시 이 정보를 기반으로 파악하세요.
+키워드의 의미를 모르면 절대 추측하지 말고, 아래 검색 결과에서 드러나는 의미를 따르세요.`
+    }
+
+    // ★ 핵심: 키워드 컨텍스트를 user message 맨 앞에 배치 (primacy effect)
+    // AI가 키워드 의미를 먼저 파악한 뒤 콘텐츠를 생성하도록 함
+    let userMessagePrefix = ''
+
+    if (serpRef?.keywordContext) {
+      userMessagePrefix += serpRef.keywordContext + '\n\n'
+    }
+
     if (isUnknownKeyword) {
-      userMessage += `\n\n## ⛔ 중요 경고: 데이터 없는 키워드
+      userMessagePrefix += `## ⛔ 중요 경고: 데이터 없는 키워드
 "${keyword.trim()}" 키워드로 네이버 검색 결과, 연관 키워드, 검색 트렌드가 모두 존재하지 않습니다.
 
 이는 다음 중 하나를 의미합니다:
@@ -388,15 +458,15 @@ export async function POST(request: NextRequest) {
 - 만약 이 키워드가 존재하지 않거나 의미를 알 수 없다면 → content 필드에 반드시 다음 문구로 시작하세요: "⚠️ 정보 부족: 이 키워드에 대한 검색 데이터가 존재하지 않습니다."
 - 절대 존재하지 않는 개념을 허구로 만들어내지 마세요
 - "~란?", "~의 정의" 같은 식으로 없는 개념을 설명하는 것은 금지입니다
-- 확실하지 않은 정보를 사실인 것처럼 작성하지 마세요`
+- 확실하지 않은 정보를 사실인 것처럼 작성하지 마세요
+
+`
     }
 
-    // 프롬프트 주입 순서: 키워드 의미 → 연관 키워드 → 트렌드 → SERP → 참고 블로그
-    // ★ 키워드 의미 컨텍스트를 최우선으로 주입 (약어/신조어 대응)
-    if (serpRef?.keywordContext) {
-      userMessage += '\n\n' + serpRef.keywordContext
-    }
+    // 키워드 컨텍스트(앞) + 메인 프롬프트 + 데이터 강화(뒤) 구조
+    let userMessage = userMessagePrefix + buildUserPrompt(contentRequest)
 
+    // 프롬프트 주입 순서: 연관 키워드 → 트렌드 → SERP 상위 분석
     if (keywordsRef) {
       userMessage += '\n\n' + keywordsRef.text
     }
