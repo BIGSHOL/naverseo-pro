@@ -226,13 +226,25 @@ interface BlogIndexHistoryData {
 
 // ===== SVG 레이더 차트 =====
 
+// 레이더 차트용 축약 라벨 (5축 정오각형에서 라벨 겹침 방지)
+function getRadarLabel(name: string): string {
+  switch (name) {
+    case '방문자 & 인기도': return '방문자'
+    case '콘텐츠 품질': return '콘텐츠'
+    case '주제 전문성': return '전문성'
+    case '활동성': return '활동성'
+    case '블로그 신뢰도': return '신뢰도'
+    default: return name
+  }
+}
+
 function RadarChart({ categories, totalScore, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; size?: number }) {
-  const pad = 48 // 라벨용 여백
+  const pad = 58 // 라벨용 여백 (5축 대응)
   const totalSize = size + pad * 2
   const center = totalSize / 2
   const radius = size / 2
 
-  // 4축 각도 (12시 방향 시작, 시계 방향)
+  // 5축 각도 (12시 방향 시작, 시계 방향)
   const angles = categories.map((_, i) => (Math.PI * 2 * i) / categories.length - Math.PI / 2)
 
   // 레벨 그리드 그리기
@@ -252,24 +264,21 @@ function RadarChart({ categories, totalScore, size = 220 }: { categories: Analys
   const dataPolygon = dataPoints.map(p => `${p.x},${p.y}`).join(' ')
 
   // 축 끝 라벨 위치
-  const labelOffset = radius + 28
+  const labelOffset = radius + 32
   const labels = categories.map((cat, i) => {
     const x = center + labelOffset * Math.cos(angles[i])
     const y = center + labelOffset * Math.sin(angles[i])
     // 텍스트 정렬
     const angleDeg = (angles[i] * 180) / Math.PI
     let anchor: 'start' | 'middle' | 'end' = 'middle'
-    if (angleDeg > 10 && angleDeg < 170) anchor = 'start'
-    else if (angleDeg > -170 && angleDeg < -10) anchor = 'end'
-    // 왼쪽 축은 end, 오른쪽 축은 start
     if (Math.abs(angleDeg + 90) < 5 || Math.abs(angleDeg - 90) < 5) anchor = 'middle'
-    if (angleDeg > 5 && angleDeg < 175) anchor = 'start'
-    if (angleDeg < -5 && angleDeg > -175) anchor = 'end'
-    return { name: cat.name, score: cat.score, maxScore: cat.maxScore, x, y, anchor }
+    else if (angleDeg > 5 && angleDeg < 175) anchor = 'start'
+    else if (angleDeg < -5 && angleDeg > -175) anchor = 'end'
+    return { name: getRadarLabel(cat.name), score: cat.score, maxScore: cat.maxScore, x, y, anchor }
   })
 
   return (
-    <svg viewBox={`0 0 ${totalSize} ${totalSize}`} className="mx-auto w-full max-w-[320px]">
+    <svg viewBox={`0 0 ${totalSize} ${totalSize}`} className="mx-auto w-full max-w-[340px]">
       <defs>
         <radialGradient id="radarFill" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.25" />

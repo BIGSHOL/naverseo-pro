@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ cached: null })
       }
 
+      // v5 형식 검증: searchBonus 필드가 없으면 v4 이전 캐시 → 무효화
+      const result = latestEntry.full_result as Record<string, unknown> | null
+      if (!result || !result.searchBonus) {
+        return NextResponse.json({ cached: null })
+      }
+
       return NextResponse.json({
         cached: latestEntry.full_result,
         checkedAt: latestEntry.checked_at,
