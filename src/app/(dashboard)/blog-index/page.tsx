@@ -490,8 +490,8 @@ export default function BlogIndexPage() {
   // 히스토리 조회 (추이 차트용)
   const fetchHistory = (url: string) => {
     fetch(`/api/blog-index/history?blogUrl=${encodeURIComponent(url)}`)
-      .then(r => r.json())
-      .then(h => setHistoryData(h))
+      .then(r => r.ok ? r.json() : null)
+      .then(h => { if (h && Array.isArray(h.history)) setHistoryData(h) })
       .catch(() => {})
   }
 
@@ -944,7 +944,7 @@ export default function BlogIndexPage() {
             </div>
 
             {/* ===== 지수 변동 추이 ===== */}
-            {historyData && historyData.history.length > 0 && historyData.stats && (
+            {historyData && historyData.history?.length > 0 && historyData.stats && (
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-base">
