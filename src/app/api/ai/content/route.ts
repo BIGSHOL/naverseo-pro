@@ -172,7 +172,8 @@ function detectSpecificBusiness(
 
   // SERP 5개 중 3개 이상에서 등장하면 특정 상호명
   if (matchCount >= 3) {
-    return { isSpecific: true, businessName: potentialName + cleaned.replace(potentialName, '').trim() }
+    const suffix = cleaned.replace(potentialName, '').trim()
+    return { isSpecific: true, businessName: suffix ? `${potentialName} ${suffix}` : potentialName }
   }
 
   return { isSpecific: false, businessName: null }
@@ -497,7 +498,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -515,6 +516,7 @@ export async function POST(request: NextRequest) {
       targetLength: targetLength || 'medium',
       includeFaq: includeFaq !== false,
       businessInfo: businessInfo?.name ? businessInfo : undefined,
+      contentDirection: typeof contentDirection === 'string' && contentDirection.trim() ? contentDirection.trim() : undefined,
     }
 
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
@@ -584,6 +586,8 @@ export async function POST(request: NextRequest) {
         specificBusiness = detectSpecificBusiness(keyword.trim(), serpItems)
         if (specificBusiness.isSpecific) {
           console.log(`[Content] ★ 특정 상호명 감지: "${specificBusiness.businessName}" → 단일 업체 소개/리뷰 모드`)
+          // buildSystemPrompt에 전달하여 구조 가이드 자체를 교체
+          contentRequest.specificBusinessName = specificBusiness.businessName!
         }
       }
 
@@ -650,37 +654,22 @@ export async function POST(request: NextRequest) {
       systemPrompt = keywordDefinition + systemPrompt
     }
 
-    // ★ 특정 상호명 감지 시: local "TOP 5 추천" 구조를 "단일 업체 소개/리뷰"로 오버라이드
+    // ★ 특정 상호명 감지 시: SERP 참고 정보 보강 (구조 가이드는 buildSystemPrompt에서 이미 교체됨)
     if (specificBusiness.isSpecific && specificBusiness.businessName) {
       const serpTitles = serpRef?.items
         ?.slice(0, 5)
         .map(item => item.title.replace(/<[^>]*>/g, ''))
         .join('\n- ') || ''
 
-      const businessOverride = `## 🔴 구조 가이드 오버라이드 (최우선 적용)
-"${specificBusiness.businessName}"은(는) 특정 업체/브랜드의 상호명입니다.
-여러 업체를 비교하는 "TOP 5 추천" 리스트를 작성하지 마세요.
-이 업체 한 곳에 대한 소개/리뷰/정보 글을 작성하세요.
-
-네이버 검색 결과에서 확인된 정보:
+      if (serpTitles) {
+        const serpContext = `## 네이버 검색 결과 참고 (${specificBusiness.businessName})
 - ${serpTitles}
 
-작성 구조:
-1. 도입부: "${specificBusiness.businessName}" 소개 및 관심 유발
-2. 업체 정보: 위치, 특징, 서비스 내용 (검색 결과에서 확인된 정보 기반)
-3. 상세 리뷰: 장점, 차별점, 이용 후기 관점
-4. 실용 정보: 가격대, 운영시간, 예약 방법, 주차 등 (확인 안 되면 "직접 문의" 표시)
-5. FAQ: 이 업체에 대해 자주 묻는 질문 2~3개
-6. 마무리: 방문 전 체크리스트
-
-⚠️ 절대 금지:
-- 가짜 업체 리스트(A, B, C 등) 생성 금지
-- 존재하지 않는 가격/주소/운영시간 날조 금지
-- 확인 불가한 정보는 "직접 문의 필요" 또는 "방문 확인 권장"으로 표시
-- 여러 업체 추천 리스트가 아닌, 이 한 업체에 집중할 것
+위 검색 결과를 참고하여 "${specificBusiness.businessName}"에 대한 정보를 정리하세요.
 
 `
-      systemPrompt = businessOverride + systemPrompt
+        systemPrompt = serpContext + systemPrompt
+      }
     }
 
     // ★ 키워드 컨텍스트를 user message 맨 앞에도 배치 (이중 보강)

@@ -119,6 +119,7 @@ export default function ContentPage() {
   const [showSeoDetail, setShowSeoDetail] = useState(false)
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [contentType, setContentType] = useState<ContentType | ''>('')
+  const [contentDirection, setContentDirection] = useState('')
   const [includeFaq, setIncludeFaq] = useState(true)
 
   // 고급 옵션
@@ -530,6 +531,7 @@ export default function ContentPage() {
           tone: overrides?.tone || tone,
           targetLength: overrides?.targetLength || targetLength,
           contentType: overrides?.contentType || contentType || undefined,
+          contentDirection: contentDirection.trim() || undefined,
           includeFaq,
           additionalKeywords: additionalKeywords
             .split(',')
@@ -1222,6 +1224,28 @@ export default function ContentPage() {
                 </Badge>
               </div>
             </div>
+
+            {/* 콘텐츠 방향 (선택) */}
+            {!isPromoMode && (
+              <div className="space-y-2">
+                <Label htmlFor="content-direction" className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                  콘텐츠 방향
+                  <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+                </Label>
+                <Input
+                  id="content-direction"
+                  placeholder="예: 인재원 학원 방문 후기 느낌으로, 가격 비교 중심으로, 초보자 대상 가이드"
+                  value={contentDirection}
+                  onChange={(e) => setContentDirection(e.target.value)}
+                  disabled={loading}
+                  className="border-violet-200 focus:border-violet-400 focus:ring-violet-400"
+                />
+                <p className="text-xs text-violet-600/80">
+                  입력하면 AI가 더 정확하게 원하는 방향의 글을 생성합니다
+                </p>
+              </div>
+            )}
 
             {/* 내 업체 홍보글 입력 폼 */}
             {isPromoMode && (

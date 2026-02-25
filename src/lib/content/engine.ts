@@ -68,6 +68,10 @@ export interface ContentGenerationRequest {
     targetAudience?: 'beginner' | 'general' | 'expert' // 독자 수준
     ageGroup?: '10s' | '20-30s' | '40-50s' | '60+' | 'all' // 연령대
   }
+  /** 특정 상호명 감지 시 설정 (local 유형에서 단일 업체 소개 모드) */
+  specificBusinessName?: string
+  /** 사용자가 입력한 콘텐츠 방향 지시 (최우선 적용) */
+  contentDirection?: string
 }
 
 /** 생성된 콘텐츠 결과 */
@@ -290,6 +294,25 @@ const STRUCTURE_GUIDES: Record<ContentType, string> = {
 - 검색 결과에 나오지 않는 정보를 날조하지 말 것`,
 }
 
+/** 특정 상호명 전용 구조 가이드 (여러 업체 추천이 아닌 단일 업체 소개/리뷰) */
+function getSpecificBusinessStructureGuide(businessName: string): string {
+  return `구조:
+1. 도입부: "${businessName}" 소개 및 관심 유발 (이 업체를 알아보게 된 계기)
+2. 업체 정보: 위치, 특징, 제공 서비스 (검색 결과에서 확인된 정보 기반)
+3. 상세 리뷰: 장점, 차별점, 이용자 관점의 평가
+4. 실용 정보: 가격대, 운영시간, 예약/문의 방법, 주차 등
+   - 확인 안 되는 정보는 "직접 문의 필요" 또는 "방문 확인 권장"으로 표시
+5. FAQ: "${businessName}"에 대해 자주 묻는 질문 2~3개
+6. 마무리: 방문 전 체크리스트 + 한줄 요약
+
+⚠️ 절대 금지 (매우 중요!):
+- "${businessName}"은(는) 특정 업체의 상호명입니다. 여러 업체를 비교하는 "TOP 5" 추천 리스트 형태로 작성하면 안 됩니다
+- A, B, C, D, E 같은 가짜 업체 리스트 생성 절대 금지
+- "A ${businessName}", "B ${businessName}" 같은 패턴으로 가짜 업체를 만들지 마세요
+- 존재하지 않는 가격/주소/운영시간을 날조하지 마세요
+- 이 업체 한 곳에만 집중하여 소개/리뷰 글을 작성하세요`
+}
+
 /** 홍보글 전용 구조 가이드 (businessInfo가 있을 때 local 대체) */
 const LOCAL_PROMO_STRUCTURE_GUIDE = `구조:
 1. 도입부: 업체 소개와 이야기 ("안녕하세요, OO입니다", "저희 OO을 소개합니다")
@@ -336,11 +359,14 @@ function getLengthGuide(length: 'short' | 'medium' | 'long'): string {
 export function buildSystemPrompt(request: ContentGenerationRequest): string {
   const contentType = request.contentType || detectContentType(request.keyword)
   const isPromo = contentType === 'local' && !!request.businessInfo?.name
-  const typeName = isPromo ? '내 업체 홍보글' : CONTENT_TYPE_NAMES[contentType]
-  const structure = isPromo ? LOCAL_PROMO_STRUCTURE_GUIDE : STRUCTURE_GUIDES[contentType]
+  const isSpecificBiz = contentType === 'local' && !!request.specificBusinessName
+  const typeName = isSpecificBiz ? '특정 업체 소개/리뷰' : isPromo ? '내 업체 홍보글' : CONTENT_TYPE_NAMES[contentType]
+  const structure = isSpecificBiz
+    ? getSpecificBusinessStructureGuide(request.specificBusinessName!)
+    : isPromo ? LOCAL_PROMO_STRUCTURE_GUIDE : STRUCTURE_GUIDES[contentType]
   const toneGuide = getToneGuide(request.tone || '친근하고 정보적인')
   const lengthGuide = getLengthGuide(request.targetLength || 'medium')
-  const fewShotExamples = isPromo ? '' : getFewShotExamples(contentType)  // 홍보글은 예시 제외
+  const fewShotExamples = (isPromo || isSpecificBiz) ? '' : getFewShotExamples(contentType)  // 홍보글/특정업체는 예시 제외
 
   // 고급 옵션 처리
   const opts = request.advancedOptions || {}
@@ -388,11 +414,15 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
     ? `\n\n### 타겟 연령대: ${opts.ageGroup === '10s' ? '10대' : opts.ageGroup === '20-30s' ? '20-30대' : opts.ageGroup === '40-50s' ? '40-50대' : '60대 이상'}\n- 해당 연령대가 관심 있어할 만한 예시와 표현을 사용하세요.\n- 독자의 생활 패턴과 관심사를 고려하여 공감할 수 있는 내용을 작성하세요.`
     : ''
 
+  const contentDirectionGuide = request.contentDirection
+    ? `\n## 🔴 사용자 콘텐츠 방향 지시 (최우선 적용)\n사용자가 다음과 같이 콘텐츠 방향을 지정했습니다:\n"${request.contentDirection}"\n이 지시를 구조 가이드보다 우선하여 반영하세요. 단, SEO 최적화 규칙은 유지하세요.\n`
+    : ''
+
   return `당신은 네이버 블로그 SEO 전문 작가입니다.
 네이버 C-Rank와 D.I.A. 알고리즘에 최적화된 블로그 글을 작성합니다.
 
 ## 이번 콘텐츠 유형: ${typeName}
-
+${contentDirectionGuide}
 ## 톤앤매너
 ${toneGuide}
 
@@ -495,7 +525,7 @@ ${contentType === 'review' || contentType === 'comparison' ? `
   - 개인적 의견과 객관적 사실 구분
 - **시각적 도구**: 이미지 중심, 표로 비교 항목 정리, 별점/평가 강조` : ''}
 
-${contentType === 'listicle' || contentType === 'local' ? `
+${(contentType === 'listicle' || contentType === 'local') && !isSpecificBiz ? `
 **[추천/리스트 콘텐츠]**
 - **핵심 목적**: 여러 옵션 비교 및 선별된 추천 제공
 - **구조**: 도입(선정 기준) → 각 항목별 H3 소제목 → 종합 비교
@@ -505,6 +535,16 @@ ${contentType === 'listicle' || contentType === 'local' ? `
   - 가격, 위치, 특징을 표로 정리
   - 최종 선택 가이드 (어떤 사람에게 어떤 것 추천)
 - **시각적 도구**: 번호 목록, 비교 표, 강조 박스` : ''}
+
+${isSpecificBiz ? `
+**[특정 업체 소개/리뷰 콘텐츠]**
+- **핵심 목적**: 특정 업체 한 곳에 대한 상세 소개 및 리뷰 제공
+- **구조**: 업체 소개 → 서비스/특징 → 장점/차별점 → 실용 정보 → FAQ
+- **절대 금지**:
+  - 여러 업체를 비교하는 TOP 5 리스트 형태 금지
+  - A, B, C, D 같은 가명의 업체 목록 생성 금지
+  - 존재하지 않는 가격/주소/운영시간 날조 금지
+- **시각적 도구**: 이미지, 인용구, 팁박스, 표(가격표 등)` : ''}
 
 ### 2025-2026 최신 트렌드
 - **질문형 소제목** 활용: "~방법" 대신 "~어떻게 해야 하나요?" 형태의 질문형 소제목 사용
@@ -546,11 +586,19 @@ ${fewShotExamples}
 export function buildUserPrompt(request: ContentGenerationRequest): string {
   const contentType = request.contentType || detectContentType(request.keyword)
   const isPromo = contentType === 'local' && !!request.businessInfo?.name
-  const typeName = isPromo ? '내 업체 홍보글' : CONTENT_TYPE_NAMES[contentType]
+  const isSpecificBiz = contentType === 'local' && !!request.specificBusinessName
+  const typeName = isSpecificBiz ? '특정 업체 소개/리뷰' : isPromo ? '내 업체 홍보글' : CONTENT_TYPE_NAMES[contentType]
 
   let prompt = `타겟 키워드: "${request.keyword}"
 콘텐츠 유형: ${typeName}
 톤앤매너: ${request.tone || '친근하고 정보적인'}`
+
+  if (isSpecificBiz) {
+    prompt += `\n\n⚠️ "${request.specificBusinessName}"은(는) 특정 업체의 상호명입니다.
+이 업체 한 곳에 대한 소개/리뷰 글을 작성하세요.
+여러 업체를 비교하는 TOP 5 리스트를 만들지 마세요.
+A, B, C, D, E 같은 가짜 업체 목록을 생성하지 마세요.`
+  }
 
   if (request.additionalKeywords && request.additionalKeywords.length > 0) {
     prompt += `\n관련 키워드 (본문에 자연스럽게 포함): ${request.additionalKeywords.join(', ')}`
@@ -582,6 +630,10 @@ export function buildUserPrompt(request: ContentGenerationRequest): string {
 
   if (!isPromo) {
     prompt += `\n\n위 키워드로 네이버 블로그 SEO에 최적화된 ${typeName} 글을 작성해주세요.`
+  }
+
+  if (request.contentDirection) {
+    prompt += `\n\n★ 콘텐츠 방향: "${request.contentDirection}"\n위 방향에 맞춰 글을 작성해주세요.`
   }
 
   return prompt
