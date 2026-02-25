@@ -49,11 +49,15 @@ export async function checkCredits(
   const cost = CREDIT_COSTS[feature]
   const featureLabel = CREDIT_FEATURE_LABELS[feature]
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, role, created_at')
     .eq('id', userId)
     .single()
+
+  if (profileError) {
+    console.error('[CreditCheck] 프로필 조회 실패:', profileError.message, profileError.code, 'userId:', userId)
+  }
 
   const plan = (profile?.plan || 'free') as Plan
 
