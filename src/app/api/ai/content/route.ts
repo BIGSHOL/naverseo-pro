@@ -111,6 +111,73 @@ function extractKeywordMeaning(
   return bestPhrase || null
 }
 
+/**
+ * 지역 업종 키워드에서 "특정 상호명" vs "카테고리" 구분
+ *
+ * 예: "침산동 인재원 학원" → "인재원"이 SERP에 반복 → 특정 상호명
+ * 예: "침산동 학원" → 특별한 고유명사 없음 → 카테고리
+ *
+ * 전략:
+ * 1. 키워드에서 지역명 + 업종 접미사를 제거하여 잠재적 상호명 추출
+ * 2. SERP 제목에서 해당 상호명 반복 여부 확인
+ * 3. 반복 3회 이상이면 특정 상호명으로 판정
+ */
+function detectSpecificBusiness(
+  keyword: string,
+  items: Array<{ title: string; description: string }>
+): { isSpecific: boolean; businessName: string | null } {
+  if (!items || items.length === 0) return { isSpecific: false, businessName: null }
+
+  // 1. 지역명 제거
+  const locationPattern = /[가-힣]{2,5}(동|구|시|역|군|읍|면)\s*/g
+  const nearPattern = /(근처|주변)\s*/g
+  let cleaned = keyword.replace(locationPattern, '').replace(nearPattern, '').trim()
+
+  // 2. 업종 접미사 제거하여 잠재적 상호명 추출
+  const businessSuffixes = [
+    '학원', '카페', '병원', '치과', '의원', '한의원', '약국', '헬스장', '헬스',
+    '필라테스', '요가', '수영장', '식당', '맛집', '음식점', '미용실', '헤어',
+    '네일', '피부관리', '부동산', '호텔', '모텔', '펜션', '어린이집', '유치원',
+    '골프', '체육관', '스튜디오', '꽃집', '세탁소', '정비소',
+    '피부과', '정형외과', '안과', '이비인후과', '소아과', '산부인과',
+  ]
+  let potentialName = cleaned
+  for (const suffix of businessSuffixes) {
+    potentialName = potentialName.replace(new RegExp(suffix + '$'), '').trim()
+  }
+
+  // 상호명 후보가 없거나 너무 짧으면 (1글자 이하) 카테고리로 판정
+  if (!potentialName || potentialName.length <= 1) {
+    return { isSpecific: false, businessName: null }
+  }
+
+  // "수학", "영어", "초등" 같은 일반 수식어는 상호명이 아님
+  const genericModifiers = /^(수학|영어|국어|과학|초등|중등|고등|입시|논술|코딩|미술|음악|피아노|태권도|발레|유아|성인|남성|여성|종합|24시간|소형|대형)$/
+  if (genericModifiers.test(potentialName)) {
+    return { isSpecific: false, businessName: null }
+  }
+
+  // 3. SERP 제목들에서 상호명 후보 등장 빈도 확인
+  const escaped = potentialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const nameRegex = new RegExp(escaped, 'gi')
+  let matchCount = 0
+
+  for (const item of items) {
+    const text = `${item.title.replace(/<[^>]*>/g, '')} ${item.description.replace(/<[^>]*>/g, '')}`
+    if (nameRegex.test(text)) {
+      matchCount++
+    }
+    nameRegex.lastIndex = 0 // 글로벌 정규식 리셋
+  }
+
+  // SERP 5개 중 3개 이상에서 등장하면 특정 상호명
+  if (matchCount >= 3) {
+    return { isSpecific: true, businessName: potentialName + cleaned.replace(potentialName, '').trim() }
+  }
+
+  return { isSpecific: false, businessName: null }
+}
+
 // ===== 데이터 강화 헬퍼 함수들 =====
 
 /**
@@ -502,6 +569,7 @@ export async function POST(request: NextRequest) {
     // 핵심: 신조어/약어 키워드가 informational로 오분류되어 AI가 허구 콘텐츠를 생성하는 문제 방지
     let serpKeywordMeaning: string | null = null
     let serpInferredCategory = ''
+    let specificBusiness: { isSpecific: boolean; businessName: string | null } = { isSpecific: false, businessName: null }
 
     if (serpRef && serpRef.items.length > 0) {
       const serpItems = serpRef.items.map(item => ({
@@ -524,6 +592,14 @@ export async function POST(request: NextRequest) {
       if (serpKeywordMeaning) {
         console.log(`[Content] ★ 키워드 의미 추출: "${keyword.trim()}" = "${serpKeywordMeaning}"`)
       }
+
+      // 3) 지역 업종 키워드: 특정 상호명 vs 카테고리 판별
+      if (contentRequest.contentType === 'local') {
+        specificBusiness = detectSpecificBusiness(keyword.trim(), serpItems)
+        if (specificBusiness.isSpecific) {
+          console.log(`[Content] ★ 특정 상호명 감지: "${specificBusiness.businessName}" → 단일 업체 소개/리뷰 모드`)
+        }
+      }
     }
 
     // 데이터 없는 키워드 감지 (네이버 API 3개 모두 결과 없음)
@@ -538,6 +614,7 @@ export async function POST(request: NextRequest) {
     console.log(`  키워드: ${keywordsRef ? `${keywordsRef.count}개 연관` : 'null'}`)
     console.log(`  트렌드: ${trendRef ? `${trendRef.direction}(${trendRef.ratio})` : 'null'}`)
     console.log(`  SERP 추론: 유형=${contentRequest.contentType}, 카테고리=${serpInferredCategory || '없음'}, 의미=${serpKeywordMeaning || '없음'}`)
+    console.log(`  특정상호: ${specificBusiness.isSpecific ? specificBusiness.businessName : '아님'}`)
     console.log(`  isUnknownKeyword: ${isUnknownKeyword}`)
 
     // AI 프롬프트 생성 (SERP 기반 유형 교정 적용 후)
@@ -564,6 +641,39 @@ export async function POST(request: NextRequest) {
 
       // 시스템 프롬프트 맨 앞에 배치 (기존 내용 앞에)
       systemPrompt = keywordDefinition + systemPrompt
+    }
+
+    // ★ 특정 상호명 감지 시: local "TOP 5 추천" 구조를 "단일 업체 소개/리뷰"로 오버라이드
+    if (specificBusiness.isSpecific && specificBusiness.businessName) {
+      const serpTitles = serpRef?.items
+        ?.slice(0, 5)
+        .map(item => item.title.replace(/<[^>]*>/g, ''))
+        .join('\n- ') || ''
+
+      const businessOverride = `## 🔴 구조 가이드 오버라이드 (최우선 적용)
+"${specificBusiness.businessName}"은(는) 특정 업체/브랜드의 상호명입니다.
+여러 업체를 비교하는 "TOP 5 추천" 리스트를 작성하지 마세요.
+이 업체 한 곳에 대한 소개/리뷰/정보 글을 작성하세요.
+
+네이버 검색 결과에서 확인된 정보:
+- ${serpTitles}
+
+작성 구조:
+1. 도입부: "${specificBusiness.businessName}" 소개 및 관심 유발
+2. 업체 정보: 위치, 특징, 서비스 내용 (검색 결과에서 확인된 정보 기반)
+3. 상세 리뷰: 장점, 차별점, 이용 후기 관점
+4. 실용 정보: 가격대, 운영시간, 예약 방법, 주차 등 (확인 안 되면 "직접 문의" 표시)
+5. FAQ: 이 업체에 대해 자주 묻는 질문 2~3개
+6. 마무리: 방문 전 체크리스트
+
+⚠️ 절대 금지:
+- 가짜 업체 리스트(A, B, C 등) 생성 금지
+- 존재하지 않는 가격/주소/운영시간 날조 금지
+- 확인 불가한 정보는 "직접 문의 필요" 또는 "방문 확인 권장"으로 표시
+- 여러 업체 추천 리스트가 아닌, 이 한 업체에 집중할 것
+
+`
+      systemPrompt = businessOverride + systemPrompt
     }
 
     // ★ 키워드 컨텍스트를 user message 맨 앞에도 배치 (이중 보강)
@@ -620,19 +730,22 @@ export async function POST(request: NextRequest) {
     // 실제 검색 결과에서 추출한 업체명/제품명 주입 (local/comparison 타입)
     if (searchEnrichment) {
       if (searchEnrichment.realBusinessNames && searchEnrichment.realBusinessNames.length > 0) {
-        userMessage += `\n\n## 실제 검색되는 업체 예시
-다음은 "${keyword}" 검색 시 실제로 언급되는 업체들입니다. 이를 참고하되, 그대로 사용하지 말고 유사한 패턴으로 콘텐츠를 작성하세요:
+        userMessage += `\n\n## 네이버 검색에서 확인된 실제 업체
+다음은 "${keyword}" 검색 시 네이버에서 실제로 확인되는 업체들입니다:
 ${searchEnrichment.realBusinessNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
 
-⚠️ 중요: 위 업체명은 참고만 하세요. 반드시 주제에 맞는 실제 존재할 법한 업체명으로 작성하세요.`
+⚠️ 필수 규칙:
+- 위 업체명 또는 검색 결과에 등장하는 실제 업체명만 사용하세요
+- 가짜 업체명을 만들지 마세요 (A 학원, B 카페 같은 가명 절대 금지)
+- 확인할 수 없는 가격·주소·운영시간은 "직접 문의 필요"로 표시하세요`
       }
 
       if (searchEnrichment.realProductNames && searchEnrichment.realProductNames.length > 0) {
-        userMessage += `\n\n## 실제 검색되는 제품 예시
-다음은 "${keyword}" 검색 시 실제로 언급되는 제품들입니다:
+        userMessage += `\n\n## 네이버 검색에서 확인된 실제 제품
+다음은 "${keyword}" 검색 시 네이버에서 실제로 확인되는 제품들입니다:
 ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
 
-⚠️ 중요: 위 제품명은 참고만 하세요. 비교형 콘텐츠에 맞는 실제 제품으로 작성하세요.`
+⚠️ 필수: 위 제품명 또는 검색 결과에 등장하는 실제 제품명만 사용하세요. 가짜 제품명 금지.`
       }
     }
 
