@@ -373,21 +373,21 @@ function RadarChart({ categories, totalScore, size = 220 }: { categories: Analys
 
 function getQualityBadgeStyle(category: string) {
   switch (category) {
-    case '파워': return 'bg-emerald-500 text-white'
+    case '파워': return 'bg-amber-500 text-white'
+    case '최적화+': return 'bg-emerald-500 text-white'
     case '최적화': return 'bg-green-500 text-white'
     case '준최적화': return 'bg-blue-500 text-white'
-    case '일반': return 'bg-yellow-500 text-white'
-    case '저품질': return 'bg-red-500 text-white'
+    case '일반': return 'bg-slate-500 text-white'
     default: return 'bg-gray-500 text-white'
   }
 }
 
 function getTierBarColor(tier: number) {
-  if (tier >= 11) return 'bg-emerald-500'
+  if (tier >= 16) return 'bg-amber-500'
+  if (tier >= 12) return 'bg-emerald-500'
   if (tier >= 9) return 'bg-green-500'
-  if (tier >= 6) return 'bg-blue-500'
-  if (tier >= 3) return 'bg-yellow-500'
-  return 'bg-red-500'
+  if (tier >= 2) return 'bg-blue-500'
+  return 'bg-slate-500'
 }
 
 function getScoreRingColor(score: number) {
@@ -477,6 +477,7 @@ export default function BlogIndexPage() {
   const [result, setResult] = useState<BlogIndexResult | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [historyData, setHistoryData] = useState<BlogIndexHistoryData | null>(null)
+  const [chartMode, setChartMode] = useState<'total' | 'category'>('total')
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [aiCardModal, setAiCardModal] = useState<{
@@ -901,42 +902,68 @@ export default function BlogIndexPage() {
                     </div>
                   </div>
 
-                  {/* 11단계 등급 맵 */}
+                  {/* 16단계 등급 맵 */}
                   <div className="mt-4 pt-3 border-t">
-                    <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">11단계 블로그 지수</p>
+                    <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">16단계 블로그 지수</p>
                     <div className="flex gap-0.5">
-                      {Array.from({ length: 11 }, (_, i) => {
+                      {Array.from({ length: 16 }, (_, i) => {
                         const t = i + 1
                         const active = t === result.level.tier
                         const passed = t < result.level.tier
-                        const tierLabels: Record<number, string> = { 1: '저품질1', 2: '저품질2', 3: '일반1', 4: '일반2', 5: '일반3', 6: '준최적화1', 7: '준최적화2', 8: '준최적화3', 9: '최적화1', 10: '최적화2', 11: '파워' }
+                        const tierLabels: Record<number, string> = {
+                          1: '일반', 2: '준최1', 3: '준최2', 4: '준최3', 5: '준최4',
+                          6: '준최5', 7: '준최6', 8: '준최7', 9: '최적1', 10: '최적2',
+                          11: '최적3', 12: '최적1+', 13: '최적2+', 14: '최적3+', 15: '최적4+', 16: '파워',
+                        }
+                        // 색상 그라데이션: slate → violet → indigo → sky → blue → lime → green → teal → emerald → amber
+                        function tierBgActive(tier: number) {
+                          if (tier >= 16) return 'bg-amber-500'
+                          if (tier >= 14) return 'bg-emerald-500'
+                          if (tier >= 12) return 'bg-teal-500'
+                          if (tier >= 10) return 'bg-green-500'
+                          if (tier >= 9) return 'bg-lime-500'
+                          if (tier >= 7) return 'bg-blue-500'
+                          if (tier >= 5) return 'bg-sky-500'
+                          if (tier >= 3) return 'bg-indigo-500'
+                          if (tier >= 2) return 'bg-violet-500'
+                          return 'bg-slate-500'
+                        }
+                        function tierBgPassed(tier: number) {
+                          if (tier >= 16) return 'bg-amber-200'
+                          if (tier >= 14) return 'bg-emerald-200'
+                          if (tier >= 12) return 'bg-teal-200'
+                          if (tier >= 10) return 'bg-green-200'
+                          if (tier >= 9) return 'bg-lime-200'
+                          if (tier >= 7) return 'bg-blue-200'
+                          if (tier >= 5) return 'bg-sky-200'
+                          if (tier >= 3) return 'bg-indigo-200'
+                          if (tier >= 2) return 'bg-violet-200'
+                          return 'bg-slate-200'
+                        }
                         let bg = 'bg-muted'
                         const textCls = 'text-foreground font-bold'
-                        if (active) {
-                          bg = t >= 11 ? 'bg-emerald-500' : t >= 9 ? 'bg-green-500' : t >= 6 ? 'bg-blue-500' : t >= 3 ? 'bg-yellow-500' : 'bg-red-500'
-                        } else if (passed) {
-                          bg = t >= 11 ? 'bg-emerald-200' : t >= 9 ? 'bg-green-200' : t >= 6 ? 'bg-blue-200' : t >= 3 ? 'bg-yellow-200' : 'bg-red-200'
-                        }
+                        if (active) bg = tierBgActive(t)
+                        else if (passed) bg = tierBgPassed(t)
                         return (
                           <div key={t} className="flex-1 text-center">
                             <div className={`h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1' : ''}`}>
-                              <span className={`text-[8px] ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/60'}`}>
+                              <span className={`text-[7px] ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/60'}`}>
                                 {t}
                               </span>
                             </div>
                             {active && (
-                              <p className={`mt-0.5 text-[8px] ${textCls}`}>{tierLabels[t]}</p>
+                              <p className={`mt-0.5 text-[7px] ${textCls}`}>{tierLabels[t]}</p>
                             )}
                           </div>
                         )
                       })}
                     </div>
                     <div className="mt-0.5 flex justify-between text-[8px] text-muted-foreground">
-                      <span className="text-red-400">저품질</span>
-                      <span className="text-yellow-500">일반</span>
+                      <span className="text-slate-400">일반</span>
                       <span className="text-blue-500">준최적화</span>
                       <span className="text-green-500">최적화</span>
-                      <span className="text-emerald-500">파워</span>
+                      <span className="text-emerald-500">최적화+</span>
+                      <span className="text-amber-500">파워</span>
                     </div>
                   </div>
                 </CardContent>
@@ -947,15 +974,32 @@ export default function BlogIndexPage() {
             {historyData && historyData.history?.length > 0 && historyData.stats && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4 text-purple-500" />
-                    지수 변동 추이
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <TrendingUp className="h-4 w-4 text-purple-500" />
+                      지수 변동 추이
+                    </CardTitle>
+                    <div className="flex gap-1 rounded-lg bg-muted p-0.5">
+                      <button
+                        onClick={() => setChartMode('total')}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'total' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        총점 추이
+                      </button>
+                      <button
+                        onClick={() => setChartMode('category')}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'category' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        카테고리별 추이
+                      </button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <BlogIndexHistoryChart
                     history={historyData.history}
                     stats={historyData.stats}
+                    mode={chartMode}
                   />
                 </CardContent>
               </Card>

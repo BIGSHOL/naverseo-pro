@@ -53,21 +53,21 @@ export interface VisitorData {
 }
 
 export interface BlogLevelInfo {
-  tier: number           // 1~11
-  category: string       // 저품질 / 일반 / 준최적화 / 최적화 / 파워
-  label: string          // Lv.1 저품질 1 ~ Lv.11 파워
-  shortLabel: string     // 짧은 라벨 (배지용): 저품질1, 일반1, 준최적화1, 최적화1, 파워
+  tier: number           // 1~16 (v6: 16등급)
+  category: string       // 일반 / 준최적화 / 최적화 / 최적화+ / 파워
+  label: string          // Lv.1 일반 ~ Lv.16 파워
+  shortLabel: string     // 짧은 라벨 (배지용): 일반, 준최적화1~7, 최적화1~3, 최적화1+~4+, 파워
   description: string    // 상세 설명
-  color: string          // UI 색상 키 (red/orange/yellow/green 등)
+  color: string          // UI 색상 키 (slate/violet/indigo/sky/blue/lime/green/teal/emerald/amber 등)
   badgeColor: string     // Tailwind 배지 색상 클래스
   nextTierScore: number | null  // 다음 등급까지 필요한 점수 (최고 등급이면 null)
 }
 
 export interface PostQuality {
   score: number          // 0~15 (v4: 인기도 3점 추가)
-  tier: number           // 1~10 (전체 블로그 지수 등급 체계와 동일)
-  label: string          // "준최적화2", "최적화1", "일반2" 등
-  category: string       // 저품질/일반/준최적화/최적화
+  tier: number           // 1~5 (v6: 포스트 품질 등급)
+  label: string          // "준최적화", "최적화", "일반" 등
+  category: string       // 일반/준최적화/최적화/파워
 }
 
 export interface PostDetail {

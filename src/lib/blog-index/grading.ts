@@ -1,67 +1,92 @@
 /**
- * 블로그 지수 - 등급 체계 및 추천 (v4 업데이트)
+ * 블로그 지수 - 등급 체계 및 추천 (v6 업데이트)
  *
- * 11등급 블로그 지수 체계 (변경 없음)
- * 추천 로직: 새로운 4축 이름에 맞게 업데이트
+ * 16등급 블로그 지수 체계 (일반 / 준최적화 / 최적화 / 최적화+ / 파워)
+ * "저품질" 카테고리 폐지 → 긍정적 등급 체계
  */
 
 import type { BlogLevelInfo, AnalysisCategory, AbusePenalty, BenchmarkData, PostDetail, BlogProfile } from './types'
 
 export function determineLevelInfo(totalScore: number): BlogLevelInfo {
-  if (totalScore >= 90) return {
-    tier: 11, category: '파워', label: 'Lv.11 파워', shortLabel: '파워',
+  if (totalScore >= 95) return {
+    tier: 16, category: '파워', label: 'Lv.16 파워', shortLabel: '파워',
     description: '최상위 검색 노출력을 가진 파워 블로그입니다. 현재 전략을 유지하세요.',
-    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', nextTierScore: null,
+    color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', nextTierScore: null,
   }
-  if (totalScore >= 80) return {
-    tier: 10, category: '최적화', label: 'Lv.10 최적화 2', shortLabel: '최적화2',
-    description: '네이버 검색에 최적화된 블로그입니다. 파워블로그까지 거의 다 왔습니다.',
-    color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', nextTierScore: 90,
+  if (totalScore >= 89) return {
+    tier: 15, category: '최적화+', label: 'Lv.15 최적화4+', shortLabel: '최적화4+',
+    description: '파워 블로그 직전 단계입니다. 꾸준함이 마지막 열쇠입니다.',
+    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', nextTierScore: 95,
+  }
+  if (totalScore >= 82) return {
+    tier: 14, category: '최적화+', label: 'Lv.14 최적화3+', shortLabel: '최적화3+',
+    description: '매우 높은 검색 노출력을 갖추고 있습니다. 파워까지 한 걸음 남았습니다.',
+    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', nextTierScore: 89,
+  }
+  if (totalScore >= 76) return {
+    tier: 13, category: '최적화+', label: 'Lv.13 최적화2+', shortLabel: '최적화2+',
+    description: '경쟁 키워드에서도 안정적으로 상위 노출됩니다. 전문성을 더 강화하세요.',
+    color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', nextTierScore: 82,
   }
   if (totalScore >= 70) return {
-    tier: 9, category: '최적화', label: 'Lv.9 최적화 1', shortLabel: '최적화1',
+    tier: 12, category: '최적화+', label: 'Lv.12 최적화1+', shortLabel: '최적화1+',
+    description: '검색 노출이 매우 우수합니다. 고급 키워드 전략으로 더 높은 등급에 도전하세요.',
+    color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', nextTierScore: 76,
+  }
+  if (totalScore >= 64) return {
+    tier: 11, category: '최적화', label: 'Lv.11 최적화3', shortLabel: '최적화3',
+    description: '안정적인 검색 노출력을 보유하고 있습니다. 최적화+ 등급을 향해 도전하세요.',
+    color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', nextTierScore: 70,
+  }
+  if (totalScore >= 57) return {
+    tier: 10, category: '최적화', label: 'Lv.10 최적화2', shortLabel: '최적화2',
+    description: '안정적인 검색 노출력을 보유하고 있습니다. 콘텐츠 깊이를 더 높여보세요.',
+    color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', nextTierScore: 64,
+  }
+  if (totalScore >= 51) return {
+    tier: 9, category: '최적화', label: 'Lv.9 최적화1', shortLabel: '최적화1',
     description: '안정적인 검색 노출력을 보유하고 있습니다. 경쟁 키워드도 도전해보세요.',
-    color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', nextTierScore: 80,
+    color: 'lime', badgeColor: 'bg-lime-100 text-lime-700 border-lime-300', nextTierScore: 57,
   }
-  if (totalScore >= 63) return {
-    tier: 8, category: '준최적화', label: 'Lv.8 준최적화 3', shortLabel: '준최적화3',
-    description: '키워드에 따라 상위 노출이 가능합니다. 콘텐츠 품질을 더 높여보세요.',
-    color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', nextTierScore: 70,
+  if (totalScore >= 45) return {
+    tier: 8, category: '준최적화', label: 'Lv.8 준최적화7', shortLabel: '준최적화7',
+    description: '검색 노출이 시작되는 단계입니다. 콘텐츠 품질을 더 높여보세요.',
+    color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', nextTierScore: 51,
   }
-  if (totalScore >= 55) return {
-    tier: 7, category: '준최적화', label: 'Lv.7 준최적화 2', shortLabel: '준최적화2',
-    description: '검색 노출이 본격화되는 단계입니다. 주제 전문성을 강화하세요.',
-    color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', nextTierScore: 63,
-  }
-  if (totalScore >= 48) return {
-    tier: 6, category: '준최적화', label: 'Lv.6 준최적화 1', shortLabel: '준최적화1',
-    description: '검색 노출이 시작되는 단계입니다. 활동성을 강화하세요.',
-    color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', nextTierScore: 55,
-  }
-  if (totalScore >= 40) return {
-    tier: 5, category: '일반', label: 'Lv.5 일반 3', shortLabel: '일반3',
-    description: 'SEO 기본기가 갖춰지고 있습니다. 키워드 전략을 세워보세요.',
-    color: 'yellow', badgeColor: 'bg-yellow-100 text-yellow-700 border-yellow-300', nextTierScore: 48,
+  if (totalScore >= 38) return {
+    tier: 7, category: '준최적화', label: 'Lv.7 준최적화6', shortLabel: '준최적화6',
+    description: '검색 노출이 시작되는 단계입니다. 주제 전문성을 강화하세요.',
+    color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', nextTierScore: 45,
   }
   if (totalScore >= 32) return {
-    tier: 4, category: '일반', label: 'Lv.4 일반 2', shortLabel: '일반2',
-    description: '기본적인 활동은 하고 있으나 SEO 최적화가 부족합니다.',
-    color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', nextTierScore: 40,
+    tier: 6, category: '준최적화', label: 'Lv.6 준최적화5', shortLabel: '준최적화5',
+    description: '검색 노출이 시작되는 단계입니다. 활동성을 강화하세요.',
+    color: 'sky', badgeColor: 'bg-sky-100 text-sky-700 border-sky-300', nextTierScore: 38,
   }
-  if (totalScore >= 25) return {
-    tier: 3, category: '일반', label: 'Lv.3 일반 1', shortLabel: '일반1',
-    description: '블로그를 시작한 단계입니다. 꾸준한 포스팅이 가장 중요합니다.',
-    color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', nextTierScore: 32,
+  if (totalScore >= 26) return {
+    tier: 5, category: '준최적화', label: 'Lv.5 준최적화4', shortLabel: '준최적화4',
+    description: '검색 노출이 시작되는 단계입니다. 키워드 전략을 세워보세요.',
+    color: 'sky', badgeColor: 'bg-sky-100 text-sky-700 border-sky-300', nextTierScore: 32,
+  }
+  if (totalScore >= 20) return {
+    tier: 4, category: '준최적화', label: 'Lv.4 준최적화3', shortLabel: '준최적화3',
+    description: 'SEO 기본기가 갖춰지고 있습니다. 꾸준한 포스팅이 중요합니다.',
+    color: 'indigo', badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-300', nextTierScore: 26,
   }
   if (totalScore >= 13) return {
-    tier: 2, category: '저품질', label: 'Lv.2 저품질 2', shortLabel: '저품질2',
-    description: '블로그 활동이 매우 부족합니다. 주 3회 이상 양질의 글을 발행하세요.',
-    color: 'rose', badgeColor: 'bg-rose-100 text-rose-700 border-rose-300', nextTierScore: 25,
+    tier: 3, category: '준최적화', label: 'Lv.3 준최적화2', shortLabel: '준최적화2',
+    description: '기본적인 활동은 하고 있습니다. SEO 최적화를 시작해보세요.',
+    color: 'indigo', badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-300', nextTierScore: 20,
+  }
+  if (totalScore >= 7) return {
+    tier: 2, category: '준최적화', label: 'Lv.2 준최적화1', shortLabel: '준최적화1',
+    description: '블로그를 시작한 초기 단계입니다. 주 3회 이상 양질의 글을 발행하세요.',
+    color: 'violet', badgeColor: 'bg-violet-100 text-violet-700 border-violet-300', nextTierScore: 13,
   }
   return {
-    tier: 1, category: '저품질', label: 'Lv.1 저품질 1', shortLabel: '저품질1',
-    description: '저품질 블로그로 분류될 위험이 높습니다. 콘텐츠 품질부터 개선하세요.',
-    color: 'red', badgeColor: 'bg-red-100 text-red-700 border-red-300', nextTierScore: 13,
+    tier: 1, category: '일반', label: 'Lv.1 일반', shortLabel: '일반',
+    description: '블로그를 시작한 초기 단계입니다. 꾸준한 포스팅이 핵심입니다.',
+    color: 'slate', badgeColor: 'bg-slate-100 text-slate-700 border-slate-300', nextTierScore: 7,
   }
 }
 
@@ -238,13 +263,13 @@ export function generateRecommendations(
 
   // ── 5단계: 포스트별 빠른 개선 기회 ──
   if (posts && posts.length > 0 && recs.length < 6) {
-    const lowQualityPosts = posts.filter(p => p.quality.tier <= 3)
-    const improvablePosts = posts.filter(p => p.quality.tier >= 4 && p.quality.tier <= 6)
+    const lowQualityPosts = posts.filter(p => p.quality.tier <= 1)
+    const improvablePosts = posts.filter(p => p.quality.tier === 2)
 
     if (lowQualityPosts.length >= 3) {
-      recs.push(`최근 포스트 중 ${lowQualityPosts.length}개가 저품질입니다 - 이미지 추가 + 본문 보강으로 빠르게 개선할 수 있습니다`)
+      recs.push(`최근 포스트 중 ${lowQualityPosts.length}개가 일반 등급입니다 - 이미지 추가 + 본문 보강으로 빠르게 개선할 수 있습니다`)
     } else if (improvablePosts.length >= 2) {
-      recs.push(`"일반" 등급 포스트 ${improvablePosts.length}개를 소제목 구조화 + 이미지 추가로 "준최적화"로 업그레이드하세요`)
+      recs.push(`"준최적화1" 등급 포스트 ${improvablePosts.length}개를 소제목 구조화 + 이미지 추가로 업그레이드하세요`)
     }
 
     const noImagePosts = posts.filter(p => !p.hasImage)
@@ -256,10 +281,10 @@ export function generateRecommendations(
   // ── 6단계: 추천이 없거나 부족하면 등급별 맞춤 가이드 ──
   if (recs.length < 2) {
     const tier = level?.tier || 0
-    if (tier >= 9) {
+    if (tier >= 12) {
       recs.push('현재 높은 수준을 유지하고 있습니다 - 경쟁 키워드 분석으로 새로운 상위 노출 기회를 발굴하세요')
       recs.push('기존 인기 글을 주기적으로 업데이트하면 검색 노출이 장기적으로 유지됩니다')
-    } else if (tier >= 6) {
+    } else if (tier >= 9) {
       recs.push('콘텐츠에 직접 경험, 비교 정보, 구체적 수치를 추가하면 D.I.A. 품질 점수가 올라갑니다')
       recs.push('같은 주제로 시리즈 포스팅을 작성하면 C-Rank 전문성이 빠르게 쌓입니다')
     } else {

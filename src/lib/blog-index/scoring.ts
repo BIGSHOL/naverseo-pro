@@ -63,22 +63,16 @@ export function scorePost(
   else if (engagement >= 10) score += 2
   else if (engagement >= 3) score += 1
 
-  // score 0~15 → 등급 매핑 (v4 조정)
+  // score 0~15 → 등급 매핑 (v6: 저품질 폐지, 5단계)
   let tier: number
   let category: string
   let label: string
 
-  if (score >= 14) { tier = 11; category = '파워'; label = '파워' }
-  else if (score >= 13) { tier = 10; category = '최적화'; label = '최적화2' }
-  else if (score >= 12) { tier = 9; category = '최적화'; label = '최적화1' }
-  else if (score >= 10) { tier = 8; category = '준최적화'; label = '준최적화3' }
-  else if (score >= 8) { tier = 7; category = '준최적화'; label = '준최적화2' }
-  else if (score >= 6) { tier = 6; category = '준최적화'; label = '준최적화1' }
-  else if (score >= 5) { tier = 5; category = '일반'; label = '일반3' }
-  else if (score >= 4) { tier = 4; category = '일반'; label = '일반2' }
-  else if (score >= 3) { tier = 3; category = '일반'; label = '일반1' }
-  else if (score >= 1) { tier = 2; category = '저품질'; label = '저품질2' }
-  else { tier = 1; category = '저품질'; label = '저품질1' }
+  if (score >= 14) { tier = 5; category = '파워'; label = '파워' }
+  else if (score >= 12) { tier = 4; category = '최적화'; label = '최적화' }
+  else if (score >= 8) { tier = 3; category = '준최적화'; label = '준최적화' }
+  else if (score >= 4) { tier = 2; category = '일반'; label = '일반' }
+  else { tier = 1; category = '일반'; label = '일반' }
 
   return { score, tier, label, category }
 }

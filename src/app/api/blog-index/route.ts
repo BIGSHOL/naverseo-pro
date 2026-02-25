@@ -275,6 +275,8 @@ export async function POST(request: NextRequest) {
       const activityCat = result.categories.find((c: { name: string }) => c.name === '활동성')
       const trustCat = result.categories.find((c: { name: string }) => c.name === '블로그 신뢰도')
 
+      const topicCat = result.categories.find((c: { name: string }) => c.name === '주제 전문성')
+
       const historyRow = {
         user_id: user.id,
         blog_url: blogUrl.trim(),
@@ -294,6 +296,7 @@ export async function POST(request: NextRequest) {
           totalPostCount: result.blogProfile?.totalPostCount ?? result.postAnalysis.totalFound,
           postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
           trustScore: trustCat?.score ?? null,  // v5: 신뢰도 점수 (JSONB 추가)
+          topicAuthorityScore: topicCat?.score ?? null,  // v6: 주제 전문성 점수 (카테고리별 추이 차트용)
         },
         full_result: result,
         is_demo: isDemo,
