@@ -382,8 +382,9 @@ export default function DashboardPage() {
                     <h3 className="font-semibold text-lg">{blogProfile.blogName}</h3>
                     <a
                       href={ensureUrl(blogProfile.blogUrl)}
-                      onClick={(e) => { e.preventDefault(); const u = ensureUrl(blogProfile.blogUrl); if (u) window.open(u, '_blank', 'noopener') }}
-                      className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 cursor-pointer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
                     >
                       {blogProfile.blogUrl}
                       <ExternalLink className="h-3 w-3" />

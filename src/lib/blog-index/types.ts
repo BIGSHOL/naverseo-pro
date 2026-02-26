@@ -97,6 +97,7 @@ export interface BlogProfile {
   estimatedStartDate: string | null
   isActive: boolean
   blogAgeDays: number | null    // 블로그 운영 일수 (분석 기간 기준)
+  blogAgeEstimated?: boolean    // true면 추정값 (개설일 추출 실패)
   postsPerWeek: number | null   // 주간 포스팅 수
   totalPostCount?: number | null  // v4: 프로필에서 추출한 전체 포스트 수
   blogCreatedDate?: string | null // v4: 프로필에서 추출한 블로그 개설일

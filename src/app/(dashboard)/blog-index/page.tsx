@@ -116,6 +116,7 @@ interface BlogProfile {
   estimatedStartDate: string | null
   isActive: boolean
   blogAgeDays?: number | null
+  blogAgeEstimated?: boolean
   postsPerWeek?: number | null
   totalPostCount?: number | null
   blogCreatedDate?: string | null
@@ -807,7 +808,7 @@ export default function BlogIndexPage() {
                         { icon: <FileText className="h-3 w-3" />, label: '총 포스팅', value: `${result.blogProfile?.totalPostCount ?? result.blogProfile?.totalPosts ?? result.postAnalysis.totalFound}개` },
                         { icon: <Clock className="h-3 w-3" />, label: '최근 포스팅', value: result.postAnalysis.recentPostDays !== null ? `${result.postAnalysis.recentPostDays}일 전` : '-' },
                         { icon: <TrendingUp className="h-3 w-3" />, label: '포스팅 빈도', value: result.postAnalysis.postingFrequency },
-                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: '블로그 연차 (참고)', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
+                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: result.blogProfile.blogAgeEstimated ? '블로그 연차 (추정)' : '블로그 연차', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
                         ...(result.benchmark?.buddyCount ? [{ icon: <Users className="h-3 w-3" />, label: '이웃', value: `${result.benchmark.buddyCount.mine.toLocaleString()}명` }] : []),
                         { icon: <Target className="h-3 w-3" />, label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
                       ].map((item, i) => (
@@ -830,8 +831,9 @@ export default function BlogIndexPage() {
                     )}
                     <a
                       href={ensureUrl(result.blogUrl)}
-                      onClick={(e) => { e.preventDefault(); const u = ensureUrl(result.blogUrl); if (u) window.open(u, '_blank', 'noopener') }}
-                      className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline"
                     >
                       블로그 방문 <ExternalLink className="h-3 w-3" />
                     </a>
@@ -1394,8 +1396,9 @@ export default function BlogIndexPage() {
                             <td className="py-2 pr-2">
                               <a
                                 href={ensureUrl(post.link)}
-                                onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
-                                className="group flex items-center gap-1 hover:text-primary cursor-pointer"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex items-center gap-1 hover:text-primary"
                               >
                                 <span className="line-clamp-1 text-xs font-medium">{post.title}</span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />

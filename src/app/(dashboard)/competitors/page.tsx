@@ -405,8 +405,9 @@ export default function CompetitorsPage() {
                         <td className="py-3 pr-4">
                           <a
                             href={ensureUrl(comp.link)}
-                            onClick={(e) => { e.preventDefault(); const u = ensureUrl(comp.link); if (u) window.open(u, '_blank', 'noopener') }}
-                            className="group flex items-start gap-1 font-medium hover:text-primary cursor-pointer"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-start gap-1 font-medium hover:text-primary"
                           >
                             <span className="line-clamp-2">{comp.title}</span>
                             <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />

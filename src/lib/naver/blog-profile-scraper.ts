@@ -166,28 +166,41 @@ function extractSubscriberCount(html: string): number | null {
  * 프로필 페이지에 명시된 날짜 정보를 찾음
  */
 function extractBlogStartDate(html: string): string | null {
-    const patterns = [
-        // "블로그 시작일" 또는 "개설일" 관련
-        /(?:시작일|개설일|since)\s*[:：]?\s*(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/i,
-        // "YYYY.MM.DD부터" 패턴
-        /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*(?:부터|~|개설)/,
-        // JSON 데이터 내 blogStart 관련
-        /"blogStart(?:Date)?"\s*:\s*"(\d{4}-\d{2}-\d{2})"/,
+    // 1) __INITIAL_STATE__ JSON에서 ISO 날짜 형식 필드 추출 (가장 신뢰도 높음)
+    const jsonDatePatterns = [
+        /"blogStart(?:Date)?"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"createDate"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"createYmdt"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"blogCreateYmdt"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"openDate"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"blogOpenDate"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
+        /"firstPublishDate"\s*:\s*"(\d{4}-\d{2}-\d{2})/,
     ]
 
-    for (const pattern of patterns) {
+    for (const pattern of jsonDatePatterns) {
         const match = html.match(pattern)
-        if (match) {
-            if (match[1] && match[1].includes('-') && match[1].length === 10) {
-                return match[1] // YYYY-MM-DD 형식
+        if (match && match[1]) {
+            const [y, m, d] = match[1].split('-').map(Number)
+            if (y >= 2000 && y <= 2030 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+                return match[1]
             }
-            if (match[1] && match[2] && match[3]) {
-                const year = parseInt(match[1], 10)
-                const month = parseInt(match[2], 10)
-                const day = parseInt(match[3], 10)
-                if (year >= 2000 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                }
+        }
+    }
+
+    // 2) 텍스트 패턴에서 추출
+    const textPatterns = [
+        /(?:시작일|개설일|since)\s*[:：]?\s*(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/i,
+        /(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*(?:부터|~|개설)/,
+    ]
+
+    for (const pattern of textPatterns) {
+        const match = html.match(pattern)
+        if (match && match[1] && match[2] && match[3]) {
+            const year = parseInt(match[1], 10)
+            const month = parseInt(match[2], 10)
+            const day = parseInt(match[3], 10)
+            if (year >= 2000 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             }
         }
     }

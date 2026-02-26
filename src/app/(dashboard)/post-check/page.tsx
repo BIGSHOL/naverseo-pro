@@ -213,8 +213,9 @@ export default function PostCheckPage() {
                       </div>
                       <a
                         href={ensureUrl(post.link)}
-                        onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
-                        className="shrink-0 cursor-pointer"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0"
                       >
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
                           <ExternalLink className="h-3 w-3" />
@@ -264,8 +265,9 @@ export default function PostCheckPage() {
                       <Badge variant="outline" className="text-xs shrink-0">색인됨</Badge>
                       <a
                         href={ensureUrl(post.link)}
-                        onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
-                        className="shrink-0 cursor-pointer"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0"
                       >
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
                           <ExternalLink className="h-3 w-3" />

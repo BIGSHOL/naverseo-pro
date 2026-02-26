@@ -87,7 +87,7 @@ export function analyzeBlogIndex(
   const searchPerformance = analyzeSearchPower(keywordResults, keywordCompetition)  // 25점 (보너스, 등급 미반영)
   const popularity = analyzePopularity(visitorData, engagementData, blogProfileData) // 20점
   const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 20점
-  const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 20점
+  const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts, blogName, blogId)  // 20점
   const { activity, trust, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 활동성(20) + 신뢰도(20)
   const abusePenalty = analyzeAbuse(posts, scrapedData)                              // -20점 max
 
@@ -173,13 +173,31 @@ export function analyzeBlogIndex(
     ? `${sortedDates[0].getFullYear()}.${String(sortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(sortedDates[0].getDate()).padStart(2, '0')}`
     : null
 
-  const blogAgeDays = blogProfileData?.blogAgeDays
-    ?? (sortedDates.length > 0 ? daysBetween(now, sortedDates[0]) : null)
-
   let postsPerWeek: number | null = null
   if (sortedDates.length >= 2) {
     const spanDays = daysBetween(sortedDates[sortedDates.length - 1], sortedDates[0]) || 1
     postsPerWeek = Math.round((sortedDates.length / spanDays) * 7 * 10) / 10
+  }
+
+  // 블로그 연차 계산 (3단계 폴백)
+  // 1) 프로필 스크래핑에서 개설일 추출 성공 → 정확한 값
+  // 2) 총 포스트 수 + 포스팅 빈도로 추정 (예: 203개 / 주4회 = 약 51주)
+  // 3) 조회된 포스트 중 가장 오래된 것 기준 (최후 수단, 부정확)
+  let blogAgeDays: number | null = blogProfileData?.blogAgeDays ?? null
+  let blogAgeEstimated = false
+
+  if (blogAgeDays === null && postsPerWeek && postsPerWeek > 0) {
+    const totalPosts = blogProfileData?.totalPostCount ?? posts.length
+    if (totalPosts > posts.length) {
+      // 총 포스트가 조회 포스트보다 많으면 → 빈도로 역산
+      blogAgeDays = Math.round((totalPosts / postsPerWeek) * 7)
+      blogAgeEstimated = true
+    }
+  }
+
+  if (blogAgeDays === null && sortedDates.length > 0) {
+    blogAgeDays = daysBetween(now, sortedDates[0])
+    blogAgeEstimated = true
   }
 
   const blogProfile: BlogProfile = {
@@ -191,6 +209,7 @@ export function analyzeBlogIndex(
     estimatedStartDate,
     isActive: recentPostDays !== null && recentPostDays <= 30,
     blogAgeDays,
+    blogAgeEstimated,
     postsPerWeek,
     totalPostCount: blogProfileData?.totalPostCount ?? null,
     blogCreatedDate: blogProfileData?.blogStartDate ?? null,

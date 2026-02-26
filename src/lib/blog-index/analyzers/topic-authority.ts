@@ -7,7 +7,11 @@
 import { stripHtml, extractKoreanKeywords } from '@/lib/utils/text'
 import type { BlogPost, AnalysisCategory } from '../types'
 
-export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCategory; topicKeywords: string[] } {
+export function analyzeTopicAuthority(
+  posts: BlogPost[],
+  blogName?: string | null,
+  blogId?: string | null,
+): { category: AnalysisCategory; topicKeywords: string[] } {
   const maxScore = 20
   const details: string[] = []
   let score = 0
@@ -20,6 +24,14 @@ export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCa
     }
   }
 
+  // 블로그명/상호명에서 브랜드 키워드 추출 (이들은 주제 집중도 계산에서 제외)
+  const brandKeywords = new Set<string>()
+  const brandSources = [blogName, blogId].filter(Boolean) as string[]
+  for (const src of brandSources) {
+    const words = extractKoreanKeywords(src)
+    words.forEach(w => brandKeywords.add(w))
+  }
+
   // 모든 제목+설명에서 키워드 추출
   const wordFreq: Record<string, number> = {}
 
@@ -28,7 +40,9 @@ export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCa
     const words = extractKoreanKeywords(text)
     const uniqueWords = Array.from(new Set(words))
     uniqueWords.forEach((w) => {
-      wordFreq[w] = (wordFreq[w] || 0) + 1
+      if (!brandKeywords.has(w)) {
+        wordFreq[w] = (wordFreq[w] || 0) + 1
+      }
     })
   })
 
@@ -37,6 +51,10 @@ export function analyzeTopicAuthority(posts: BlogPost[]): { category: AnalysisCa
     .slice(0, 15)
 
   sorted.slice(0, 5).forEach(([word]) => topicKeywords.push(word))
+
+  if (brandKeywords.size > 0) {
+    details.push(`브랜드 키워드 제외: ${Array.from(brandKeywords).slice(0, 3).join(', ')}`)
+  }
 
   // === 주제 집중도 (12점) ===
   if (sorted.length > 0) {
