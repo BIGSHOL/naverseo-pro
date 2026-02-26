@@ -1,14 +1,14 @@
 /**
- * NaverSEO Pro - 블로그 지수 측정 엔진 v5
+ * NaverSEO Pro - 블로그 지수 측정 엔진 v7
  *
- * v5 점수 체계: 5축 균등 배분 + 검색 보너스 분리
+ * v7 점수 체계: 5축 균등 배분 + 검색 보너스 분리
  *
  * 5대 분석 축 (각 20점 × 5 = 100점):
- * 1. 방문자 & 인기도 - 20점: 일평균 방문자, 평균 댓글, 평균 공감
- * 2. 콘텐츠 품질 - 20점: 깊이, 이미지, 구조
+ * 1. 방문자 & 인기도 - 20점: 일평균 방문자(7), 댓글(5), 공감(4), 이웃수(4)
+ * 2. 콘텐츠 품질 - 20점: 깊이(7), 이미지(5), 구조(4), 품질일관성(4)
  * 3. 주제 전문성 - 20점: 집중도, 일관성
- * 4. 활동성 - 20점: 빈도, 규칙성, 최근성
- * 5. 블로그 신뢰도 - 20점: 연차, 누적 포스팅
+ * 4. 활동성 - 20점: 빈도(8), 규칙성(6), 최근성(6)
+ * 5. 블로그 신뢰도 - 20점: 활동기간(10), 누적포스팅(10)
  * P. 어뷰징 감점 - 최대 -20점
  *
  * 검색 보너스 +α (25점 만점, 등급 미반영)
@@ -74,7 +74,8 @@ export function analyzeBlogIndex(
   keywordCompetition?: KeywordCompetitionData[],
   visitorData?: VisitorData | null,
   scrapedData?: Map<string, ScrapedPostData> | null,
-  blogProfileData?: BlogProfileData | null
+  blogProfileData?: BlogProfileData | null,
+  categoryBenchmarkValues?: import('./categories').CategoryBenchmarkValues | null,
 ): BlogIndexResult {
   const blogId = extractBlogId(blogUrl)
   const now = new Date()
@@ -84,7 +85,7 @@ export function analyzeBlogIndex(
 
   // 5대 분석 축 + 검색 보너스 + 어뷰징 페널티 실행
   const searchPerformance = analyzeSearchPower(keywordResults, keywordCompetition)  // 25점 (보너스, 등급 미반영)
-  const popularity = analyzePopularity(visitorData, engagementData)                 // 20점
+  const popularity = analyzePopularity(visitorData, engagementData, blogProfileData) // 20점
   const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 20점
   const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 20점
   const { activity, trust, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 활동성(20) + 신뢰도(20)
@@ -225,48 +226,57 @@ export function analyzeBlogIndex(
   else if (totalScore >= 25) categoryPercentile = 80
   else categoryPercentile = 95
 
+  // 카테고리별 벤치마크 값 (없으면 기존 하드코딩 폴백)
+  const cb = categoryBenchmarkValues
+
   const benchmark: BenchmarkData = {
     postingFrequency: {
       mine: postsPerWeek || 0,
-      recommended: 3,
-      topBlogger: 5,
+      recommended: cb?.postingFrequency.recommended ?? 3,
+      topBlogger: cb?.postingFrequency.topBlogger ?? 5,
     },
-    avgTitleLength: { mine: avgTitleLength, optimal: 25 },
-    avgContentLength: { mine: avgDescLength, recommended: 150 },
-    imageRate: { mine: imageRate, recommended: 80 },
-    topicFocus: { mine: topicFocusPct, recommended: 60 },
+    avgTitleLength: { mine: avgTitleLength, optimal: cb?.avgTitleLength.optimal ?? 25 },
+    avgContentLength: { mine: avgDescLength, recommended: cb?.avgContentLength.recommended ?? 150 },
+    imageRate: { mine: imageRate, recommended: cb?.imageRate.recommended ?? 80 },
+    topicFocus: { mine: topicFocusPct, recommended: cb?.topicFocus.recommended ?? 60 },
     keywordDensity: { mine: keywordDensity, optimal: [0.5, 3.0] },
-    avgImageCount: { mine: avgImageCount, recommended: 3 },
+    avgImageCount: { mine: avgImageCount, recommended: cb?.avgImageCount.recommended ?? 3 },
     optimizationPct,
     categoryPercentile,
     // v4 신규 벤치마크 항목 (데이터 수집 성공 시에만 포함)
     ...(engagementData?.isAvailable && engagementData.avgCommentCount !== null ? {
       avgCommentCount: {
         mine: engagementData.avgCommentCount,
-        recommended: 5,
+        recommended: cb?.avgCommentCount.recommended ?? 5,
       },
     } : {}),
     ...(engagementData?.isAvailable && engagementData.avgSympathyCount !== null ? {
       avgSympathyCount: {
         mine: engagementData.avgSympathyCount,
-        recommended: 10,
+        recommended: cb?.avgSympathyCount.recommended ?? 10,
       },
     } : {}),
     ...(visitorData?.isAvailable ? {
       dailyVisitors: {
         mine: visitorData.avgDailyVisitors,
-        recommended: 200,
-        topBlogger: 1000,
+        recommended: cb?.dailyVisitors.recommended ?? 200,
+        topBlogger: cb?.dailyVisitors.topBlogger ?? 1000,
       },
     } : {}),
     blogAge: {
       mine: blogAgeDays ?? 0,
-      recommended: 365,
+      recommended: cb?.blogAge.recommended ?? 365,
     },
     totalPostCount: {
       mine: blogProfileData?.totalPostCount ?? posts.length,
-      recommended: 100,
+      recommended: cb?.totalPostCount.recommended ?? 100,
     },
+    ...(blogProfileData?.buddyCount != null ? {
+      buddyCount: {
+        mine: blogProfileData.buddyCount,
+        recommended: 300,
+      },
+    } : {}),
   }
 
   // 벤치마크/포스트 데이터를 활용한 구체적 추천 생성

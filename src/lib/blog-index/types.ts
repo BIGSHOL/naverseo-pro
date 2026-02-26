@@ -9,12 +9,14 @@ export interface BlogPost {
   postdate: string // YYYYMMDD
 }
 
-/** 블로그 프로필 크롤링 데이터 (v4 신규) */
+/** 블로그 프로필 크롤링 데이터 (v4 신규, v7 buddyCount/subscriberCount 추가) */
 export interface BlogProfileData {
   totalPostCount: number | null
   blogStartDate: string | null
   blogAgeDays: number | null
-  dayVisitorCount?: number | null  // 프로필 페이지에서 추출한 오늘 방문자 수 (방문자 API 폴백용)
+  dayVisitorCount?: number | null   // 프로필 페이지에서 추출한 오늘 방문자 수
+  buddyCount?: number | null        // 이웃 수 (__INITIAL_STATE__에서 추출)
+  subscriberCount?: number | null   // 구독자 수
 }
 
 /** 인기도 데이터 집계 (v4 신규) */
@@ -114,8 +116,9 @@ export interface BenchmarkData {
   avgCommentCount?: { mine: number; recommended: number }      // 평균 댓글 수
   avgSympathyCount?: { mine: number; recommended: number }     // 평균 공감 수
   dailyVisitors?: { mine: number; recommended: number; topBlogger: number }  // 일평균 방문자
-  blogAge?: { mine: number; recommended: number }              // 블로그 연차 (일수)
+  blogAge?: { mine: number; recommended: number }              // 블로그 연차 (일수, 표시용)
   totalPostCount?: { mine: number; recommended: number }       // 총 포스팅 수
+  buddyCount?: { mine: number; recommended: number }           // 이웃 수 (v7 추가)
 }
 
 /** 어뷰징 페널티 결과 (v2 추가) */
@@ -174,4 +177,8 @@ export interface BlogIndexResult {
   recommendations: string[]
   isDemo: boolean
   checkedAt: string
+  // v6 추가: 카테고리별 벤치마크
+  blogCategory?: string              // 감지된 블로그 카테고리 (food, it_tech 등)
+  benchmarkSource?: 'accumulated' | 'static'  // 벤치마크 데이터 출처
+  benchmarkSampleCount?: number      // 축적 데이터 샘플 수
 }

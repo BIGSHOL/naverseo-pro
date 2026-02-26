@@ -33,6 +33,7 @@ import {
   Heart,
   RefreshCw,
   Database,
+  Users,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,8 @@ import {
 } from '@/components/ui/dialog'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
+import { ensureUrl } from '@/lib/utils/text'
 
 const BlogIndexHistoryChart = dynamic(
   () => import('@/components/charts/blog-index-history-chart').then(m => ({ default: m.BlogIndexHistoryChart })),
@@ -133,6 +136,7 @@ interface BenchmarkData {
   dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
   blogAge?: { mine: number; recommended: number }
   totalPostCount?: { mine: number; recommended: number }
+  buddyCount?: { mine: number; recommended: number }
 }
 
 interface AiAnalysis {
@@ -190,6 +194,10 @@ interface BlogIndexResult {
   recommendations: string[]
   isDemo: boolean
   checkedAt: string
+  // v6 추가: 카테고리별 벤치마크
+  blogCategory?: string
+  benchmarkSource?: 'accumulated' | 'static'
+  benchmarkSampleCount?: number
 }
 
 interface BlogIndexHistoryEntry {
@@ -799,7 +807,8 @@ export default function BlogIndexPage() {
                         { icon: <FileText className="h-3 w-3" />, label: '총 포스팅', value: `${result.blogProfile?.totalPostCount ?? result.blogProfile?.totalPosts ?? result.postAnalysis.totalFound}개` },
                         { icon: <Clock className="h-3 w-3" />, label: '최근 포스팅', value: result.postAnalysis.recentPostDays !== null ? `${result.postAnalysis.recentPostDays}일 전` : '-' },
                         { icon: <TrendingUp className="h-3 w-3" />, label: '포스팅 빈도', value: result.postAnalysis.postingFrequency },
-                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: '블로그 연차', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
+                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: '블로그 연차 (참고)', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
+                        ...(result.benchmark?.buddyCount ? [{ icon: <Users className="h-3 w-3" />, label: '이웃', value: `${result.benchmark.buddyCount.mine.toLocaleString()}명` }] : []),
                         { icon: <Target className="h-3 w-3" />, label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center justify-between rounded bg-muted/50 px-2.5 py-1.5">
@@ -819,7 +828,7 @@ export default function BlogIndexPage() {
                         </div>
                       </div>
                     )}
-                    <a href={result.blogUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline">
+                    <a href={ensureUrl(result.blogUrl)} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline">
                       블로그 방문 <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
@@ -1081,6 +1090,14 @@ export default function BlogIndexPage() {
                   <div className="flex items-center gap-2 mb-3">
                     <BarChart3 className="h-4 w-4" />
                     <p className="text-sm font-semibold">벤치마크 비교</p>
+                    {result.blogCategory && result.blogCategory !== 'general' && (
+                      <span className="text-xs text-muted-foreground">
+                        — {BLOG_CATEGORY_LABELS[result.blogCategory as keyof typeof BLOG_CATEGORY_LABELS] || result.blogCategory} 기준
+                        {result.benchmarkSource === 'accumulated' && result.benchmarkSampleCount
+                          ? ` (${result.benchmarkSampleCount}개 블로그 데이터)`
+                          : ' (기본값)'}
+                      </span>
+                    )}
                   </div>
                   <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
                     <BenchmarkBar label="주간 포스팅" mine={result.benchmark.postingFrequency.mine} target={result.benchmark.postingFrequency.recommended} targetLabel="권장" max={Math.max(result.benchmark.postingFrequency.topBlogger, result.benchmark.postingFrequency.mine, 7)} />
@@ -1371,7 +1388,7 @@ export default function BlogIndexPage() {
                         {result.recentPosts.map((post, i) => (
                           <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                             <td className="py-2 pr-2">
-                              <a href={post.link} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-1 hover:text-primary">
+                              <a href={ensureUrl(post.link)} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-1 hover:text-primary">
                                 <span className="line-clamp-1 text-xs font-medium">{post.title}</span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
                               </a>

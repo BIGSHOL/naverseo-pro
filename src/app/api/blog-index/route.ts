@@ -19,6 +19,9 @@ import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
+import { detectBlogCategory, BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
+import { getCategoryBenchmark } from '@/lib/blog-index/benchmark-provider'
+import { accumulateBenchmarkData } from '@/lib/blog-index/benchmark-accumulator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -250,31 +253,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5축 블로그 지수 분석 엔진 실행 (v5: 5축 균등 + 검색 보너스 분리)
+    // === 7단계: 카테고리 감지 + 카테고리별 벤치마크 조회 ===
+    const topicKeywords = posts.length > 0 ? extractKeywordsFromPosts(posts) : []
+    const blogCategory = detectBlogCategory(topicKeywords)
+    const categoryBenchmark = await getCategoryBenchmark(blogCategory)
+    console.log(`[BlogIndex] 카테고리: ${blogCategory} (${BLOG_CATEGORY_LABELS[blogCategory]}, ${categoryBenchmark.source}, 샘플 ${categoryBenchmark.sampleCount}개)`)
+
+    // 5축 블로그 지수 분석 엔진 실행 (v6: 카테고리별 벤치마크)
     const result = analyzeBlogIndex(
       blogUrl.trim(), posts, keywordResults, isDemo, blogName,
       keywordCompetition.length > 0 ? keywordCompetition : undefined,
       visitorData,
       scrapedData,
-      blogProfileData  // v4: 블로그 프로필 데이터 (연차, 누적 포스팅 수)
+      blogProfileData,
+      categoryBenchmark.values,
     )
+
+    // 카테고리 + 벤치마크 소스 정보 주입
+    result.blogCategory = blogCategory
+    result.benchmarkSource = categoryBenchmark.source
+    result.benchmarkSampleCount = categoryBenchmark.sampleCount
 
     // AI 심층 분석은 별도 API(/api/blog-index/ai)에서 온디맨드로 실행
 
     // 크레딧 차감
     await deductCredits(supabase, user.id, 'blog_index', { blogUrl: blogUrl.trim() })
 
+    // 벤치마크 데이터 축적 (fire-and-forget, 데모 제외)
+    if (!isDemo) {
+      scheduleCollection(() => accumulateBenchmarkData(blogCategory, result.benchmark, result.totalScore))
+    }
+
     // 히스토리 자동 저장 (에러 나도 측정 결과에 영향 없음)
     try {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-
       // 5축 + 검색 보너스 점수 추출
       const popCat = result.categories.find((c: { name: string }) => c.name === '방문자 & 인기도')
       const contentCat = result.categories.find((c: { name: string }) => c.name === '콘텐츠 품질')
       const activityCat = result.categories.find((c: { name: string }) => c.name === '활동성')
       const trustCat = result.categories.find((c: { name: string }) => c.name === '블로그 신뢰도')
-
       const topicCat = result.categories.find((c: { name: string }) => c.name === '주제 전문성')
 
       const historyRow = {
@@ -282,7 +298,7 @@ export async function POST(request: NextRequest) {
         blog_url: blogUrl.trim(),
         blog_id: blogId || null,
         total_score: result.totalScore,
-        search_score: result.searchBonus?.score ?? null,  // 검색 보너스 (참고용, 추이에는 미포함)
+        search_score: result.searchBonus?.score ?? null,
         popularity_score: popCat?.score ?? null,
         content_score: contentCat?.score ?? null,
         activity_score: activityCat?.score ?? null,
@@ -295,8 +311,8 @@ export async function POST(request: NextRequest) {
           avgSympathyCount: result.postAnalysis.avgSympathyCount ?? null,
           totalPostCount: result.blogProfile?.totalPostCount ?? result.postAnalysis.totalFound,
           postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
-          trustScore: trustCat?.score ?? null,  // v5: 신뢰도 점수 (JSONB 추가)
-          topicAuthorityScore: topicCat?.score ?? null,  // v6: 주제 전문성 점수 (카테고리별 추이 차트용)
+          trustScore: trustCat?.score ?? null,
+          topicAuthorityScore: topicCat?.score ?? null,
         },
         full_result: result,
         is_demo: isDemo,
@@ -304,11 +320,15 @@ export async function POST(request: NextRequest) {
       }
 
       // 항상 새 레코드 삽입 (갱신할 때마다 히스토리로 쌓임)
-      await supabase
+      const { error: insertError } = await supabase
         .from('blog_index_history')
         .insert(historyRow)
+
+      if (insertError) {
+        console.error('[BlogIndex] 히스토리 저장 실패:', insertError.message, insertError.details, insertError.hint)
+      }
     } catch (historyError) {
-      console.error('[BlogIndex] 히스토리 저장 실패 (무시):', historyError)
+      console.error('[BlogIndex] 히스토리 저장 예외:', historyError)
     }
 
     return NextResponse.json(result)

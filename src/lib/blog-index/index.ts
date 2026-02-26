@@ -19,6 +19,14 @@ export {
 // AI 분석
 export { analyzeWithAi, generateDemoAiAnalysis } from './ai-analyzer'
 
+// 카테고리
+export { detectBlogCategory, BLOG_CATEGORY_LABELS } from './categories'
+export type { BlogCategory, CategoryBenchmarkValues } from './categories'
+
+// 벤치마크
+export { getCategoryBenchmark } from './benchmark-provider'
+export { accumulateBenchmarkData } from './benchmark-accumulator'
+
 // 타입
 export type {
   BlogPost,
