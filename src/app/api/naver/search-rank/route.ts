@@ -70,6 +70,32 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
 
         const topResults: SearchRankResult['topResults'] = []
 
+        // ── URL → 제목 맵 구축 (모든 <a> 링크에서 제목 수집) ──
+        const urlTitleMap = new Map<string, string>()
+        $('a[href]').each((_i, el) => {
+            const href = $(el).attr('href') || ''
+            const text = $(el).text().trim()
+            // 제목으로 보이는 텍스트만 (3~150자)
+            if (!href || !text || text.length < 3 || text.length > 150) return
+            let fullHref = href
+            if (!href.startsWith('http')) {
+                try { fullHref = new URL(href, 'https://m.naver.com').href } catch { return }
+            }
+            if (!urlTitleMap.has(fullHref)) {
+                urlTitleMap.set(fullHref, text)
+            }
+        })
+
+        // URL로 제목 검색 (정확 매칭 → 부분 매칭)
+        function findTitle(url: string): string {
+            if (urlTitleMap.has(url)) return urlTitleMap.get(url)!
+            // URL 끝부분으로 부분 매칭 시도
+            for (const [mapUrl, mapTitle] of urlTitleMap) {
+                if (mapUrl.includes(url) || url.includes(mapUrl)) return mapTitle
+            }
+            return ''
+        }
+
         // ── 방법 1: _keep_trigger 버튼의 data-url + data-cr-on 사용 (가장 정확) ──
         const keepBtns = $('button._keep_trigger[data-url]')
         if (keepBtns.length > 0) {
@@ -82,16 +108,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
 
                 const rank = parseRank(crOn)
                 const { type, typeDetail, source } = classifyByUrl(dataUrl)
-
-                // 부모 컨테이너에서 제목 추출
-                const $item = $(el).closest('li, .total_wrap, [class*="item"]')
-                const title = (
-                    $item.find('a.title_link').first().text().trim() ||
-                    $item.find('a[class*="title"]').first().text().trim() ||
-                    $item.find('.title').first().text().trim() ||
-                    $(el).attr('data-title') ||
-                    ''
-                )
+                const title = findTitle(dataUrl) || $(el).attr('data-title') || ''
 
                 topResults.push({
                     rank: rank ?? topResults.length + 1,
@@ -122,7 +139,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                     fullUrl = href
                 }
                 const { type, typeDetail, source } = classifyByUrl(fullUrl)
-                const title = $(el).text().trim()
+                const title = $(el).text().trim() || findTitle(fullUrl)
                 topResults.push({
                     rank: topResults.length + 1,
                     type,
@@ -152,7 +169,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                     fullUrl = href
                 }
                 const { type, typeDetail, source } = classifyByUrl(fullUrl)
-                const title = $(el).text().trim()
+                const title = $(el).text().trim() || findTitle(fullUrl)
                 topResults.push({
                     rank: topResults.length + 1,
                     type,
