@@ -18,21 +18,20 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  { date: '2026-02-26', type: 'feat', message: '블로그 지수 v9 — 4축 재구성 + 최초 포스팅일 정확도 개선' },
+  { date: '2026-02-26', type: 'feat', message: '키워드 리서치 상위 5개 검색결과 타입 표시 (블로그/카페/외부/포스트/지식인)' },
+  { date: '2026-02-26', type: 'feat', message: '상위노출 분석 이미지 포함 여부 분석 추가' },
   { date: '2026-02-26', type: 'feat', message: '블로그 지수 v8 — 내부 링크 분석, 스팸 키워드/외부 링크 어뷰징 감지, 예상 체류 시간 추정' },
-  { date: '2026-02-26', type: 'feat', message: '카테고리별 벤치마크 비교 시스템 (하이브리드)' },
-  { date: '2026-02-26', type: 'fix', message: 'Gemini 2.5 Flash thinking 모드 504 타임아웃 해결 (REST API 전환)' },
+  { date: '2026-02-26', type: 'feat', message: '카테고리별 벤치마크 비교 시스템' },
   { date: '2026-02-25', type: 'feat', message: '블로그 지수 v6 — 16등급 체계 + 카테고리별 추이 차트' },
   { date: '2026-02-25', type: 'feat', message: '블로그 지수 v5 — 5축 균등 배분 + 검색 보너스 분리' },
-  { date: '2026-02-25', type: 'feat', message: '블덱스 종료 시장 공략 — 검색 누락 조회, 포화지수, 키워드 대량조회, 인스타그램 변환' },
-  { date: '2026-02-25', type: 'feat', message: '어드민 사용자별 크레딧 소모 내역 월별/일별 조회 추가' },
-  { date: '2026-02-25', type: 'feat', message: '특정 상호명 구조 가이드 교체 + 콘텐츠 방향 입력 필드' },
-  { date: '2026-02-25', type: 'fix', message: 'AI 콘텐츠 할루시네이션 방지 강화 (SERP 기반 자동 교정, 키워드 의미 추출)' },
-  { date: '2026-02-25', type: 'feat', message: 'TipTap 리치텍스트 에디터 교체 + HTML 클립보드 복사' },
-  { date: '2026-02-25', type: 'feat', message: 'AI 약점 개선 Patch 방식 전환 + 마크다운 서식 렌더링 적용' },
-  { date: '2026-02-24', type: 'feat', message: '소셜 로그인 (Google + Kakao) + LemonSqueezy 글로벌 결제 전환' },
-  { date: '2026-02-24', type: 'feat', message: '프로필 이미지 표시 + 연동 계정 관리 + 파비콘 추가' },
-  { date: '2026-02-24', type: 'fix', message: '결제 페이지 플랜 카드 반응형 레이아웃 + 가독성 개선' },
-  { date: '2026-02-23', type: 'refactor', message: '토스페이먼츠 → 포트원 → LemonSqueezy 결제 시스템 전환' },
+  { date: '2026-02-25', type: 'feat', message: '검색 누락 조회, 포화지수, 키워드 대량조회, 인스타그램 변환 추가' },
+  { date: '2026-02-25', type: 'feat', message: '상호명 키워드 콘텐츠 구조 개선 + 콘텐츠 방향 입력 추가' },
+  { date: '2026-02-25', type: 'fix', message: 'AI 콘텐츠 정확도 개선 (자동 교정 + 키워드 의미 추출)' },
+  { date: '2026-02-25', type: 'feat', message: '리치텍스트 에디터 교체 + HTML 클립보드 복사' },
+  { date: '2026-02-25', type: 'feat', message: 'AI 약점 개선 정밀도 향상 + 마크다운 서식 렌더링 적용' },
+  { date: '2026-02-24', type: 'feat', message: '소셜 로그인 (Google + Kakao) + 해외 결제 지원' },
+  { date: '2026-02-24', type: 'feat', message: '프로필 이미지 표시 + 연동 계정 관리' },
 ]
 
 const TYPE_CONFIG: Record<UpdateType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; color: string }> = {

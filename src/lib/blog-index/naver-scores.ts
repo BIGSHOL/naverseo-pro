@@ -77,12 +77,11 @@ function calculateScore(
       name: cat.name,
       weight,
       score: cat.score,
-      contribution: Math.round(contribution * 10) / 10,
+      contribution,
     })
   }
 
-  // 소수점 1자리까지 유지
-  const finalScore = Math.round(totalWeightedScore * 10) / 10
+  const finalScore = totalWeightedScore
 
   // 고정 순서: 콘텐츠 품질 → 방문자 활동 → SEO 최적화 → 신뢰도
   const CATEGORY_ORDER = ['콘텐츠 품질', '방문자 활동', 'SEO 최적화', '신뢰도']
