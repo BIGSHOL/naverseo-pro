@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
 
     // === 7단계: 카테고리 감지 + 카테고리별 벤치마크 조회 ===
     const topicKeywords = posts.length > 0 ? extractKeywordsFromPosts(posts) : []
-    const blogCategory = detectBlogCategory(topicKeywords)
+    const blogCategory = detectBlogCategory(topicKeywords, userKeywords)
     const categoryBenchmark = await getCategoryBenchmark(blogCategory)
     console.log(`[BlogIndex] 카테고리: ${blogCategory} (${BLOG_CATEGORY_LABELS[blogCategory]}, ${categoryBenchmark.source}, 샘플 ${categoryBenchmark.sampleCount}개)`)
 

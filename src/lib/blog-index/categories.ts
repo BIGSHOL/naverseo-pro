@@ -112,15 +112,25 @@ const CATEGORY_KEYWORD_MAP: Record<BlogCategory, string[]> = {
  * @param topicKeywords 블로그 포스트에서 추출한 주제 키워드 (빈도순)
  * @returns 감지된 카테고리 (매칭 안 되면 'general')
  */
-export function detectBlogCategory(topicKeywords: string[]): BlogCategory {
-  if (!topicKeywords || topicKeywords.length === 0) return 'general'
+export function detectBlogCategory(topicKeywords: string[], userKeywords?: string[]): BlogCategory {
+  if ((!topicKeywords || topicKeywords.length === 0) && (!userKeywords || userKeywords.length === 0)) return 'general'
 
   const scores: Partial<Record<BlogCategory, number>> = {}
+
+  // 측정 키워드(사용자 입력)를 블로그 포스트 키워드와 합산 (측정 키워드 가중치 2배)
+  const allKeywords = [...(topicKeywords || [])]
+  if (userKeywords && userKeywords.length > 0) {
+    // 사용자 키워드를 공백/쉼표로 분리하여 개별 단어로 추가
+    for (const kw of userKeywords) {
+      const words = kw.split(/[\s,]+/).filter(w => w.length >= 2)
+      allKeywords.push(...words, ...words) // 2배 가중치
+    }
+  }
 
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORD_MAP) as [BlogCategory, string[]][]) {
     if (category === 'general') continue
     let score = 0
-    for (const tk of topicKeywords) {
+    for (const tk of allKeywords) {
       if (keywords.some(kw => tk.includes(kw) || kw.includes(tk))) {
         score++
       }
@@ -160,10 +170,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   food: {
     postingFrequency: { recommended: 4, topBlogger: 7 },
     avgTitleLength: { optimal: 28 },
-    avgContentLength: { recommended: 180 },
+    avgContentLength: { recommended: 1500 },
     imageRate: { recommended: 95 },
     topicFocus: { recommended: 55 },
-    avgImageCount: { recommended: 8 },
+    avgImageCount: { recommended: 12 },
     avgCommentCount: { recommended: 8 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 300, topBlogger: 1500 },
@@ -173,10 +183,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   beauty: {
     postingFrequency: { recommended: 3, topBlogger: 6 },
     avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 200 },
+    avgContentLength: { recommended: 1800 },
     imageRate: { recommended: 90 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 7 },
+    avgImageCount: { recommended: 10 },
     avgCommentCount: { recommended: 6 },
     avgSympathyCount: { recommended: 12 },
     dailyVisitors: { recommended: 250, topBlogger: 1200 },
@@ -186,10 +196,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   it_tech: {
     postingFrequency: { recommended: 2, topBlogger: 4 },
     avgTitleLength: { optimal: 32 },
-    avgContentLength: { recommended: 250 },
+    avgContentLength: { recommended: 2500 },
     imageRate: { recommended: 60 },
     topicFocus: { recommended: 65 },
-    avgImageCount: { recommended: 4 },
+    avgImageCount: { recommended: 5 },
     avgCommentCount: { recommended: 4 },
     avgSympathyCount: { recommended: 8 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
@@ -199,10 +209,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   parenting: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 24 },
-    avgContentLength: { recommended: 180 },
+    avgContentLength: { recommended: 1500 },
     imageRate: { recommended: 85 },
     topicFocus: { recommended: 55 },
-    avgImageCount: { recommended: 5 },
+    avgImageCount: { recommended: 8 },
     avgCommentCount: { recommended: 7 },
     avgSympathyCount: { recommended: 12 },
     dailyVisitors: { recommended: 250, topBlogger: 1000 },
@@ -212,10 +222,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   travel: {
     postingFrequency: { recommended: 2, topBlogger: 4 },
     avgTitleLength: { optimal: 28 },
-    avgContentLength: { recommended: 220 },
+    avgContentLength: { recommended: 2000 },
     imageRate: { recommended: 95 },
     topicFocus: { recommended: 50 },
-    avgImageCount: { recommended: 10 },
+    avgImageCount: { recommended: 15 },
     avgCommentCount: { recommended: 6 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 300, topBlogger: 1500 },
@@ -225,10 +235,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   health: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 220 },
+    avgContentLength: { recommended: 2000 },
     imageRate: { recommended: 70 },
     topicFocus: { recommended: 65 },
-    avgImageCount: { recommended: 4 },
+    avgImageCount: { recommended: 5 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
@@ -238,10 +248,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   interior: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 200 },
+    avgContentLength: { recommended: 1500 },
     imageRate: { recommended: 90 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 7 },
+    avgImageCount: { recommended: 10 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
@@ -251,7 +261,7 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   finance: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 250 },
+    avgContentLength: { recommended: 2500 },
     imageRate: { recommended: 50 },
     topicFocus: { recommended: 70 },
     avgImageCount: { recommended: 3 },
@@ -264,10 +274,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   pet: {
     postingFrequency: { recommended: 3, topBlogger: 6 },
     avgTitleLength: { optimal: 24 },
-    avgContentLength: { recommended: 170 },
+    avgContentLength: { recommended: 1200 },
     imageRate: { recommended: 95 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 8 },
+    avgImageCount: { recommended: 10 },
     avgCommentCount: { recommended: 8 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 250, topBlogger: 1000 },
@@ -277,10 +287,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   hobby: {
     postingFrequency: { recommended: 2, topBlogger: 4 },
     avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 180 },
+    avgContentLength: { recommended: 1500 },
     imageRate: { recommended: 75 },
     topicFocus: { recommended: 55 },
-    avgImageCount: { recommended: 5 },
+    avgImageCount: { recommended: 6 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 150, topBlogger: 600 },
@@ -290,10 +300,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   business: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 230 },
+    avgContentLength: { recommended: 2000 },
     imageRate: { recommended: 60 },
     topicFocus: { recommended: 70 },
-    avgImageCount: { recommended: 3 },
+    avgImageCount: { recommended: 4 },
     avgCommentCount: { recommended: 4 },
     avgSympathyCount: { recommended: 8 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
@@ -303,10 +313,10 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
   general: {
     postingFrequency: { recommended: 3, topBlogger: 5 },
     avgTitleLength: { optimal: 25 },
-    avgContentLength: { recommended: 150 },
+    avgContentLength: { recommended: 1500 },
     imageRate: { recommended: 80 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 3 },
+    avgImageCount: { recommended: 5 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 200, topBlogger: 1000 },

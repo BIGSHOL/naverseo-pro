@@ -18,7 +18,7 @@ export interface VisitorData {
  */
 export async function fetchBlogVisitors(blogId: string): Promise<VisitorData> {
   try {
-    const url = `https://blog.naver.com/NVisitorgp4Ajax.nhn?blogId=${encodeURIComponent(blogId)}`
+    const url = `https://blog.naver.com/NVisitorgp4Ajax.naver?blogId=${encodeURIComponent(blogId)}`
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000) // 5초 타임아웃

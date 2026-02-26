@@ -273,8 +273,8 @@ export function analyzeBlogIndex(
     },
     avgContentLength: {
       mine: avgDescLength,
-      recommended: cb?.avgContentLength.recommended ?? 150,
-      topBlogger: Math.round((cb?.avgContentLength.recommended ?? 150) * 1.7),
+      recommended: cb?.avgContentLength.recommended ?? 1500,
+      topBlogger: Math.round((cb?.avgContentLength.recommended ?? 1500) * 1.7),
     },
     imageRate: {
       mine: imageRate,
@@ -289,8 +289,8 @@ export function analyzeBlogIndex(
     keywordDensity: { mine: keywordDensity, optimal: [0.5, 3.0] },
     avgImageCount: {
       mine: avgImageCount,
-      recommended: cb?.avgImageCount.recommended ?? 3,
-      topBlogger: Math.round((cb?.avgImageCount.recommended ?? 3) * 2),
+      recommended: cb?.avgImageCount.recommended ?? 5,
+      topBlogger: Math.round((cb?.avgImageCount.recommended ?? 5) * 2),
     },
     optimizationPct,
     categoryPercentile,

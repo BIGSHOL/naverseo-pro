@@ -274,13 +274,22 @@ function getRadarLabel(name: string): string {
   }
 }
 
-/** 캐시 날짜를 "오늘 14:30" 또는 "N일 전" 형식으로 표시 */
+/** 캐시 날짜를 "오늘 오후 2:30" 또는 "N일 전" 형식으로 표시 (KST 고정) */
 function formatCacheAge(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) {
-    return `오늘 ${new Date(dateStr).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+  const kst = { timeZone: 'Asia/Seoul' } as const
+  const cached = new Date(dateStr)
+  const now = new Date()
+  // KST 기준 날짜 비교
+  const cachedDay = cached.toLocaleDateString('ko-KR', kst)
+  const todayDay = now.toLocaleDateString('ko-KR', kst)
+  if (cachedDay === todayDay) {
+    return `오늘 ${cached.toLocaleTimeString('ko-KR', { ...kst, hour: '2-digit', minute: '2-digit' })}`
   }
+  const yesterday = new Date(now.getTime() - 86400000)
+  if (cached.toLocaleDateString('ko-KR', kst) === yesterday.toLocaleDateString('ko-KR', kst)) {
+    return '어제'
+  }
+  const diffDays = Math.floor((now.getTime() - cached.getTime()) / 86400000)
   return `${diffDays}일 전`
 }
 
@@ -956,7 +965,7 @@ export default function BlogIndexPage() {
         {result && (
           <>
             {/* ===== 4대축 / 5대축 탭 토글 (상단 고정, 하단 전체 전환) ===== */}
-            <div className="sticky top-14 z-20 flex items-center gap-1.5 rounded-lg bg-muted p-1 shadow-sm">
+            <div className="flex items-center gap-1.5 rounded-lg bg-muted p-1">
               <button
                 onClick={() => setAxisMode('4axis')}
                 className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -1138,48 +1147,52 @@ export default function BlogIndexPage() {
                     </div>
                   </div>
 
-                  {/* 16단계 등급 맵 — 모든 라벨 표시 + 현재 단계 이펙트 */}
+                  {/* 16단계 등급 맵 — 1행 나열 + 현재 단계 이펙트 */}
                   {(() => {
-                    const TIER_DATA: { label: string; color: string; activeBg: string; passedBg: string }[] = [
-                      { label: '일반', color: 'slate', activeBg: 'bg-slate-500', passedBg: 'bg-slate-200 dark:bg-slate-700' },
-                      { label: '준최1', color: 'violet', activeBg: 'bg-violet-500', passedBg: 'bg-violet-200 dark:bg-violet-800' },
-                      { label: '준최2', color: 'indigo', activeBg: 'bg-indigo-500', passedBg: 'bg-indigo-200 dark:bg-indigo-800' },
-                      { label: '준최3', color: 'indigo', activeBg: 'bg-indigo-500', passedBg: 'bg-indigo-200 dark:bg-indigo-800' },
-                      { label: '준최4', color: 'sky', activeBg: 'bg-sky-500', passedBg: 'bg-sky-200 dark:bg-sky-800' },
-                      { label: '준최5', color: 'sky', activeBg: 'bg-sky-500', passedBg: 'bg-sky-200 dark:bg-sky-800' },
-                      { label: '준최6', color: 'blue', activeBg: 'bg-blue-500', passedBg: 'bg-blue-200 dark:bg-blue-800' },
-                      { label: '준최7', color: 'blue', activeBg: 'bg-blue-500', passedBg: 'bg-blue-200 dark:bg-blue-800' },
-                      { label: '최적1', color: 'lime', activeBg: 'bg-lime-500', passedBg: 'bg-lime-200 dark:bg-lime-800' },
-                      { label: '최적2', color: 'green', activeBg: 'bg-green-500', passedBg: 'bg-green-200 dark:bg-green-800' },
-                      { label: '최적3', color: 'green', activeBg: 'bg-green-500', passedBg: 'bg-green-200 dark:bg-green-800' },
-                      { label: '최적1+', color: 'teal', activeBg: 'bg-teal-500', passedBg: 'bg-teal-200 dark:bg-teal-800' },
-                      { label: '최적2+', color: 'teal', activeBg: 'bg-teal-500', passedBg: 'bg-teal-200 dark:bg-teal-800' },
-                      { label: '최적3+', color: 'emerald', activeBg: 'bg-emerald-500', passedBg: 'bg-emerald-200 dark:bg-emerald-800' },
-                      { label: '최적4+', color: 'emerald', activeBg: 'bg-emerald-500', passedBg: 'bg-emerald-200 dark:bg-emerald-800' },
-                      { label: '파워', color: 'amber', activeBg: 'bg-amber-500', passedBg: 'bg-amber-200 dark:bg-amber-800' },
-                    ]
+                    const TIER_LABELS = ['일반','준최1','준최2','준최3','준최4','준최5','준최6','준최7','최적1','최적2','최적3','최적1+','최적2+','최적3+','최적4+','파워']
+                    const tierBg = (t: number) => {
+                      if (t >= 16) return 'bg-amber-500'
+                      if (t >= 14) return 'bg-emerald-500'
+                      if (t >= 12) return 'bg-teal-500'
+                      if (t >= 10) return 'bg-green-500'
+                      if (t >= 9) return 'bg-lime-500'
+                      if (t >= 7) return 'bg-blue-500'
+                      if (t >= 5) return 'bg-sky-500'
+                      if (t >= 3) return 'bg-indigo-500'
+                      if (t >= 2) return 'bg-violet-500'
+                      return 'bg-slate-500'
+                    }
+                    const tierBgPassed = (t: number) => {
+                      if (t >= 16) return 'bg-amber-200 dark:bg-amber-800'
+                      if (t >= 14) return 'bg-emerald-200 dark:bg-emerald-800'
+                      if (t >= 12) return 'bg-teal-200 dark:bg-teal-800'
+                      if (t >= 10) return 'bg-green-200 dark:bg-green-800'
+                      if (t >= 9) return 'bg-lime-200 dark:bg-lime-800'
+                      if (t >= 7) return 'bg-blue-200 dark:bg-blue-800'
+                      if (t >= 5) return 'bg-sky-200 dark:bg-sky-800'
+                      if (t >= 3) return 'bg-indigo-200 dark:bg-indigo-800'
+                      if (t >= 2) return 'bg-violet-200 dark:bg-violet-800'
+                      return 'bg-slate-200 dark:bg-slate-700'
+                    }
                     const myTier = result.level.tier
                     return (
                     <div className="mt-4 pt-3 border-t">
-                      <div className="grid grid-cols-8 gap-x-1 gap-y-1.5">
-                        {TIER_DATA.map((td, i) => {
+                      <div className="flex gap-0.5">
+                        {TIER_LABELS.map((label, i) => {
                           const t = i + 1
                           const active = t === myTier
                           const passed = t < myTier
-                          const bg = active ? td.activeBg : passed ? td.passedBg : 'bg-muted'
+                          const bg = active ? tierBg(t) : passed ? tierBgPassed(t) : 'bg-muted'
                           return (
-                            <div key={t} className="relative text-center">
-                              <div className={`relative h-8 rounded-md flex flex-col items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-2 shadow-lg scale-110 z-10' : ''}`}>
-                                <span className={`text-[8px] leading-none ${active ? 'text-white font-extrabold' : passed ? 'text-foreground/70 font-medium' : 'text-muted-foreground/50'}`}>
-                                  {td.label}
+                            <div key={t} className="flex-1 text-center">
+                              <div className={`relative h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
+                                <span className={`text-[7px] leading-none ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
+                                  {label}
                                 </span>
-                                <span className={`text-[7px] leading-none mt-0.5 ${active ? 'text-white/80' : passed ? 'text-foreground/40' : 'text-muted-foreground/30'}`}>
-                                  Lv.{t}
-                                </span>
+                                {active && (
+                                  <span className="absolute -top-1 -right-0.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+                                )}
                               </div>
-                              {active && (
-                                <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
-                              )}
                             </div>
                           )
                         })}
@@ -1437,7 +1450,7 @@ export default function BlogIndexPage() {
                       <h3 className="text-sm font-semibold">AI 심층 분석</h3>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {canUseAi
-                          ? 'AI가 포스트 본문을 분석하여 경험 정보, 콘텐츠 품질, 어뷰징 위험도를 평가합니다.'
+                          ? 'AI가 최근 20개 포스트를 분석하여 경험 정보, 콘텐츠 품질, 어뷰징 위험도를 평가합니다.'
                           : 'AI 심층 분석은 Starter 플랜 이상에서 사용할 수 있습니다.'}
                       </p>
                     </div>
@@ -1448,7 +1461,7 @@ export default function BlogIndexPage() {
                       className="gap-2"
                     >
                       {aiLoading ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" />분석 중... (10~20초 소요)</>
+                        <><Loader2 className="h-4 w-4 animate-spin" />분석 중... (20~40초 소요)</>
                       ) : canUseAi ? (
                         <><Brain className="h-4 w-4" />AI 심층 분석 실행</>
                       ) : (

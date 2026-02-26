@@ -177,10 +177,10 @@ async function fetchPostContent(blogId: string, postNo: string): Promise<string 
 }
 
 /**
- * 대표 포스트 선택 (최근 + 다양성 고려)
- * 최대 5개 포스트를 선택하여 더 정확한 분석 수행
+ * 대표 포스트 선택 (최근 + 균등 분포 + 다양성)
+ * maxCount개 포스트를 선택하여 블로그 전체를 대표
  */
-function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 5): BlogPost[] {
+function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 20): BlogPost[] {
   if (posts.length <= maxCount) return posts
 
   // 날짜순 정렬 (최신 우선)
@@ -191,29 +191,45 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 5): Blo
   })
 
   const selected: BlogPost[] = []
+  const usedIndices = new Set<number>()
 
-  // 1. 가장 최근 포스트 (현재 글쓰기 스타일 반영)
-  selected.push(sorted[0])
-
-  // 2. 두 번째 최신 포스트 (최근 트렌드 확인)
-  if (sorted.length > 1) selected.push(sorted[1])
-
-  // 3. 중간 시점 포스트 (글쓰기 스타일 변화 감지)
-  const midIdx = Math.floor(sorted.length / 2)
-  if (!selected.includes(sorted[midIdx])) {
-    selected.push(sorted[midIdx])
+  const addPost = (idx: number) => {
+    if (idx >= 0 && idx < sorted.length && !usedIndices.has(idx)) {
+      selected.push(sorted[idx])
+      usedIndices.add(idx)
+    }
   }
 
-  // 4. 가장 긴 설명문 포스트 (최고 품질 글 평가)
-  const longestPost = sorted
-    .filter(p => !selected.includes(p))
-    .sort((a, b) => b.description.length - a.description.length)[0]
-  if (longestPost && selected.length < maxCount) selected.push(longestPost)
+  // 1. 최신 3개 (현재 스타일)
+  addPost(0)
+  addPost(1)
+  addPost(2)
 
-  // 5. 가장 오래된 포스트 (성장 추이 파악)
-  const oldestPost = sorted[sorted.length - 1]
-  if (!selected.includes(oldestPost) && selected.length < maxCount) {
-    selected.push(oldestPost)
+  // 2. 가장 오래된 포스트 (성장 추이)
+  addPost(sorted.length - 1)
+
+  // 3. 가장 긴/짧은 설명문 (품질 범위 파악)
+  const byDescLen = sorted.map((p, i) => ({ i, len: p.description.length })).sort((a, b) => b.len - a.len)
+  addPost(byDescLen[0]?.i)
+  const shortest = byDescLen[byDescLen.length - 1]
+  if (shortest) addPost(shortest.i)
+
+  // 4. 나머지는 균등 간격으로 채움
+  const remaining = maxCount - selected.length
+  if (remaining > 0) {
+    const step = sorted.length / (remaining + 1)
+    for (let k = 1; k <= remaining; k++) {
+      const idx = Math.round(step * k)
+      if (!usedIndices.has(idx)) {
+        addPost(idx)
+      } else {
+        // 가장 가까운 미사용 인덱스
+        for (let offset = 1; offset < sorted.length; offset++) {
+          if (!usedIndices.has(idx + offset) && idx + offset < sorted.length) { addPost(idx + offset); break }
+          if (!usedIndices.has(idx - offset) && idx - offset >= 0) { addPost(idx - offset); break }
+        }
+      }
+    }
   }
 
   return selected.slice(0, maxCount)
@@ -244,8 +260,8 @@ export async function analyzeWithAi(
   if (posts.length === 0) return null
 
   try {
-    // 대표 포스트 선택 (최대 5개로 확대하여 정확도 향상)
-    const targetPosts = selectRepresentativePosts(posts, 5)
+    // 대표 포스트 선택 (최대 20개로 확대하여 정확도 향상)
+    const targetPosts = selectRepresentativePosts(posts, 20)
     const postContents: { title: string; content: string; date: string }[] = []
 
     if (isDemo) {
@@ -262,54 +278,41 @@ export async function analyzeWithAi(
         })
       }
     } else {
-      // 실제 모드: 각 포스트의 본문을 가져옴
-      for (const post of targetPosts) {
-        const parsed = parsePostLink(post.link)
-        if (!parsed) {
-          // 링크 파싱 실패 시 설명문 사용
-          const cleanDesc = post.description
-            .replace(/<[^>]*>/g, '')
-            .replace(/&[a-z]+;/gi, ' ')
-            .trim()
-          postContents.push({
-            title: post.title.replace(/<[^>]*>/g, ''),
-            content: cleanDesc,
-            date: post.postdate,
+      // 실제 모드: 배치 병렬 크롤링 (4개씩, rate limit 방지)
+      const BATCH_SIZE = 4
+      for (let i = 0; i < targetPosts.length; i += BATCH_SIZE) {
+        const batch = targetPosts.slice(i, i + BATCH_SIZE)
+        const results = await Promise.allSettled(
+          batch.map(async (post) => {
+            const parsed = parsePostLink(post.link)
+            if (!parsed) {
+              const cleanDesc = post.description.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim()
+              return { title: post.title.replace(/<[^>]*>/g, ''), content: cleanDesc, date: post.postdate }
+            }
+            const content = await fetchPostContent(parsed.blogId, parsed.postNo)
+            if (content && content.length >= 50) {
+              // 20개 분석이므로 본문을 1000자로 축약 (토큰 절약)
+              let truncated: string
+              if (content.length > 1200) {
+                const head = content.substring(0, 800)
+                const tail = content.substring(content.length - 400)
+                truncated = head + '\n...\n' + tail
+              } else {
+                truncated = content
+              }
+              return { title: post.title.replace(/<[^>]*>/g, ''), content: truncated, date: post.postdate }
+            }
+            const cleanDesc = post.description.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/gi, ' ').trim()
+            return { title: post.title.replace(/<[^>]*>/g, ''), content: cleanDesc, date: post.postdate }
           })
-          continue
+        )
+        for (const r of results) {
+          if (r.status === 'fulfilled') postContents.push(r.value)
         }
-
-        const content = await fetchPostContent(parsed.blogId, parsed.postNo)
-        if (content && content.length >= 50) {
-          // 본문이 너무 길면 앞 1500자 + 뒤 500자 사용 (결론/CTA 포함)
-          let truncated: string
-          if (content.length > 2000) {
-            const head = content.substring(0, 1500)
-            const tail = content.substring(content.length - 500)
-            truncated = head + '\n\n' + tail
-          } else {
-            truncated = content
-          }
-          postContents.push({
-            title: post.title.replace(/<[^>]*>/g, ''),
-            content: truncated,
-            date: post.postdate,
-          })
-        } else {
-          // 본문 가져오기 실패 시 설명문 사용
-          const cleanDesc = post.description
-            .replace(/<[^>]*>/g, '')
-            .replace(/&[a-z]+;/gi, ' ')
-            .trim()
-          postContents.push({
-            title: post.title.replace(/<[^>]*>/g, ''),
-            content: cleanDesc,
-            date: post.postdate,
-          })
+        // 배치 간 rate limit 방지
+        if (i + BATCH_SIZE < targetPosts.length) {
+          await new Promise(resolve => setTimeout(resolve, 500))
         }
-
-        // 네이버 rate limit 방지
-        await new Promise(resolve => setTimeout(resolve, 300))
       }
     }
 
