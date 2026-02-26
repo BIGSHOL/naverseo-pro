@@ -108,12 +108,10 @@ interface CategoryDataPoint {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomXTick({ x, y, payload }: any) {
   if (!payload?.value) return null
-  const date = (payload.value as string).split('|')[0] || ''
-
   return (
     <g transform={`translate(${x},${y})`}>
       <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="hsl(var(--muted-foreground))">
-        {date}
+        {payload.value}
       </text>
     </g>
   )
@@ -158,11 +156,6 @@ function CustomTooltip({ active, payload }: any) {
           {change > 0 ? '▲' : '▼'} {change > 0 ? '+' : ''}{change}점
         </p>
       )}
-      {data.keywords && (
-        <p className="mt-1 text-[10px] text-muted-foreground truncate">
-          키워드: {data.keywords}
-        </p>
-      )}
     </div>
   )
 }
@@ -199,13 +192,6 @@ function CategoryTooltip({ active, payload }: any) {
       ))}
     </div>
   )
-}
-
-// 키워드 배열 → 축약 문자열 (2개까지 + ...)
-function shortenKeywords(keywords?: string[]): string {
-  if (!keywords || keywords.length === 0) return '-'
-  if (keywords.length <= 2) return keywords.join(', ')
-  return `${keywords.slice(0, 2).join(', ')} 외${keywords.length - 2}`
 }
 
 export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIndexHistoryChartProps) {
@@ -349,12 +335,10 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
       month: 'numeric',
       day: 'numeric',
     })
-    const kw = shortenKeywords(h.metrics?.keywords as string[] | undefined)
     return {
-      // XAxis dataKey: "date|keywords" 합성 (CustomXTick에서 분리)
-      label: `${date}|${kw}`,
+      label: date,
       date,
-      keywords: (h.metrics?.keywords as string[] | undefined)?.join(', ') || '-',
+      keywords: '',
       score: h.total_score,
       rawDate: h.checked_at,
       levelLabel: h.level_label,
@@ -404,7 +388,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
               tick={<CustomXTick />}
               stroke="hsl(var(--muted-foreground))"
               interval={0}
-              height={50}
+              height={30}
               padding={{ left: 30, right: 30 }}
             />
             <YAxis

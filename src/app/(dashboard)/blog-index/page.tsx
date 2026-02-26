@@ -129,16 +129,16 @@ interface BlogProfile {
 
 interface BenchmarkData {
   postingFrequency: { mine: number; recommended: number; topBlogger: number }
-  avgTitleLength: { mine: number; optimal: number }
-  avgContentLength: { mine: number; recommended: number }
-  imageRate: { mine: number; recommended: number }
-  topicFocus: { mine: number; recommended: number }
+  avgTitleLength: { mine: number; optimal: number; topBlogger: number }
+  avgContentLength: { mine: number; recommended: number; topBlogger: number }
+  imageRate: { mine: number; recommended: number; topBlogger: number }
+  topicFocus: { mine: number; recommended: number; topBlogger: number }
   keywordDensity?: { mine: number; optimal: [number, number] }
-  avgImageCount?: { mine: number; recommended: number }
+  avgImageCount?: { mine: number; recommended: number; topBlogger: number }
   optimizationPct: number
   categoryPercentile: number
-  avgCommentCount?: { mine: number; recommended: number }
-  avgSympathyCount?: { mine: number; recommended: number }
+  avgCommentCount?: { mine: number; recommended: number; topBlogger: number }
+  avgSympathyCount?: { mine: number; recommended: number; topBlogger: number }
   dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
   blogAge?: { mine: number; recommended: number }
   totalPostCount?: { mine: number; recommended: number }
@@ -472,50 +472,70 @@ function getDaysAgoBadge(daysAgo: number) {
   return <Badge variant="outline" className="text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
 }
 
-// ===== 벤치마크 항목 컴포넌트 =====
+// ===== 벤치마크 항목 컴포넌트 (통일 디자인: 0 → 평균 → 상위블로거) =====
 
-function BenchmarkItem({ label, mine, target, targetLabel, max, unit, icon }: {
-  label: string; mine: number; target: number; targetLabel: string; max: number; unit?: string; icon: React.ReactNode
+function BenchmarkItem({ label, mine, recommended, topBlogger, unit, icon }: {
+  label: string; mine: number; recommended: number; topBlogger: number; unit?: string; icon: React.ReactNode
 }) {
-  const ratio = target > 0 ? Math.round((mine / target) * 100) : 100
-  const minePct = Math.min(100, (mine / max) * 100)
-  const targetPct = Math.min(100, (target / max) * 100)
-  const isGood = mine >= target
-  const isClose = !isGood && ratio >= 70
-  const statusColor = isGood ? 'text-green-600 dark:text-green-400' : isClose ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400'
-  const barColor = isGood ? 'bg-green-500' : isClose ? 'bg-amber-400' : 'bg-red-400'
-  const bgColor = isGood ? 'bg-green-50 dark:bg-green-950/30' : isClose ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-red-50 dark:bg-red-950/30'
-  const statusText = isGood ? '달성' : isClose ? '근접' : '부족'
   const u = unit ?? ''
+  const scaleMax = Math.max(topBlogger * 1.15, mine * 1.1, recommended * 1.3)
+  const minePct = Math.min(100, Math.max(0, (mine / scaleMax) * 100))
+  const recPct = Math.min(92, Math.max(8, (recommended / scaleMax) * 100))
+  const topPct = Math.min(92, Math.max(15, (topBlogger / scaleMax) * 100))
+
+  const isAboveTop = mine >= topBlogger
+  const isAboveRec = mine >= recommended
+  const barColor = isAboveTop ? 'bg-green-500' : isAboveRec ? 'bg-blue-500' : 'bg-orange-400'
+  const statusText = isAboveTop ? '최우수' : isAboveRec ? '달성' : mine >= recommended * 0.7 ? '근접' : '부족'
+  const statusColor = isAboveTop ? 'text-green-600' : isAboveRec ? 'text-blue-600' : mine >= recommended * 0.7 ? 'text-amber-600' : 'text-red-500'
+  const formatVal = (v: number) => Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1)
 
   return (
-    <div className={`rounded-lg border p-3 ${bgColor}`}>
-      <div className="flex items-start justify-between gap-2 mb-2">
+    <div className="rounded-lg border p-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">{icon}</span>
           <span className="text-xs font-medium">{label}</span>
         </div>
-        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${statusColor} ${bgColor} ring-1 ring-current/20`}>
-          {statusText}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-sm font-bold ${statusColor}`}>{formatVal(mine)}{u}</span>
+          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${statusColor} ring-1 ring-current/20`}>
+            {statusText}
+          </span>
+        </div>
       </div>
-      <div className="flex items-baseline gap-1 mb-1.5">
-        <span className={`text-lg font-bold ${statusColor}`}>{mine}{u}</span>
-        <span className="text-[10px] text-muted-foreground">/ {targetLabel} {target}{u}</span>
-      </div>
-      <div className="relative h-2 rounded-full bg-muted/80">
+      {/* 바 + 수직 마커 */}
+      <div className="relative h-2.5 rounded-full bg-muted/80">
         <div
           className={`absolute inset-y-0 left-0 rounded-full transition-all ${barColor}`}
           style={{ width: `${minePct}%` }}
         />
+        {/* 평균 수직선 */}
         <div
-          className="absolute top-0 h-full w-0.5 bg-foreground/50 rounded"
-          style={{ left: `${targetPct}%` }}
-          title={`${targetLabel}: ${target}${u}`}
+          className="absolute top-[-3px] w-[2px] h-[calc(100%+6px)] bg-gray-400 dark:bg-gray-500 rounded"
+          style={{ left: `${recPct}%` }}
+          title={`평균: ${formatVal(recommended)}${u}`}
+        />
+        {/* 상위블로거 수직선 */}
+        <div
+          className="absolute top-[-3px] w-[2px] h-[calc(100%+6px)] bg-emerald-500 dark:bg-emerald-400 rounded"
+          style={{ left: `${topPct}%` }}
+          title={`상위: ${formatVal(topBlogger)}${u}`}
         />
       </div>
-      <div className="mt-1 text-right text-[10px] text-muted-foreground">
-        달성률 {ratio}%
+      {/* 범례 */}
+      <div className="flex justify-between mt-1 text-[9px] text-muted-foreground">
+        <span>0</span>
+        <div className="flex gap-3">
+          <span className="flex items-center gap-0.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-gray-400" />
+            평균 {formatVal(recommended)}{u}
+          </span>
+          <span className="flex items-center gap-0.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-sm bg-emerald-500" />
+            상위 {formatVal(topBlogger)}{u}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -1302,43 +1322,20 @@ export default function BlogIndexPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {/* 포스팅 빈도 3단 비교 바 */}
-                    <div className="mb-4 rounded-lg border bg-muted/30 p-3">
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">주간 포스팅 비교</p>
-                      <div className="flex items-end gap-3 h-16">
-                        {[
-                          { label: '내 블로그', value: bm.postingFrequency.mine, color: 'bg-blue-500' },
-                          { label: '권장', value: bm.postingFrequency.recommended, color: 'bg-muted-foreground/30' },
-                          { label: '상위 블로거', value: bm.postingFrequency.topBlogger, color: 'bg-green-500' },
-                        ].map((bar) => {
-                          const maxVal = Math.max(bm.postingFrequency.topBlogger, bm.postingFrequency.mine, 7)
-                          const h = Math.max(8, (bar.value / maxVal) * 64)
-                          return (
-                            <div key={bar.label} className="flex-1 flex flex-col items-center gap-1">
-                              <span className="text-[11px] font-bold">{bar.value}회</span>
-                              <div className={`w-full rounded-t-md ${bar.color}`} style={{ height: `${h}px` }} />
-                              <span className="text-[10px] text-muted-foreground">{bar.label}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 항목별 벤치마크 카드 그리드 */}
-                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                      <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} target={bm.postingFrequency.recommended} targetLabel="권장" max={Math.max(bm.postingFrequency.topBlogger, bm.postingFrequency.mine, 7)} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} target={bm.avgTitleLength.optimal} targetLabel="최적" max={50} unit="자" icon={<Type className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} target={bm.avgContentLength.recommended} targetLabel="권장" max={Math.max(200, bm.avgContentLength.mine)} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="이미지 포함률" mine={bm.imageRate.mine} target={bm.imageRate.recommended} targetLabel="권장" max={100} unit="%" icon={<ImageIcon className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} target={bm.topicFocus.recommended} targetLabel="권장" max={100} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                      <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} recommended={bm.postingFrequency.recommended} topBlogger={bm.postingFrequency.topBlogger} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} recommended={bm.avgTitleLength.optimal} topBlogger={bm.avgTitleLength.topBlogger} unit="자" icon={<Type className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} recommended={bm.avgContentLength.recommended} topBlogger={bm.avgContentLength.topBlogger} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="이미지 포함률" mine={bm.imageRate.mine} recommended={bm.imageRate.recommended} topBlogger={bm.imageRate.topBlogger} unit="%" icon={<ImageIcon className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
                       {bm.dailyVisitors && (
-                        <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} target={bm.dailyVisitors.recommended} targetLabel="권장" max={Math.max(bm.dailyVisitors.topBlogger, bm.dailyVisitors.mine, 1000)} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
+                        <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} recommended={bm.dailyVisitors.recommended} topBlogger={bm.dailyVisitors.topBlogger} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
                       )}
                       {bm.avgCommentCount && (
-                        <BenchmarkItem label="평균 댓글 수" mine={bm.avgCommentCount.mine} target={bm.avgCommentCount.recommended} targetLabel="권장" max={Math.max(30, bm.avgCommentCount.mine)} unit="개" icon={<MessageCircle className="h-3.5 w-3.5" />} />
+                        <BenchmarkItem label="평균 댓글 수" mine={bm.avgCommentCount.mine} recommended={bm.avgCommentCount.recommended} topBlogger={bm.avgCommentCount.topBlogger} unit="개" icon={<MessageCircle className="h-3.5 w-3.5" />} />
                       )}
                       {bm.avgSympathyCount && (
-                        <BenchmarkItem label="평균 공감 수" mine={bm.avgSympathyCount.mine} target={bm.avgSympathyCount.recommended} targetLabel="권장" max={Math.max(50, bm.avgSympathyCount.mine)} unit="개" icon={<Heart className="h-3.5 w-3.5" />} />
+                        <BenchmarkItem label="평균 공감 수" mine={bm.avgSympathyCount.mine} recommended={bm.avgSympathyCount.recommended} topBlogger={bm.avgSympathyCount.topBlogger} unit="개" icon={<Heart className="h-3.5 w-3.5" />} />
                       )}
                     </div>
                   </CardContent>

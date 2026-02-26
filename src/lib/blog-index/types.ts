@@ -107,23 +107,22 @@ export interface BlogProfile {
 }
 
 export interface BenchmarkData {
-  // 나의 수치 vs 권장 수치
-  postingFrequency: { mine: number; recommended: number; topBlogger: number }  // 주간 포스팅 횟수
-  avgTitleLength: { mine: number; optimal: number }
-  avgContentLength: { mine: number; recommended: number }
-  imageRate: { mine: number; recommended: number }           // 이미지 포함률 %
-  topicFocus: { mine: number; recommended: number }          // 주제 집중도 %
-  keywordDensity: { mine: number; optimal: [number, number] }  // 키워드 밀도 (v2 추가)
-  avgImageCount: { mine: number; recommended: number }         // 이미지 개수 (v2 추가)
-  optimizationPct: number                                     // 최적화 수치 (0~100)
-  categoryPercentile: number                                  // 전체 상위 X%
-  // v4 신규
-  avgCommentCount?: { mine: number; recommended: number }      // 평균 댓글 수
-  avgSympathyCount?: { mine: number; recommended: number }     // 평균 공감 수
-  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }  // 일평균 방문자
-  blogAge?: { mine: number; recommended: number }              // 블로그 연차 (일수, 표시용)
-  totalPostCount?: { mine: number; recommended: number }       // 총 포스팅 수
-  buddyCount?: { mine: number; recommended: number }           // 이웃 수 (v7 추가)
+  // 나의 수치 vs 평균 vs 상위블로거
+  postingFrequency: { mine: number; recommended: number; topBlogger: number }
+  avgTitleLength: { mine: number; optimal: number; topBlogger: number }
+  avgContentLength: { mine: number; recommended: number; topBlogger: number }
+  imageRate: { mine: number; recommended: number; topBlogger: number }
+  topicFocus: { mine: number; recommended: number; topBlogger: number }
+  keywordDensity: { mine: number; optimal: [number, number] }
+  avgImageCount: { mine: number; recommended: number; topBlogger: number }
+  optimizationPct: number
+  categoryPercentile: number
+  avgCommentCount?: { mine: number; recommended: number; topBlogger: number }
+  avgSympathyCount?: { mine: number; recommended: number; topBlogger: number }
+  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
+  blogAge?: { mine: number; recommended: number }
+  totalPostCount?: { mine: number; recommended: number }
+  buddyCount?: { mine: number; recommended: number }
 }
 
 /** 어뷰징 페널티 결과 (v2 추가) */

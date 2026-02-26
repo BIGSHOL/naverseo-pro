@@ -268,24 +268,46 @@ export function analyzeBlogIndex(
       recommended: cb?.postingFrequency.recommended ?? 3,
       topBlogger: cb?.postingFrequency.topBlogger ?? 5,
     },
-    avgTitleLength: { mine: avgTitleLength, optimal: cb?.avgTitleLength.optimal ?? 25 },
-    avgContentLength: { mine: avgDescLength, recommended: cb?.avgContentLength.recommended ?? 150 },
-    imageRate: { mine: imageRate, recommended: cb?.imageRate.recommended ?? 80 },
-    topicFocus: { mine: topicFocusPct, recommended: cb?.topicFocus.recommended ?? 60 },
+    avgTitleLength: {
+      mine: avgTitleLength,
+      optimal: cb?.avgTitleLength.optimal ?? 25,
+      topBlogger: Math.round((cb?.avgTitleLength.optimal ?? 25) * 1.3),
+    },
+    avgContentLength: {
+      mine: avgDescLength,
+      recommended: cb?.avgContentLength.recommended ?? 150,
+      topBlogger: Math.round((cb?.avgContentLength.recommended ?? 150) * 1.7),
+    },
+    imageRate: {
+      mine: imageRate,
+      recommended: cb?.imageRate.recommended ?? 80,
+      topBlogger: Math.min(100, (cb?.imageRate.recommended ?? 80) + 5),
+    },
+    topicFocus: {
+      mine: topicFocusPct,
+      recommended: cb?.topicFocus.recommended ?? 60,
+      topBlogger: Math.min(95, (cb?.topicFocus.recommended ?? 60) + 20),
+    },
     keywordDensity: { mine: keywordDensity, optimal: [0.5, 3.0] },
-    avgImageCount: { mine: avgImageCount, recommended: cb?.avgImageCount.recommended ?? 3 },
+    avgImageCount: {
+      mine: avgImageCount,
+      recommended: cb?.avgImageCount.recommended ?? 3,
+      topBlogger: Math.round((cb?.avgImageCount.recommended ?? 3) * 2),
+    },
     optimizationPct,
     categoryPercentile,
     ...(engagementData?.isAvailable && engagementData.avgCommentCount !== null ? {
       avgCommentCount: {
         mine: engagementData.avgCommentCount,
         recommended: cb?.avgCommentCount.recommended ?? 5,
+        topBlogger: Math.round((cb?.avgCommentCount.recommended ?? 5) * 2.5),
       },
     } : {}),
     ...(engagementData?.isAvailable && engagementData.avgSympathyCount !== null ? {
       avgSympathyCount: {
         mine: engagementData.avgSympathyCount,
         recommended: cb?.avgSympathyCount.recommended ?? 10,
+        topBlogger: Math.round((cb?.avgSympathyCount.recommended ?? 10) * 2.5),
       },
     } : {}),
     ...(visitorData?.isAvailable ? {
