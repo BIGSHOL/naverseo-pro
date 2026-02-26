@@ -280,9 +280,8 @@ export default function SeoCheckPage() {
                 </Badge>
                 <a
                   href={ensureUrl(fetchSource)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
+                  onClick={(e) => { e.preventDefault(); const u = ensureUrl(fetchSource); if (u) window.open(u, '_blank', 'noopener') }}
+                  className="min-w-0 truncate text-xs text-muted-foreground hover:underline cursor-pointer"
                 >
                   {fetchSource}
                 </a>

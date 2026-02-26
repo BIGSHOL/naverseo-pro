@@ -7,7 +7,100 @@ import {
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
-// 데모 데이터 (API 키 없을 때 사용) - 30개 다양한 롱테일 키워드 생성
+// === 상위 5개 검색결과 타입 조회 ===
+
+interface TopSearchResult {
+  rank: number
+  type: '블로그' | '카페' | '외부' | '포스트' | '지식인'
+  source: string
+}
+
+function classifyUrl(url: string): { type: TopSearchResult['type']; source: string } {
+  if (url.includes('blog.naver.com')) return { type: '블로그', source: '네이버 블로그' }
+  if (url.includes('cafe.naver.com')) return { type: '카페', source: '네이버 카페' }
+  if (url.includes('post.naver.com')) return { type: '포스트', source: '네이버 포스트' }
+  if (url.includes('kin.naver.com')) return { type: '지식인', source: '네이버 지식인' }
+  try {
+    const domain = new URL(url).hostname.replace('www.', '')
+    return { type: '외부', source: domain }
+  } catch {
+    return { type: '외부', source: '외부' }
+  }
+}
+
+async function fetchTopResults(keyword: string): Promise<TopSearchResult[]> {
+  const clientId = process.env.NAVER_CLIENT_ID?.trim()
+  const clientSecret = process.env.NAVER_CLIENT_SECRET?.trim()
+  if (!clientId || !clientSecret) return []
+
+  try {
+    const res = await fetch(
+      `https://openapi.naver.com/v1/search/webkr.json?query=${encodeURIComponent(keyword)}&display=5`,
+      {
+        headers: {
+          'X-Naver-Client-Id': clientId,
+          'X-Naver-Client-Secret': clientSecret,
+        },
+      }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.items || []).map((item: { link: string }, i: number) => {
+      const classified = classifyUrl(item.link)
+      return { rank: i + 1, ...classified }
+    })
+  } catch {
+    return []
+  }
+}
+
+// 여러 키워드의 상위 5개 결과를 병렬 조회 (5개씩 배치)
+async function fetchTopResultsBatch(keywords: string[]): Promise<Map<string, TopSearchResult[]>> {
+  const map = new Map<string, TopSearchResult[]>()
+  const BATCH_SIZE = 5
+
+  for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
+    const batch = keywords.slice(i, i + BATCH_SIZE)
+    const results = await Promise.allSettled(
+      batch.map(kw => fetchTopResults(kw))
+    )
+    batch.forEach((kw, idx) => {
+      const result = results[idx]
+      if (result.status === 'fulfilled' && result.value.length > 0) {
+        map.set(kw, result.value)
+      }
+    })
+    // 배치 간 딜레이 (rate limit 방지)
+    if (i + BATCH_SIZE < keywords.length) {
+      await new Promise(r => setTimeout(r, 100))
+    }
+  }
+  return map
+}
+
+// 데모 상위 5개 결과 생성
+function generateDemoTopResults(): TopSearchResult[] {
+  const typePool: { type: TopSearchResult['type']; source: string; weight: number }[] = [
+    { type: '블로그', source: '네이버 블로그', weight: 0.4 },
+    { type: '카페', source: '네이버 카페', weight: 0.3 },
+    { type: '외부', source: '외부 블로그', weight: 0.15 },
+    { type: '포스트', source: '네이버 포스트', weight: 0.1 },
+    { type: '지식인', source: '네이버 지식인', weight: 0.05 },
+  ]
+  return Array.from({ length: 5 }, (_, i) => {
+    const rand = Math.random()
+    let cumulative = 0
+    let selected = typePool[0]
+    for (const t of typePool) {
+      cumulative += t.weight
+      if (rand < cumulative) { selected = t; break }
+    }
+    return { rank: i + 1, type: selected.type, source: selected.source }
+  })
+}
+
+// === 데모 데이터 ===
+
 function generateDemoData(keyword: string): NaverKeywordResult[] {
   const suffixes = [
     '', ' 추천', ' 방법', ' 후기', ' 비교', ' 가격',
@@ -20,7 +113,6 @@ function generateDemoData(keyword: string): NaverKeywordResult[] {
 
   return suffixes.map((suffix, i) => {
     const kw = `${keyword}${suffix}`
-    // 시드 키워드는 높은 검색량, 롱테일로 갈수록 낮은 검색량 + 낮은 경쟁도
     const isSeed = i === 0
     const tier = i < 5 ? 'high' : i < 15 ? 'mid' : 'low'
 
@@ -43,7 +135,8 @@ function generateDemoData(keyword: string): NaverKeywordResult[] {
   })
 }
 
-// Supabase에 키워드 검색 결과 저장 + 사용량 증가
+// === DB 저장 ===
+
 async function saveKeywordResearch(seedKeyword: string, results: unknown[]) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -52,20 +145,19 @@ async function saveKeywordResearch(seedKeyword: string, results: unknown[]) {
 
     if (!user) return
 
-    // 키워드 리서치 결과 저장
     await supabase.from('keyword_research').insert({
       user_id: user.id,
       seed_keyword: seedKeyword,
       results: { keywords: results },
     })
 
-    // 크레딧 차감
     await deductCredits(supabase, user.id, 'keyword_research', { keyword: seedKeyword })
   } catch {
-    // DB 저장 실패해도 API 응답은 정상 반환
     console.error('[Keywords] DB 저장 실패')
   }
 }
+
+// === API 핸들러 ===
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -110,10 +202,10 @@ export async function GET(request: NextRequest) {
         ...kw,
         totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
         score: calculateKeywordScore(kw),
+        topResults: generateDemoTopResults(),
       }))
       resultsWithScore.sort((a, b) => b.score - a.score)
 
-      // 데모라도 DB에 저장 시도
       await saveKeywordResearch(keyword.trim(), resultsWithScore)
 
       return NextResponse.json({
@@ -133,7 +225,21 @@ export async function GET(request: NextRequest) {
     }))
     resultsWithScore.sort((a, b) => b.score - a.score)
 
-    // 블로그 학습 파이프라인: 백그라운드 수집 (블로그 검색 → 상위 5개 패턴 수집)
+    // 상위 5개 검색결과 타입 조회 (네이버 검색 API 필요)
+    let topResultsMap: Map<string, TopSearchResult[]> | null = null
+    if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
+      const keywordNames = resultsWithScore.map(kw => kw.relKeyword)
+      topResultsMap = await fetchTopResultsBatch(keywordNames)
+      console.log(`[Keywords] 상위 5개 결과 조회 완료: ${topResultsMap.size}/${keywordNames.length}개`)
+    }
+
+    // topResults 병합
+    const keywordsWithTopResults = resultsWithScore.map(kw => ({
+      ...kw,
+      topResults: topResultsMap?.get(kw.relKeyword) || [],
+    }))
+
+    // 블로그 학습 파이프라인: 백그라운드 수집
     if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
       scheduleCollection(async () => {
         const { searchNaverBlog } = await import('@/lib/naver/blog-search')
@@ -143,12 +249,11 @@ export async function GET(request: NextRequest) {
     }
 
     // DB에 저장
-    await saveKeywordResearch(trimmed, resultsWithScore)
+    await saveKeywordResearch(trimmed, keywordsWithTopResults)
 
     return NextResponse.json({
-      keywords: resultsWithScore,
+      keywords: keywordsWithTopResults,
       isDemo: false,
-      // 공백이 포함된 키워드는 네이버 API 제한으로 공백 제거 후 검색됨
       ...(hasSpaces && {
         searchedAs: trimmed.replace(/\s+/g, ''),
         spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,

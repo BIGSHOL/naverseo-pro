@@ -111,7 +111,7 @@ export function ComparisonSection() {
             </div>
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              다른 블로그 분석 도구를 사용하셨나요? NaverSEO Pro는 포스팅 누락 조회,
+              다른 블로그 분석 도구를 사용하셨나요? NaverSEO Pro는 검색 누락 조회,
               블로그 지수, AI 콘텐츠 생성까지 올인원으로 제공합니다.
             </p>
           </CardContent>

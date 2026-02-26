@@ -130,6 +130,39 @@ export function getSaturationBadge(plAvgDepth: number) {
   )
 }
 
+// ===== 16등급 키워드 등급 체계 =====
+// 점수(0~100)를 4단계 × 4등급 = 16등급으로 분류
+
+export interface KeywordGrade {
+  label: string
+  category: '최적' | '준최' | '보통' | '비추'
+  color: string
+  bgColor: string
+}
+
+export function getKeywordGrade(score: number): KeywordGrade {
+  // 최적 (62~100): 상위 노출 가능성 높은 추천 키워드
+  if (score >= 85) return { label: '최적1', category: '최적', color: 'text-emerald-700', bgColor: 'bg-emerald-100' }
+  if (score >= 75) return { label: '최적2', category: '최적', color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
+  if (score >= 68) return { label: '최적3', category: '최적', color: 'text-green-600', bgColor: 'bg-green-50' }
+  if (score >= 62) return { label: '최적4', category: '최적', color: 'text-green-500', bgColor: 'bg-green-50' }
+  // 준최적 (45~61): 조건부 추천 키워드
+  if (score >= 57) return { label: '준최1', category: '준최', color: 'text-blue-700', bgColor: 'bg-blue-100' }
+  if (score >= 53) return { label: '준최2', category: '준최', color: 'text-blue-600', bgColor: 'bg-blue-50' }
+  if (score >= 49) return { label: '준최3', category: '준최', color: 'text-blue-500', bgColor: 'bg-blue-50' }
+  if (score >= 45) return { label: '준최4', category: '준최', color: 'text-sky-600', bgColor: 'bg-sky-50' }
+  // 보통 (29~44): 일반 키워드
+  if (score >= 41) return { label: '보통1', category: '보통', color: 'text-yellow-700', bgColor: 'bg-yellow-100' }
+  if (score >= 37) return { label: '보통2', category: '보통', color: 'text-yellow-600', bgColor: 'bg-yellow-50' }
+  if (score >= 33) return { label: '보통3', category: '보통', color: 'text-amber-600', bgColor: 'bg-amber-50' }
+  if (score >= 29) return { label: '보통4', category: '보통', color: 'text-amber-500', bgColor: 'bg-amber-50' }
+  // 비추 (0~28): 비추천 키워드
+  if (score >= 24) return { label: '비추1', category: '비추', color: 'text-orange-600', bgColor: 'bg-orange-50' }
+  if (score >= 18) return { label: '비추2', category: '비추', color: 'text-red-500', bgColor: 'bg-red-50' }
+  if (score >= 11) return { label: '비추3', category: '비추', color: 'text-red-600', bgColor: 'bg-red-100' }
+  return { label: '비추4', category: '비추', color: 'text-red-700', bgColor: 'bg-red-100' }
+}
+
 // ===== 숫자 포맷 =====
 
 export function formatNumber(num: number): string {

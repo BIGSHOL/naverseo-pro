@@ -317,7 +317,7 @@ export default function CompetitorsPage() {
                     <Clock className="h-5 w-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">평균 포스트 연령</p>
+                    <p className="text-sm text-muted-foreground">상위글 평균 작성시기</p>
                     <p className="text-xl font-bold">{formatDaysAgo(patterns.dateStats.avgDaysAgo)}</p>
                   </div>
                 </div>
@@ -405,9 +405,8 @@ export default function CompetitorsPage() {
                         <td className="py-3 pr-4">
                           <a
                             href={ensureUrl(comp.link)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex items-start gap-1 font-medium hover:text-primary"
+                            onClick={(e) => { e.preventDefault(); const u = ensureUrl(comp.link); if (u) window.open(u, '_blank', 'noopener') }}
+                            className="group flex items-start gap-1 font-medium hover:text-primary cursor-pointer"
                           >
                             <span className="line-clamp-2">{comp.title}</span>
                             <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
@@ -423,7 +422,7 @@ export default function CompetitorsPage() {
                           <div className="whitespace-nowrap">{comp.postDateFormatted}</div>
                           <div className="text-xs">{formatDaysAgo(comp.daysSincePosted)}</div>
                         </td>
-                        <td className="hidden py-3 lg:table-cell">
+                        <td className="hidden py-3 lg:table-cell whitespace-nowrap">
                           {comp.hasKeywordInTitle ? (
                             <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">포함</Badge>
                           ) : (

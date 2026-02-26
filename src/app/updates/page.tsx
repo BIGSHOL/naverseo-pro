@@ -23,7 +23,7 @@ const UPDATES: UpdateEntry[] = [
   { date: '2026-02-26', type: 'fix', message: 'Gemini 2.5 Flash thinking 모드 504 타임아웃 해결 (REST API 전환)' },
   { date: '2026-02-25', type: 'feat', message: '블로그 지수 v6 — 16등급 체계 + 카테고리별 추이 차트' },
   { date: '2026-02-25', type: 'feat', message: '블로그 지수 v5 — 5축 균등 배분 + 검색 보너스 분리' },
-  { date: '2026-02-25', type: 'feat', message: '블덱스 종료 시장 공략 — 포스팅 누락 조회, 포화지수, 키워드 대량조회, 인스타그램 변환' },
+  { date: '2026-02-25', type: 'feat', message: '블덱스 종료 시장 공략 — 검색 누락 조회, 포화지수, 키워드 대량조회, 인스타그램 변환' },
   { date: '2026-02-25', type: 'feat', message: '어드민 사용자별 크레딧 소모 내역 월별/일별 조회 추가' },
   { date: '2026-02-25', type: 'feat', message: '특정 상호명 구조 가이드 교체 + 콘텐츠 방향 입력 필드' },
   { date: '2026-02-25', type: 'fix', message: 'AI 콘텐츠 할루시네이션 방지 강화 (SERP 기반 자동 교정, 키워드 의미 추출)' },

@@ -147,7 +147,7 @@ export const CREDIT_COSTS = {
   seo_report: 2,             // SEO 리포트 생성
   content_improve: 3,        // 콘텐츠 개선
   keyword_bulk: 3,             // 키워드 대량조회 (10개당)
-  post_check: 2,               // 포스팅 누락 조회
+  post_check: 2,               // 검색 누락 조회
   instagram_convert: 3,        // 인스타그램 변환
 } as const
 
@@ -165,7 +165,7 @@ export const CREDIT_FEATURE_LABELS: Record<CreditFeature, string> = {
   seo_report: 'SEO 리포트',
   content_improve: '콘텐츠 개선',
   keyword_bulk: '키워드 대량조회',
-  post_check: '포스팅 누락 조회',
+  post_check: '검색 누락 조회',
   instagram_convert: '인스타그램 변환',
 }
 
@@ -232,7 +232,7 @@ export const PLANS: Record<Plan, PlanInfo> = {
       '키워드 리서치 (~30회)',
       'SEO 점수 체크 (~15회)',
       '블로그 지수 분석 (~10회)',
-      '포스팅 누락 조회 (~15회)',
+      '검색 누락 조회 (~15회)',
     ],
   },
   lite: {

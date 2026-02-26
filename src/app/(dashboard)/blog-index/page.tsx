@@ -828,7 +828,11 @@ export default function BlogIndexPage() {
                         </div>
                       </div>
                     )}
-                    <a href={ensureUrl(result.blogUrl)} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline">
+                    <a
+                      href={ensureUrl(result.blogUrl)}
+                      onClick={(e) => { e.preventDefault(); const u = ensureUrl(result.blogUrl); if (u) window.open(u, '_blank', 'noopener') }}
+                      className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
+                    >
                       블로그 방문 <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
@@ -1388,7 +1392,11 @@ export default function BlogIndexPage() {
                         {result.recentPosts.map((post, i) => (
                           <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                             <td className="py-2 pr-2">
-                              <a href={ensureUrl(post.link)} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-1 hover:text-primary">
+                              <a
+                                href={ensureUrl(post.link)}
+                                onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
+                                className="group flex items-center gap-1 hover:text-primary cursor-pointer"
+                              >
                                 <span className="line-clamp-1 text-xs font-medium">{post.title}</span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
                               </a>

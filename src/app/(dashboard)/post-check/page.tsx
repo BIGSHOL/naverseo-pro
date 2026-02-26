@@ -80,7 +80,7 @@ export default function PostCheckPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">포스팅 누락 조회</h1>
+        <h1 className="text-2xl font-bold">검색 누락 조회</h1>
         <p className="mt-1 text-muted-foreground">
           내 블로그 포스트가 네이버 검색에 정상적으로 색인되어 있는지 확인합니다
         </p>
@@ -213,9 +213,8 @@ export default function PostCheckPage() {
                       </div>
                       <a
                         href={ensureUrl(post.link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0"
+                        onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
+                        className="shrink-0 cursor-pointer"
                       >
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
                           <ExternalLink className="h-3 w-3" />
@@ -265,9 +264,8 @@ export default function PostCheckPage() {
                       <Badge variant="outline" className="text-xs shrink-0">색인됨</Badge>
                       <a
                         href={ensureUrl(post.link)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0"
+                        onClick={(e) => { e.preventDefault(); const u = ensureUrl(post.link); if (u) window.open(u, '_blank', 'noopener') }}
+                        className="shrink-0 cursor-pointer"
                       >
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
                           <ExternalLink className="h-3 w-3" />

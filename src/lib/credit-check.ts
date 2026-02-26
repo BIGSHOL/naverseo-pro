@@ -178,6 +178,17 @@ export async function deductCredits(
     .single()
 
   if (profile?.role === 'admin') {
+    // admin은 차감 없이 활동 로그만 기록 (대시보드 주간 활동 반영용)
+    await supabase
+      .from('credit_usage_log')
+      .insert({
+        user_id: userId,
+        feature,
+        credits_spent: 0,
+        credits_before: profile.credits_balance ?? 0,
+        credits_after: profile.credits_balance ?? 0,
+        metadata: metadata || null,
+      })
     return { success: true, remaining: profile.credits_balance }
   }
 
@@ -186,6 +197,18 @@ export async function deductCredits(
     .from('profiles')
     .update({ credits_balance: newBalance, updated_at: new Date().toISOString() })
     .eq('id', userId)
+
+  // 폴백에서도 로그 기록
+  await supabase
+    .from('credit_usage_log')
+    .insert({
+      user_id: userId,
+      feature,
+      credits_spent: cost,
+      credits_before: profile?.credits_balance ?? 0,
+      credits_after: newBalance,
+      metadata: metadata || null,
+    })
 
   return { success: true, remaining: newBalance }
 }

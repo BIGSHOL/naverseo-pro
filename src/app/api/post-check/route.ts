@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[PostCheck] 오류:', error)
     return NextResponse.json(
-      { error: '포스팅 누락 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' },
+      { error: '검색 누락 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' },
       { status: 500 }
     )
   }

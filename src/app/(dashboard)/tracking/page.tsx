@@ -517,9 +517,8 @@ export default function TrackingPage() {
                       <div className="mt-0.5 flex items-center gap-2">
                         <a
                           href={ensureUrl(kw.blog_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-primary"
+                          onClick={(e) => { e.preventDefault(); const u = ensureUrl(kw.blog_url); if (u) window.open(u, '_blank', 'noopener') }}
+                          className="flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-primary cursor-pointer"
                         >
                           {kw.blog_url}
                           <ExternalLink className="h-3 w-3 shrink-0" />

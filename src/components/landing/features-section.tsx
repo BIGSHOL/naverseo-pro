@@ -44,7 +44,7 @@ const coreFeatures = [
 const bonusFeatures = [
   {
     icon: FileSearch,
-    title: '포스팅 누락 조회',
+    title: '검색 누락 조회',
     description: '내 포스트가 네이버 검색에 빠져 있지 않은지 자동 체크. 색인 누락된 글을 찾아 검색 노출 기회를 되찾으세요.',
     color: 'bg-teal-500/10 text-teal-600',
   },
