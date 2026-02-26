@@ -83,6 +83,7 @@ interface BlogIndexHistoryChartProps {
   history: HistoryEntry[]
   stats: HistoryStats
   mode?: 'total' | 'category' | 'algorithm'
+  axisMode?: '4axis' | '5axis'
 }
 
 interface ChartDataPoint {
@@ -102,6 +103,7 @@ interface CategoryDataPoint {
   방문자: number | null
   SEO: number | null
   신뢰도: number | null
+  검색성과?: number | null
 }
 
 // X축 커스텀 틱: 날짜만 표시 ("|인덱스" 접미사 제거)
@@ -162,7 +164,7 @@ function CustomTooltip({ active, payload }: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CategoryTooltip({ active, payload }: any) {
+function CategoryTooltip({ active, payload, maxPerAxis = 25, is5 = false }: any) {
   if (!active || !payload || !payload.length) return null
 
   const data = payload[0].payload as CategoryDataPoint
@@ -178,6 +180,7 @@ function CategoryTooltip({ active, payload }: any) {
     { name: 'SEO', value: data.SEO, color: '#22c55e' },
     { name: '신뢰도', value: data.신뢰도, color: '#06b6d4' },
   ]
+  if (is5) lines.push({ name: '검색성과', value: data.검색성과 ?? null, color: '#f59e0b' })
 
   return (
     <div className="rounded-lg border bg-background p-2.5 shadow-md max-w-[200px]">
@@ -188,14 +191,14 @@ function CategoryTooltip({ active, payload }: any) {
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: line.color }} />
             {line.name}
           </span>
-          <span className="font-bold">{line.value ?? '-'}/25</span>
+          <span className="font-bold">{line.value ?? '-'}/{maxPerAxis}</span>
         </div>
       ))}
     </div>
   )
 }
 
-export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIndexHistoryChartProps) {
+export function BlogIndexHistoryChart({ history, stats, mode = 'total', axisMode = '4axis' }: BlogIndexHistoryChartProps) {
   // 오래된 순으로 정렬
   const sorted = history.slice().sort(
     (a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime()
@@ -265,22 +268,38 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
   }
 
   if (mode === 'category') {
+    const is5 = axisMode === '5axis'
+    const scale20 = (v: number | null) => v != null ? Math.round(v * 20 / 25) : null
+    const maxPerAxis = is5 ? 20 : 25
+
     // 카테고리별 차트 데이터
     const categoryData: CategoryDataPoint[] = sorted.map((h, i) => {
       const date = new Date(h.checked_at).toLocaleDateString('ko-KR', {
         month: 'numeric',
         day: 'numeric',
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fullResult = (h as any).full_result
+      const searchBonusScore: number | null = fullResult?.searchBonus?.score ?? (h.metrics as Record<string, unknown>)?.searchBonusScore as number ?? null
       return {
         label: `${date}|${i}`,
         date,
         rawDate: h.checked_at,
-        콘텐츠: h.content_score,
-        방문자: h.popularity_score,
-        SEO: h.search_score,
-        신뢰도: h.activity_score,  // DB 컬럼 activity_score → v9에서는 신뢰도 저장
+        콘텐츠: is5 ? scale20(h.content_score) : h.content_score,
+        방문자: is5 ? scale20(h.popularity_score) : h.popularity_score,
+        SEO: is5 ? scale20(h.search_score) : h.search_score,
+        신뢰도: is5 ? scale20(h.activity_score) : h.activity_score,
+        검색성과: is5 ? scale20(searchBonusScore) : undefined,
       }
     })
+
+    const catLines: { name: string; key: string; color: string }[] = [
+      { name: '콘텐츠', key: '콘텐츠', color: '#3b82f6' },
+      { name: '방문자', key: '방문자', color: '#8b5cf6' },
+      { name: 'SEO', key: 'SEO', color: '#22c55e' },
+      { name: '신뢰도', key: '신뢰도', color: '#06b6d4' },
+    ]
+    if (is5) catLines.push({ name: '검색성과', key: '검색성과', color: '#f59e0b' })
 
     return (
       <div className="space-y-3">
@@ -288,7 +307,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span className="text-muted-foreground">{stats.measurements}회 측정</span>
           <span className="text-muted-foreground/40">|</span>
-          <span className="text-muted-foreground">4개 카테고리별 점수 추이 (각 25점 만점)</span>
+          <span className="text-muted-foreground">{is5 ? '5대축' : '4대축'} 점수 추이 (각 {maxPerAxis}점 만점)</span>
         </div>
 
         {categoryData.length < 2 ? (
@@ -308,21 +327,20 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
                 padding={{ left: 30, right: 30 }}
               />
               <YAxis
-                domain={[0, 25]}
+                domain={[0, maxPerAxis]}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
                 tickFormatter={(v: number) => String(v)}
               />
-              <Tooltip content={<CategoryTooltip />} />
+              <Tooltip content={<CategoryTooltip maxPerAxis={maxPerAxis} is5={is5} />} />
               <Legend
                 wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
                 iconType="circle"
                 iconSize={8}
               />
-              <Line type="monotone" dataKey="콘텐츠" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} connectNulls name="콘텐츠" />
-              <Line type="monotone" dataKey="방문자" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} connectNulls name="방문자" />
-              <Line type="monotone" dataKey="SEO" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: '#22c55e' }} connectNulls name="SEO" />
-              <Line type="monotone" dataKey="신뢰도" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3, fill: '#06b6d4' }} connectNulls name="신뢰도" />
+              {catLines.map(l => (
+                <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color} strokeWidth={2} dot={{ r: 3, fill: l.color }} connectNulls name={l.name} />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         )}

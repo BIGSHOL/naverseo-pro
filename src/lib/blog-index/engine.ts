@@ -175,11 +175,12 @@ export function analyzeBlogIndex(
   // v10: 검색 성과 (5대축 전용) — SEO 최적화와 다른 관점으로 키워드 순위 성과 측정
   const searchBonus = computeSearchPerformance(keywordResults)
 
-  const avgDescLength = posts.length > 0
-    ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
+  // v10: recentPosts(PostDetail)의 실제 charCount/imageCount 사용 (스크래핑 데이터 우선)
+  const avgDescLength = recentPosts.length > 0
+    ? Math.round(recentPosts.reduce((s, p) => s + p.charCount, 0) / recentPosts.length)
     : 0
-  const avgImageCount = posts.length > 0
-    ? Math.round((posts.reduce((s, p) => s + countImageMarkers(p.description), 0) / posts.length) * 10) / 10
+  const avgImageCount = recentPosts.length > 0
+    ? Math.round((recentPosts.reduce((s, p) => s + p.imageCount, 0) / recentPosts.length) * 10) / 10
     : 0
 
   // 블로그 프로필 생성 - preSortedDates 재활용

@@ -22,7 +22,6 @@ import {
   BarChart3,
   ArrowUpRight,
   Shield,
-  Gauge,
   Brain,
   ThumbsUp,
   ThumbsDown,
@@ -957,7 +956,7 @@ export default function BlogIndexPage() {
         {result && (
           <>
             {/* ===== 4대축 / 5대축 탭 토글 (상단 고정, 하단 전체 전환) ===== */}
-            <div className="flex items-center gap-1.5 rounded-lg bg-muted p-1">
+            <div className="sticky top-14 z-20 flex items-center gap-1.5 rounded-lg bg-muted p-1 shadow-sm">
               <button
                 onClick={() => setAxisMode('4axis')}
                 className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -1107,25 +1106,22 @@ export default function BlogIndexPage() {
                         </div>
                       </div>
 
-                      {/* v9: 검색 보너스 배너 제거 - SEO 최적화가 본축 */}
-
-                      {/* 최적화 수치 */}
-                      {result.benchmark && (
-                        <div className="mt-3 rounded-lg bg-muted/50 p-2.5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-1 font-medium"><Gauge className="h-3 w-3" />최적화 수치</span>
-                            <span className="font-bold text-primary">{result.benchmark.optimizationPct}%</span>
-                          </div>
-                          <div className="mt-1.5 h-2.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${result.benchmark.optimizationPct >= 70 ? 'bg-green-500' : result.benchmark.optimizationPct >= 40 ? 'bg-blue-500' : 'bg-orange-400'}`}
-                              style={{ width: `${result.benchmark.optimizationPct}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* v10: 감점이 각 축에 통합되어 별도 배너 불필요 */}
+                      {/* 축별 미니 점수 바 */}
+                      <div className="mt-3 space-y-1.5">
+                        {displayCategories.map((cat) => {
+                          const pct = Math.round((cat.score / cat.maxScore) * 100)
+                          const barColor = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-orange-400'
+                          return (
+                            <div key={cat.name} className="flex items-center gap-2 text-[10px]">
+                              <span className="w-14 shrink-0 truncate text-muted-foreground">{cat.name.replace('콘텐츠 품질', '콘텐츠').replace('방문자 활동', '방문자').replace('SEO 최적화', 'SEO')}</span>
+                              <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                                <div className={`h-full rounded-full ${is5 ? 'bg-violet-500' : barColor}`} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="w-10 shrink-0 text-right font-bold">{cat.score}/{cat.maxScore}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
 
                       {/* 다음 등급 */}
                       {result.level.nextTierScore !== null && (
@@ -1142,70 +1138,55 @@ export default function BlogIndexPage() {
                     </div>
                   </div>
 
-                  {/* 16단계 등급 맵 */}
-                  <div className="mt-4 pt-3 border-t">
-                    <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">16단계 블로그 지수</p>
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: 16 }, (_, i) => {
-                        const t = i + 1
-                        const active = t === result.level.tier
-                        const passed = t < result.level.tier
-                        const tierLabels: Record<number, string> = {
-                          1: '일반', 2: '준최1', 3: '준최2', 4: '준최3', 5: '준최4',
-                          6: '준최5', 7: '준최6', 8: '준최7', 9: '최적1', 10: '최적2',
-                          11: '최적3', 12: '최적1+', 13: '최적2+', 14: '최적3+', 15: '최적4+', 16: '파워',
-                        }
-                        // 색상 그라데이션: slate → violet → indigo → sky → blue → lime → green → teal → emerald → amber
-                        function tierBgActive(tier: number) {
-                          if (tier >= 16) return 'bg-amber-500'
-                          if (tier >= 14) return 'bg-emerald-500'
-                          if (tier >= 12) return 'bg-teal-500'
-                          if (tier >= 10) return 'bg-green-500'
-                          if (tier >= 9) return 'bg-lime-500'
-                          if (tier >= 7) return 'bg-blue-500'
-                          if (tier >= 5) return 'bg-sky-500'
-                          if (tier >= 3) return 'bg-indigo-500'
-                          if (tier >= 2) return 'bg-violet-500'
-                          return 'bg-slate-500'
-                        }
-                        function tierBgPassed(tier: number) {
-                          if (tier >= 16) return 'bg-amber-200'
-                          if (tier >= 14) return 'bg-emerald-200'
-                          if (tier >= 12) return 'bg-teal-200'
-                          if (tier >= 10) return 'bg-green-200'
-                          if (tier >= 9) return 'bg-lime-200'
-                          if (tier >= 7) return 'bg-blue-200'
-                          if (tier >= 5) return 'bg-sky-200'
-                          if (tier >= 3) return 'bg-indigo-200'
-                          if (tier >= 2) return 'bg-violet-200'
-                          return 'bg-slate-200'
-                        }
-                        let bg = 'bg-muted'
-                        const textCls = 'text-foreground font-bold'
-                        if (active) bg = tierBgActive(t)
-                        else if (passed) bg = tierBgPassed(t)
-                        return (
-                          <div key={t} className="flex-1 text-center">
-                            <div className={`h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1' : ''}`}>
-                              <span className={`text-[7px] ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/60'}`}>
-                                {t}
-                              </span>
+                  {/* 16단계 등급 맵 — 모든 라벨 표시 + 현재 단계 이펙트 */}
+                  {(() => {
+                    const TIER_DATA: { label: string; color: string; activeBg: string; passedBg: string }[] = [
+                      { label: '일반', color: 'slate', activeBg: 'bg-slate-500', passedBg: 'bg-slate-200 dark:bg-slate-700' },
+                      { label: '준최1', color: 'violet', activeBg: 'bg-violet-500', passedBg: 'bg-violet-200 dark:bg-violet-800' },
+                      { label: '준최2', color: 'indigo', activeBg: 'bg-indigo-500', passedBg: 'bg-indigo-200 dark:bg-indigo-800' },
+                      { label: '준최3', color: 'indigo', activeBg: 'bg-indigo-500', passedBg: 'bg-indigo-200 dark:bg-indigo-800' },
+                      { label: '준최4', color: 'sky', activeBg: 'bg-sky-500', passedBg: 'bg-sky-200 dark:bg-sky-800' },
+                      { label: '준최5', color: 'sky', activeBg: 'bg-sky-500', passedBg: 'bg-sky-200 dark:bg-sky-800' },
+                      { label: '준최6', color: 'blue', activeBg: 'bg-blue-500', passedBg: 'bg-blue-200 dark:bg-blue-800' },
+                      { label: '준최7', color: 'blue', activeBg: 'bg-blue-500', passedBg: 'bg-blue-200 dark:bg-blue-800' },
+                      { label: '최적1', color: 'lime', activeBg: 'bg-lime-500', passedBg: 'bg-lime-200 dark:bg-lime-800' },
+                      { label: '최적2', color: 'green', activeBg: 'bg-green-500', passedBg: 'bg-green-200 dark:bg-green-800' },
+                      { label: '최적3', color: 'green', activeBg: 'bg-green-500', passedBg: 'bg-green-200 dark:bg-green-800' },
+                      { label: '최적1+', color: 'teal', activeBg: 'bg-teal-500', passedBg: 'bg-teal-200 dark:bg-teal-800' },
+                      { label: '최적2+', color: 'teal', activeBg: 'bg-teal-500', passedBg: 'bg-teal-200 dark:bg-teal-800' },
+                      { label: '최적3+', color: 'emerald', activeBg: 'bg-emerald-500', passedBg: 'bg-emerald-200 dark:bg-emerald-800' },
+                      { label: '최적4+', color: 'emerald', activeBg: 'bg-emerald-500', passedBg: 'bg-emerald-200 dark:bg-emerald-800' },
+                      { label: '파워', color: 'amber', activeBg: 'bg-amber-500', passedBg: 'bg-amber-200 dark:bg-amber-800' },
+                    ]
+                    const myTier = result.level.tier
+                    return (
+                    <div className="mt-4 pt-3 border-t">
+                      <div className="grid grid-cols-8 gap-x-1 gap-y-1.5">
+                        {TIER_DATA.map((td, i) => {
+                          const t = i + 1
+                          const active = t === myTier
+                          const passed = t < myTier
+                          const bg = active ? td.activeBg : passed ? td.passedBg : 'bg-muted'
+                          return (
+                            <div key={t} className="relative text-center">
+                              <div className={`relative h-8 rounded-md flex flex-col items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-2 shadow-lg scale-110 z-10' : ''}`}>
+                                <span className={`text-[8px] leading-none ${active ? 'text-white font-extrabold' : passed ? 'text-foreground/70 font-medium' : 'text-muted-foreground/50'}`}>
+                                  {td.label}
+                                </span>
+                                <span className={`text-[7px] leading-none mt-0.5 ${active ? 'text-white/80' : passed ? 'text-foreground/40' : 'text-muted-foreground/30'}`}>
+                                  Lv.{t}
+                                </span>
+                              </div>
+                              {active && (
+                                <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+                              )}
                             </div>
-                            {active && (
-                              <p className={`mt-0.5 text-[7px] ${textCls}`}>{tierLabels[t]}</p>
-                            )}
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex justify-between text-[8px] text-muted-foreground">
-                      <span className="text-slate-400">일반</span>
-                      <span className="text-blue-500">준최적화</span>
-                      <span className="text-green-500">최적화</span>
-                      <span className="text-emerald-500">최적화+</span>
-                      <span className="text-amber-500">파워</span>
-                    </div>
-                  </div>
+                    )
+                  })()}
                 </CardContent>
               </Card>
                 )
@@ -1248,6 +1229,7 @@ export default function BlogIndexPage() {
                     history={historyData.history}
                     stats={historyData.stats}
                     mode={chartMode}
+                    axisMode={axisMode}
                   />
                 </CardContent>
               </Card>
@@ -1379,21 +1361,22 @@ export default function BlogIndexPage() {
               const bm = result.benchmark!
               // 전체 달성률 계산 (캐시된 이전 데이터에 값이 없을 수 있으므로 ?? 0 방어)
               // 제목 길이는 범위 기반 (15~36자), 나머지는 높을수록 좋음
+              // v10: 범위 기반 달성 판정 (적정 범위 내에 있어야 달성)
+              const inRange = (v: number, min: number, max: number) => v >= min && v <= max
               const titleMine = bm.avgTitleLength?.mine ?? 0
-              const titleOk = titleMine >= 15 && titleMine <= 36
-              const items: { mine: number; target: number }[] = [
-                { mine: bm.postingFrequency?.mine ?? 0, target: bm.postingFrequency?.recommended ?? 3 },
-                { mine: titleOk ? 1 : 0, target: 1 }, // 범위 내면 달성
-                { mine: bm.avgContentLength?.mine ?? 0, target: bm.avgContentLength?.recommended ?? 150 },
-                { mine: bm.avgImageCount?.mine ?? 0, target: bm.avgImageCount?.recommended ?? 3 },
-                { mine: bm.topicFocus?.mine ?? 0, target: bm.topicFocus?.recommended ?? 60 },
+              const checks: boolean[] = [
+                inRange(bm.postingFrequency?.mine ?? 0, bm.postingFrequency?.recommended ?? 3, 14),
+                inRange(titleMine, 15, 36),
+                inRange(bm.avgContentLength?.mine ?? 0, bm.avgContentLength?.recommended ?? 1500, 5000),
+                inRange(bm.avgImageCount?.mine ?? 0, bm.avgImageCount?.recommended ?? 3, 20),
+                inRange(bm.topicFocus?.mine ?? 0, bm.topicFocus?.recommended ?? 30, 80),
               ]
-              if (bm.dailyVisitors) items.push({ mine: bm.dailyVisitors.mine, target: bm.dailyVisitors.recommended })
-              if (bm.avgCommentCount) items.push({ mine: bm.avgCommentCount.mine, target: bm.avgCommentCount.recommended })
-              if (bm.avgSympathyCount) items.push({ mine: bm.avgSympathyCount.mine, target: bm.avgSympathyCount.recommended })
+              if (bm.dailyVisitors) checks.push(bm.dailyVisitors.mine >= bm.dailyVisitors.recommended)
+              if (bm.avgCommentCount) checks.push(bm.avgCommentCount.mine >= bm.avgCommentCount.recommended)
+              if (bm.avgSympathyCount) checks.push(bm.avgSympathyCount.mine >= bm.avgSympathyCount.recommended)
 
-              const achievedCount = items.filter(i => i.mine >= i.target).length
-              const overallPct = Math.round((achievedCount / items.length) * 100)
+              const achievedCount = checks.filter(Boolean).length
+              const overallPct = Math.round((achievedCount / checks.length) * 100)
               const overallColor = overallPct >= 70 ? 'text-green-600' : overallPct >= 40 ? 'text-amber-600' : 'text-red-500'
 
               return (
@@ -1414,7 +1397,7 @@ export default function BlogIndexPage() {
                           </span>
                         )}
                         <div className="text-right">
-                          <p className={`text-lg font-bold ${overallColor}`}>{achievedCount}/{items.length}</p>
+                          <p className={`text-lg font-bold ${overallColor}`}>{achievedCount}/{checks.length}</p>
                           <p className="text-[10px] text-muted-foreground">항목 달성</p>
                         </div>
                       </div>
@@ -1422,13 +1405,13 @@ export default function BlogIndexPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                      <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} recommended={bm.postingFrequency.recommended} topBlogger={bm.postingFrequency.topBlogger} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} recommended={bm.postingFrequency.recommended} topBlogger={bm.postingFrequency.topBlogger} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} maxOptimal={14} />
                       <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} recommended={bm.avgTitleLength.optimal} topBlogger={bm.avgTitleLength.topBlogger} unit="자" icon={<Type className="h-3.5 w-3.5" />} maxOptimal={36} />
-                      <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} recommended={bm.avgContentLength.recommended} topBlogger={bm.avgContentLength.topBlogger} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} recommended={bm.avgContentLength.recommended} topBlogger={bm.avgContentLength.topBlogger} unit="자" icon={<FileText className="h-3.5 w-3.5" />} maxOptimal={5000} />
                       {bm.avgImageCount && (
-                        <BenchmarkItem label="평균 이미지 수" mine={bm.avgImageCount.mine} recommended={bm.avgImageCount.recommended} topBlogger={bm.avgImageCount.topBlogger} unit="장" icon={<ImageIcon className="h-3.5 w-3.5" />} />
+                        <BenchmarkItem label="평균 이미지 수" mine={bm.avgImageCount.mine} recommended={bm.avgImageCount.recommended} topBlogger={bm.avgImageCount.topBlogger} unit="장" icon={<ImageIcon className="h-3.5 w-3.5" />} maxOptimal={20} />
                       )}
-                      <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} maxOptimal={80} />
                       {bm.dailyVisitors && (
                         <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} recommended={bm.dailyVisitors.recommended} topBlogger={bm.dailyVisitors.topBlogger} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
                       )}

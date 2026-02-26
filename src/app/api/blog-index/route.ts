@@ -328,6 +328,7 @@ export async function POST(request: NextRequest) {
           seoScore: seoCat?.score ?? null,
           diaScore: result.diaScore?.score ?? null,
           crankScore: result.crankScore?.score ?? null,
+          searchBonusScore: result.searchBonus?.score ?? null,
         },
         full_result: result,
         is_demo: isDemo,
