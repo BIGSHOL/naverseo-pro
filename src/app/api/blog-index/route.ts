@@ -18,7 +18,7 @@ import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analy
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
-import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
+import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
 import { detectBlogCategory, BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
 import { getCategoryBenchmark } from '@/lib/blog-index/benchmark-provider'
 import { accumulateBenchmarkData } from '@/lib/blog-index/benchmark-accumulator'

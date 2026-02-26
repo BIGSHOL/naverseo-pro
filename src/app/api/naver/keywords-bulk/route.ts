@@ -6,6 +6,7 @@ import {
 } from '@/lib/naver/search-ad'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
+import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
 // 데모 데이터 생성
 function generateBulkDemoData(keyword: string): NaverKeywordResult {
@@ -50,6 +51,13 @@ async function getBlogStats(keyword: string): Promise<{
 
         const result = await searchNaverBlog(keyword, 10)
         const monthlyPostCount = result.total
+
+        // 블로그 학습 파이프라인: 백그라운드 수집
+        if (result.items.length > 0) {
+            scheduleCollection(async () => {
+                await collectFromSearchResults(keyword, result.items, 'keyword_bulk')
+            })
+        }
 
         // 상위 10개 게시물의 평균 발행일 계산
         let avgPostDate: string | null = null

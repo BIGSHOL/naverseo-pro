@@ -10,6 +10,7 @@ import type { ContentType } from '@/lib/content/engine'
 /** 수집 출처 */
 export type CollectionSource =
   | 'keyword_research'
+  | 'keyword_bulk'
   | 'content_generation'
   | 'competitor_analysis'
   | 'blog_index'

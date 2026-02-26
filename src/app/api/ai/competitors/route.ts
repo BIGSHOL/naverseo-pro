@@ -3,7 +3,7 @@ import { searchNaverBlog } from '@/lib/naver/blog-search'
 import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
-import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
+import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
 
 // === 타입 정의 ===
 
@@ -288,11 +288,17 @@ ${competitorList}
 async function analyzeCompetitorImages(
   competitorLinks: string[],
   keyword: string,
+  searchItems?: import('@/lib/naver/blog-search').NaverBlogSearchItem[],
 ): Promise<ImageAnalysis | null> {
   try {
     const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
     // 상위 5개 글만 스크래핑 (속도/비용 최적화)
     const scrapedData = await scrapeMultiplePosts(competitorLinks.slice(0, 5), 5)
+
+    // 블로그 학습 파이프라인: 스크래핑 데이터 수집 (풀 패턴)
+    if (searchItems && searchItems.length > 0 && scrapedData.size > 0) {
+      scheduleCollection(() => collectFromScrapedPosts(keyword, scrapedData, searchItems, null, 'competitor_analysis'))
+    }
 
     // 모든 이미지 URL 수집 (글당 최대 3장, 총 최대 10장)
     const allImageUrls: string[] = []
@@ -514,7 +520,7 @@ export async function POST(request: NextRequest) {
         const competitorLinks = competitors.map(c => c.link)
         const [aiResult, imageResult] = await Promise.allSettled([
           getAiInsights(cleanKeyword, competitors, patterns, difficulty, provider),
-          analyzeCompetitorImages(competitorLinks, cleanKeyword),
+          analyzeCompetitorImages(competitorLinks, cleanKeyword, searchResult.items),
         ])
 
         aiInsights = aiResult.status === 'fulfilled' ? aiResult.value : null

@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import type { SearchRankResult } from '@/types/search-rank'
 import { ensureUrl } from '@/lib/utils/text'
-import { getScoreColor } from '@/components/keywords/keyword-utils'
+import { getScoreColor, getKeywordGrade } from '@/components/keywords/keyword-utils'
 
 export interface BulkKeywordData {
     keyword: string
@@ -105,25 +105,14 @@ function getCompColor(compIdx: string): string {
     }
 }
 
-// 상위 유형 색상
-function getTypeColor(type: string): string {
+// 비블로그 타입 배지 스타일 (keyword-results.tsx와 동일)
+function getResultTypeBadgeStyle(type: string): string {
     switch (type) {
-        case '블로그': return 'bg-emerald-600 text-white'
-        case '카페': return 'bg-blue-500 text-white'
+        case '카페': return 'bg-green-600 text-white'
+        case '외부': return 'bg-yellow-600 text-white'
         case '포스트': return 'bg-purple-500 text-white'
-        case '외부': return 'bg-gray-500 text-white'
-        default: return 'bg-muted text-muted-foreground'
-    }
-}
-
-// 유형에 대응하는 추정 지수 라벨 (typeDetail로 더 상세 표시)
-function getEstimatedGrade(type: string, typeDetail: string): { label: string; color: string } {
-    switch (type) {
-        case '블로그': return { label: '네이버 블로그', color: 'text-emerald-600' }
-        case '카페': return { label: '네이버 카페', color: 'text-blue-600' }
-        case '포스트': return { label: '네이버 포스트', color: 'text-purple-600' }
-        case '외부': return { label: typeDetail !== '외부' ? typeDetail : '외부 블로그', color: 'text-gray-500' }
-        default: return { label: '-', color: 'text-muted-foreground' }
+        case '지식인': return 'bg-orange-500 text-white'
+        default: return 'bg-gray-400 text-white'
     }
 }
 
@@ -381,7 +370,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                     </button>
                                 </TableHead>
                                 {([1, 2, 3, 4, 5] as const).map((n) => (
-                                    <TableHead key={n} className="text-center min-w-[60px]">
+                                    <TableHead key={n} className="text-center w-[52px] min-w-[52px]">
                                         <button
                                             onClick={() => handleSort(`rank${n}` as SortField)}
                                             className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
@@ -483,12 +472,11 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                             )}
                                         </TableCell>
 
-                                        {/* 1~5위 유형 (클릭 시 해당 사이트 이동) + 추정 지수 */}
+                                        {/* 1~5위: 블로그→16등급 라벨, 비블로그→타입 배지 */}
                                         {[0, 1, 2, 3, 4].map((rankIdx) => {
                                             const item = topResults[rankIdx]
-                                            const grade = item ? getEstimatedGrade(item.type, item.typeDetail) : null
                                             return (
-                                                <TableCell key={rankIdx} className="text-center align-middle p-1.5">
+                                                <TableCell key={rankIdx} className="text-center align-middle px-1 py-2">
                                                     {item ? (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
@@ -496,14 +484,22 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                                                     href={ensureUrl(item.url)}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
-                                                                    className="inline-flex flex-col items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity"
+                                                                    className="inline-block cursor-pointer hover:opacity-70 transition-opacity"
                                                                 >
-                                                                    <span className={`inline-block min-w-[44px] rounded px-2 py-0.5 text-[10px] font-bold leading-tight ${getTypeColor(item.type)}`}>
-                                                                        {item.typeDetail}
-                                                                    </span>
-                                                                    <span className={`text-[9px] font-medium leading-tight ${grade!.color}`}>
-                                                                        {grade!.label}
-                                                                    </span>
+                                                                    {item.type === '블로그' ? (
+                                                                        (() => {
+                                                                            const grade = getKeywordGrade(row.score)
+                                                                            return (
+                                                                                <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor} ${grade.color}`}>
+                                                                                    {grade.label}
+                                                                                </span>
+                                                                            )
+                                                                        })()
+                                                                    ) : (
+                                                                        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${getResultTypeBadgeStyle(item.type)}`}>
+                                                                            {item.type}
+                                                                        </span>
+                                                                    )}
                                                                 </a>
                                                             </TooltipTrigger>
                                                             <TooltipContent side="bottom">
