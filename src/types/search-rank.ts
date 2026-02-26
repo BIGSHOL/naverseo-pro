@@ -12,5 +12,6 @@ export interface SearchRankResult {
         typeDetail: string  // '최적2', '준최6' 등 세부 정보
         source: string  // 'blog.naver.com', 'cafe.naver.com' 등
         url: string    // 실제 게시물 URL
+        title?: string // 게시글 제목
     }>
 }

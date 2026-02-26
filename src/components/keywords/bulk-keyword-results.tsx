@@ -294,62 +294,62 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
             </CardHeader>
             <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                    <Table className="table-fixed">
+                    <Table style={{ tableLayout: 'fixed', minWidth: 1100 }}>
                         <colgroup>
-                            <col className="w-[120px]" />{/* 키워드 */}
-                            <col className="w-[80px]" />{/* PC조회수 */}
-                            <col className="w-[80px]" />{/* MB조회수 */}
-                            <col className="w-[90px]" />{/* 월 검색량 */}
-                            <col className="w-[72px]" />{/* 발행량 */}
-                            <col className="w-[64px]" />{/* 경쟁도 */}
-                            <col className="w-[80px]" />{/* 평균 발행일 */}
-                            <col className="w-[76px]" />{/* 인기글 순서 */}
-                            <col className="w-[64px]" />{/* 자동완성 */}
-                            <col className="w-[56px]" />{/* 1위 */}
-                            <col className="w-[56px]" />{/* 2위 */}
-                            <col className="w-[56px]" />{/* 3위 */}
-                            <col className="w-[56px]" />{/* 4위 */}
-                            <col className="w-[56px]" />{/* 5위 */}
-                            <col className="w-[52px]" />{/* 점수 */}
+                            <col style={{ width: 110 }} />{/* 키워드 */}
+                            <col style={{ width: 72 }} />{/* PC조회수 */}
+                            <col style={{ width: 72 }} />{/* MB조회수 */}
+                            <col style={{ width: 82 }} />{/* 월 검색량 */}
+                            <col style={{ width: 68 }} />{/* 발행량 */}
+                            <col style={{ width: 60 }} />{/* 경쟁도 */}
+                            <col style={{ width: 76 }} />{/* 평균 발행일 */}
+                            <col style={{ width: 72 }} />{/* 인기글 순서 */}
+                            <col style={{ width: 60 }} />{/* 자동완성 */}
+                            <col style={{ width: 56 }} />{/* 1위 */}
+                            <col style={{ width: 56 }} />{/* 2위 */}
+                            <col style={{ width: 56 }} />{/* 3위 */}
+                            <col style={{ width: 56 }} />{/* 4위 */}
+                            <col style={{ width: 56 }} />{/* 5위 */}
+                            <col style={{ width: 48 }} />{/* 점수 */}
                         </colgroup>
                         <TableHeader>
                             <TableRow className="bg-muted/50">
-                                <TableHead className="sticky left-0 z-10 bg-muted/50 px-2">
+                                <TableHead className="sticky left-0 z-10 bg-muted/50 text-center px-1">
                                     <button
                                         onClick={() => handleSort('keyword')}
-                                        className="flex items-center text-xs font-semibold whitespace-nowrap"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         키워드 <SortIcon field="keyword" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-right px-2">
+                                <TableHead className="text-center px-1">
                                     <button
                                         onClick={() => handleSort('pcSearchVolume')}
-                                        className="flex items-center justify-end text-xs font-semibold whitespace-nowrap w-full"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         PC조회수 <SortIcon field="pcSearchVolume" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-right px-2">
+                                <TableHead className="text-center px-1">
                                     <button
                                         onClick={() => handleSort('mobileSearchVolume')}
-                                        className="flex items-center justify-end text-xs font-semibold whitespace-nowrap w-full"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         MB조회수 <SortIcon field="mobileSearchVolume" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-right px-2">
+                                <TableHead className="text-center px-1">
                                     <button
                                         onClick={() => handleSort('totalSearchVolume')}
-                                        className="flex items-center justify-end text-xs font-semibold whitespace-nowrap w-full"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         월 검색량 <SortIcon field="totalSearchVolume" />
                                     </button>
                                 </TableHead>
-                                <TableHead className="text-right px-2">
+                                <TableHead className="text-center px-1">
                                     <button
                                         onClick={() => handleSort('monthlyPostCount')}
-                                        className="flex items-center justify-end text-xs font-semibold whitespace-nowrap w-full"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         발행량 <SortIcon field="monthlyPostCount" />
                                     </button>
@@ -396,10 +396,10 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         </button>
                                     </TableHead>
                                 ))}
-                                <TableHead className="text-right px-2">
+                                <TableHead className="text-center px-1">
                                     <button
                                         onClick={() => handleSort('score')}
-                                        className="flex items-center justify-end text-xs font-semibold whitespace-nowrap w-full"
+                                        className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                     >
                                         점수 <SortIcon field="score" />
                                     </button>
@@ -417,30 +417,30 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         className={isHighVolume ? 'bg-blue-50/30 font-medium' : ''}
                                     >
                                         {/* 키워드 (sticky) */}
-                                        <TableCell className={`sticky left-0 z-10 whitespace-nowrap text-sm px-2 truncate ${isHighVolume ? 'bg-blue-50/80 font-semibold' : 'bg-background'}`}>
+                                        <TableCell className={`sticky left-0 z-10 whitespace-nowrap text-center text-sm px-1 truncate ${isHighVolume ? 'bg-blue-50/80 font-semibold' : 'bg-background'}`}>
                                             {row.keyword}
                                         </TableCell>
 
                                         {/* PC 조회수 */}
-                                        <TableCell className="text-right tabular-nums text-sm px-2">
+                                        <TableCell className="text-center tabular-nums text-sm px-1">
                                             {row.pcSearchVolume.toLocaleString()}
                                         </TableCell>
 
                                         {/* 모바일 조회수 */}
-                                        <TableCell className="text-right tabular-nums text-sm px-2">
+                                        <TableCell className="text-center tabular-nums text-sm px-1">
                                             {row.mobileSearchVolume.toLocaleString()}
                                         </TableCell>
 
                                         {/* 월 검색량 */}
-                                        <TableCell className="text-right tabular-nums text-sm font-semibold px-2">
+                                        <TableCell className="text-center tabular-nums text-sm font-semibold px-1">
                                             {row.totalSearchVolume.toLocaleString()}
                                         </TableCell>
 
                                         {/* 발행량 */}
-                                        <TableCell className="text-right tabular-nums text-sm px-2">
+                                        <TableCell className="text-center tabular-nums text-sm px-1">
                                             {row.monthlyPostCount !== null
                                                 ? row.monthlyPostCount.toLocaleString()
-                                                : <Minus className="ml-auto h-3 w-3 text-muted-foreground" />
+                                                : <Minus className="mx-auto h-3 w-3 text-muted-foreground" />
                                             }
                                         </TableCell>
 
@@ -519,9 +519,11 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                                                     )}
                                                                 </a>
                                                             </TooltipTrigger>
-                                                            <TooltipContent side="bottom">
-                                                                <p className="text-xs font-medium">{item.source}</p>
-                                                                <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.url}</p>
+                                                            <TooltipContent side="bottom" className="max-w-[280px]">
+                                                                {item.title && (
+                                                                    <p className="text-xs font-medium truncate">{item.title}</p>
+                                                                )}
+                                                                <p className="text-[10px] text-muted-foreground truncate">{item.source}</p>
                                                             </TooltipContent>
                                                         </Tooltip>
                                                     ) : (
@@ -532,7 +534,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         })}
 
                                         {/* 추천 점수 */}
-                                        <TableCell className="text-right px-2">
+                                        <TableCell className="text-center px-1">
                                             <span className={`text-sm font-bold ${getScoreColor(row.score, true)}`}>
                                                 {row.score}
                                             </span>

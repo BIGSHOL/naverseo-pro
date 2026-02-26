@@ -83,12 +83,23 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                 const rank = parseRank(crOn)
                 const { type, typeDetail, source } = classifyByUrl(dataUrl)
 
+                // 부모 컨테이너에서 제목 추출
+                const $item = $(el).closest('li, .total_wrap, [class*="item"]')
+                const title = (
+                    $item.find('a.title_link').first().text().trim() ||
+                    $item.find('a[class*="title"]').first().text().trim() ||
+                    $item.find('.title').first().text().trim() ||
+                    $(el).attr('data-title') ||
+                    ''
+                )
+
                 topResults.push({
                     rank: rank ?? topResults.length + 1,
                     type,
                     typeDetail,
                     source,
                     url: dataUrl,
+                    title,
                 })
             })
         }
@@ -111,12 +122,14 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                     fullUrl = href
                 }
                 const { type, typeDetail, source } = classifyByUrl(fullUrl)
+                const title = $(el).text().trim()
                 topResults.push({
                     rank: topResults.length + 1,
                     type,
                     typeDetail,
                     source,
                     url: fullUrl,
+                    title,
                 })
             })
         }
@@ -139,12 +152,14 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
                     fullUrl = href
                 }
                 const { type, typeDetail, source } = classifyByUrl(fullUrl)
+                const title = $(el).text().trim()
                 topResults.push({
                     rank: topResults.length + 1,
                     type,
                     typeDetail,
                     source,
                     url: fullUrl,
+                    title,
                 })
             })
         }
