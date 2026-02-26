@@ -76,9 +76,15 @@ function parseRssXml(xml: string, blogId: string): BlogPost[] {
       || itemXml.match(/<title>([\s\S]*?)<\/title>/)
     const title = titleMatch ? titleMatch[1].trim() : ''
 
-    // 링크 추출 + 정규화
-    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/)
-    const link = normalizePostLink(linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`)
+    // 링크 추출 + CDATA 제거 + 정규화
+    const linkMatch = itemXml.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/)
+      || itemXml.match(/<link>([\s\S]*?)<\/link>/)
+    let rawLink = linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`
+    // CDATA가 중첩되어 남아있을 경우 한번 더 제거
+    rawLink = rawLink.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim()
+    // RSS 트래킹 파라미터 제거 (?fromRss=true&trackingCode=rss)
+    rawLink = rawLink.replace(/\?fromRss.*$/, '')
+    const link = normalizePostLink(rawLink)
 
     // 설명 추출 (HTML 원본 보존 - 이미지 태그 감지에 필요)
     const descMatch = itemXml.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)
