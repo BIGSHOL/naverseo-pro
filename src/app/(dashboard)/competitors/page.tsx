@@ -268,13 +268,28 @@ export default function CompetitorsPage() {
                         />
                       </div>
                     </div>
-                    <ul className="space-y-1">
-                      {difficulty.reasons.map((reason, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                          {reason}
-                        </li>
-                      ))}
+                    <ul className="space-y-1.5">
+                      {difficulty.reasons.map((reason, i) => {
+                        // 요인별 아이콘/색상: 신선도, 집중도, 키워드, 제목
+                        const factorStyles = [
+                          { icon: '🕐', color: 'text-blue-600' },
+                          { icon: '👥', color: 'text-purple-600' },
+                          { icon: '🔤', color: 'text-green-600' },
+                          { icon: '📝', color: 'text-amber-600' },
+                        ]
+                        const style = factorStyles[i] || factorStyles[0]
+                        // "—" 이후가 해석 부분
+                        const parts = reason.split(' — ')
+                        return (
+                          <li key={i} className="text-xs flex items-start gap-1.5">
+                            <span className="shrink-0 text-[11px] leading-4">{style.icon}</span>
+                            <span>
+                              <span className={`font-medium ${style.color}`}>{parts[0]}</span>
+                              {parts[1] && <span className="text-muted-foreground"> — {parts[1]}</span>}
+                            </span>
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
                 </div>

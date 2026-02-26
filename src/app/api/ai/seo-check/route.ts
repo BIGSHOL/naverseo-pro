@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/seo/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
-import type { AiSeoAnalysis } from '@/lib/seo/ai-analyzer'
-import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
+import type { AiSeoAnalysis, ScrapedMeta } from '@/lib/seo/ai-analyzer'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 interface SeoCheckResponse {
@@ -22,6 +21,9 @@ interface SeoCheckResponse {
   readabilityAnalysis?: ReadabilityResult
 }
 
+// Vercel 서버리스 함수 타임아웃 (기본 10초 → 60초)
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -35,9 +37,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 사용자의 AI 제공자 조회
-    const provider = await getUserAiProvider(supabase, user.id)
-
     const creditCheck = await checkCredits(supabase, user.id, 'seo_check')
     if (!creditCheck.allowed) {
       return NextResponse.json(
@@ -46,7 +45,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { title, content, keyword } = await request.json()
+    const { title, content, keyword, scrapedMeta } = await request.json() as {
+      title?: string; content?: string; keyword?: string
+      scrapedMeta?: ScrapedMeta
+    }
 
     if (!content || content.trim().length === 0) {
       return NextResponse.json(
@@ -75,13 +77,12 @@ export async function POST(request: NextRequest) {
       readabilityAnalysis: readability,
     }
 
-    // 2) AI 심층 분석
-    if (!hasAiApiKey(provider)) {
-      // API 키 없으면 데모 AI 결과 포함
+    // 2) AI 심층 분석 (항상 Gemini 사용 — 분석은 Gemini로 충분, 비용 최적화)
+    if (!process.env.GEMINI_API_KEY?.trim()) {
       const response: SeoCheckResponse = {
         ...baseResult,
         isDemo: true,
-        demoReason: `${provider === 'claude' ? 'ANTHROPIC_API_KEY' : 'GEMINI_API_KEY'} 환경변수가 설정되지 않았습니다.`,
+        demoReason: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다.',
         aiAnalysis: generateDemoAiAnalysis(),
       }
       return NextResponse.json(response)
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     let aiAnalysis: AiSeoAnalysis | null = null
     let aiFailReason = ''
     try {
-      aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, provider)
+      aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, scrapedMeta)
       if (!aiAnalysis) {
         aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
       }

@@ -48,11 +48,18 @@ export async function callGemini(
   }
 
   try {
+    // 45초 타임아웃 (Vercel 60초 maxDuration 내에서 여유 확보)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 45000)
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
+
+    clearTimeout(timer)
 
     if (!res.ok) {
       const errBody = await res.text()
@@ -71,6 +78,9 @@ export async function callGemini(
 
     return candidate.content.parts[0].text
   } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('AI 분석 시간이 초과되었습니다 (45초). 다시 시도해주세요.')
+    }
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
       throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
@@ -178,7 +188,7 @@ export async function callClaude(
     throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.')
   }
 
-  const client = new Anthropic({ apiKey })
+  const client = new Anthropic({ apiKey, timeout: 45000 })
 
   try {
     const message = await client.messages.create({
@@ -199,6 +209,9 @@ export async function callClaude(
     throw new Error('Claude 응답에서 텍스트를 찾을 수 없습니다.')
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('AbortError')) {
+      throw new Error('AI 분석 시간이 초과되었습니다 (45초). 다시 시도해주세요.')
+    }
     if (msg.includes('429') || msg.includes('rate') || msg.includes('Too Many Requests')) {
       throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
     }

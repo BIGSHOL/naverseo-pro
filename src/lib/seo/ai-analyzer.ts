@@ -11,7 +11,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callAI, parseGeminiJson, SEO_DEEP_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
+import { callGemini, parseGeminiJson, SEO_DEEP_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 
 // ===== 타입 정의 =====
@@ -50,6 +50,26 @@ interface AiAnalysisRaw {
   recommendations: string[]
 }
 
+/** 스크래핑 메타 데이터 (AI 분석 보강용) */
+export interface ScrapedMeta {
+  charCount: number
+  imageCount: number
+  videoCount: number
+  commentCount: number | null
+  sympathyCount: number | null
+  readCount: number | null
+  tags: string[]
+  formatting?: {
+    hasBold: boolean
+    hasHeading: boolean
+    hasFontSize: boolean
+    hasColor: boolean
+    hasHighlight: boolean
+    hasUnderline: boolean
+    count: number
+  }
+}
+
 // ===== 메인 함수 =====
 
 /**
@@ -58,20 +78,19 @@ interface AiAnalysisRaw {
  * @param keyword - 타겟 키워드
  * @param title - 글 제목
  * @param content - 글 본문
+ * @param provider - AI 제공자
+ * @param scrapedMeta - 스크래핑 메타 (URL 가져오기 시 추가 컨텍스트)
  * @returns AI 분석 결과 (실패 시 null)
  */
 export async function analyzeWithAi(
   keyword: string,
   title: string,
   content: string,
-  provider: AiProvider = 'gemini'
+  scrapedMeta?: ScrapedMeta
 ): Promise<AiSeoAnalysis | null> {
-  // AI API 키가 없으면 스킵
-  const hasKey = provider === 'claude'
-    ? !!process.env.ANTHROPIC_API_KEY?.trim()
-    : !!process.env.GEMINI_API_KEY?.trim()
-  if (!hasKey) {
-    console.log(`[SEO AI] ${provider} API 키 미설정, AI 분석 스킵`)
+  // Gemini API 키가 없으면 스킵 (분석은 항상 Gemini 사용 — 비용 최적화)
+  if (!process.env.GEMINI_API_KEY?.trim()) {
+    console.log('[SEO AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
     return null
   }
 
@@ -92,15 +111,41 @@ export async function analyzeWithAi(
       truncatedContent = content
     }
 
+    // 스크래핑 메타 데이터 섹션 구성 (토큰 절약: 구조화된 요약만)
+    let metaSection = ''
+    if (scrapedMeta) {
+      const lines: string[] = []
+      lines.push(`실제 글자수: ${scrapedMeta.charCount.toLocaleString()}자`)
+      lines.push(`이미지: ${scrapedMeta.imageCount}개`)
+      if (scrapedMeta.videoCount > 0) lines.push(`동영상: ${scrapedMeta.videoCount}개`)
+      if (scrapedMeta.commentCount != null) lines.push(`댓글: ${scrapedMeta.commentCount}개`)
+      if (scrapedMeta.sympathyCount != null) lines.push(`공감: ${scrapedMeta.sympathyCount}개`)
+      if (scrapedMeta.readCount != null) lines.push(`조회수: ${scrapedMeta.readCount.toLocaleString()}회`)
+      if (scrapedMeta.tags.length > 0) lines.push(`태그: ${scrapedMeta.tags.slice(0, 15).join(', ')}`)
+      if (scrapedMeta.formatting) {
+        const f = scrapedMeta.formatting
+        const used = [
+          f.hasBold && '볼드',
+          f.hasHeading && '소제목(H2/H3)',
+          f.hasFontSize && '글자크기 변경',
+          f.hasColor && '글자색',
+          f.hasHighlight && '형광펜',
+          f.hasUnderline && '밑줄',
+        ].filter(Boolean)
+        lines.push(`서식: ${used.length > 0 ? used.join(', ') : '없음'} (${f.count}/6종)`)
+      }
+      metaSection = `\n\n[스크래핑 메타 데이터 - 실제 블로그 게시물 정보]\n${lines.join('\n')}`
+    }
+
     const userMessage = `다음 네이버 블로그 글을 심층 분석해주세요.
 
 타겟 키워드: "${keyword || '(미지정)'}"
-제목: ${title || '(제목 없음)'}
+제목: ${title || '(제목 없음)'}${metaSection}
 
 본문:
 ${truncatedContent}
 
-위 글을 JSON 형식으로 분석해주세요:
+위 글을 JSON 형식으로 분석해주세요.${scrapedMeta ? ' 스크래핑 메타 데이터(이미지 수, 서식, 댓글/공감/조회수, 태그)를 반드시 분석에 반영하세요.' : ''}
 {
   "experienceScore": 1~10,
   "experienceDetails": "경험 정보 분석 상세",
@@ -118,7 +163,7 @@ ${truncatedContent}
 
     console.log(`[SEO AI] 분석 요청 (${truncatedContent.length}자)`)
 
-    const response = await callAI(provider, SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true })
+    const response = await callGemini(SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true, thinkingBudget: 0 })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정 (1~10)

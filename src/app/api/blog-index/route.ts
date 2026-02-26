@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     let visitorData: VisitorData | null = null
     let blogProfileData: BlogProfileData | null = null
     let blogName: string | null = null
+    const topCompetitorUrls: string[] = []  // 서식 벤치마크용 상위 포스팅 URL
     const isDemo = !hasNaverApi
 
     // blogId 추출
@@ -120,8 +121,9 @@ export async function POST(request: NextRequest) {
         console.log(`[BlogIndex] 포스트에서 자동 추출 키워드: ${keywords.join(', ')}`)
       }
 
-      // === 3단계: 키워드별 순위 체크 ===
+      // === 3단계: 키워드별 순위 체크 + 상위 포스팅 URL 수집 ===
       keywordResults = []
+
       for (const keyword of keywords) {
         try {
           const searchResult = await searchNaverBlog(keyword, 100)
@@ -163,6 +165,25 @@ export async function POST(request: NextRequest) {
             rank,
             totalResults: searchResult.total,
           })
+
+          // 상위 포스팅 URL 수집 (키워드당 상위 2개, 총 5개 제한)
+          if (topCompetitorUrls.length < 5) {
+            for (const item of searchResult.items.slice(0, 3)) {
+              if (topCompetitorUrls.length >= 5) break
+              const itemLink = item.link.toLowerCase()
+              // 내 블로그 제외
+              if (blogId) {
+                const myPattern = new RegExp(`blog\\.naver\\.com/${matchTarget}(?:/|$)`, 'i')
+                if (myPattern.test(itemLink)) continue
+              } else {
+                const normalizedItem = itemLink.replace(/^https?:\/\//, '').replace(/\/$/, '')
+                if (normalizedItem.startsWith(matchTarget)) continue
+              }
+              if (!topCompetitorUrls.includes(item.link)) {
+                topCompetitorUrls.push(item.link)
+              }
+            }
+          }
 
           // 블로그 학습 파이프라인: 각 키워드 검색 결과에서 상위 포스트 수집
           scheduleCollection(() => collectFromSearchResults(keyword, searchResult.items.slice(0, 5), 'blog_index'))
@@ -244,25 +265,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // === 6단계: 블로그 포스트 본문 스크래핑 (Rate Limited, 댓글/공감 포함) ===
+    // === 6단계: 블로그 포스트 본문 스크래핑 + 상위 포스팅 병렬 스크래핑 ===
     let scrapedData: Map<string, import('@/lib/naver/blog-scraper').ScrapedPostData> | null = null
+    let topPostsScrapedData: Map<string, import('@/lib/naver/blog-scraper').ScrapedPostData> | null = null
+
     if (isDemo && posts.length > 0) {
-      // 데모 모드: 댓글/공감 포함 스크래핑 데이터 생성
       scrapedData = generateDemoScrapedData(posts)
     } else if (!isDemo && posts.length > 0) {
       try {
         const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
         const postUrls = posts.slice(0, 20).map(p => p.link)
         console.log(`[BlogIndex] 스크래핑 대상 URL 샘플:`, postUrls.slice(0, 3))
-        scrapedData = await scrapeMultiplePosts(postUrls, 20, {
-          extractMeta: true,
-          blogId: blogId || undefined,
-        })
-        const successCount = scrapedData.size
-        console.log(`[BlogIndex] 포스트 스크래핑 완료: ${successCount}/${postUrls.length}개 성공`)
+
+        // 내 포스트 + 상위 포스팅 병렬 스크래핑 (서식 벤치마크)
+        const [myResult, topResult] = await Promise.allSettled([
+          scrapeMultiplePosts(postUrls, 20, {
+            extractMeta: true,
+            blogId: blogId || undefined,
+          }),
+          topCompetitorUrls.length > 0
+            ? scrapeMultiplePosts(topCompetitorUrls, 5)
+            : Promise.resolve(null),
+        ])
+
+        if (myResult.status === 'fulfilled') {
+          scrapedData = myResult.value
+          console.log(`[BlogIndex] 포스트 스크래핑 완료: ${scrapedData.size}/${postUrls.length}개 성공`)
+        } else {
+          console.error('[BlogIndex] 포스트 스크래핑 실패 (폴백 사용):', myResult.reason)
+        }
+
+        if (topResult.status === 'fulfilled' && topResult.value) {
+          topPostsScrapedData = topResult.value
+          console.log(`[BlogIndex] 상위 포스팅 스크래핑 완료: ${topPostsScrapedData.size}/${topCompetitorUrls.length}개`)
+        } else if (topResult.status === 'rejected') {
+          console.error('[BlogIndex] 상위 포스팅 스크래핑 실패 (무시):', topResult.reason)
+        }
       } catch (scrapeError) {
-        console.error('[BlogIndex] 포스트 스크래핑 실패 (폴백 사용):', scrapeError)
-        // 실패해도 scrapedData는 null → engine에서 description 기반 추정값 사용
+        console.error('[BlogIndex] 스크래핑 실패 (폴백 사용):', scrapeError)
       }
     }
 
@@ -280,6 +320,7 @@ export async function POST(request: NextRequest) {
       scrapedData,
       blogProfileData,
       categoryBenchmark.values,
+      topPostsScrapedData,
     )
 
     // 카테고리 + 벤치마크 소스 정보 주입

@@ -5,20 +5,23 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ListChecks, Upload, Loader2, X } from 'lucide-react'
+import { ListChecks, Upload, Loader2, X, Lightbulb } from 'lucide-react'
+import { CATEGORY_EXAMPLE_KEYWORDS, BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
+import type { BlogCategory } from '@/lib/blog-index/categories'
 
 interface BulkKeywordInputProps {
     onSubmit: (keywords: string[]) => void
     loading: boolean
+    blogCategory?: BlogCategory | null
 }
 
-const EXAMPLE_KEYWORDS = [
+const DEFAULT_EXAMPLES = [
     '아랫배 땡김\n오른쪽 아랫배 땡김\n왼쪽 아랫배 땡김\n아랫배 통증\n아랫배 콕콕',
     '다이어트 식단\n간헐적 단식\n저탄고지\n키토제닉\n단백질 식단',
     '서울 맛집\n강남 맛집\n홍대 맛집\n이태원 맛집\n성수 카페',
 ]
 
-export function BulkKeywordInput({ onSubmit, loading }: BulkKeywordInputProps) {
+export function BulkKeywordInput({ onSubmit, loading, blogCategory }: BulkKeywordInputProps) {
     const [text, setText] = useState('')
 
     const keywords = useMemo(() => {
@@ -39,6 +42,14 @@ export function BulkKeywordInput({ onSubmit, loading }: BulkKeywordInputProps) {
     const handleExampleClick = (example: string) => {
         setText(example)
     }
+
+    // 카테고리 기반 예시 키워드 (등록 블로그가 있으면 카테고리별, 없으면 기본)
+    const exampleKeywords = useMemo(() => {
+        if (!blogCategory) return DEFAULT_EXAMPLES
+        const sets = CATEGORY_EXAMPLE_KEYWORDS[blogCategory]
+        if (!sets || sets.length === 0) return DEFAULT_EXAMPLES
+        return sets.map(set => set.join('\n'))
+    }, [blogCategory])
 
     const handleClear = () => {
         setText('')
@@ -113,9 +124,21 @@ export function BulkKeywordInput({ onSubmit, loading }: BulkKeywordInputProps) {
                 {/* 예시 키워드 */}
                 {uniqueKeywords.length === 0 && (
                     <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">예시 키워드 세트:</p>
+                        {blogCategory ? (
+                            <p className="flex items-center gap-1 text-xs text-blue-600">
+                                <Lightbulb className="h-3.5 w-3.5" />
+                                등록된 블로그의 카테고리({BLOG_CATEGORY_LABELS[blogCategory]})에 맞춘 추천 키워드입니다
+                            </p>
+                        ) : (
+                            <div className="space-y-0.5">
+                                <p className="text-xs text-muted-foreground">예시 키워드 세트:</p>
+                                <p className="text-[11px] text-muted-foreground/70">
+                                    블로그를 등록하고 블로그 지수를 측정하면 내 블로그에 맞는 키워드가 추천됩니다
+                                </p>
+                            </div>
+                        )}
                         <div className="flex flex-wrap gap-2">
-                            {EXAMPLE_KEYWORDS.map((example, i) => {
+                            {exampleKeywords.map((example, i) => {
                                 const firstKeyword = example.split('\n')[0]
                                 const count = example.split('\n').length
                                 return (

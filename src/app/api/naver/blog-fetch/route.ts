@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     // ===== 상세 분석 추가 (블로그 스크래핑 시스템 통합) =====
     let detailedAnalysis: PostMetaData | null = null
-    let scrapedData: { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; hasImage: boolean; imageUrls: string[] } | null = null
+    let scrapedData: { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; hasImage: boolean; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null; readCount: number | null; formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number } } | null = null
 
     try {
       // 모바일 URL로 변환하여 상세 스크래핑 시도
@@ -191,6 +191,10 @@ export async function POST(request: NextRequest) {
             tableCount: scraped.tableCount,
             hasImage: scraped.hasImage,
             imageUrls: scraped.imageUrls,
+            commentCount: scraped.commentCount,
+            sympathyCount: scraped.sympathyCount,
+            readCount: scraped.readCount,
+            formatting: scraped.formatting,
           }
         }
 
@@ -220,11 +224,24 @@ export async function POST(request: NextRequest) {
           tableCount: number
           hasImage: boolean
           imageUrls: string[]
+          commentCount: number | null
+          sympathyCount: number | null
+          readCount: number | null
+          formatting?: {
+            hasBold: boolean
+            hasHeading: boolean
+            hasFontSize: boolean
+            hasColor: boolean
+            hasHighlight: boolean
+            hasUnderline: boolean
+            count: number
+          }
         }
       }
     } = {
       title: extracted.title,
-      content: extracted.content,
+      // [이미지 N개 포함] 마커 제거 (정확한 이미지 수는 scrapedData에 별도 포함)
+      content: extracted.content.replace(/\n*\[이미지\s*\d+개\s*포함\]\s*$/, '').trim(),
       source: `https://blog.naver.com/${parsed.blogId}/${parsed.postNo}`,
       isDemo: false,
     }

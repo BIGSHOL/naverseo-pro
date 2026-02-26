@@ -78,6 +78,7 @@ export function analyzeBlogIndex(
   scrapedData?: Map<string, ScrapedPostData> | null,
   blogProfileData?: BlogProfileData | null,
   categoryBenchmarkValues?: import('./categories').CategoryBenchmarkValues | null,
+  topPostsScrapedData?: Map<string, ScrapedPostData> | null,
 ): BlogIndexResult {
   const blogId = extractBlogId(blogUrl)
   const now = new Date()
@@ -158,7 +159,7 @@ export function analyzeBlogIndex(
   }
 
   // 4대 분석 축 (어뷰징 감점 각 축에 통합됨)
-  const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId)
+  const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId, topPostsScrapedData)
   const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts)
   const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
   const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays, scrapedData)
@@ -260,6 +261,15 @@ export function analyzeBlogIndex(
 
   const cb = categoryBenchmarkValues
 
+  // v11: 상위 포스팅 실데이터 → 벤치마크 topBlogger 대체
+  let topContentLen: number | null = null
+  let topImageCount: number | null = null
+  if (topPostsScrapedData && topPostsScrapedData.size > 0) {
+    const topPosts = Array.from(topPostsScrapedData.values())
+    topContentLen = Math.round(topPosts.reduce((s, p) => s + p.charCount, 0) / topPosts.length)
+    topImageCount = Math.round((topPosts.reduce((s, p) => s + (p.imageCount || 0), 0) / topPosts.length) * 10) / 10
+  }
+
   const benchmark: BenchmarkData = {
     postingFrequency: {
       mine: postsPerWeek || 0,
@@ -274,7 +284,7 @@ export function analyzeBlogIndex(
     avgContentLength: {
       mine: avgDescLength,
       recommended: cb?.avgContentLength.recommended ?? 1500,
-      topBlogger: Math.round((cb?.avgContentLength.recommended ?? 1500) * 1.7),
+      topBlogger: topContentLen ?? Math.round((cb?.avgContentLength.recommended ?? 1500) * 1.7),
     },
     imageRate: {
       mine: imageRate,
@@ -290,7 +300,7 @@ export function analyzeBlogIndex(
     avgImageCount: {
       mine: avgImageCount,
       recommended: cb?.avgImageCount.recommended ?? 5,
-      topBlogger: Math.round((cb?.avgImageCount.recommended ?? 5) * 2),
+      topBlogger: topImageCount ?? Math.round((cb?.avgImageCount.recommended ?? 5) * 2),
     },
     optimizationPct,
     categoryPercentile,

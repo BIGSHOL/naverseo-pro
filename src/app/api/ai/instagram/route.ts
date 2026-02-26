@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
+import { callGemini, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import {
   INSTAGRAM_CAPTION_PROMPT,
@@ -61,6 +61,8 @@ function validateInput(
   }
 }
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -70,8 +72,6 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
-
-    const provider = await getUserAiProvider(supabase, user.id)
 
     // 크레딧 체크
     const creditCheck = await checkCredits(supabase, user.id, 'instagram_convert')
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키 체크
-    if (!hasAiApiKey(provider)) {
+    if (!hasAiApiKey('gemini')) {
       return NextResponse.json(
         { error: 'AI API 키가 설정되지 않았습니다. 데모 모드에서는 인스타그램 변환을 사용할 수 없습니다.' },
         { status: 400 }
@@ -115,9 +115,9 @@ export async function POST(request: NextRequest) {
 
     const { systemPrompt, userMessage } = getPromptAndMessage(mode, content, keyword, duration)
 
-    console.log(`[Instagram ${mode}] provider=${provider}, content=${content?.length ?? 0}자, keyword=${keyword ?? '-'}`)
+    console.log(`[Instagram ${mode}] provider=gemini, content=${content?.length ?? 0}자, keyword=${keyword ?? '-'}`)
 
-    const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
+    const response = await callGemini(systemPrompt, userMessage, 4096, { jsonMode: true })
 
     if (!response || response.trim().length === 0) {
       console.error(`[Instagram ${mode}] AI가 빈 응답을 반환했습니다.`)

@@ -16,6 +16,17 @@
 import { checkCrawlCacheBatch, setCrawlCache, getCrawlCacheStats } from './crawl-cache'
 import { extractPostMetaData, type PostMetaData } from './post-meta-extractor'
 
+/** 본문 서식 사용 메트릭 (v11) */
+export interface FormattingMetrics {
+    hasBold: boolean       // 볼드체 사용
+    hasHeading: boolean    // 소제목(H2/H3) 사용
+    hasFontSize: boolean   // 글자 크기 변경
+    hasColor: boolean      // 글자 색상 변경
+    hasHighlight: boolean  // 배경색/하이라이트 사용
+    hasUnderline: boolean  // 밑줄 사용
+    count: number          // 서식 종류 총 개수 (0~6)
+}
+
 export interface ScrapedPostData {
     charCount: number    // 실제 본문 글자수
     imageCount: number   // 실제 이미지 개수
@@ -29,6 +40,7 @@ export interface ScrapedPostData {
     commentCount: number | null   // v4: 댓글 수 (추출 실패 시 null)
     sympathyCount: number | null  // v4: 공감 수 (추출 실패 시 null)
     readCount: number | null      // v10: 조회수 (추출 실패 시 null)
+    formatting?: FormattingMetrics // v11: 서식 사용 메트릭
 }
 
 /**
@@ -162,7 +174,7 @@ function extractReadCount(html: string): number | null {
     return null
 }
 
-function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null; readCount: number | null } {
+function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null; readCount: number | null; formatting: FormattingMetrics } {
     // 이미지 카운트 (전체 HTML에서)
     const imgMatches = html.match(/<img[\s>]/gi)
     const imageCount = imgMatches ? imgMatches.length : 0
@@ -273,6 +285,16 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
             .replace(/<nav[\s\S]*?<\/nav>/gi, '')
     }
 
+    // v11: 서식 사용 감지 (bodyHtml에서 태그 제거 전에 수행)
+    const hasBold = /<b[\s>]|<strong[\s>]|se-text-paragraph-mark-bold|font-weight:\s*bold|font-weight:\s*[6-9]00/i.test(bodyHtml)
+    const hasHeading = /<h[23][\s>]|se-section-title|se-text-heading/i.test(bodyHtml)
+    const hasFontSize = /se-fs-fs|font-size:\s*[^;]*[2-9]\d+/i.test(bodyHtml)
+    const hasColor = /se-text-paragraph-mark-color|(?:^|[;"\s])color:\s*(?!inherit|currentcolor|transparent|#000|rgb\(0)/im.test(bodyHtml)
+    const hasHighlight = /se-text-paragraph-mark-highlight|<mark[\s>]|background-color:\s*(?!transparent|inherit|rgba?\(0)/i.test(bodyHtml)
+    const hasUnderline = /<u[\s>]|text-decoration:\s*underline|se-text-paragraph-mark-underline/i.test(bodyHtml)
+    const formattingCount = [hasBold, hasHeading, hasFontSize, hasColor, hasHighlight, hasUnderline].filter(Boolean).length
+    const formatting: FormattingMetrics = { hasBold, hasHeading, hasFontSize, hasColor, hasHighlight, hasUnderline, count: formattingCount }
+
     // HTML 태그 제거 후 순수 텍스트
     const text = bodyHtml
         .replace(/<[^>]+>/g, ' ')
@@ -291,7 +313,7 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
     const sympathyCount = extractSympathyCount(html)
     const readCount = extractReadCount(html)
 
-    return { charCount: text.length, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount }
+    return { charCount: text.length, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount, formatting }
 }
 
 /**
@@ -415,7 +437,7 @@ export async function scrapeBlogPost(
             }
 
             const html = await res.text()
-            const { charCount, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount } = parsePostHtml(html)
+            const { charCount, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount, formatting } = parsePostHtml(html)
 
             // 공감 수: HTML에서 추출 실패 시 Like API로 폴백
             let finalSympathyCount = sympathyCount
@@ -440,6 +462,7 @@ export async function scrapeBlogPost(
                 commentCount,
                 sympathyCount: finalSympathyCount,
                 readCount,
+                formatting,
             }
 
             // 메타 데이터 추출 (선택적)

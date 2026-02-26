@@ -18,6 +18,8 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  { date: '2026-02-27', type: 'fix', message: 'SEO 점수 체크 — AI 분석 504 타임아웃 수정 (thinkingBudget 최적화 + 45초 타임아웃)' },
+  { date: '2026-02-27', type: 'feat', message: 'SEO 점수 체크 — URL 가져오기 시 글자수·이미지·댓글·공감·조회수 표시' },
   { date: '2026-02-27', type: 'fix', message: '블로그 지수 — 벤치마크 기준값 실제 본문 기준으로 교정 (콘텐츠 깊이·이미지 수)' },
   { date: '2026-02-27', type: 'feat', message: '블로그 지수 — 카테고리 감지에 측정 키워드 반영 (사용자 입력 우선)' },
   { date: '2026-02-27', type: 'fix', message: '블로그 지수 — 마지막 측정 시간 KST 고정 + 방문자 API 엔드포인트 갱신' },

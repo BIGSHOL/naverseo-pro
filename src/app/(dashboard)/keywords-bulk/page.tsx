@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { BulkKeywordInput } from '@/components/keywords/bulk-keyword-input'
 import { BulkKeywordResults, type BulkKeywordData } from '@/components/keywords/bulk-keyword-results'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ListChecks, Search, TrendingUp, BarChart3, Loader2 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+import type { BlogCategory } from '@/lib/blog-index/categories'
 
 export default function KeywordsBulkPage() {
     const [results, setResults] = useState<BulkKeywordData[]>([])
@@ -15,6 +16,31 @@ export default function KeywordsBulkPage() {
     const [error, setError] = useState('')
     const [searched, setSearched] = useState(false)
     const [progress, setProgress] = useState({ current: 0, total: 0, stage: '' })
+    const [blogCategory, setBlogCategory] = useState<BlogCategory | null>(null)
+
+    // 마운트 시 블로그 카테고리 조회
+    useEffect(() => {
+        async function fetchBlogCategory() {
+            try {
+                const res = await fetch('/api/profile/blog')
+                if (!res.ok) return
+                const { blogProfile } = await res.json()
+                if (!blogProfile?.blogUrl) return
+
+                const histRes = await fetch(
+                    `/api/blog-index/history?blogUrl=${encodeURIComponent(blogProfile.blogUrl)}&latest=true`
+                )
+                if (!histRes.ok) return
+                const { cached } = await histRes.json()
+                if (cached?.blogCategory) {
+                    setBlogCategory(cached.blogCategory as BlogCategory)
+                }
+            } catch {
+                // 실패 시 기본 키워드 사용
+            }
+        }
+        fetchBlogCategory()
+    }, [])
 
     const handleSubmit = useCallback(async (keywords: string[]) => {
         setLoading(true)
@@ -109,7 +135,7 @@ export default function KeywordsBulkPage() {
             </div>
 
             {/* 입력 영역 */}
-            <BulkKeywordInput onSubmit={handleSubmit} loading={loading} />
+            <BulkKeywordInput onSubmit={handleSubmit} loading={loading} blogCategory={blogCategory} />
 
             {/* 에러 메시지 */}
             {error && (

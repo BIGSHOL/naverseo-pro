@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
+import { callGemini, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
@@ -145,38 +145,86 @@ function analyzePatterns(competitors: CompetitorItem[], keyword: string): Patter
   return { titleStats, dateStats, blogDiversity }
 }
 
-// === 경쟁 난이도 평가 ===
+// === 경쟁 난이도 평가 (v2 — 연속 보간 + 가중치 차등) ===
 
 function assessDifficulty(patterns: PatternAnalysis, competitors: CompetitorItem[]): DifficultyAssessment {
-  let score = 0
+  const count = competitors.length || 1
   const reasons: string[] = []
 
-  // 키워드 포함률이 높으면 경쟁이 세밀함 (최대 25점)
-  const kwRate = patterns.titleStats.keywordInTitleRate
-  if (kwRate >= 80) { score += 25; reasons.push('상위 글 80% 이상이 제목에 키워드를 포함') }
-  else if (kwRate >= 60) { score += 15; reasons.push('상위 글 60% 이상이 제목에 키워드를 포함') }
-  else { score += 5; reasons.push('제목에 키워드를 포함한 글이 적어 진입 가능성 높음') }
+  // === Factor 1: 콘텐츠 신선도 (max 30점) ===
+  // 최신 글이 많을수록 활발하게 경쟁 중 → 진입 난이도 상승
+  const w30 = patterns.dateStats.within30Days
+  const w90only = patterns.dateStats.within90Days - w30
+  const w365only = patterns.dateStats.within365Days - patterns.dateStats.within90Days
+  const olderCount = patterns.dateStats.older
+  // 가중 합산: 30일내 1.0, 90일내 0.6, 365일내 0.25, 1년이상 0.05
+  const freshnessRaw = (w30 * 1.0 + w90only * 0.6 + w365only * 0.25 + olderCount * 0.05) / count
+  const freshScore = Math.round(Math.min(freshnessRaw, 1) * 30)
 
-  // 최신 글 비율 (최대 25점)
-  const recentRate = patterns.dateStats.within30Days / competitors.length
-  if (recentRate >= 0.5) { score += 25; reasons.push(`최근 30일 내 작성 글이 ${patterns.dateStats.within30Days}개로 경쟁 활발`) }
-  else if (recentRate >= 0.3) { score += 15; reasons.push('최근 글이 일부 있어 적당한 경쟁 수준') }
-  else { score += 5; reasons.push('오래된 글이 많아 최신 콘텐츠로 충분히 진입 가능') }
+  if (w30 >= Math.ceil(count * 0.5)) {
+    reasons.push(`최근 30일 내 작성 글 ${w30}/${count}개 — 경쟁이 매우 활발한 키워드`)
+  } else if (patterns.dateStats.within90Days >= Math.ceil(count * 0.5)) {
+    reasons.push(`최근 90일 내 작성 글 ${patterns.dateStats.within90Days}/${count}개 — 보통 수준의 콘텐츠 갱신`)
+  } else {
+    reasons.push(`오래된 글이 대부분(평균 ${patterns.dateStats.avgDaysAgo}일 전) — 최신 콘텐츠로 진입 유리`)
+  }
 
-  // 블로그 다양성 낮음 = 독점 = 어려움 (최대 25점)
-  const diversity = patterns.blogDiversity.diversityRate
-  if (diversity < 50) { score += 25; reasons.push('특정 블로그가 상위를 독점하고 있어 진입이 어려움') }
-  else if (diversity < 80) { score += 15; reasons.push('블로그 다양성이 보통 수준') }
-  else { score += 5; reasons.push('다양한 블로그가 노출되어 신규 진입이 용이') }
+  // === Factor 2: 블로그 집중도/독점도 (max 25점) ===
+  // 다양성 낮음 = 파워블로그 독점 = 진입 어려움
+  const diversityRate = patterns.blogDiversity.diversityRate / 100
+  let concScore = Math.round((1 - diversityRate) * 20)
+  // 특정 블로그 3개 이상 독점 시 추가 점수
+  const dominantBlogs = patterns.blogDiversity.repeatedBlogs.filter(b => b.count >= 3)
+  if (dominantBlogs.length > 0) {
+    concScore = Math.min(25, concScore + 5 * dominantBlogs.length)
+    const top = dominantBlogs[0]
+    reasons.push(`'${top.name}'이(가) 상위 ${top.count}개 차지 — 파워블로그가 상위를 장악 중`)
+  } else if (diversityRate < 0.6) {
+    reasons.push(`블로그 다양성 ${patterns.blogDiversity.diversityRate}% — 일부 블로그가 상위에 집중`)
+  } else {
+    reasons.push(`${patterns.blogDiversity.uniqueBlogCount}개 고유 블로그 노출 — 다양한 진입 기회`)
+  }
 
-  // 제목 길이 최적화 수준 (최대 25점)
+  // === Factor 3: 키워드 포함률 (max 25점) ===
+  // 제목에 키워드를 넣는 비율이 높으면 SEO 의식 높은 경쟁
+  const kwRate = patterns.titleStats.keywordInTitleRate / 100
+  const kwScore = Math.round(kwRate * 25)
+
+  if (kwRate >= 0.7) {
+    reasons.push(`상위 글 ${patterns.titleStats.keywordInTitleRate}%가 제목에 키워드 포함 — SEO 최적화된 경쟁`)
+  } else if (kwRate >= 0.4) {
+    reasons.push(`키워드 포함률 ${patterns.titleStats.keywordInTitleRate}% — 보통 수준의 SEO 경쟁`)
+  } else {
+    reasons.push(`키워드 포함률 ${patterns.titleStats.keywordInTitleRate}%로 낮음 — 제목 최적화만으로 차별화 가능`)
+  }
+
+  // === Factor 4: 제목 최적화 수준 (max 20점) ===
+  // 평균 제목 길이가 SEO 최적 범위(20~45자)에 가까울수록 경쟁자가 SEO를 의식
   const avgLen = patterns.titleStats.avgLength
-  if (avgLen >= 25 && avgLen <= 40) { score += 20; reasons.push('상위 글 제목이 SEO 최적 길이 (25~40자)에 맞춰져 있음') }
-  else { score += 8; reasons.push('제목 길이가 비효율적이어서 최적화된 제목으로 차별화 가능') }
+  const OPTIMAL_MIN = 20
+  const OPTIMAL_MAX = 45
+  const optimalCenter = (OPTIMAL_MIN + OPTIMAL_MAX) / 2 // 32.5
+  const optimalHalfRange = (OPTIMAL_MAX - OPTIMAL_MIN) / 2 // 12.5
+  const distFromCenter = Math.abs(avgLen - optimalCenter)
+  // 최적 범위 안에 있으면 높은 점수, 범위 밖으로 갈수록 감소
+  const titleOptRate = Math.max(0, 1 - distFromCenter / (optimalHalfRange * 1.5))
+  const titleScore = Math.round(titleOptRate * 20)
 
-  const level = score >= 75 ? 'very_hard' : score >= 55 ? 'hard' : score >= 35 ? 'medium' : 'easy'
+  if (avgLen >= OPTIMAL_MIN && avgLen <= OPTIMAL_MAX) {
+    reasons.push(`평균 제목 길이 ${avgLen}자 — SEO 최적 범위(${OPTIMAL_MIN}~${OPTIMAL_MAX}자)`)
+  } else {
+    reasons.push(`평균 제목 길이 ${avgLen}자 — 최적 범위 밖이라 제목 최적화로 우위 확보 가능`)
+  }
 
-  return { level, score, reasons }
+  // === 합산 ===
+  const totalScore = Math.min(100, freshScore + concScore + kwScore + titleScore)
+  const level: DifficultyAssessment['level'] =
+    totalScore >= 75 ? 'very_hard' :
+    totalScore >= 55 ? 'hard' :
+    totalScore >= 35 ? 'medium' :
+    'easy'
+
+  return { level, score: totalScore, reasons }
 }
 
 // === 제목 패턴 워드 추출 ===
@@ -216,7 +264,6 @@ async function getAiInsights(
   competitors: CompetitorItem[],
   patterns: PatternAnalysis,
   difficulty: DifficultyAssessment,
-  provider: AiProvider = 'gemini'
 ): Promise<AiInsights> {
   const competitorList = competitors
     .map((c, i) => `${i + 1}위. 제목: "${c.title}" | 블로그: ${c.bloggerName} | 작성일: ${c.postDateFormatted} | 설명: "${c.description.substring(0, 80)}"`)
@@ -247,6 +294,12 @@ async function getAiInsights(
     keywordHint = `\n★ 키워드 의미 참고: "${keyword}" 검색 결과에서 "${bestPhrase}"이(가) 반복 등장합니다. 이 맥락에 맞춰 분석하세요.\n`
   }
 
+  // 블로그 독점 정보
+  const dominantBlogInfo = patterns.blogDiversity.repeatedBlogs
+    .filter(b => b.count >= 2)
+    .map(b => `${b.name}(${b.count}개)`)
+    .join(', ')
+
   const userMessage = `키워드: "${keyword}"
 ${keywordHint}
 네이버 블로그 검색 상위 ${competitors.length}개 결과 분석:
@@ -254,18 +307,21 @@ ${keywordHint}
 ${competitorList}
 
 패턴 분석 요약:
-- 평균 제목 길이: ${patterns.titleStats.avgLength}자
-- 제목에 키워드 포함률: ${patterns.titleStats.keywordInTitleRate}%
-- 평균 포스트 연령: ${patterns.dateStats.avgDaysAgo}일
-- 30일 이내 작성: ${patterns.dateStats.within30Days}개
-- 블로그 다양성: ${patterns.blogDiversity.uniqueBlogCount}개 블로그 / ${patterns.blogDiversity.totalResults}개 결과
+- 평균 제목 길이: ${patterns.titleStats.avgLength}자 (범위: ${patterns.titleStats.minLength}~${patterns.titleStats.maxLength}자)
+- 제목에 키워드 포함률: ${patterns.titleStats.keywordInTitleRate}% (${patterns.titleStats.keywordInTitleCount}/${competitors.length}개)
+- 평균 포스트 연령: ${patterns.dateStats.avgDaysAgo}일 (최신: ${patterns.dateStats.newestDaysAgo}일, 최오래: ${patterns.dateStats.oldestDaysAgo}일)
+- 30일 이내 작성: ${patterns.dateStats.within30Days}개 / 90일 이내: ${patterns.dateStats.within90Days}개
+- 블로그 다양성: ${patterns.blogDiversity.uniqueBlogCount}개 고유 블로그 / ${patterns.blogDiversity.totalResults}개 결과 (다양성 ${patterns.blogDiversity.diversityRate}%)
+${dominantBlogInfo ? `- 다중 노출 블로그: ${dominantBlogInfo}` : ''}
 
 경쟁 진입 난이도: ${difficultyLabel} (${difficulty.score}점/100점)
 난이도 근거: ${difficulty.reasons.join(' / ')}
 
 위 데이터를 기반으로 경쟁 분석을 해주세요.
-★ 중요: summary에서 경쟁 난이도 판정(${difficultyLabel})과 일관된 톤으로 분석하세요.
-난이도가 "어려움" 이상이면 진입이 쉽지 않다는 점을 반영하되, 발견된 콘텐츠 기회가 있다면 구체적으로 제시하세요.
+★ 중요:
+1. 먼저 이 키워드의 검색 의도(정보형/상업형/지역형/경험형/증상형)를 파악하고, 그에 맞는 콘텐츠 전략을 제시하세요.
+2. summary에서 경쟁 난이도 판정(${difficultyLabel})과 일관된 톤으로 분석하세요.
+3. 난이도가 "어려움" 이상이면 진입이 쉽지 않다는 점을 반영하되, 발견된 콘텐츠 기회가 있다면 구체적으로 제시하세요.
 
 다음 JSON 형식으로 응답해주세요:
 {
@@ -279,7 +335,7 @@ ${competitorList}
   "titleSuggestions": ["추천 제목 1", "추천 제목 2", "추천 제목 3"]
 }`
 
-  const response = await callAI(provider, COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
+  const response = await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
   return parseGeminiJson<AiInsights>(response)
 }
 
@@ -427,6 +483,8 @@ function getDemoAiInsights(keyword: string): AiInsights {
 
 // === API 핸들러 ===
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     // 인증 체크
@@ -437,9 +495,6 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
-
-    // 사용자의 AI 제공자 조회
-    const provider = await getUserAiProvider(supabase, user.id)
 
     // 크레딧 체크
     const creditCheck = await checkCredits(supabase, user.id, 'competitor_analysis')
@@ -514,12 +569,12 @@ export async function POST(request: NextRequest) {
 
     // AI 인사이트 + 이미지 분석 (병렬 실행)
     let aiInsights: AiInsights | null = null
-    if (includeAi && hasAiApiKey(provider)) {
+    if (includeAi && hasAiApiKey('gemini')) {
       try {
         // AI 텍스트 분석 + 이미지 Vision 분석을 동시 실행
         const competitorLinks = competitors.map(c => c.link)
         const [aiResult, imageResult] = await Promise.allSettled([
-          getAiInsights(cleanKeyword, competitors, patterns, difficulty, provider),
+          getAiInsights(cleanKeyword, competitors, patterns, difficulty),
           analyzeCompetitorImages(competitorLinks, cleanKeyword, searchResult.items),
         ])
 

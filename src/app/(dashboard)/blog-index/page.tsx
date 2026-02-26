@@ -1825,16 +1825,22 @@ export default function BlogIndexPage() {
                       </div>
                       <ul className="space-y-0.5">
                         {cat.details.map((detail, i) => {
-                          const scoreMatch = detail.match(/\(\+(\d+)\)\s*$/)
-                          const pointText = scoreMatch ? `+${scoreMatch[1]}` : null
-                          const detailText = scoreMatch ? detail.replace(/\s*\(\+\d+\)\s*$/, '') : detail
-                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : 0
+                          const scoreMatch = detail.match(/\(([+-]\d+)\)\s*$/)
+                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : null
+                          const pointText = pointNum !== null ? (pointNum > 0 ? `+${pointNum}` : `${pointNum}`) : null
+                          const detailText = scoreMatch ? detail.replace(/\s*\([+-]\d+\)\s*$/, '') : detail
                           return (
                             <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
+                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${pointNum !== null && pointNum < 0 ? 'bg-red-400' : 'bg-muted-foreground/50'}`} />
                               <span className="flex-1">{detailText}</span>
                               {pointText && (
-                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${pointNum >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : pointNum >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : pointNum >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
+                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                  pointNum! < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                  pointNum! >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                  pointNum! >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                  pointNum! >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                  'bg-muted text-muted-foreground'
+                                }`}>
                                   {pointText}
                                 </span>
                               )}

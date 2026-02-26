@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -107,6 +107,14 @@ export default function SeoCheckPage() {
   const [blogUrl, setBlogUrl] = useState('')
   const [fetchingUrl, setFetchingUrl] = useState(false)
   const [fetchSource, setFetchSource] = useState('')
+  const [scrapedStats, setScrapedStats] = useState<{
+    charCount: number; imageCount: number; videoCount: number
+    commentCount: number | null; sympathyCount: number | null; readCount: number | null
+    imageUrls: string[]
+    tags: string[]
+    formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number }
+  } | null>(null)
+  const [showImageGallery, setShowImageGallery] = useState(false)
 
   // 실시간 분석 패널 표시 여부
   const showLivePanel = content.trim().length >= 50 && keyword.trim().length > 0
@@ -158,6 +166,23 @@ export default function SeoCheckPage() {
       if (data.title) setTitle(data.title)
       if (data.content) setContent(data.content)
       if (data.source) setFetchSource(data.source)
+      // 스크래핑 상세 데이터 저장
+      if (data.detailedAnalysis?.scrapedData) {
+        const sd = data.detailedAnalysis.scrapedData
+        setScrapedStats({
+          charCount: sd.charCount,
+          imageCount: sd.imageCount,
+          videoCount: sd.videoCount,
+          commentCount: sd.commentCount ?? null,
+          sympathyCount: sd.sympathyCount ?? null,
+          readCount: sd.readCount ?? null,
+          imageUrls: sd.imageUrls ?? [],
+          tags: data.detailedAnalysis?.tags ?? [],
+          formatting: sd.formatting,
+        })
+        // 이미지가 있으면 갤러리 자동 표시
+        if (sd.imageUrls?.length > 0) setShowImageGallery(true)
+      }
       setShowUrlInput(false)
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -177,7 +202,24 @@ export default function SeoCheckPage() {
       const res = await fetch('/api/ai/seo-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: keyword.trim(), title: title.trim(), content: content.trim() }),
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          title: title.trim(),
+          content: content.trim(),
+          // URL에서 가져온 스크래핑 메타를 AI 분석에 전달
+          ...(scrapedStats && {
+            scrapedMeta: {
+              charCount: scrapedStats.charCount,
+              imageCount: scrapedStats.imageCount,
+              videoCount: scrapedStats.videoCount,
+              commentCount: scrapedStats.commentCount,
+              sympathyCount: scrapedStats.sympathyCount,
+              readCount: scrapedStats.readCount,
+              tags: scrapedStats.tags,
+              formatting: scrapedStats.formatting,
+            },
+          }),
+        }),
       })
 
       // 응답이 JSON이 아닐 수 있음 (서버 에러, 타임아웃 등)
@@ -273,19 +315,31 @@ export default function SeoCheckPage() {
             )}
 
             {fetchSource && (
-              <div className="mb-4 flex items-center gap-2 overflow-hidden">
-                <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
-                  <ExternalLink className="h-3 w-3" />
-                  URL에서 가져옴
-                </Badge>
-                <a
-                  href={ensureUrl(fetchSource)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
-                >
-                  {fetchSource}
-                </a>
+              <div className="mb-4 space-y-2">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
+                    <ExternalLink className="h-3 w-3" />
+                    URL에서 가져옴
+                  </Badge>
+                  <a
+                    href={ensureUrl(fetchSource)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
+                  >
+                    {fetchSource}
+                  </a>
+                </div>
+                {scrapedStats && (
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="rounded bg-muted px-2 py-0.5">{scrapedStats.charCount.toLocaleString()}자</span>
+                    <span className="rounded bg-muted px-2 py-0.5">이미지 {scrapedStats.imageCount}개</span>
+                    {scrapedStats.videoCount > 0 && <span className="rounded bg-muted px-2 py-0.5">동영상 {scrapedStats.videoCount}개</span>}
+                    <span className="rounded bg-muted px-2 py-0.5">댓글 {scrapedStats.commentCount ?? '?'}개</span>
+                    <span className="rounded bg-muted px-2 py-0.5">공감 {scrapedStats.sympathyCount ?? '?'}개</span>
+                    {scrapedStats.readCount != null && <span className="rounded bg-muted px-2 py-0.5">조회 {scrapedStats.readCount.toLocaleString()}회</span>}
+                  </div>
+                )}
               </div>
             )}
 
@@ -332,6 +386,100 @@ export default function SeoCheckPage() {
                   disabled={loading}
                 />
               </div>
+
+              {/* URL에서 가져온 추가 정보: 태그, 서식, 이미지 */}
+              {scrapedStats && (
+                <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                  {/* 태그 */}
+                  {scrapedStats.tags.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">태그 ({scrapedStats.tags.length}개)</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {scrapedStats.tags.map((tag, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs font-normal">
+                            #{tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 서식 사용 현황 */}
+                  {scrapedStats.formatting && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        서식 사용 ({scrapedStats.formatting.count}/6종)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: 'hasBold', label: '볼드', icon: Bold },
+                          { key: 'hasHeading', label: '소제목', icon: Heading },
+                          { key: 'hasFontSize', label: '글자크기', icon: Type },
+                          { key: 'hasColor', label: '글자색', icon: Palette },
+                          { key: 'hasHighlight', label: '형광펜', icon: Highlighter },
+                          { key: 'hasUnderline', label: '밑줄', icon: Underline },
+                        ].map(({ key, label, icon: Icon }) => {
+                          const used = scrapedStats.formatting?.[key as keyof typeof scrapedStats.formatting] as boolean
+                          return (
+                            <span
+                              key={key}
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs',
+                                used
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                  : 'bg-muted text-muted-foreground line-through'
+                              )}
+                            >
+                              <Icon className="h-3 w-3" />
+                              {label}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 이미지 갤러리 토글 */}
+                  {scrapedStats.imageUrls.length > 0 && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => setShowImageGallery(!showImageGallery)}
+                      >
+                        <Image className="h-3.5 w-3.5" />
+                        이미지 {scrapedStats.imageUrls.length}개
+                        <span className="text-primary">{showImageGallery ? '접기' : '펼치기'}</span>
+                      </button>
+                      {showImageGallery && (
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                          {scrapedStats.imageUrls.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={url}
+                                alt={`이미지 ${i + 1}`}
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                              />
+                              <span className="absolute bottom-0 right-0 bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                                {i + 1}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">

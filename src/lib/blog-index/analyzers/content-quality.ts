@@ -17,6 +17,7 @@ export function analyzeContentQuality(
   scrapedData?: Map<string, ScrapedPostData> | null,
   blogName?: string | null,
   blogId?: string | null,
+  topPostsScrapedData?: Map<string, ScrapedPostData> | null,
 ): { category: AnalysisCategory; topicKeywords: string[] } {
   const maxScore = 25
   const details: string[] = []
@@ -178,26 +179,94 @@ export function analyzeContentQuality(
 
   // === 구조/서식 패턴 (3점) ===
   let structureScore = 0
+  const formattingDetails: string[] = []
 
+  // 리스트/번호 매기기 사용 여부
   const hasListPattern = posts.filter(p =>
     /[①②③④⑤⑥⑦⑧⑨⑩]|[1-9]\.\s|•|▶|■|★|✔|✅/.test(p.description)
   ).length
   if (hasListPattern >= posts.length * 0.5) structureScore += 1
 
+  // 구체적 수치/데이터 포함
   const hasConcreteData = posts.filter(p =>
     /\d+[만천백]?\s*원|₩\d|가격|비용|\d+분|\d+km|\d+[%퍼센트]/.test(p.description)
   ).length
   if (hasConcreteData >= posts.length * 0.4) structureScore += 1
 
-  const hasFormatting = posts.filter(p =>
-    /<b>|<strong>|<a\s|<em>|<mark>/.test(p.description)
-  ).length
-  if (hasFormatting >= posts.length * 0.3) structureScore += 1
+  // v11: 실제 본문 서식 사용 - 상위 포스팅 벤치마크 기반
+  if (scrapedData && scrapedData.size > 0) {
+    const scrapedPosts = Array.from(scrapedData.values())
+
+    // 서식 종류 집계 (내 포스트)
+    const fmtTypes: string[] = []
+    const counts = { bold: 0, heading: 0, fontSize: 0, color: 0, highlight: 0, underline: 0 }
+    scrapedPosts.forEach(p => {
+      if (p.formatting) {
+        if (p.formatting.hasBold) counts.bold++
+        if (p.formatting.hasHeading) counts.heading++
+        if (p.formatting.hasFontSize) counts.fontSize++
+        if (p.formatting.hasColor) counts.color++
+        if (p.formatting.hasHighlight) counts.highlight++
+        if (p.formatting.hasUnderline) counts.underline++
+      }
+    })
+    if (counts.bold > 0) fmtTypes.push('볼드')
+    if (counts.heading > 0) fmtTypes.push('소제목')
+    if (counts.fontSize > 0) fmtTypes.push('글자크기')
+    if (counts.color > 0) fmtTypes.push('글자색')
+    if (counts.highlight > 0) fmtTypes.push('배경색')
+    if (counts.underline > 0) fmtTypes.push('밑줄')
+
+    // 포스트당 평균 서식 종류 수
+    const avgFmtCount = scrapedPosts.reduce((s, p) => s + (p.formatting?.count || 0), 0) / scrapedPosts.length
+
+    // 상위 포스팅 서식 벤치마크 계산
+    let topPostsAvgFmt: number | null = null
+    if (topPostsScrapedData && topPostsScrapedData.size > 0) {
+      const topPosts = Array.from(topPostsScrapedData.values())
+      topPostsAvgFmt = topPosts.reduce((s, p) => s + (p.formatting?.count || 0), 0) / topPosts.length
+    }
+
+    if (topPostsAvgFmt !== null) {
+      // 상위 포스팅 기준 비교 (±1 범위 내면 적절)
+      const diff = avgFmtCount - topPostsAvgFmt
+      if (Math.abs(diff) <= 1) {
+        structureScore += 1
+        formattingDetails.push(`${fmtTypes.join(', ')} (상위 포스팅 평균 ${topPostsAvgFmt.toFixed(1)}종과 유사)`)
+      } else if (diff > 1) {
+        // 상위 포스팅보다 서식이 많음 → 가산 없음
+        formattingDetails.push(`${fmtTypes.join(', ')} - 상위 포스팅(${topPostsAvgFmt.toFixed(1)}종) 대비 과다`)
+      } else {
+        // 상위 포스팅보다 서식이 적음 → 가산 없음
+        formattingDetails.push(`서식 부족 - 상위 포스팅 평균 ${topPostsAvgFmt.toFixed(1)}종 사용`)
+      }
+    } else {
+      // 폴백: 상위 포스팅 데이터 없으면 고정 범위 (1~3종)
+      if (avgFmtCount >= 1 && avgFmtCount <= 3) {
+        structureScore += 1
+        formattingDetails.push(fmtTypes.join(', '))
+      } else if (avgFmtCount > 3) {
+        formattingDetails.push(`${fmtTypes.join(', ')} - 과다 사용`)
+      }
+    }
+  } else {
+    // 폴백: description에서 기본 HTML 서식 체크
+    const hasFormatting = posts.filter(p =>
+      /<b>|<strong>|<a\s|<em>|<mark>/.test(p.description)
+    ).length
+    if (hasFormatting >= posts.length * 0.3) structureScore += 1
+  }
 
   score += structureScore
-  if (structureScore >= 3) details.push(`콘텐츠 구조화 우수 (+${structureScore})`)
-  else if (structureScore >= 1) details.push(`콘텐츠 구조화 보통 (+${structureScore})`)
-  else details.push('구조화 부족 - 리스트, 소제목, 구체적 수치를 활용하세요 (+0)')
+  if (structureScore >= 3) {
+    const fmtSuffix = formattingDetails.length > 0 ? ` (${formattingDetails[0]})` : ''
+    details.push(`콘텐츠 구조화 우수${fmtSuffix} (+${structureScore})`)
+  } else if (structureScore >= 1) {
+    const fmtSuffix = formattingDetails.length > 0 ? ` (${formattingDetails[0]})` : ''
+    details.push(`콘텐츠 구조화 보통${fmtSuffix} (+${structureScore})`)
+  } else {
+    details.push('구조화 부족 - 리스트, 소제목, 볼드체 등 서식을 적절히 활용하세요 (+0)')
+  }
   items.push({ label: '구조/서식', points: structureScore })
 
   // === 내부 링크 활용 (3점) ===

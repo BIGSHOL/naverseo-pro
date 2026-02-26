@@ -10,7 +10,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callAI, parseGeminiJson, BLOG_INDEX_AI_PROMPT, type AiProvider } from '@/lib/ai/gemini'
+import { callGemini, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 import type { AiAnalysis, BlogPost } from './types'
 
@@ -26,6 +26,50 @@ interface AiAnalysisRaw {
   weaknesses: string[]
   recommendations: string[]
 }
+
+/** Gemini 요약 응답 형식 */
+interface PostSummary {
+  title: string
+  topic: string
+  experienceSignals: string
+  structure: string
+  keywordPattern: string
+  abuseSignals: string
+  notable: string
+}
+
+interface GeminiSummaryResult {
+  posts: PostSummary[]
+  overallPatterns: string
+}
+
+/** Gemini Flash 전처리 요약 프롬프트 */
+const GEMINI_SUMMARIZE_PROMPT = `당신은 블로그 포스트 분석 전처리 도우미입니다.
+여러 포스트의 본문을 읽고, 각 포스트의 핵심 특성을 구조화된 형식으로 추출하세요.
+
+각 포스트에서 추출할 항목:
+1. 주제: 글의 핵심 주제 (10자 이내)
+2. 경험 신호: 직접 경험 흔적 (날짜/장소/가격/느낌 언급, 원본 사진 추정, 시행착오 등)
+3. 구조: 소제목 사용 여부, 리스트/단계별 설명 유무, 문단 호흡
+4. 키워드 패턴: 반복되는 키워드, 부자연스러운 삽입 여부
+5. 어뷰징 신호: 복사/붙여넣기 의심, 기계적 패턴, 내용 없는 이미지 나열
+6. 특이사항: 눈에 띄는 장점이나 문제점
+
+반드시 유효한 JSON 형식으로만 응답하세요:
+{
+  "posts": [
+    {
+      "title": "포스트 제목",
+      "topic": "핵심 주제",
+      "experienceSignals": "직접 방문, 가격 정보 포함, 원본 사진 추정",
+      "structure": "소제목 3개, 리스트 활용, 문단 적절",
+      "keywordPattern": "자연스러운 키워드 배치",
+      "abuseSignals": "없음",
+      "notable": "구체적 비교 정보가 유용함"
+    }
+  ],
+  "overallPatterns": "블로그 전반적 특징 요약 (2~3문장)"
+}`
 
 /**
  * RSS/검색 API에서 가져온 포스트의 링크에서 blogId와 postNo를 추출
@@ -245,14 +289,10 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 20): Bl
 export async function analyzeWithAi(
   posts: BlogPost[],
   isDemo: boolean,
-  provider: AiProvider = 'gemini'
 ): Promise<AiAnalysis | null> {
-  // AI API 키가 없으면 스킵
-  const hasKey = provider === 'claude'
-    ? !!process.env.ANTHROPIC_API_KEY?.trim()
-    : !!process.env.GEMINI_API_KEY?.trim()
-  if (!hasKey) {
-    console.log(`[BlogIndex AI] ${provider} API 키 미설정, AI 분석 스킵`)
+  // Gemini API 키가 없으면 스킵 (분석은 항상 Gemini 사용 — 비용 최적화)
+  if (!process.env.GEMINI_API_KEY?.trim()) {
+    console.log('[BlogIndex AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
     return null
   }
 
@@ -318,7 +358,7 @@ export async function analyzeWithAi(
 
     if (postContents.length === 0) return null
 
-    // Gemini에 보낼 사용자 메시지 구성
+    // Gemini 단일 모드 (비용 최적화: 구조화된 JSON 분석은 Gemini로 충분)
     const userMessage = `아래는 하나의 네이버 블로그에서 가져온 ${postContents.length}개 포스트입니다. 이 블로그의 전체적인 콘텐츠 품질을 분석해주세요.
 참고: 긴 본문은 앞부분과 뒷부분만 발췌되었을 수 있습니다. 본문이 잘렸다는 언급 없이 제공된 내용만으로 분석해주세요.
 
@@ -329,9 +369,9 @@ ${postContents.map((p, i) => `--- 포스트 ${i + 1} ---
 ${p.content}
 `).join('\n')}`
 
-    console.log(`[BlogIndex AI] ${postContents.length}개 포스트 분석 요청 (총 ${userMessage.length}자)`)
+    console.log(`[BlogIndex AI] Gemini 분석: ${postContents.length}개 포스트 (${userMessage.length}자)`)
+    const response = await callGemini(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
 
-    const response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정
