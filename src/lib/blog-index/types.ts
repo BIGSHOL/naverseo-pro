@@ -87,6 +87,7 @@ export interface PostDetail {
   isScrapped?: boolean   // true면 실제 본문 데이터, false/undefined면 description 추정
   commentCount?: number | null   // v4: 댓글 수
   sympathyCount?: number | null  // v4: 공감 수
+  readCount?: number | null      // v10: 조회수
   estimatedReadTimeSec?: number  // v8: 예상 체류 시간 (초)
 }
 

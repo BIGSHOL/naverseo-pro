@@ -108,6 +108,7 @@ export function analyzeBlogIndex(
       const isScrapped = scraped !== null
       const commentCount = scraped?.commentCount ?? null
       const sympathyCount = scraped?.sympathyCount ?? null
+      const readCount = scraped?.readCount ?? null
       const quality = scorePost(cleanTitle, p.description, charCount, imgCount, isScrapped, commentCount, sympathyCount)
 
       const estimatedReadTimeSec = isScrapped
@@ -127,6 +128,7 @@ export function analyzeBlogIndex(
         isScrapped,
         commentCount,
         sympathyCount,
+        readCount,
         estimatedReadTimeSec,
       }
     })

@@ -28,6 +28,7 @@ export interface ScrapedPostData {
     meta?: PostMetaData  // 메타 데이터 (태그, 카테고리, 링크 분석)
     commentCount: number | null   // v4: 댓글 수 (추출 실패 시 null)
     sympathyCount: number | null  // v4: 공감 수 (추출 실패 시 null)
+    readCount: number | null      // v10: 조회수 (추출 실패 시 null)
 }
 
 /**
@@ -86,10 +87,15 @@ export function toMobileUrl(link: string): string | null {
 function extractCommentCount(html: string): number | null {
     const patterns = [
         /commentCount="(\d+)"/,                          // HTML 속성 (네이버 모바일 실제 패턴)
-        /\\?"commentCount\\?"\s*:\s*(\d+)/,              // JSON (이스케이프 여부 무관)
+        /"commentCount"\s*:\s*(\d+)/,                    // 순수 JSON
+        /\\?"commentCount\\?"\s*:\s*(\d+)/,              // 이스케이프 JSON
+        /["']commentCount["']\s*:\s*["']?(\d+)/,         // 다양한 따옴표 조합
+        /comment_count['"]\s*:\s*(\d+)/i,                // snake_case 변형
         /u_cbox_count[^>]*>(\d+)/i,                      // 네이버 댓글 박스 카운트
         /data-comment-count=["'](\d+)["']/i,             // data 속성
+        /class="[^"]*comment[^"]*count[^"]*"[^>]*>(\d+)/i, // 댓글 카운트 클래스
         /comment_count["'][^>]*>(\d+)/i,                 // 구형 패턴
+        /btn_comment[^>]*>[\s\S]*?(\d+)/i,                 // 댓글 버튼 내 숫자
     ]
     for (const pattern of patterns) {
         const match = html.match(pattern)
@@ -113,11 +119,15 @@ function extractCommentCount(html: string): number | null {
 function extractSympathyCount(html: string): number | null {
     const patterns = [
         /sympathyCount="(\d+)"/,                         // HTML 속성
-        /\\?"sympathyCount\\?"\s*:\s*(\d+)/,             // JSON (이스케이프 여부 무관)
-        /\\?"likeItCount\\?"\s*:\s*(\d+)/,               // likeItCount 변형
-        /\\?"reactionCount\\?"\s*:\s*(\d+)/,             // reactionCount 변형
+        /"sympathyCount"\s*:\s*(\d+)/,                   // 순수 JSON
+        /\\?"sympathyCount\\?"\s*:\s*(\d+)/,             // 이스케이프 JSON
+        /"likeItCount"\s*:\s*(\d+)/,                     // likeItCount 순수 JSON
+        /\\?"likeItCount\\?"\s*:\s*(\d+)/,               // likeItCount 이스케이프
+        /"reactionCount"\s*:\s*(\d+)/,                   // reactionCount 순수 JSON
+        /\\?"reactionCount\\?"\s*:\s*(\d+)/,             // reactionCount 이스케이프
         /area_sympathy[\s\S]{0,200}?(\d+)\s*<\//i,      // 공감 영역 내 숫자 (범위 제한)
         /data-sympathy-count=["'](\d+)["']/i,            // data 속성
+        /btn_like[^>]*>[\s\S]*?(\d+)/i,                    // 좋아요 버튼 내 숫자
     ]
     for (const pattern of patterns) {
         const match = html.match(pattern)
@@ -126,7 +136,33 @@ function extractSympathyCount(html: string): number | null {
     return null
 }
 
-function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null } {
+/**
+ * 조회수 추출 (모바일 HTML에서)
+ *
+ * 네이버 모바일 블로그의 조회수 존재 형태:
+ * 1. JSON: "readCount": 123 또는 "readCnt": 123
+ * 2. HTML 속성: data-read-count="123"
+ * 3. 조회 영역 DOM 내 숫자
+ */
+function extractReadCount(html: string): number | null {
+    const patterns = [
+        /"readCount"\s*:\s*(\d+)/,                       // 순수 JSON (가장 일반적)
+        /\\?"readCount\\?"\s*:\s*(\d+)/,                 // 이스케이프 JSON
+        /"readCnt"\s*:\s*(\d+)/,                         // readCnt 변형
+        /\\?"readCnt\\?"\s*:\s*(\d+)/,                   // readCnt 이스케이프
+        /readCount="(\d+)"/,                             // HTML 속성
+        /data-read-count=["'](\d+)["']/i,                // data 속성
+        /class="[^"]*read[_-]?count[^"]*"[^>]*>(\d+)/i, // 조회수 클래스
+        /view_count[^>]*>[\s\S]*?(\d+)/i,                  // 조회수 영역
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) return parseInt(match[1], 10)
+    }
+    return null
+}
+
+function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null; readCount: number | null } {
     // 이미지 카운트 (전체 HTML에서)
     const imgMatches = html.match(/<img[\s>]/gi)
     const imageCount = imgMatches ? imgMatches.length : 0
@@ -250,11 +286,12 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
         .replace(/\s+/g, ' ')
         .trim()
 
-    // 댓글/공감 추출 (전체 HTML에서)
+    // 댓글/공감/조회수 추출 (전체 HTML에서)
     const commentCount = extractCommentCount(html)
     const sympathyCount = extractSympathyCount(html)
+    const readCount = extractReadCount(html)
 
-    return { charCount: text.length, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount }
+    return { charCount: text.length, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount }
 }
 
 /**
@@ -367,7 +404,7 @@ export async function scrapeBlogPost(
             }
 
             const html = await res.text()
-            const { charCount, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount } = parsePostHtml(html)
+            const { charCount, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount, readCount } = parsePostHtml(html)
 
             // 공감 수: HTML에서 추출 실패 시 Like API로 폴백
             let finalSympathyCount = sympathyCount
@@ -378,7 +415,7 @@ export async function scrapeBlogPost(
                 }
             }
 
-            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, ${videoCount}동영상, ${linkCount}링크, ${tableCount}표, 댓글${commentCount ?? '?'}, 공감${finalSympathyCount ?? '?'} ← ${mobileUrl}`)
+            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, ${videoCount}동영상, ${linkCount}링크, ${tableCount}표, 댓글${commentCount ?? '?'}, 공감${finalSympathyCount ?? '?'}, 조회${readCount ?? '?'} ← ${mobileUrl}`)
 
             const result: ScrapedPostData = {
                 charCount,
@@ -391,6 +428,7 @@ export async function scrapeBlogPost(
                 isScrapped: true,
                 commentCount,
                 sympathyCount: finalSympathyCount,
+                readCount,
             }
 
             // 메타 데이터 추출 (선택적)

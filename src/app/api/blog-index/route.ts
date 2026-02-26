@@ -298,6 +298,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 히스토리 자동 저장 (에러 나도 측정 결과에 영향 없음)
+    let historySaved = false
     try {
       // v9: 4축 점수 추출 (콘텐츠 품질 / 방문자 활동 / SEO 최적화 / 신뢰도)
       const contentCat = result.categories.find((c: { name: string }) => c.name === '콘텐츠 품질')
@@ -340,12 +341,16 @@ export async function POST(request: NextRequest) {
 
       if (insertError) {
         console.error('[BlogIndex] 히스토리 저장 실패:', insertError.message, insertError.details, insertError.hint)
+      } else {
+        historySaved = true
+        console.log(`[BlogIndex] 히스토리 저장 성공: blog_id=${blogId}, score=${result.totalScore}`)
       }
     } catch (historyError) {
       console.error('[BlogIndex] 히스토리 저장 예외:', historyError)
     }
 
-    return NextResponse.json(result)
+    // historySaved를 결과에 포함하여 클라이언트에서 DB 저장 상태 확인 가능
+    return NextResponse.json({ ...result, _historySaved: historySaved })
   } catch (error) {
     console.error('[BlogIndex] 오류:', error)
     return NextResponse.json(

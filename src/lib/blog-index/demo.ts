@@ -97,6 +97,7 @@ export function generateDemoScrapedData(posts: BlogPost[]): Map<string, ScrapedP
       isScrapped: true,
       commentCount: Math.floor(Math.random() * 20),
       sympathyCount: Math.floor(Math.random() * 40),
+      readCount: Math.floor(Math.random() * 500) + 50,
     })
   })
   return map

@@ -109,6 +109,7 @@ interface PostDetail {
   isScrapped?: boolean   // true면 실제 본문 스크래핑 데이터
   commentCount?: number | null   // v4: 댓글 수
   sympathyCount?: number | null  // v4: 공감 수
+  readCount?: number | null      // v10: 조회수
 }
 
 interface BlogProfile {
@@ -571,6 +572,9 @@ export default function BlogIndexPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || '블로그 지수 측정에 실패했습니다.'); return }
+      if (data._historySaved === false) {
+        console.warn('[BlogIndex] DB 히스토리 저장 실패 - 다음 측정 시 캐시 없이 재측정됩니다')
+      }
       setResult(data)
       setCachedAt(new Date().toISOString())
       // 히스토리 조회 (새 측정이 히스토리에 추가됨)
@@ -883,12 +887,6 @@ export default function BlogIndexPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        const url = ensureUrl(result.blogUrl)
-                        const w = window.open(url, '_blank', 'noopener,noreferrer')
-                        if (!w) window.location.href = url
-                      }}
                     >
                       블로그 방문 <ExternalLink className="h-3 w-3" />
                     </a>
@@ -1478,7 +1476,7 @@ export default function BlogIndexPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                    <table className="w-full min-w-[700px] text-sm">
+                    <table className="w-full min-w-[760px] text-sm">
                       <thead>
                         <tr className="border-b text-left">
                           <th className="pb-2 pr-2 font-medium text-muted-foreground min-w-[120px]">제목</th>
@@ -1487,6 +1485,7 @@ export default function BlogIndexPage() {
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16 whitespace-nowrap">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">이미지</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">조회</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">댓글</th>
                           <th className="pb-2 font-medium text-muted-foreground text-center w-14">공감</th>
                         </tr>
@@ -1500,13 +1499,6 @@ export default function BlogIndexPage() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="group flex items-center gap-1 hover:text-primary"
-                                onClick={(e) => {
-                                  // about:blank#blocked 방지: window.open 실패 시 같은 탭에서 열기
-                                  e.preventDefault()
-                                  const url = ensureUrl(post.link)
-                                  const w = window.open(url, '_blank', 'noopener,noreferrer')
-                                  if (!w) window.location.href = url
-                                }}
                               >
                                 <span className="line-clamp-1 text-xs font-medium">{post.title}</span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
@@ -1541,6 +1533,16 @@ export default function BlogIndexPage() {
                                   {(post.imageCount ?? 0) > 1 && (
                                     <span className="text-[9px] font-bold text-green-600">{post.imageCount}</span>
                                   )}
+                                </span>
+                              ) : (
+                                <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
+                              )}
+                            </td>
+                            <td className="py-2 pr-2 text-center">
+                              {post.readCount != null ? (
+                                <span className="flex items-center justify-center gap-0.5">
+                                  <Eye className="h-3 w-3 text-gray-500" />
+                                  <span className="text-[10px]">{post.readCount.toLocaleString()}</span>
                                 </span>
                               ) : (
                                 <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
