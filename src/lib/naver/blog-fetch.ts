@@ -91,12 +91,13 @@ export function extractTitle(html: string): string {
  */
 export function extractContent(html: string): string {
   // 전략 1: Smart Editor ONE - se-text-paragraph 태그에서 직접 텍스트 추출
-  // 가장 정확한 방법: 모든 텍스트 문단을 직접 수집
-  const paragraphs = extractSeTextParagraphs(html)
+  // 본문 영역만 스코핑 (관련 글/추천 글/하단 글 목록 제외)
+  const scopedHtml = scopeToMainContent(html)
+  const paragraphs = extractSeTextParagraphs(scopedHtml)
   if (paragraphs.length > 0) {
     // 이미지 개수도 함께 반환 (htmlToPlainText에서 중복 처리되지 않도록 raw HTML 반환)
-    const imgCount = (html.match(/<img[^>]*class=["'][^"']*se-image-resource[^"']*["'][^>]*>/gi) || []).length
-      || (html.match(/<img[^>]*src=["'][^"']*postfiles[^"']*["'][^>]*>/gi) || []).length
+    const imgCount = (scopedHtml.match(/<img[^>]*class=["'][^"']*se-image-resource[^"']*["'][^>]*>/gi) || []).length
+      || (scopedHtml.match(/<img[^>]*src=["'][^"']*postfiles[^"']*["'][^>]*>/gi) || []).length
     let result = paragraphs.join('\n\n')
     if (imgCount > 0) {
       result += `\n\n<p>[이미지 ${imgCount}개 포함]</p>`
@@ -218,6 +219,36 @@ function extractSeTextParagraphs(html: string): string[] {
 }
 
 /**
+ * HTML을 본문 영역으로 스코핑 (관련 글/추천 글/하단 글 목록 제외)
+ * - se-main-container 시작점 ~ 본문 끝 경계 마커까지만 반환
+ * - se-main-container가 없으면 원본 HTML 그대로 반환
+ */
+function scopeToMainContent(html: string): string {
+  const containerMatch = html.match(/<div[^>]*class=["'][^"']*se-main-container[^"']*["'][^>]*>/i)
+  if (!containerMatch || containerMatch.index === undefined) return html
+
+  const startIdx = containerMatch.index
+  const rest = html.substring(startIdx)
+
+  // 본문 끝 경계 마커 (관련 글, 추천, 태그, 댓글, 페이징, 공감 등)
+  const endMarkers = [
+    /<div[^>]*class=["'][^"']*(?:_recommend|post_footer|comment_area|wrap_comment|post_tag|post__tag|se-viewer-footer|blog-paging|_related_contents|post_relate|wrap_blog_paging|area_sympathy|btn_post|postBottomTitleList|_postTag)/i,
+    /<div[^>]*id=["'](?:comment|footer|postTagArea|naverBlogPagingContainer)/i,
+    /<section[^>]*class=["'][^"']*(?:_recommend|post_relate|_related)/i,
+  ]
+
+  let endIdx = rest.length
+  for (const pattern of endMarkers) {
+    const m = rest.match(pattern)
+    if (m && m.index !== undefined && m.index < endIdx) {
+      endIdx = m.index
+    }
+  }
+
+  return rest.substring(0, endIdx)
+}
+
+/**
  * 주어진 패턴의 div 컨테이너 내부 HTML을 추출
  */
 function findContainerContent(html: string, pattern: RegExp): string | null {
@@ -243,11 +274,12 @@ function findContainerContent(html: string, pattern: RegExp): string | null {
  * 본문 HTML 내에서 적절한 종료 지점 찾기
  */
 function findContentEndIndex(html: string): number {
-  // 댓글 영역, 푸터, 관련 글, 스크립트 등의 시작점 찾기
+  // 댓글 영역, 푸터, 관련 글, 추천 글, 스크립트 등의 시작점 찾기
   const endPatterns = [
-    /<div[^>]*class=["'][^"']*(?:post_footer|comment_area|post-btn|wrap_comment|post_tag|post__tag|se-viewer-footer|blog-paging|_related_contents)/i,
+    /<div[^>]*class=["'][^"']*(?:post_footer|comment_area|post-btn|wrap_comment|post_tag|post__tag|se-viewer-footer|blog-paging|_related_contents|_postTag|postBottomTitleList)/i,
     /<div[^>]*id=["'](?:comment|footer|postTagArea|naverBlogPagingContainer)/i,
-    /<div[^>]*class=["'][^"']*(?:area_sympathy|btn_post|post_relate|wrap_blog_paging)/i,
+    /<div[^>]*class=["'][^"']*(?:area_sympathy|btn_post|post_relate|wrap_blog_paging|_recommend)/i,
+    /<section[^>]*class=["'][^"']*(?:_recommend|post_relate|_related)/i,
     /<script[^>]*>(?![\s\S]*?<\/script>\s*<div)/i, // script 다음에 div가 없는 경우만
   ]
 

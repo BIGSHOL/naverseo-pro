@@ -180,13 +180,26 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
     const imageCount = imgMatches ? imgMatches.length : 0
 
     // 이미지 URL 추출 (실제 콘텐츠 이미지만)
+    // 모바일에서는 data-lazy-src에 실제 URL이 있고 src는 placeholder인 경우가 많음
     const imageUrls: string[] = []
-    const imgUrlRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi
-    let imgUrlMatch: RegExpExecArray | null
-    while ((imgUrlMatch = imgUrlRegex.exec(html)) !== null) {
-        const src = imgUrlMatch[1]
+    const seenUrls = new Set<string>()
+    const imgTagRegex = /<img[^>]*>/gi
+    let imgTagMatch: RegExpExecArray | null
+    while ((imgTagMatch = imgTagRegex.exec(html)) !== null) {
+        const tag = imgTagMatch[0]
+        // data-lazy-src > data-src > src 순으로 실제 이미지 URL 확인
+        const srcMatch = tag.match(/data-lazy-src=["']([^"']+)["']/)
+            || tag.match(/data-src=["']([^"']+)["']/)
+            || tag.match(/\ssrc=["']([^"']+)["']/)
+        if (!srcMatch) continue
+        const src = srcMatch[1]
+        if (src.startsWith('data:')) continue  // placeholder 제외
         // 네이버 블로그 콘텐츠 이미지만 (아이콘/UI 이미지 제외)
-        if (src.includes('postfiles') || src.includes('blogfiles') || src.includes('pstatic.net/mblogthumb')) {
+        const isContentImage = src.includes('postfiles') || src.includes('blogfiles')
+            || src.includes('pstatic.net/mblogthumb') || src.includes('storep-phinf.pstatic.net')
+            || /se-image-resource/.test(tag)
+        if (isContentImage && !seenUrls.has(src)) {
+            seenUrls.add(src)
             imageUrls.push(src)
         }
     }

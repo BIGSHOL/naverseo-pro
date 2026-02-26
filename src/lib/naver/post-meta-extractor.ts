@@ -65,10 +65,10 @@ export interface OpenGraphData {
 export function extractTags(html: string): string[] {
     const tags = new Set<string>()
 
-    // 패턴 1: 포스트 태그 영역 (데스크톱/모바일)
+    // 패턴 1: 포스트 태그 영역 (데스크톱/모바일 - 다양한 클래스명 대응)
     const tagAreaPatterns = [
-        /<div[^>]*class="[^"]*(?:post_tag|tag_area|se-tag-area|post-tag)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-        /<ul[^>]*class="[^"]*(?:tag_list|post_tag_list)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+        /<div[^>]*class=["'][^"']*(?:post_tag|tag_area|se-tag-area|post-tag|_postTag|post_tag_area|_tag_list)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+        /<ul[^>]*class=["'][^"']*(?:tag_list|post_tag_list|_tag_list_body)[^"']*["'][^>]*>([\s\S]*?)<\/ul>/gi,
     ]
 
     for (const pattern of tagAreaPatterns) {
@@ -87,6 +87,18 @@ export function extractTags(html: string): string[] {
                     tags.add(tagText)
                 }
             }
+            // <span> 태그에서도 추출 (모바일에서 span 사용하는 경우)
+            const spanRegex = /<span[^>]*>([\s\S]*?)<\/span>/gi
+            let spanMatch: RegExpExecArray | null
+            while ((spanMatch = spanRegex.exec(tagHtml)) !== null) {
+                const tagText = spanMatch[1]
+                    .replace(/<[^>]+>/g, '')
+                    .replace(/^#/, '')
+                    .trim()
+                if (tagText.length >= 2 && tagText.length <= 30) {
+                    tags.add(tagText)
+                }
+            }
         }
     }
 
@@ -100,11 +112,23 @@ export function extractTags(html: string): string[] {
         })
     }
 
-    // 패턴 3: 해시태그 형태 (#태그) - 본문 내 해시태그 검색
-    const hashtagRegex = /#([가-힣a-zA-Z0-9_]{2,20})/g
-    let hashMatch: RegExpExecArray | null
-    while ((hashMatch = hashtagRegex.exec(html)) !== null) {
-        tags.add(hashMatch[1])
+    // 패턴 3: 해시태그 형태 (#태그) - style/script 제거 후 본문 텍스트에서만 검색
+    // (전체 HTML에서 검색하면 CSS 색상코드 #004e82, ID 셀렉터 #ct 등이 오탐됨)
+    if (tags.size === 0) {
+        const bodyText = html
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+        const hashtagRegex = /#([가-힣a-zA-Z0-9_]{2,20})/g
+        let hashMatch: RegExpExecArray | null
+        while ((hashMatch = hashtagRegex.exec(bodyText)) !== null) {
+            const tag = hashMatch[1]
+            // hex 색상코드 필터 (3~8자리 hex)
+            if (/^[0-9a-fA-F]{3,8}$/.test(tag)) continue
+            // CSS/HTML 예약어 필터
+            if (/^(ct|px|em|rem|vh|vw|nafullscreen|postlist_block|important)$/i.test(tag)) continue
+            tags.add(tag)
+        }
     }
 
     return Array.from(tags).slice(0, 30)  // 최대 30개
