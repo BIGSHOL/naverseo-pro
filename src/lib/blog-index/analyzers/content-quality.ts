@@ -1,13 +1,15 @@
 /**
  * 블로그 지수 - 축1. 콘텐츠 품질 (25점)
  *
- * v9: 주제 전문성 병합 + 25점 확대
+ * v10: 범위 기반 점수 + 어뷰징 감점 통합
  *
- * 콘텐츠 깊이(7) + 이미지 활용(5) + 주제 집중도(4) + 구조/서식(3) + 내부 링크(3) + 품질 일관성(3)
+ * 가점: 콘텐츠 깊이(7) + 이미지 활용(5) + 주제 집중도(4) + 구조/서식(3) + 내부 링크(3) + 품질 일관성(3) = 25
+ * 감점: 제목 유사도(-3) + 콘텐츠 중복(-3) + 짧은 글 비율(-2) = -8
+ * 최종: clamp(가점 + 감점, 0, 25)
  */
 
-import { stripHtml, countImageMarkers, extractKoreanKeywords } from '@/lib/utils/text'
-import type { BlogPost, AnalysisCategory } from '../types'
+import { stripHtml, countImageMarkers, extractKoreanKeywords, jaccardSimilarity } from '@/lib/utils/text'
+import type { BlogPost, AnalysisCategory, ScoreItem } from '../types'
 import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
 export function analyzeContentQuality(
@@ -18,17 +20,18 @@ export function analyzeContentQuality(
 ): { category: AnalysisCategory; topicKeywords: string[] } {
   const maxScore = 25
   const details: string[] = []
+  const items: ScoreItem[] = []
   let score = 0
   const topicKeywords: string[] = []
 
   if (posts.length === 0) {
     return {
-      category: { name: '콘텐츠 품질', score: 0, maxScore, grade: 'F', details: ['분석할 포스트가 없습니다'] },
+      category: { name: '콘텐츠 품질', score: 0, maxScore, grade: 'F', details: ['분석할 포스트가 없습니다'], items: [] },
       topicKeywords,
     }
   }
 
-  // === 콘텐츠 깊이 (7점) - 실제 본문 우선, 없으면 RSS 미리보기 ===
+  // === 콘텐츠 깊이 (7점) - 범위 기반 ===
   let avgContentLen = 0
   let isActualContent = false
   const contentLengths: number[] = []
@@ -45,74 +48,84 @@ export function analyzeContentQuality(
   }
 
   if (isActualContent) {
-    if (avgContentLen >= 2000) {
-      score += 7
-      details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+7)`)
-    } else if (avgContentLen >= 1500) {
-      score += 5
+    // 범위 기반: 1500~3000자 최적, 너무 길면 감점
+    let depthPts = 0
+    if (avgContentLen >= 1500 && avgContentLen <= 3000) {
+      depthPts = 7
+      details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 최적 범위) (+7)`)
+    } else if (avgContentLen >= 1000 && avgContentLen < 1500) {
+      depthPts = 5
       details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+5)`)
-    } else if (avgContentLen >= 1000) {
-      score += 4
-      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+4)`)
+    } else if (avgContentLen > 3000 && avgContentLen <= 5000) {
+      depthPts = 5
+      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 약간 김) (+5)`)
+    } else if (avgContentLen > 5000) {
+      depthPts = 4
+      details.push(`콘텐츠가 과도하게 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1500~3000자) (+4)`)
     } else if (avgContentLen >= 500) {
-      score += 2
+      depthPts = 2
       details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+2)`)
     } else {
-      score += 1
+      depthPts = 1
       details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1500자 이상) (+1)`)
     }
+    score += depthPts
+    items.push({ label: `콘텐츠 깊이 (평균 ${Math.round(avgContentLen).toLocaleString()}자)`, points: depthPts })
   } else {
+    // 미리보기 기준 (변경 없음)
+    let depthPts = 0
     if (avgContentLen >= 200) {
-      score += 7
+      depthPts = 7
       details.push(`콘텐츠 깊이 최우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+7)`)
     } else if (avgContentLen >= 150) {
-      score += 5
+      depthPts = 5
       details.push(`콘텐츠 깊이 우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+5)`)
     } else if (avgContentLen >= 100) {
-      score += 4
+      depthPts = 4
       details.push(`콘텐츠 깊이 양호 (미리보기 평균 ${Math.round(avgContentLen)}자) (+4)`)
     } else if (avgContentLen >= 50) {
-      score += 2
+      depthPts = 2
       details.push(`콘텐츠 깊이 보통 (미리보기 평균 ${Math.round(avgContentLen)}자) (+2)`)
     } else {
-      score += 1
+      depthPts = 1
       details.push(`콘텐츠가 짧습니다 (미리보기 평균 ${Math.round(avgContentLen)}자) (+1)`)
     }
+    score += depthPts
+    items.push({ label: `콘텐츠 깊이 (미리보기 ${Math.round(avgContentLen)}자)`, points: depthPts })
   }
 
-  // === 이미지 활용 (5점) ===
+  // === 이미지 활용 (5점) - 평균 개수 기반 ===
   let avgImageCount = 0
-  let imageRate = 0
 
   if (scrapedData && scrapedData.size > 0) {
     const scrapedPosts = Array.from(scrapedData.values())
     avgImageCount = scrapedPosts.reduce((s, p) => s + (p.imageCount || 0), 0) / scrapedPosts.length
-    const postsWithImages = scrapedPosts.filter(p => p.hasImage).length
-    imageRate = postsWithImages / scrapedPosts.length
   } else {
     const imageCounts = posts.map(p => countImageMarkers(p.description))
     avgImageCount = imageCounts.reduce((s, c) => s + c, 0) / posts.length
-    const postsWithImages = imageCounts.filter(c => c > 0).length
-    imageRate = postsWithImages / posts.length
   }
 
-  if (imageRate >= 0.8 && avgImageCount >= 3) {
-    score += 5
-    details.push(`이미지 활용 최우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장) (+5)`)
-  } else if (imageRate >= 0.8 && avgImageCount >= 2) {
-    score += 4
-    details.push(`이미지 활용 우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장) (+4)`)
-  } else if (imageRate >= 0.5 && avgImageCount >= 1) {
-    score += 2
-    details.push(`이미지 활용 양호 (${Math.round(imageRate * 100)}% 포스트에 이미지 포함) (+2)`)
-  } else if (imageRate >= 0.3) {
-    score += 1
-    details.push(`이미지 활용 부족 (${Math.round(imageRate * 100)}% 포스트에만 이미지 포함) (+1)`)
+  let imagePts = 0
+  if (avgImageCount >= 3 && avgImageCount <= 10) {
+    imagePts = 5
+    details.push(`이미지 활용 최우수 (평균 ${avgImageCount.toFixed(1)}장, 최적 범위) (+5)`)
+  } else if ((avgImageCount >= 2 && avgImageCount < 3) || (avgImageCount > 10 && avgImageCount <= 20)) {
+    imagePts = 4
+    details.push(`이미지 활용 우수 (평균 ${avgImageCount.toFixed(1)}장) (+4)`)
+  } else if (avgImageCount > 20) {
+    imagePts = 3
+    details.push(`이미지 과다 (평균 ${avgImageCount.toFixed(1)}장, 권장: 3~10장) (+3)`)
+  } else if (avgImageCount >= 1) {
+    imagePts = 2
+    details.push(`이미지 활용 보통 (평균 ${avgImageCount.toFixed(1)}장) (+2)`)
   } else {
+    imagePts = 0
     details.push('이미지가 거의 없습니다 - 직접 촬영한 원본 이미지를 추가하세요 (+0)')
   }
+  score += imagePts
+  items.push({ label: `이미지 활용 (평균 ${avgImageCount.toFixed(1)}장)`, points: imagePts })
 
-  // === 주제 집중도/전문성 (4점) - v9: topic-authority에서 병합 ===
+  // === 주제 집중도 (4점) - 범위 기반 (키워드 스터핑 통합) ===
   const brandKeywords = new Set<string>()
   const brandSources = [blogName, blogId].filter(Boolean) as string[]
   for (const src of brandSources) {
@@ -142,19 +155,25 @@ export function analyzeContentQuality(
     const topKeyword = sortedKeywords[0]
     const topKeywordRate = topKeyword[1] / posts.length
 
-    if (topKeywordRate >= 0.7) {
-      score += 4
-      details.push(`주제 집중도 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+4)`)
-    } else if (topKeywordRate >= 0.5) {
-      score += 3
+    let focusPts = 0
+    if (topKeywordRate >= 0.3 && topKeywordRate <= 0.6) {
+      focusPts = 4
+      details.push(`주제 집중도 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (최적 범위) (+4)`)
+    } else if (topKeywordRate > 0.6 && topKeywordRate <= 0.8) {
+      focusPts = 3
       details.push(`주제 집중도 우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+3)`)
-    } else if (topKeywordRate >= 0.3) {
-      score += 2
+    } else if (topKeywordRate >= 0.2 && topKeywordRate < 0.3) {
+      focusPts = 2
       details.push(`주제 집중도 양호: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+2)`)
+    } else if (topKeywordRate > 0.8) {
+      focusPts = 1
+      details.push(`키워드 과집중: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (스터핑 위험, 다양한 키워드 사용 권장) (+1)`)
     } else {
-      score += 1
+      focusPts = 1
       details.push('주제가 분산됨 - 하나의 주제에 집중하면 C-Rank 향상에 도움 (+1)')
     }
+    score += focusPts
+    items.push({ label: `주제 집중도 (${topKeyword[0]} ${Math.round(topKeywordRate * 100)}%)`, points: focusPts })
   }
 
   // === 구조/서식 패턴 (3점) ===
@@ -179,8 +198,10 @@ export function analyzeContentQuality(
   if (structureScore >= 3) details.push(`콘텐츠 구조화 우수 (+${structureScore})`)
   else if (structureScore >= 1) details.push(`콘텐츠 구조화 보통 (+${structureScore})`)
   else details.push('구조화 부족 - 리스트, 소제목, 구체적 수치를 활용하세요 (+0)')
+  items.push({ label: '구조/서식', points: structureScore })
 
   // === 내부 링크 활용 (3점) ===
+  let linkPts = 0
   if (scrapedData && scrapedData.size > 0) {
     const scrapedPosts = Array.from(scrapedData.values())
     const postsWithMeta = scrapedPosts.filter(p => p.meta?.linkAnalysis)
@@ -194,18 +215,21 @@ export function analyzeContentQuality(
       const sameBlogRate = sameBlogLinkPosts / postsWithMeta.length
 
       if (avgInternalLinks >= 2 && sameBlogRate >= 0.3) {
-        score += 3
+        linkPts = 3
         details.push(`내부 링크 활용 우수 (평균 ${avgInternalLinks.toFixed(1)}개) (+3)`)
       } else if (avgInternalLinks >= 1 || sameBlogRate >= 0.1) {
-        score += 1
+        linkPts = 1
         details.push(`내부 링크 활용 보통 (평균 ${avgInternalLinks.toFixed(1)}개) (+1)`)
       } else {
         details.push('내부 링크 부족 - 관련 글 링크로 체류 시간을 늘리세요 (+0)')
       }
     }
   }
+  score += linkPts
+  items.push({ label: '내부 링크', points: linkPts })
 
   // === 품질 일관성 (3점) ===
+  let consistencyPts = 0
   if (contentLengths.length >= 3) {
     const avgLen = contentLengths.reduce((s, l) => s + l, 0) / contentLengths.length
     const variance = contentLengths.reduce((s, l) => s + Math.pow(l - avgLen, 2), 0) / contentLengths.length
@@ -213,23 +237,128 @@ export function analyzeContentQuality(
     const cv = avgLen > 0 ? stdDev / avgLen : 0
 
     if (cv < 0.25) {
-      score += 3
+      consistencyPts = 3
       details.push('품질 일관성 최우수 (+3)')
     } else if (cv < 0.5) {
-      score += 2
+      consistencyPts = 2
       details.push('품질 일관성 우수 (+2)')
     } else if (cv < 0.8) {
-      score += 1
+      consistencyPts = 1
       details.push('품질 일관성 보통 (+1)')
     } else {
       details.push('품질 일관성 부족 - 글마다 길이 차이가 큽니다 (+0)')
     }
   }
+  score += consistencyPts
+  items.push({ label: '품질 일관성', points: consistencyPts })
 
+  // === [감점] 제목 유사도 (0 ~ -3) — abuse.ts에서 이동 ===
+  if (posts.length >= 3) {
+    const titleWordSets = posts.map(p => extractKoreanKeywords(stripHtml(p.title)))
+    let highSimilarityCount = 0
+    let totalPairs = 0
+
+    for (let i = 0; i < titleWordSets.length; i++) {
+      for (let j = i + 1; j < titleWordSets.length; j++) {
+        const sim = jaccardSimilarity(titleWordSets[i], titleWordSets[j])
+        if (sim >= 0.7) highSimilarityCount++
+        totalPairs++
+      }
+    }
+
+    if (totalPairs > 0) {
+      const similarRate = highSimilarityCount / totalPairs
+      if (similarRate >= 0.5) {
+        score -= 3
+        details.push(`제목 유사도 매우 높음: ${Math.round(similarRate * 100)}% 유사 (템플릿 의심) (-3)`)
+        items.push({ label: `제목 유사도 (${Math.round(similarRate * 100)}% 유사)`, points: -3 })
+      } else if (similarRate >= 0.3) {
+        score -= 2
+        details.push(`제목 유사도 높음: ${Math.round(similarRate * 100)}% 유사 (-2)`)
+        items.push({ label: `제목 유사도 (${Math.round(similarRate * 100)}% 유사)`, points: -2 })
+      } else if (similarRate >= 0.15) {
+        score -= 1
+        details.push(`일부 제목이 유사합니다 (-1)`)
+        items.push({ label: '제목 유사도', points: -1 })
+      }
+    }
+  }
+
+  // === [감점] 콘텐츠 중복 (0 ~ -3) — abuse.ts에서 이동 ===
+  if (posts.length >= 3) {
+    let contentDupPts = 0
+
+    if (scrapedData && scrapedData.size >= 3) {
+      const descKeywordSets = posts.slice(0, 15).map(p =>
+        extractKoreanKeywords(stripHtml(p.description).substring(0, 200))
+      )
+      let highSimPairs = 0
+      let totalComparisons = 0
+      for (let i = 0; i < descKeywordSets.length; i++) {
+        for (let j = i + 1; j < descKeywordSets.length; j++) {
+          if (descKeywordSets[i].length >= 3 && descKeywordSets[j].length >= 3) {
+            const sim = jaccardSimilarity(descKeywordSets[i], descKeywordSets[j])
+            if (sim >= 0.6) highSimPairs++
+            totalComparisons++
+          }
+        }
+      }
+      if (totalComparisons > 0) {
+        const simRate = highSimPairs / totalComparisons
+        if (simRate >= 0.4) {
+          contentDupPts = -3
+          details.push(`본문 콘텐츠 중복 심각: ${Math.round(simRate * 100)}% 유사 (-3)`)
+        } else if (simRate >= 0.2) {
+          contentDupPts = -2
+          details.push(`본문 콘텐츠 일부 중복: ${Math.round(simRate * 100)}% 유사 (-2)`)
+        }
+      }
+    } else {
+      // 폴백: 설명문 첫 50자 비교
+      const descSnippets = posts.map(p => stripHtml(p.description).substring(0, 50))
+      const snippetFreq: Record<string, number> = {}
+      descSnippets.forEach(s => {
+        if (s.length >= 20) snippetFreq[s] = (snippetFreq[s] || 0) + 1
+      })
+      const duplicateCount = Object.values(snippetFreq).filter(c => c >= 2).reduce((s, c) => s + c, 0)
+      if (duplicateCount >= posts.length * 0.5) {
+        contentDupPts = -3
+        details.push(`설명문 반복 패턴 심각: ${duplicateCount}개 포스트 유사 (-3)`)
+      } else if (duplicateCount >= posts.length * 0.3) {
+        contentDupPts = -2
+        details.push(`설명문 반복 패턴 주의: ${duplicateCount}개 포스트 유사 (-2)`)
+      }
+    }
+
+    if (contentDupPts < 0) {
+      score += contentDupPts
+      items.push({ label: '콘텐츠 중복', points: contentDupPts })
+    }
+  }
+
+  // === [감점] 짧은 글 비율 (0 ~ -2) — abuse.ts에서 이동 ===
+  if (scrapedData && scrapedData.size >= 3) {
+    const scrapedPosts = Array.from(scrapedData.values())
+    const shortPosts = scrapedPosts.filter(p => p.charCount < 300).length
+    const shortRate = shortPosts / scrapedPosts.length
+
+    if (shortRate >= 0.7) {
+      score -= 2
+      details.push(`짧은 글 비율 과다: ${Math.round(shortRate * 100)}%가 300자 미만 (-2)`)
+      items.push({ label: `짧은 글 비율 (${Math.round(shortRate * 100)}%)`, points: -2 })
+    } else if (shortRate >= 0.4) {
+      score -= 1
+      details.push(`짧은 글 비율 주의: ${Math.round(shortRate * 100)}%가 300자 미만 (-1)`)
+      items.push({ label: `짧은 글 비율 (${Math.round(shortRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // 최종 점수 clamp
+  score = Math.max(0, Math.min(maxScore, score))
   const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
   return {
-    category: { name: '콘텐츠 품질', score: Math.min(maxScore, score), maxScore, grade, details },
+    category: { name: '콘텐츠 품질', score, maxScore, grade, details, items },
     topicKeywords,
   }
 }

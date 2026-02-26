@@ -34,12 +34,18 @@ export interface KeywordRankResult {
   totalResults: number
 }
 
+export interface ScoreItem {
+  label: string
+  points: number  // +N (가점) 또는 -N (감점)
+}
+
 export interface AnalysisCategory {
   name: string
   score: number
   maxScore: number
   grade: string
   details: string[]
+  items?: ScoreItem[]  // 항목별 ±점수 내역
 }
 
 /** 키워드 경쟁도 데이터 (검색광고 API에서 가져온 compIdx) */
@@ -157,11 +163,12 @@ export interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty: AbusePenalty       // v2 추가
   aiAnalysis?: AiAnalysis          // v2.5 추가 (AI 심층 분석)
-  searchBonus: {                   // v5 추가: 검색 보너스 (등급 미반영)
+  searchBonus: {                   // v10: 검색 성과 (5대축 전용)
     score: number      // 0~25
     maxScore: number   // 25
     grade: string
     details: string[]
+    items?: ScoreItem[]
   }
   keywordResults: KeywordRankResult[]
   postAnalysis: {

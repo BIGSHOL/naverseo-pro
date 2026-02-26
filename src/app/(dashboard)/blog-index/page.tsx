@@ -64,12 +64,18 @@ const BlogIndexHistoryChart = dynamic(
 
 // ===== 타입 정의 =====
 
+interface ScoreItem {
+  label: string
+  points: number
+}
+
 interface AnalysisCategory {
   name: string
   score: number
   maxScore: number
   grade: string
   details: string[]
+  items?: ScoreItem[]
 }
 
 interface KeywordRankResult {
@@ -171,6 +177,7 @@ interface SearchBonus {
   maxScore: number   // 25
   grade: string
   details: string[]
+  items?: ScoreItem[]
 }
 
 interface BlogIndexResult {
@@ -258,6 +265,7 @@ function getRadarLabel(name: string): string {
     case '방문자 활동': return '방문자'
     case 'SEO 최적화': return 'SEO'
     case '신뢰도': return '신뢰도'
+    case '검색 성과': return '검색'
     // 레거시 호환
     case '방문자 & 인기도': return '방문자'
     case '주제 전문성': return '전문성'
@@ -277,7 +285,7 @@ function formatCacheAge(dateStr: string): string {
   return `${diffDays}일 전`
 }
 
-function RadarChart({ categories, totalScore, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; size?: number }) {
+function RadarChart({ categories, totalScore, maxTotal = 100, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; maxTotal?: number; size?: number }) {
   const pad = 58 // 라벨용 여백 (4축 대응)
   const totalSize = size + pad * 2
   const center = totalSize / 2
@@ -401,7 +409,7 @@ function RadarChart({ categories, totalScore, size = 220 }: { categories: Analys
         textAnchor="middle"
         className="fill-muted-foreground text-[9px]"
       >
-        / 100
+        / {maxTotal}
       </text>
     </svg>
   )
@@ -453,6 +461,7 @@ function getCategoryIcon(name: string) {
     case '방문자 활동': return <Eye className="h-4 w-4" />
     case 'SEO 최적화': return <Target className="h-4 w-4" />
     case '신뢰도': return <Shield className="h-4 w-4" />
+    case '검색 성과': return <TrendingUp className="h-4 w-4" />
     // 레거시 호환 (캐시된 이전 결과 표시용)
     case '방문자 & 인기도': return <Eye className="h-4 w-4" />
     case '주제 전문성': return <BookOpen className="h-4 w-4" />
@@ -574,6 +583,7 @@ export default function BlogIndexPage() {
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [pendingCache, setPendingCache] = useState<{ data: BlogIndexResult; checkedAt: string } | null>(null)
+  const [axisMode, setAxisMode] = useState<'4axis' | '5axis'>('4axis')
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -596,7 +606,9 @@ export default function BlogIndexPage() {
       const profileRes = await fetch('/api/dashboard')
       if (profileRes.ok) {
         const profileData = await profileRes.json()
-        setUserPlan(profileData.plan || 'free')
+        const plan = profileData.profile?.plan || profileData.plan || 'free'
+        const role = profileData.profile?.role || profileData.role || 'user'
+        setUserPlan(role === 'admin' ? 'admin' : plan)
       }
     } catch { /* 무시 */ }
   }
@@ -1011,20 +1023,64 @@ export default function BlogIndexPage() {
               </Card>
 
               {/* 종합 점수 + 레이더 + 등급 (통합) */}
+              {(() => {
+                // 5대축용 파생 변수 (searchBonus를 AnalysisCategory로 변환)
+                const searchBonusCat: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
+                  name: '검색 성과',
+                  score: result.searchBonus.score,
+                  maxScore: result.searchBonus.maxScore,
+                  grade: result.searchBonus.grade,
+                  details: result.searchBonus.details,
+                  items: result.searchBonus.items,
+                } : null
+                const displayCategories = axisMode === '5axis' && searchBonusCat
+                  ? [...result.categories, searchBonusCat]
+                  : result.categories
+                const displayTotal = axisMode === '5axis' && searchBonusCat
+                  ? result.totalScore + searchBonusCat.score
+                  : result.totalScore
+                const displayMaxTotal = axisMode === '5axis' && searchBonusCat ? 125 : 100
+                const displayScorePct = Math.round((displayTotal / displayMaxTotal) * 100)
+
+                return (
               <Card className="lg:col-span-9">
                 <CardContent className="pt-6">
+                  {/* 4대축 / 5대축 탭 토글 */}
+                  <div className="mb-4 flex items-center gap-1.5 rounded-lg bg-muted p-1">
+                    <button
+                      onClick={() => setAxisMode('4axis')}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        axisMode === '4axis'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      4대축 <span className="text-[10px] text-muted-foreground">(블로그 체력)</span>
+                    </button>
+                    <button
+                      onClick={() => setAxisMode('5axis')}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        axisMode === '5axis'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      5대축 <span className="text-[10px] text-muted-foreground">(검색 포함)</span>
+                    </button>
+                  </div>
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     {/* 왼쪽: 레이더 차트 */}
                     <div className="flex items-center justify-center">
-                      <RadarChart categories={result.categories} totalScore={result.totalScore} />
+                      <RadarChart categories={displayCategories} totalScore={displayTotal} maxTotal={displayMaxTotal} />
                     </div>
                     {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
                     <div className="flex flex-col justify-center">
                       <div className="flex items-center gap-3">
-                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(result.totalScore)} bg-background`}>
+                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(displayScorePct)} bg-background`}>
                           <div className="text-center">
-                            <span className="text-2xl font-bold">{result.totalScore}</span>
-                            <p className="text-[9px] text-muted-foreground">/100</p>
+                            <span className="text-2xl font-bold">{displayTotal}</span>
+                            <p className="text-[9px] text-muted-foreground">/{displayMaxTotal}</p>
                           </div>
                         </div>
                         <div className="min-w-0">
@@ -1061,27 +1117,7 @@ export default function BlogIndexPage() {
                         </div>
                       )}
 
-                      {/* 어뷰징 감점 */}
-                      {result.abusePenalty && result.abusePenalty.score < 0 ? (
-                        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-2.5 dark:bg-red-950/30 dark:border-red-800">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-1 font-medium text-red-700 dark:text-red-300">
-                              <ShieldAlert className="h-3 w-3" />감점 적용
-                            </span>
-                            <span className="font-bold text-red-600 dark:text-red-400">{result.abusePenalty.score}점</span>
-                          </div>
-                          <ul className="mt-1 space-y-0.5">
-                            {result.abusePenalty.details.map((d, i) => (
-                              <li key={i} className="text-[10px] text-red-600/80 dark:text-red-400/80">• {d}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-2.5 py-1.5 text-xs text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-300">
-                          <Shield className="h-3 w-3" />
-                          <span className="font-medium">감점 없음</span>
-                        </div>
-                      )}
+                      {/* v10: 감점이 각 축에 통합되어 별도 배너 불필요 */}
 
                       {/* 다음 등급 */}
                       {result.level.nextTierScore !== null && (
@@ -1164,6 +1200,8 @@ export default function BlogIndexPage() {
                   </div>
                 </CardContent>
               </Card>
+                )
+              })()}
             </div>
 
             {/* ===== 지수 변동 추이 ===== */}
@@ -1253,9 +1291,18 @@ export default function BlogIndexPage() {
               </div>
             )}
 
-            {/* ===== 2행: 4축 상세 카드 (전체 너비) ===== */}
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              {result.categories.map((cat) => {
+            {/* ===== 2행: 축 상세 카드 (4대축 또는 5대축) ===== */}
+            {(() => {
+              const searchBonusCat5: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
+                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
+                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
+              } : null
+              const displayCats = axisMode === '5axis' && searchBonusCat5
+                ? [...result.categories, searchBonusCat5]
+                : result.categories
+              return (
+            <div className={`grid gap-3 grid-cols-2 ${axisMode === '5axis' && displayCats.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+              {displayCats.map((cat) => {
                 const pct = Math.round((cat.score / cat.maxScore) * 100)
                 return (
                   <Card key={cat.name} className="overflow-hidden">
@@ -1278,43 +1325,55 @@ export default function BlogIndexPage() {
                         </div>
                         <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
                       </div>
-                      {cat.details.length > 0 && (
+                      {/* v10: items 기반 항목별 ±점수 표시 */}
+                      {cat.items && cat.items.length > 0 ? (
                         <ul className="mt-1.5 space-y-0.5">
-                          {cat.details.map((detail, di) => {
-                            const scoreMatch = detail.match(/\(\+(\d+)\)\s*$/)
-                            const pointText = scoreMatch ? `+${scoreMatch[1]}` : null
-                            const detailText = scoreMatch ? detail.replace(/\s*\(\+\d+\)\s*$/, '') : detail
-                            const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : 0
-                            return (
-                              <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
-                                <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                                <span className="line-clamp-2 flex-1">{detailText}</span>
-                                {pointText && (
-                                  <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${pointNum >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : pointNum >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : pointNum >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
-                                    {pointText}
-                                  </span>
-                                )}
-                              </li>
-                            )
-                          })}
+                          {cat.items.map((item, ii) => (
+                            <li key={ii} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${item.points < 0 ? 'bg-red-400' : 'bg-muted-foreground/40'}`} />
+                              <span className="line-clamp-2 flex-1">{item.label}</span>
+                              <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${
+                                item.points < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                item.points >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                item.points >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                item.points >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                'bg-muted text-muted-foreground'
+                              }`}>
+                                {item.points > 0 ? `+${item.points}` : item.points === 0 ? '0' : `${item.points}`}
+                              </span>
+                            </li>
+                          ))}
                         </ul>
-                      )}
+                      ) : cat.details.length > 0 ? (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {cat.details.map((detail, di) => (
+                            <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                              <span className="line-clamp-2 flex-1">{detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </CardContent>
                   </Card>
                 )
               })}
             </div>
-            {/* v9: 검색 보너스 별도 카드 제거 - SEO 최적화가 본축으로 흡수됨 */}
+              )
+            })()}
 
             {/* ===== 3행: 벤치마크 비교 ===== */}
             {result.benchmark && (() => {
               const bm = result.benchmark!
               // 전체 달성률 계산 (캐시된 이전 데이터에 값이 없을 수 있으므로 ?? 0 방어)
+              // 제목 길이는 범위 기반 (15~36자), 나머지는 높을수록 좋음
+              const titleMine = bm.avgTitleLength?.mine ?? 0
+              const titleOk = titleMine >= 15 && titleMine <= 36
               const items: { mine: number; target: number }[] = [
                 { mine: bm.postingFrequency?.mine ?? 0, target: bm.postingFrequency?.recommended ?? 3 },
-                { mine: bm.avgTitleLength?.mine ?? 0, target: bm.avgTitleLength?.optimal ?? 25 },
+                { mine: titleOk ? 1 : 0, target: 1 }, // 범위 내면 달성
                 { mine: bm.avgContentLength?.mine ?? 0, target: bm.avgContentLength?.recommended ?? 150 },
-                { mine: bm.imageRate?.mine ?? 0, target: bm.imageRate?.recommended ?? 80 },
+                { mine: bm.avgImageCount?.mine ?? 0, target: bm.avgImageCount?.recommended ?? 3 },
                 { mine: bm.topicFocus?.mine ?? 0, target: bm.topicFocus?.recommended ?? 60 },
               ]
               if (bm.dailyVisitors) items.push({ mine: bm.dailyVisitors.mine, target: bm.dailyVisitors.recommended })
@@ -1354,7 +1413,9 @@ export default function BlogIndexPage() {
                       <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} recommended={bm.postingFrequency.recommended} topBlogger={bm.postingFrequency.topBlogger} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
                       <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} recommended={bm.avgTitleLength.optimal} topBlogger={bm.avgTitleLength.topBlogger} unit="자" icon={<Type className="h-3.5 w-3.5" />} maxOptimal={36} />
                       <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} recommended={bm.avgContentLength.recommended} topBlogger={bm.avgContentLength.topBlogger} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="이미지 포함률" mine={bm.imageRate.mine} recommended={bm.imageRate.recommended} topBlogger={bm.imageRate.topBlogger} unit="%" icon={<ImageIcon className="h-3.5 w-3.5" />} />
+                      {bm.avgImageCount && (
+                        <BenchmarkItem label="평균 이미지 수" mine={bm.avgImageCount.mine} recommended={bm.avgImageCount.recommended} topBlogger={bm.avgImageCount.topBlogger} unit="장" icon={<ImageIcon className="h-3.5 w-3.5" />} />
+                      )}
                       <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
                       {bm.dailyVisitors && (
                         <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} recommended={bm.dailyVisitors.recommended} topBlogger={bm.dailyVisitors.topBlogger} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
@@ -1725,16 +1786,25 @@ export default function BlogIndexPage() {
             )}
 
             {/* ===== 축별 분석 상세 ===== */}
+            {(() => {
+              const searchBonusCatDetail: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
+                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
+                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
+              } : null
+              const detailCats = axisMode === '5axis' && searchBonusCatDetail
+                ? [...result.categories, searchBonusCatDetail]
+                : result.categories
+              return (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Shield className="h-4 w-4" />
-                  축별 분석 상세
+                  축별 분석 상세 <span className="text-xs font-normal text-muted-foreground">({axisMode === '5axis' ? '5대축' : '4대축'})</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {result.categories.map((cat) => (
+                  {detailCats.map((cat) => (
                     <div key={cat.name} className="rounded-lg border p-3">
                       <div className="flex items-center gap-2 mb-1.5">
                         {getCategoryIcon(cat.name)}
@@ -1765,6 +1835,8 @@ export default function BlogIndexPage() {
                 </div>
               </CardContent>
             </Card>
+              )
+            })()}
 
             {/* ===== 키워드별 실전 순위 ===== */}
             <Card className="border-primary/20">

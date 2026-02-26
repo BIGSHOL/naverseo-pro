@@ -18,6 +18,10 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  { date: '2026-02-27', type: 'feat', message: '블로그 지수 v10 — 4대축/5대축 탭 전환 (검색 성과 축 추가)' },
+  { date: '2026-02-27', type: 'feat', message: '블로그 지수 v10 — 어뷰징 감점을 4대축에 통합 (총점 = 4축 합계)' },
+  { date: '2026-02-27', type: 'feat', message: '블로그 지수 v10 — 범위 기반 점수 (콘텐츠 깊이·주제 집중도·이미지·빈도 최적 구간)' },
+  { date: '2026-02-27', type: 'feat', message: '블로그 지수 v10 — 항목별 ±점수 상세 표시 (가점 초록/감점 빨강)' },
   { date: '2026-02-26', type: 'feat', message: '블로그 지수 v9 — 4축 재구성 + 최초 포스팅일 정확도 개선' },
   { date: '2026-02-26', type: 'feat', message: '키워드 리서치 상위 5개 검색결과 타입 표시 (블로그/카페/외부/포스트/지식인)' },
   { date: '2026-02-26', type: 'feat', message: '상위노출 분석 이미지 포함 여부 분석 추가' },

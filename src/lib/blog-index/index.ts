@@ -35,6 +35,7 @@ export type {
   BlogPost,
   KeywordRankResult,
   AnalysisCategory,
+  ScoreItem,
   KeywordCompetitionData,
   VisitorData,
   BlogLevelInfo,

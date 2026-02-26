@@ -113,17 +113,24 @@ export function generateRecommendations(
   const posts = ctx?.recentPosts
   const profile = ctx?.blogProfile
 
-  // ── 1단계: 어뷰징 페널티 (최우선) ──
-  if (abusePenalty.score < -5) {
-    if (abusePenalty.flags.includes('keyword_stuffing')) {
-      const density = bm ? ` (현재 ${bm.keywordDensity.mine}%)` : ''
-      recs.push(`키워드 과다 반복 감지${density} - 자연스러운 문맥에서 키워드를 사용하세요 (권장 0.5~3%)`)
-    }
-    if (abusePenalty.flags.includes('title_template')) {
-      recs.push('제목이 템플릿처럼 유사합니다 - 각 포스트마다 고유하고 매력적인 제목을 작성하세요')
-    }
-    if (abusePenalty.flags.includes('content_duplication')) {
-      recs.push('설명문에 반복 패턴이 감지되었습니다 - 각 글마다 독창적인 도입부를 작성하세요')
+  // ── 1단계: 감점 항목 기반 추천 (각 축 items에서 감점 추출) ──
+  for (const cat of categories) {
+    const negativeItems = (cat.items ?? []).filter(item => item.points < 0)
+    for (const item of negativeItems) {
+      const label = item.label.toLowerCase()
+      if (label.includes('제목 유사도') || label.includes('템플릿')) {
+        recs.push('제목이 유사합니다 - 각 포스트마다 고유하고 매력적인 제목을 작성하세요')
+      } else if (label.includes('콘텐츠 중복') || label.includes('반복')) {
+        recs.push('콘텐츠 중복이 감지되었습니다 - 각 글마다 독창적인 내용을 작성하세요')
+      } else if (label.includes('스팸')) {
+        recs.push('스팸성 키워드가 감지되었습니다 - 저품질 키워드 사용을 피하세요')
+      } else if (label.includes('외부 링크') || label.includes('단축 URL')) {
+        recs.push('외부 링크가 과다합니다 - 불필요한 외부 링크와 단축 URL을 줄이세요')
+      } else if (label.includes('특수문자')) {
+        recs.push('제목 특수문자/이모지를 줄이세요 - 깔끔한 제목이 검색 노출에 유리합니다')
+      } else if (label.includes('짧은 글')) {
+        recs.push('짧은 글이 많습니다 - 최소 1,000자 이상의 충실한 콘텐츠를 작성하세요')
+      }
     }
   }
 

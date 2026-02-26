@@ -1,19 +1,18 @@
 /**
- * NaverSEO Pro - 블로그 지수 측정 엔진 v9
+ * NaverSEO Pro - 블로그 지수 측정 엔진 v10
  *
- * v9 점수 체계: 4축 × 25점 = 100점
+ * v10 점수 체계: 4축 × 25점 = 100점 (어뷰징 감점 통합)
  *
- * 4대 분석 축 (각 25점 × 4 = 100점):
- * 1. 콘텐츠 품질 - 25점: 깊이(7), 이미지(5), 주제집중도(4), 구조(3), 내부링크(3), 일관성(3)
+ * 4대 분석 축 (각 25점, 가점+감점 포함):
+ * 1. 콘텐츠 품질 - 25점: 깊이(7), 이미지(5), 주제집중도(4), 구조(3), 내부링크(3), 일관성(3), 제목유사도(-3), 중복(-3), 짧은글(-2)
  * 2. 방문자 활동 - 25점: 방문자(8), 댓글(5), 공감(4), 이웃(4), 체류시간(4)
- * 3. SEO 최적화 - 25점: 순위(7), 노출률(5), 제목최적화(5), TOP10(4), 경쟁가치(4)
- * 4. 신뢰도 - 25점: 규칙성(7), 빈도(6), 최근성(5), 누적포스팅(4), 운영기간(3)
- * P. 어뷰징 감점 - 최대 -20점
+ * 3. SEO 최적화 - 25점: 순위(7), 노출률(5), 제목최적화(5), TOP10(4), 경쟁가치(4), 특수문자(-2)
+ * 4. 신뢰도 - 25점: 규칙성(7), 빈도(6), 최근성(5), 누적포스팅(4), 운영기간(3), 스팸(-3), 외부링크(-3)
  *
- * v8→v9 변경:
- * - 5축→4축 (주제 전문성→콘텐츠 품질 병합, 활동성+신뢰도→신뢰도 통합)
- * - 검색 보너스(별도 25점)→SEO 최적화(본축 25점) 승격
- * - 블로그 연차(추정)→최초 포스팅일 기반 표시
+ * v9→v10 변경:
+ * - 별도 어뷰징 감점 → 4축에 감점으로 통합
+ * - 범위 기반 점수 (길면 무조건 좋은 게 아님)
+ * - 항목별 ±점수 표시 (items: ScoreItem[])
  */
 
 import { stripHtml, countImageMarkers, daysBetween, parsePostDate, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
@@ -23,6 +22,7 @@ export type {
   BlogPost,
   KeywordRankResult,
   AnalysisCategory,
+  ScoreItem,
   KeywordCompetitionData,
   VisitorData,
   BlogLevelInfo,
@@ -42,7 +42,6 @@ import { analyzeContentQuality } from './analyzers/content-quality'
 import { analyzeSearchPower } from './analyzers/search-power'
 import { analyzePopularity } from './analyzers/popularity'
 import { analyzeTrust } from './analyzers/activity'
-import { analyzeAbuse } from './analyzers/abuse'
 import { determineLevelInfo, generateRecommendations } from './grading'
 import { scorePost } from './scoring'
 import { calculateDiaScore, calculateCrankScore } from './naver-scores'
@@ -62,6 +61,7 @@ import type {
   BlogIndexResult,
   BlogProfileData,
   EngagementData,
+  ScoreItem,
 } from './types'
 import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
@@ -157,26 +157,23 @@ export function analyzeBlogIndex(
     blogAgeDays = daysBetween(now, preSortedDates[0])
   }
 
-  // 4대 분석 축 + 어뷰징 페널티 실행
+  // 4대 분석 축 (어뷰징 감점 각 축에 통합됨)
   const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId)
   const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts)
   const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
-  const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays)
-  const abusePenalty = analyzeAbuse(posts, scrapedData)
+  const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays, scrapedData)
 
-  // 4축 (각 25점 × 4 = 100점)
+  // v10: 어뷰징 감점이 각 축에 통합되어 별도 페널티 없음
+  const abusePenalty = { score: 0, details: [] as string[], flags: [] as string[] }
+
+  // 4축 합계 = 총점 (별도 감점 없음)
   const categories = [contentQuality, popularity, seoOptimization, trust]
   const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
-  const totalScore = Math.max(0, Math.min(100, rawScore + abusePenalty.score))
+  const totalScore = Math.max(0, Math.min(100, rawScore))
   const level = determineLevelInfo(totalScore)
 
-  // v9: searchBonus는 레거시 호환용 (SEO 최적화가 본축으로 흡수)
-  const searchBonus = {
-    score: seoOptimization.score,
-    maxScore: seoOptimization.maxScore,
-    grade: seoOptimization.grade,
-    details: seoOptimization.details,
-  }
+  // v10: 검색 성과 (5대축 전용) — SEO 최적화와 다른 관점으로 키워드 순위 성과 측정
+  const searchBonus = computeSearchPerformance(keywordResults)
 
   const avgDescLength = posts.length > 0
     ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
@@ -408,4 +405,110 @@ function aggregateEngagementData(
   const isAvailable = avgCommentCount !== null || avgSympathyCount !== null
 
   return { avgCommentCount, avgSympathyCount, isAvailable }
+}
+
+/**
+ * 검색 성과 (5대축 전용, 25점)
+ *
+ * SEO 최적화(3축)와 다른 관점으로 키워드 순위를 평가:
+ * - SEO 최적화: 블로그 자체의 SEO 역량 (제목 최적화, 경쟁 가치 등)
+ * - 검색 성과: 실제 키워드 검색에서의 순위 결과 성과
+ *
+ * 가점: 1페이지 점유율(8) + 최상위 비율(6) + 순위 안정성(6) + 키워드 커버리지(5) = 25
+ * 감점: 키워드 부족(0~-3)
+ * 최종: clamp(가점 + 감점, 0, 25)
+ *
+ * 차별화 (SEO 최적화와의 차이):
+ * - 1페이지 점유율: TOP10 "비율" (SEO축은 절대 개수)
+ * - 최상위 비율: TOP3 "비율" (SEO축에는 없음)
+ * - 순위 안정성: "중앙값" 기반 (SEO축은 "평균")
+ * - 키워드 커버리지: 노출 여부 비율 (SEO축과 기준 다름: 순위 유무 vs TOP10)
+ */
+function computeSearchPerformance(keywordResults: KeywordRankResult[]) {
+  const maxScore = 25
+  const items: ScoreItem[] = []
+  const details: string[] = []
+  let score = 0
+
+  if (keywordResults.length === 0) {
+    return { score: 0, maxScore, grade: 'F', details: ['측정 키워드가 없습니다'], items: [] as ScoreItem[] }
+  }
+
+  const ranked = keywordResults.filter(r => r.rank !== null)
+  const total = keywordResults.length
+
+  // === 1. 1페이지 점유율 (8점): TOP10 키워드 비율 ===
+  const top10 = ranked.filter(r => r.rank! <= 10).length
+  const top10Rate = top10 / total
+  let top10Pts = 0
+  if (top10Rate >= 0.8) top10Pts = 8
+  else if (top10Rate >= 0.6) top10Pts = 6
+  else if (top10Rate >= 0.4) top10Pts = 4
+  else if (top10Rate >= 0.2) top10Pts = 3
+  else if (top10Rate >= 0.1) top10Pts = 2
+  else if (top10 >= 1) top10Pts = 1
+  score += top10Pts
+  details.push(`1페이지 점유율: ${Math.round(top10Rate * 100)}% (${top10}/${total}) (+${top10Pts})`)
+  items.push({ label: `1페이지 점유율 (${Math.round(top10Rate * 100)}%)`, points: top10Pts })
+
+  // === 2. 최상위 비율 (6점): TOP3 키워드 비율 (절대 개수X → 비율O) ===
+  const top3 = ranked.filter(r => r.rank! <= 3).length
+  const top3Rate = total > 0 ? top3 / total : 0
+  let top3Pts = 0
+  if (top3Rate >= 0.6) top3Pts = 6
+  else if (top3Rate >= 0.4) top3Pts = 5
+  else if (top3Rate >= 0.25) top3Pts = 4
+  else if (top3Rate >= 0.15) top3Pts = 3
+  else if (top3 >= 1) top3Pts = 2     // 최소 1개라도 TOP3이면 2점
+  score += top3Pts
+  details.push(`최상위 비율: ${Math.round(top3Rate * 100)}% (${top3}/${total}) (+${top3Pts})`)
+  items.push({ label: `최상위 TOP3 비율 (${Math.round(top3Rate * 100)}%)`, points: top3Pts })
+
+  // === 3. 순위 안정성 (6점): 순위 중앙값 기반 (평균 대비 이상치 방어) ===
+  if (ranked.length > 0) {
+    const sortedRanks = ranked.map(r => r.rank!).sort((a, b) => a - b)
+    const mid = Math.floor(sortedRanks.length / 2)
+    const median = sortedRanks.length % 2 === 0
+      ? (sortedRanks[mid - 1] + sortedRanks[mid]) / 2
+      : sortedRanks[mid]
+
+    let medianPts = 0
+    if (median <= 5) medianPts = 6
+    else if (median <= 10) medianPts = 5
+    else if (median <= 20) medianPts = 4
+    else if (median <= 30) medianPts = 3
+    else if (median <= 50) medianPts = 2
+    else medianPts = 1
+    score += medianPts
+    details.push(`순위 중앙값: ${Math.round(median)}위 (+${medianPts})`)
+    items.push({ label: `순위 안정성 (중앙 ${Math.round(median)}위)`, points: medianPts })
+  }
+
+  // === 4. 키워드 커버리지 (5점): 노출 비율 (순위 유무) ===
+  const coverageRate = ranked.length / total
+  let coveragePts = 0
+  if (coverageRate >= 0.9) coveragePts = 5
+  else if (coverageRate >= 0.7) coveragePts = 4
+  else if (coverageRate >= 0.5) coveragePts = 3
+  else if (coverageRate >= 0.3) coveragePts = 2
+  else if (coverageRate >= 0.1) coveragePts = 1
+  score += coveragePts
+  details.push(`키워드 커버리지: ${Math.round(coverageRate * 100)}% (+${coveragePts})`)
+  items.push({ label: `키워드 커버리지 (${Math.round(coverageRate * 100)}%)`, points: coveragePts })
+
+  // === [감점] 키워드 부족 (0~-3): 측정 키워드가 적으면 신뢰도 낮음 ===
+  if (total <= 1) {
+    score -= 3
+    details.push(`키워드 부족: ${total}개 (최소 3개 이상 권장) (-3)`)
+    items.push({ label: `키워드 부족 (${total}개)`, points: -3 })
+  } else if (total <= 2) {
+    score -= 2
+    details.push(`키워드 부족: ${total}개 (3개 이상 권장) (-2)`)
+    items.push({ label: `키워드 부족 (${total}개)`, points: -2 })
+  }
+
+  score = Math.max(0, Math.min(maxScore, score))
+  const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
+
+  return { score, maxScore, grade, details, items }
 }

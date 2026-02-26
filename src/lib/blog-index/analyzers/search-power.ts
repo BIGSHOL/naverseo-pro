@@ -1,13 +1,15 @@
 /**
  * 블로그 지수 - 축3. SEO 최적화 (25점)
  *
- * v9: 검색 보너스(별도) → 본축 승격 + 제목 키워드 최적화 추가
+ * v10: items 배열 추가 + 제목 특수문자 남용 감점 통합
  *
- * 검색 순위 품질(7) + 검색 노출률(5) + 제목 키워드 최적화(5) + TOP10 지배력(4) + 경쟁 키워드 가치(4)
+ * 가점: 검색 순위(7) + 노출률(5) + 제목 키워드 최적화(5) + TOP10 지배력(4) + 경쟁 키워드 가치(4) = 25
+ * 감점: 제목 특수문자 남용(-2)
+ * 최종: clamp(가점 + 감점, 0, 25)
  */
 
 import { stripHtml, extractKoreanKeywords } from '@/lib/utils/text'
-import type { KeywordRankResult, KeywordCompetitionData, AnalysisCategory, BlogPost } from '../types'
+import type { KeywordRankResult, KeywordCompetitionData, AnalysisCategory, BlogPost, ScoreItem } from '../types'
 
 export function analyzeSearchPower(
   keywordResults: KeywordRankResult[],
@@ -16,10 +18,11 @@ export function analyzeSearchPower(
 ): AnalysisCategory {
   const maxScore = 25
   const details: string[] = []
+  const items: ScoreItem[] = []
   let score = 0
 
   if (keywordResults.length === 0) {
-    return { name: 'SEO 최적화', score: 0, maxScore, grade: 'F', details: ['분석할 키워드 결과가 없습니다'] }
+    return { name: 'SEO 최적화', score: 0, maxScore, grade: 'F', details: ['분석할 키워드 결과가 없습니다'], items: [] }
   }
 
   const ranked = keywordResults.filter((r) => r.rank !== null)
@@ -28,9 +31,9 @@ export function analyzeSearchPower(
   const exposureRate = rankedCount / total
 
   // === 검색 순위 품질 (7점) ===
+  let rankPts = 0
   if (rankedCount > 0) {
     const avgRank = ranked.reduce((sum, r) => sum + (r.rank || 0), 0) / rankedCount
-    let rankPts = 0
     if (avgRank <= 5) rankPts = 7
     else if (avgRank <= 10) rankPts = 5
     else if (avgRank <= 20) rankPts = 4
@@ -39,14 +42,17 @@ export function analyzeSearchPower(
     else rankPts = 1
     score += rankPts
     details.push(`평균 순위: ${Math.round(avgRank)}위 (+${rankPts})`)
+    items.push({ label: `검색 순위 (평균 ${Math.round(avgRank)}위)`, points: rankPts })
   }
 
   // === 검색 노출률 (5점) ===
   const exposureScore = Math.round(exposureRate * 5)
   score += exposureScore
   details.push(`검색 노출률: ${rankedCount}/${total} (${Math.round(exposureRate * 100)}%) (+${exposureScore})`)
+  items.push({ label: `검색 노출률 (${Math.round(exposureRate * 100)}%)`, points: exposureScore })
 
-  // === 제목 키워드 최적화 (5점) - v9 신규 ===
+  // === 제목 키워드 최적화 (5점) ===
+  let titleScore = 0
   if (posts && posts.length > 0) {
     const testKeywords = keywordResults.map(kr => kr.keyword.toLowerCase())
     let keywordInTitleCount = 0
@@ -55,7 +61,6 @@ export function analyzeSearchPower(
     for (const post of posts) {
       const cleanTitle = stripHtml(post.title).toLowerCase()
 
-      // 제목에 테스트 키워드가 포함되어 있는지
       for (const kw of testKeywords) {
         const kwWords = extractKoreanKeywords(kw)
         if (kwWords.some(w => cleanTitle.includes(w))) {
@@ -64,7 +69,6 @@ export function analyzeSearchPower(
         }
       }
 
-      // 제목 길이 최적화 (20~35자)
       const titleLen = stripHtml(post.title).length
       if (titleLen >= 20 && titleLen <= 35) optimalTitleCount++
     }
@@ -72,7 +76,6 @@ export function analyzeSearchPower(
     const keywordRate = keywordInTitleCount / posts.length
     const optimalRate = optimalTitleCount / posts.length
 
-    let titleScore = 0
     // 키워드 포함률 (3점)
     if (keywordRate >= 0.6) titleScore += 3
     else if (keywordRate >= 0.3) titleScore += 2
@@ -91,26 +94,32 @@ export function analyzeSearchPower(
       details.push(`제목에 핵심 키워드를 자연스럽게 포함하세요 (20~35자 권장) (+${titleScore})`)
     }
   } else {
-    score += 2
+    titleScore = 2
+    score += titleScore
     details.push('포스트 데이터 없음 (+2)')
   }
+  items.push({ label: '제목 키워드 최적화', points: titleScore })
 
   // === TOP10 지배력 (4점) ===
   const top10 = ranked.filter((r) => r.rank! <= 10).length
+  let top10Pts = 0
   if (top10 >= 4) {
-    score += 4
+    top10Pts = 4
     details.push(`TOP 10 키워드: ${top10}개 (우수) (+4)`)
   } else if (top10 >= 2) {
-    score += 3
+    top10Pts = 3
     details.push(`TOP 10 키워드: ${top10}개 (양호) (+3)`)
   } else if (top10 >= 1) {
-    score += 2
+    top10Pts = 2
     details.push(`TOP 10 키워드: ${top10}개 (+2)`)
   } else {
     details.push('TOP 10 노출 키워드 없음 (+0)')
   }
+  score += top10Pts
+  items.push({ label: `TOP 10 (${top10}개)`, points: top10Pts })
 
   // === 경쟁 키워드 가치 (4점) ===
+  let compPoints = 0
   if (keywordCompetition && keywordCompetition.length > 0) {
     const rankedKeywords = new Set(ranked.map(r => r.keyword))
     let competitiveRankScore = 0
@@ -136,19 +145,42 @@ export function analyzeSearchPower(
 
     if (competitiveCount > 0) {
       const avgCompScore = competitiveRankScore / competitiveCount
-      const compPoints = Math.min(4, Math.round(avgCompScore * 1.5))
-      score += compPoints
+      compPoints = Math.min(4, Math.round(avgCompScore * 1.5))
       details.push(`경쟁 키워드 가치 (+${compPoints})`)
     } else {
-      score += 2
+      compPoints = 2
       details.push('경쟁 키워드 매칭 없음 (+2)')
     }
   } else {
-    score += 2
+    compPoints = 2
     details.push('키워드 경쟁도 데이터 없음 (+2)')
   }
+  score += compPoints
+  items.push({ label: '경쟁 키워드 가치', points: compPoints })
 
+  // === [감점] 제목 특수문자/이모지 남용 (0 ~ -2) — abuse.ts에서 이동 ===
+  if (posts && posts.length >= 3) {
+    const specialCharTitles = posts.filter(p => {
+      const title = stripHtml(p.title)
+      const specialChars = title.match(/[★☆♥♡◆◇■□▶▷●○♠♣♦◈※☞→←↑↓⊙⊕⊗✔✖✦❤❥❣✨⭐🔥💯🎉🎊💥⚡]/g)
+      return specialChars && specialChars.length >= 3
+    }).length
+    const specialCharRate = specialCharTitles / posts.length
+
+    if (specialCharRate >= 0.6) {
+      score -= 2
+      details.push(`제목 특수문자 남용: ${Math.round(specialCharRate * 100)}% 과다 사용 (-2)`)
+      items.push({ label: `제목 특수문자 (${Math.round(specialCharRate * 100)}%)`, points: -2 })
+    } else if (specialCharRate >= 0.3) {
+      score -= 1
+      details.push(`제목 특수문자 다소 많음: ${Math.round(specialCharRate * 100)}% (-1)`)
+      items.push({ label: `제목 특수문자 (${Math.round(specialCharRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // 최종 clamp
+  score = Math.max(0, Math.min(maxScore, score))
   const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
-  return { name: 'SEO 최적화', score: Math.min(maxScore, score), maxScore, grade, details }
+  return { name: 'SEO 최적화', score, maxScore, grade, details, items }
 }
