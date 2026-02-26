@@ -126,7 +126,12 @@ export default function CreditsPage() {
   // - Free: 가입일 기준 매월 같은 날
   // - 유료: 매월 1일 (또는 DB에 저장된 값)
   function calcResetDate(): Date {
-    if (data!.resetAt) return new Date(data!.resetAt)
+    // DB에 저장된 리셋일이 미래면 그대로 사용
+    // 과거(lazy reset 트리거용 epoch 등)이면 새로 계산
+    if (data!.resetAt) {
+      const stored = new Date(data!.resetAt)
+      if (stored > new Date()) return stored
+    }
     if (data!.plan === 'free' && data!.createdAt) {
       const signup = new Date(data!.createdAt)
       const signupDay = signup.getDate()

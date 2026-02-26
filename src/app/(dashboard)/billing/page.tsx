@@ -185,6 +185,12 @@ export default function BillingPage() {
   const formatResetDate = (dateStr: string | null) => {
     if (!dateStr) return null
     const d = new Date(dateStr)
+    // 과거 날짜(lazy reset 트리거용 epoch 등)이면 다음 달 1일로 표시
+    if (d <= new Date()) {
+      const now = new Date()
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      return `${next.getFullYear()}년 ${next.getMonth() + 1}월 ${next.getDate()}일`
+    }
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`
   }
 

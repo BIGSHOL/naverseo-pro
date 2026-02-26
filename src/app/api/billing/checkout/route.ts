@@ -30,17 +30,23 @@ export async function POST(request: NextRequest) {
       const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
 
       const adminDb = createAdminClient()
-      const { error: updateError } = await adminDb
-        .from('profiles')
-        .update({
-          plan: targetPlan,
-          credits_balance: credits,
-          credits_monthly_quota: credits,
-          credits_reset_at: nextReset,
-          subscription_status: 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id)
+      const updateData: Record<string, unknown> = {
+        plan: targetPlan,
+        credits_balance: credits,
+        credits_monthly_quota: credits,
+        credits_reset_at: nextReset,
+        subscription_status: 'active',
+        updated_at: new Date().toISOString(),
+      }
+
+      let updateError = (await adminDb.from('profiles').update(updateData).eq('id', user.id)).error
+
+      // subscription_status 컬럼이 아직 없는 경우 해당 필드 제외하고 재시도
+      if (updateError?.code === '42703') {
+        console.warn('[Billing Checkout] subscription_status 컬럼 미존재, 제외하고 재시도')
+        delete updateData.subscription_status
+        updateError = (await adminDb.from('profiles').update(updateData).eq('id', user.id)).error
+      }
 
       if (updateError) {
         console.error('[Billing Checkout] DB 업데이트 오류:', updateError)

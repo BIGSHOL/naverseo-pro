@@ -14,17 +14,36 @@ export async function GET() {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    // admin 클라이언트로 프로필 조회 (RLS 우회, 컬럼 누락 방지)
+    // admin 클라이언트로 프로필 조회 (RLS 우회)
     const adminDb = createAdminClient()
-    const { data: profile, error: profileError } = await adminDb
+
+    // 먼저 LemonSqueezy 컬럼 포함하여 시도, 실패 시 기본 컬럼만 조회
+    let profile: Record<string, unknown> | null = null
+    const { data: fullProfile, error: fullError } = await adminDb
       .from('profiles')
       .select('id, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, email, created_at, subscription_status, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
-    if (profileError) {
-      console.error('[Billing] 프로필 조회 실패:', profileError.message, profileError.code)
+    if (fullError && fullError.code === '42703') {
+      // subscription_status 등 LemonSqueezy 컬럼이 아직 없는 경우 → 기본 컬럼만 조회
+      console.warn('[Billing] LemonSqueezy 컬럼 미존재, 기본 컬럼으로 폴백')
+      const { data: basicProfile, error: basicError } = await adminDb
+        .from('profiles')
+        .select('id, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, email, created_at')
+        .eq('id', user.id)
+        .single()
+
+      if (basicError) {
+        console.error('[Billing] 프로필 조회 실패:', basicError.message, basicError.code)
+        return NextResponse.json({ error: '프로필 정보를 불러오지 못했습니다.' }, { status: 500 })
+      }
+      profile = { ...basicProfile, subscription_status: 'none', lemonsqueezy_subscription_id: null }
+    } else if (fullError) {
+      console.error('[Billing] 프로필 조회 실패:', fullError.message, fullError.code)
       return NextResponse.json({ error: '프로필 정보를 불러오지 못했습니다.' }, { status: 500 })
+    } else {
+      profile = fullProfile
     }
 
     return NextResponse.json({

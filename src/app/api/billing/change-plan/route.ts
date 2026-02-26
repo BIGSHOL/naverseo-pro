@@ -29,15 +29,31 @@ export async function POST(request: NextRequest) {
     const adminDb = createAdminClient()
 
     // 현재 플랜 확인
-    const { data: profile, error: profileError } = await adminDb
+    let profile: Record<string, unknown> | null = null
+    const { data: fullProfile, error: fullError } = await adminDb
       .from('profiles')
       .select('plan, credits_balance, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
-    if (profileError || !profile) {
-      console.error('[Billing ChangePlan] 프로필 조회 실패:', profileError)
+    if (fullError && fullError.code === '42703') {
+      // lemonsqueezy_subscription_id 컬럼 미존재 시 기본 컬럼만 조회
+      console.warn('[Billing ChangePlan] LemonSqueezy 컬럼 미존재, 기본 컬럼으로 폴백')
+      const { data: basicProfile, error: basicError } = await adminDb
+        .from('profiles')
+        .select('plan, credits_balance')
+        .eq('id', user.id)
+        .single()
+      if (basicError || !basicProfile) {
+        console.error('[Billing ChangePlan] 프로필 조회 실패:', basicError)
+        return NextResponse.json({ error: '프로필 정보를 불러올 수 없습니다.' }, { status: 500 })
+      }
+      profile = { ...basicProfile, lemonsqueezy_subscription_id: null }
+    } else if (fullError || !fullProfile) {
+      console.error('[Billing ChangePlan] 프로필 조회 실패:', fullError)
       return NextResponse.json({ error: '프로필 정보를 불러올 수 없습니다.' }, { status: 500 })
+    } else {
+      profile = fullProfile
     }
 
     const currentPlan = (profile.plan || 'free') as Plan
@@ -56,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // LemonSqueezy 구독이 있으면 API로 취소/변경 처리
-    const subscriptionId = profile.lemonsqueezy_subscription_id
+    const subscriptionId = profile.lemonsqueezy_subscription_id as string | null
     if (subscriptionId) {
       try {
         const { isLemonSqueezyConfigured, configureLemonSqueezy } = await import('@/lib/lemonsqueezy')
@@ -105,20 +121,26 @@ export async function POST(request: NextRequest) {
 
     // 데모 모드 또는 구독 없는 경우: 직접 DB 업데이트 (admin 클라이언트)
     const newQuota = PLAN_CREDITS[targetPlan]
-    const newBalance = Math.min(profile.credits_balance ?? 0, newQuota)
+    const newBalance = Math.min((profile.credits_balance as number) ?? 0, newQuota)
     const nextReset = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
 
-    const { error: updateError } = await adminDb
-      .from('profiles')
-      .update({
-        plan: targetPlan,
-        credits_balance: targetPlan === 'free' ? newQuota : newBalance,
-        credits_monthly_quota: newQuota,
-        credits_reset_at: nextReset,
-        subscription_status: targetPlan === 'free' ? 'none' : 'active',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id)
+    const updateData: Record<string, unknown> = {
+      plan: targetPlan,
+      credits_balance: targetPlan === 'free' ? newQuota : newBalance,
+      credits_monthly_quota: newQuota,
+      credits_reset_at: nextReset,
+      subscription_status: targetPlan === 'free' ? 'none' : 'active',
+      updated_at: new Date().toISOString(),
+    }
+
+    let updateError = (await adminDb.from('profiles').update(updateData).eq('id', user.id)).error
+
+    // subscription_status 컬럼이 아직 없는 경우 해당 필드 제외하고 재시도
+    if (updateError?.code === '42703') {
+      console.warn('[Billing ChangePlan] subscription_status 컬럼 미존재, 제외하고 재시도')
+      delete updateData.subscription_status
+      updateError = (await adminDb.from('profiles').update(updateData).eq('id', user.id)).error
+    }
 
     if (updateError) {
       console.error('[Billing ChangePlan] DB 업데이트 오류:', updateError)
