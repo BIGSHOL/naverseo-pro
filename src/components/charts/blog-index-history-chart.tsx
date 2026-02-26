@@ -253,7 +253,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={algoData} margin={{ top: 5, right: 10, left: -10, bottom: 30 }}>
+            <LineChart data={algoData} margin={{ top: 5, right: 20, left: -10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="label"
@@ -261,6 +261,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
                 stroke="hsl(var(--muted-foreground))"
                 interval={0}
                 height={40}
+                padding={{ left: 30, right: 30 }}
               />
               <YAxis
                 domain={[0, 100]}
@@ -316,7 +317,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={categoryData} margin={{ top: 5, right: 10, left: -10, bottom: 30 }}>
+            <LineChart data={categoryData} margin={{ top: 5, right: 20, left: -10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
                 dataKey="label"
@@ -324,6 +325,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
                 stroke="hsl(var(--muted-foreground))"
                 interval={0}
                 height={40}
+                padding={{ left: 30, right: 30 }}
               />
               <YAxis
                 domain={[0, 25]}
@@ -402,7 +404,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
         </p>
       ) : (
         <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 30 }}>
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="label"
@@ -410,6 +412,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
               stroke="hsl(var(--muted-foreground))"
               interval={0}
               height={50}
+              padding={{ left: 30, right: 30 }}
             />
             <YAxis
               domain={[0, 100]}

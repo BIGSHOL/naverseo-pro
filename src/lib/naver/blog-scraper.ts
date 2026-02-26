@@ -298,6 +298,9 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
  * 네이버 Like API를 통한 공감(좋아요) 수 조회
  * 정적 HTML에 공감 수가 포함되지 않으므로 별도 API 호출 필요
  *
+ * API 형식: q=BLOG[blogId_postNo]
+ * 응답 구조: { contents: [{ reactions: [{ reactionType: "like", count: N }] }] }
+ *
  * @param contentsId "blogId_postNo" 형식 (예: "mardukas_224130580320")
  * @returns 공감 수 또는 null
  */
@@ -306,7 +309,8 @@ async function fetchSympathyFromLikeApi(contentsId: string): Promise<number | nu
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 3000) // 3초 타임아웃
 
-        const url = `https://blog.like.naver.com/v1/search/contents?serviceId=BLOG&contentsId=${encodeURIComponent(contentsId)}`
+        // q=BLOG[contentsId] 형식 (대괄호 URL 인코딩 필수)
+        const url = `https://blog.like.naver.com/v1/search/contents?q=BLOG%5B${encodeURIComponent(contentsId)}%5D`
         const res = await fetch(url, {
             signal: controller.signal,
             headers: {
@@ -320,9 +324,16 @@ async function fetchSympathyFromLikeApi(contentsId: string): Promise<number | nu
         if (!res.ok) return null
 
         const data = await res.json()
-        // 응답 구조: { contents: [{ count: N }] } 또는 { likeCount: N }
-        const count = data?.contents?.[0]?.count ?? data?.contents?.[0]?.likeCount ?? data?.likeCount ?? null
-        if (typeof count === 'number') return count
+        // 응답 구조: { contents: [{ reactions: [{ reactionType: "like", count: N }] }] }
+        const reactions = data?.contents?.[0]?.reactions
+        if (Array.isArray(reactions) && reactions.length > 0) {
+            // 첫 번째 reaction (보통 "like" 타입)의 count 사용
+            const count = reactions[0]?.count
+            if (typeof count === 'number') return count
+        }
+        // 레거시 폴백
+        const legacyCount = data?.contents?.[0]?.count ?? data?.likeCount ?? null
+        if (typeof legacyCount === 'number') return legacyCount
         return null
     } catch {
         return null

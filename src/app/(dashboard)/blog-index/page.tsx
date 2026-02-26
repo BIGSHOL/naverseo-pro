@@ -267,6 +267,16 @@ function getRadarLabel(name: string): string {
   }
 }
 
+/** 캐시 날짜를 "오늘 14:30" 또는 "N일 전" 형식으로 표시 */
+function formatCacheAge(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) {
+    return `오늘 ${new Date(dateStr).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+  }
+  return `${diffDays}일 전`
+}
+
 function RadarChart({ categories, totalScore, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; size?: number }) {
   const pad = 58 // 라벨용 여백 (4축 대응)
   const totalSize = size + pad * 2
@@ -526,6 +536,7 @@ export default function BlogIndexPage() {
   const [chartMode, setChartMode] = useState<'total' | 'category' | 'algorithm'>('total')
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
+  const [pendingCache, setPendingCache] = useState<{ data: BlogIndexResult; checkedAt: string } | null>(null)
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -563,6 +574,7 @@ export default function BlogIndexPage() {
     }
     setError('')
     setShowCreditConfirm(false)
+    setPendingCache(null)
     try {
       const keywords = testKeywords.split(',').map((k) => k.trim()).filter(Boolean)
       const res = await fetch('/api/blog-index', {
@@ -601,23 +613,33 @@ export default function BlogIndexPage() {
     setResult(null)
     setCachedAt(null)
     setHistoryData(null)
+    setPendingCache(null)
     try {
       // 1) DB에서 캐시 조회
       const cacheRes = await fetch(`/api/blog-index/history?blogUrl=${encodeURIComponent(blogUrl.trim())}&latest=true`)
       const cacheData = await cacheRes.json()
 
       if (cacheData.cached) {
-        // 캐시 있음 → 즉시 표시 (크레딧 0)
-        setResult(cacheData.cached)
-        setCachedAt(cacheData.checkedAt)
-        // 히스토리도 조회
-        fetchHistory(blogUrl.trim())
-        fetchPlan()
-        // 자동 추출 키워드 채우기
-        if (!testKeywords.trim() && cacheData.cached.keywordResults?.length > 0) {
-          setTestKeywords(cacheData.cached.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+        const checkedAt = cacheData.checkedAt as string
+        const diffDays = Math.floor((Date.now() - new Date(checkedAt).getTime()) / (1000 * 60 * 60 * 24))
+
+        if (diffDays === 0) {
+          // 오늘 측정 → 즉시 표시 (크레딧 0)
+          setResult(cacheData.cached)
+          setCachedAt(checkedAt)
+          fetchHistory(blogUrl.trim())
+          fetchPlan()
+          if (!testKeywords.trim() && cacheData.cached.keywordResults?.length > 0) {
+            setTestKeywords(cacheData.cached.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+          }
+          setLoading(false)
+          return
         }
+
+        // 1일 이상 경과 → 이전 데이터 / 새로 측정 선택
+        setPendingCache({ data: cacheData.cached, checkedAt })
         setLoading(false)
+        setShowCreditConfirm(true)
         return
       }
 
@@ -632,7 +654,22 @@ export default function BlogIndexPage() {
 
   // "갱신" 버튼 → 크레딧 소모 확인
   const handleRefreshClick = () => {
+    setPendingCache(null)
     setShowCreditConfirm(true)
+  }
+
+  // 이전 캐시 데이터 로드 (다이얼로그에서 "이전 데이터 보기" 선택 시)
+  const loadPendingCache = () => {
+    if (!pendingCache) return
+    setResult(pendingCache.data)
+    setCachedAt(pendingCache.checkedAt)
+    fetchHistory(blogUrl.trim())
+    fetchPlan()
+    if (!testKeywords.trim() && pendingCache.data.keywordResults?.length > 0) {
+      setTestKeywords(pendingCache.data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+    }
+    setPendingCache(null)
+    setShowCreditConfirm(false)
   }
 
   const handleAiAnalysis = async () => {
@@ -711,33 +748,73 @@ export default function BlogIndexPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 크레딧 소모 확인 팝업 */}
-      <Dialog open={showCreditConfirm} onOpenChange={setShowCreditConfirm}>
+      {/* 크레딧 소모 / 캐시 선택 팝업 */}
+      <Dialog open={showCreditConfirm} onOpenChange={(open) => { setShowCreditConfirm(open); if (!open) setPendingCache(null) }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>블로그 지수 측정</DialogTitle>
-            <DialogDescription>
-              {result
-                ? '최신 데이터로 지수를 갱신합니다.'
-                : '이 블로그의 측정 기록이 없습니다.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
-            <p className="font-medium">크레딧 3개가 소모됩니다</p>
-            <p className="mt-0.5 text-xs opacity-70">네이버 API 호출 + AI 분석이 포함됩니다</p>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowCreditConfirm(false)}>
-              취소
-            </Button>
-            <Button onClick={doMeasure} disabled={loading || refreshing}>
-              {(loading || refreshing) ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
-              ) : (
-                <><Activity className="mr-2 h-4 w-4" />{result ? '갱신하기 (3크레딧)' : '측정하기 (3크레딧)'}</>
-              )}
-            </Button>
-          </DialogFooter>
+          {(() => {
+            const cacheDaysAgo = pendingCache
+              ? Math.floor((Date.now() - new Date(pendingCache.checkedAt).getTime()) / (1000 * 60 * 60 * 24))
+              : 0
+            const isCacheOld = !!pendingCache && cacheDaysAgo >= 7
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>블로그 지수 측정</DialogTitle>
+                  <DialogDescription>
+                    {pendingCache
+                      ? isCacheOld
+                        ? `${cacheDaysAgo}일 전 측정 결과가 있습니다. 1주일 이상 경과하여 갱신을 권장합니다.`
+                        : `${cacheDaysAgo}일 전 측정 결과가 있습니다.`
+                      : result
+                        ? '최신 데이터로 지수를 갱신합니다.'
+                        : '이 블로그의 측정 기록이 없습니다.'}
+                  </DialogDescription>
+                </DialogHeader>
+                {isCacheOld && (
+                  <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800 dark:bg-orange-950/30 dark:border-orange-800 dark:text-orange-300">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 shrink-0" />
+                      <p className="font-medium">오래된 데이터입니다</p>
+                    </div>
+                    <p className="mt-0.5 text-xs opacity-70">블로그 상태가 변경되었을 수 있으므로 새로 측정하는 것을 권장합니다</p>
+                  </div>
+                )}
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
+                  <p className="font-medium">{pendingCache ? '새로 측정 시 크레딧 3개가 소모됩니다' : '크레딧 3개가 소모됩니다'}</p>
+                  <p className="mt-0.5 text-xs opacity-70">네이버 API 호출 + AI 분석이 포함됩니다</p>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  {pendingCache ? (
+                    <>
+                      <Button variant="outline" onClick={loadPendingCache}>
+                        <Database className="mr-2 h-4 w-4" />이전 데이터 보기
+                      </Button>
+                      <Button onClick={doMeasure} disabled={loading || refreshing}>
+                        {(loading || refreshing) ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
+                        ) : (
+                          <><Activity className="mr-2 h-4 w-4" />새로 측정 (3크레딧)</>
+                        )}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={() => setShowCreditConfirm(false)}>
+                        취소
+                      </Button>
+                      <Button onClick={doMeasure} disabled={loading || refreshing}>
+                        {(loading || refreshing) ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
+                        ) : (
+                          <><Activity className="mr-2 h-4 w-4" />{result ? '갱신하기 (3크레딧)' : '측정하기 (3크레딧)'}</>
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </DialogFooter>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -791,34 +868,36 @@ export default function BlogIndexPage() {
         </Card>
 
         {/* ========== 캐시 상태 + 갱신 버튼 ========== */}
-        {result && cachedAt && (
-          <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Database className="h-4 w-4" />
-              <span>
-                마지막 측정: <strong className="text-foreground">
-                  {new Date(cachedAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </strong>
-                <span className="ml-1 text-xs">
-                  ({new Date(cachedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })})
+        {result && cachedAt && (() => {
+          const cachedDaysAgo = Math.floor((Date.now() - new Date(cachedAt).getTime()) / (1000 * 60 * 60 * 24))
+          const isOld = cachedDaysAgo >= 7
+          return (
+            <div className={`flex items-center justify-between rounded-lg border px-4 py-3 ${isOld ? 'bg-orange-50/50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-800' : 'bg-muted/30'}`}>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {isOld ? <Clock className="h-4 w-4 text-orange-500" /> : <Database className="h-4 w-4" />}
+                <span>
+                  마지막 측정: <strong className={isOld ? 'text-orange-700 dark:text-orange-300' : 'text-foreground'}>
+                    {formatCacheAge(cachedAt)}
+                  </strong>
+                  {isOld && <span className="ml-1.5 text-xs text-orange-600 dark:text-orange-400">갱신 권장</span>}
                 </span>
-              </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshClick}
+                disabled={refreshing || loading}
+                className="gap-1.5"
+              >
+                {refreshing ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />갱신 중...</>
+                ) : (
+                  <><RefreshCw className="h-3.5 w-3.5" />지수 갱신</>
+                )}
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshClick}
-              disabled={refreshing || loading}
-              className="gap-1.5"
-            >
-              {refreshing ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" />갱신 중...</>
-              ) : (
-                <><RefreshCw className="h-3.5 w-3.5" />지수 갱신</>
-              )}
-            </Button>
-          </div>
-        )}
+          )
+        })()}
 
         {/* ========== 측정 결과 ========== */}
         {result && (
@@ -1485,7 +1564,7 @@ export default function BlogIndexPage() {
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16 whitespace-nowrap">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">이미지</th>
-                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">조회</th>
+                          {/* 조회수는 네이버에서 비공개이므로 표시하지 않음 */}
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">댓글</th>
                           <th className="pb-2 font-medium text-muted-foreground text-center w-14">공감</th>
                         </tr>
@@ -1538,16 +1617,7 @@ export default function BlogIndexPage() {
                                 <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
                               )}
                             </td>
-                            <td className="py-2 pr-2 text-center">
-                              {post.readCount != null ? (
-                                <span className="flex items-center justify-center gap-0.5">
-                                  <Eye className="h-3 w-3 text-gray-500" />
-                                  <span className="text-[10px]">{post.readCount.toLocaleString()}</span>
-                                </span>
-                              ) : (
-                                <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
-                              )}
-                            </td>
+                            {/* 조회수는 네이버에서 비공개이므로 표시하지 않음 */}
                             <td className="py-2 pr-2 text-center">
                               {post.commentCount != null ? (
                                 <span className="flex items-center justify-center gap-0.5">
