@@ -228,6 +228,19 @@ export async function POST(request: NextRequest) {
           }
           console.log(`[BlogIndex] 방문자 데이터 폴백 (프로필): 오늘 ${blogProfileData.dayVisitorCount}명`)
         }
+
+        // === 5.5단계: 실제 최초 포스팅 날짜 조회 (검색 API) ===
+        try {
+          const { fetchOldestPostDate } = await import('@/lib/naver/blog-profile-scraper')
+          const oldestResult = await fetchOldestPostDate(blogId, blogProfileData?.totalPostCount)
+          if (oldestResult && blogProfileData) {
+            blogProfileData.firstPostDate = oldestResult.date
+            blogProfileData.firstPostDateAccurate = oldestResult.accurate
+            console.log(`[BlogIndex] 최초 포스팅일: ${oldestResult.date} (${oldestResult.accurate ? '정확' : '근사'})`)
+          }
+        } catch (err) {
+          console.warn('[BlogIndex] 최초 포스팅일 조회 실패 (무시):', err)
+        }
       }
     }
 
@@ -259,7 +272,7 @@ export async function POST(request: NextRequest) {
     const categoryBenchmark = await getCategoryBenchmark(blogCategory)
     console.log(`[BlogIndex] 카테고리: ${blogCategory} (${BLOG_CATEGORY_LABELS[blogCategory]}, ${categoryBenchmark.source}, 샘플 ${categoryBenchmark.sampleCount}개)`)
 
-    // 5축 블로그 지수 분석 엔진 실행 (v6: 카테고리별 벤치마크)
+    // v9: 4축 블로그 지수 분석 엔진 실행 (카테고리별 벤치마크)
     const result = analyzeBlogIndex(
       blogUrl.trim(), posts, keywordResults, isDemo, blogName,
       keywordCompetition.length > 0 ? keywordCompetition : undefined,
@@ -286,22 +299,21 @@ export async function POST(request: NextRequest) {
 
     // 히스토리 자동 저장 (에러 나도 측정 결과에 영향 없음)
     try {
-      // 5축 + 검색 보너스 점수 추출
-      const popCat = result.categories.find((c: { name: string }) => c.name === '방문자 & 인기도')
+      // v9: 4축 점수 추출 (콘텐츠 품질 / 방문자 활동 / SEO 최적화 / 신뢰도)
       const contentCat = result.categories.find((c: { name: string }) => c.name === '콘텐츠 품질')
-      const activityCat = result.categories.find((c: { name: string }) => c.name === '활동성')
-      const trustCat = result.categories.find((c: { name: string }) => c.name === '블로그 신뢰도')
-      const topicCat = result.categories.find((c: { name: string }) => c.name === '주제 전문성')
+      const popCat = result.categories.find((c: { name: string }) => c.name === '방문자 활동')
+      const seoCat = result.categories.find((c: { name: string }) => c.name === 'SEO 최적화')
+      const trustCat = result.categories.find((c: { name: string }) => c.name === '신뢰도')
 
       const historyRow = {
         user_id: user.id,
         blog_url: blogUrl.trim(),
         blog_id: blogId || null,
         total_score: result.totalScore,
-        search_score: result.searchBonus?.score ?? null,
-        popularity_score: popCat?.score ?? null,
-        content_score: contentCat?.score ?? null,
-        activity_score: activityCat?.score ?? null,
+        search_score: seoCat?.score ?? null,          // v9: SEO 최적화 본축 점수
+        popularity_score: popCat?.score ?? null,       // v9: 방문자 활동
+        content_score: contentCat?.score ?? null,      // v9: 콘텐츠 품질 (전문성 병합)
+        activity_score: trustCat?.score ?? null,       // v9: 신뢰도 (활동성+신뢰도 통합)
         abuse_penalty: result.abusePenalty?.score ?? 0,
         level_tier: result.level.tier,
         level_label: result.level.label,
@@ -312,7 +324,7 @@ export async function POST(request: NextRequest) {
           totalPostCount: result.blogProfile?.totalPostCount ?? result.postAnalysis.totalFound,
           postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
           trustScore: trustCat?.score ?? null,
-          topicAuthorityScore: topicCat?.score ?? null,
+          seoScore: seoCat?.score ?? null,
         },
         full_result: result,
         is_demo: isDemo,

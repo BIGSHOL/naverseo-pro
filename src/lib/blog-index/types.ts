@@ -9,11 +9,13 @@ export interface BlogPost {
   postdate: string // YYYYMMDD
 }
 
-/** 블로그 프로필 크롤링 데이터 (v4 신규, v7 buddyCount/subscriberCount 추가) */
+/** 블로그 프로필 크롤링 데이터 (v4 신규, v7 buddyCount/subscriberCount 추가, v9 firstPostDate 추가) */
 export interface BlogProfileData {
   totalPostCount: number | null
-  blogStartDate: string | null
+  blogStartDate: string | null      // 블로그 개설일 (프로필 스크래핑)
   blogAgeDays: number | null
+  firstPostDate?: string | null     // v9: 실제 최초 포스팅 날짜 (YYYYMMDD, 검색 API로 조회)
+  firstPostDateAccurate?: boolean   // v9: true면 정확한 최초 포스팅, false면 근사값
   dayVisitorCount?: number | null   // 프로필 페이지에서 추출한 오늘 방문자 수
   buddyCount?: number | null        // 이웃 수 (__INITIAL_STATE__에서 추출)
   subscriberCount?: number | null   // 구독자 수

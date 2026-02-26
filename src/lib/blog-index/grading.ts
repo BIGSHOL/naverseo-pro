@@ -142,15 +142,15 @@ export function generateRecommendations(
     }
   }
 
-  // ── 3단계: 카테고리별 3단계 임계값 추천 (5축 기반) ──
+  // ── 3단계: 카테고리별 3단계 임계값 추천 (v9: 4축 기반) ──
   for (const cat of categories) {
     const pct = cat.score / cat.maxScore
 
     if (pct < 0.4) {
       // [Critical] 40% 미만 - 긴급 개선
       switch (cat.name) {
-        case '방문자 & 인기도':
-          recs.push('방문자와 인기도가 매우 낮습니다 - 검색 유입 키워드를 최적화하고, 글 마무리에 댓글/공감 유도 문구를 넣으세요')
+        case '방문자 활동':
+          recs.push('방문자와 참여도가 매우 낮습니다 - 검색 유입 키워드를 최적화하고, 글 마무리에 댓글/공감 유도 문구를 넣으세요')
           recs.push('이웃 블로그 소통과 댓글 달기로 방문자 유입을 늘리세요')
           break
         case '콘텐츠 품질':
@@ -158,29 +158,27 @@ export function generateRecommendations(
           if (bm && bm.avgImageCount.mine < 1) {
             recs.push(`이미지가 거의 없습니다 (평균 ${bm.avgImageCount.mine}개) → 포스트당 3~5장 삽입하세요`)
           }
-          break
-        case '주제 전문성':
-          recs.push('주제 전문성이 부족합니다 - 하나의 주제에 집중하여 블로그 정체성을 확립하세요')
           if (bm && bm.topicFocus.mine < bm.topicFocus.recommended) {
             recs.push(`주제 집중도 ${bm.topicFocus.mine}% → ${bm.topicFocus.recommended}% 이상으로 올리면 C-Rank 효과가 높아집니다`)
           }
           break
-        case '활동성':
+        case 'SEO 최적화':
+          recs.push('검색 노출이 매우 낮습니다 - 경쟁이 낮은 롱테일 키워드부터 공략하고, 제목에 핵심 키워드를 배치하세요')
+          recs.push('제목 20~35자에 핵심 키워드를 자연스럽게 포함하면 검색 노출에 유리합니다')
+          break
+        case '신뢰도':
           if (bm && bm.postingFrequency.mine < 1) {
             recs.push(`현재 주 ${bm.postingFrequency.mine}회 포스팅 중입니다 - 최소 주 3회로 늘리세요`)
           } else {
             recs.push('최소 주 3회 이상 꾸준히 포스팅하세요')
           }
-          break
-        case '블로그 신뢰도':
           recs.push('양질의 글을 꾸준히 축적하여 누적 포스팅 수를 늘리세요')
-          recs.push('6개월 이상 꾸준히 포스팅하면 활동 기간 점수가 크게 올라갑니다')
           break
       }
     } else if (pct < 0.6) {
       // [Important] 40~60% - 보강 필요
       switch (cat.name) {
-        case '방문자 & 인기도':
+        case '방문자 활동':
           recs.push('댓글과 공감을 늘리기 위해 글 마무리에 질문형 문구를 사용하세요')
           if (bm?.dailyVisitors && bm.dailyVisitors.mine < bm.dailyVisitors.recommended) {
             recs.push(`일평균 방문자 ${bm.dailyVisitors.mine}명 → ${bm.dailyVisitors.recommended}명 달성을 목표로 키워드를 최적화하세요`)
@@ -190,25 +188,24 @@ export function generateRecommendations(
           if (bm && bm.imageRate.mine < bm.imageRate.recommended) {
             recs.push(`이미지 포함률 ${bm.imageRate.mine}% → ${bm.imageRate.recommended}% 달성 시 품질 점수가 크게 올라갑니다`)
           }
-          break
-        case '주제 전문성':
           if (bm && bm.topicFocus.mine < bm.topicFocus.recommended) {
             recs.push(`주제 집중도 ${bm.topicFocus.mine}% → ${bm.topicFocus.recommended}% 이상으로 올리면 C-Rank 효과가 높아집니다`)
           }
           break
-        case '활동성':
-          if (bm && bm.postingFrequency.mine < bm.postingFrequency.recommended) {
-            recs.push(`포스팅 빈도 주 ${bm.postingFrequency.mine}회 → ${bm.postingFrequency.recommended}회로 늘리면 활동성 점수가 올라갑니다`)
-          }
+        case 'SEO 최적화':
+          recs.push('검색 노출률을 높이려면 제목에 핵심 키워드를 포함하고, 제목 길이를 20~35자로 최적화하세요')
           break
-        case '블로그 신뢰도':
-          recs.push('블로그 신뢰도를 높이려면 장기간 꾸준히 운영하며 콘텐츠를 축적하세요')
+        case '신뢰도':
+          if (bm && bm.postingFrequency.mine < bm.postingFrequency.recommended) {
+            recs.push(`포스팅 빈도 주 ${bm.postingFrequency.mine}회 → ${bm.postingFrequency.recommended}회로 늘리면 신뢰도 점수가 올라갑니다`)
+          }
+          recs.push('규칙적인 포스팅 주기를 유지하면 블로그 신뢰도가 크게 향상됩니다')
           break
       }
     } else if (pct < 0.8) {
       // [Optimization] 60~80% - 최적화 여지
       switch (cat.name) {
-        case '방문자 & 인기도':
+        case '방문자 활동':
           recs.push('방문자 유입을 더 늘리려면 검색 트렌드에 맞는 시의성 있는 콘텐츠를 발행하세요')
           break
         case '콘텐츠 품질':
@@ -217,26 +214,16 @@ export function generateRecommendations(
           }
           recs.push('연관 키워드를 활용한 시리즈 포스팅으로 콘텐츠 깊이를 강화해보세요')
           break
-        case '주제 전문성':
-          recs.push('같은 주제로 시리즈 포스팅을 작성하면 C-Rank 전문성이 빠르게 쌓입니다')
+        case 'SEO 최적화':
+          recs.push('경쟁이 높은 키워드에서도 TOP10에 진입하려면 키워드 밀도와 콘텐츠 깊이를 함께 높이세요')
           break
-        case '활동성':
+        case '신뢰도':
           if (profile && !profile.isActive) {
             recs.push('최근 30일간 포스팅이 없습니다 - 꾸준한 활동 재개가 검색 노출에 핵심입니다')
           }
-          break
-        case '블로그 신뢰도':
           recs.push('기존 인기 글을 주기적으로 업데이트하면 검색 노출이 장기적으로 유지됩니다')
           break
       }
-    }
-  }
-
-  // ── 검색 보너스 별도 추천 ──
-  if (ctx?.searchBonus) {
-    const searchPct = ctx.searchBonus.score / ctx.searchBonus.maxScore
-    if (searchPct < 0.4) {
-      recs.push('검색 노출이 매우 낮습니다 - 경쟁이 낮은 롱테일 키워드부터 공략하고, 제목에 핵심 키워드를 배치하세요')
     }
   }
 

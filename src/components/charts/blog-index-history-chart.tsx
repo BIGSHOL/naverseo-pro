@@ -58,10 +58,9 @@ interface CategoryDataPoint {
   date: string
   rawDate: string
   label: string
-  방문자: number | null
   콘텐츠: number | null
-  전문성: number | null
-  활동성: number | null
+  방문자: number | null
+  SEO: number | null
   신뢰도: number | null
 }
 
@@ -147,10 +146,9 @@ function CategoryTooltip({ active, payload }: any) {
   })
 
   const lines: { name: string; value: number | null; color: string }[] = [
-    { name: '방문자', value: data.방문자, color: '#8b5cf6' },
     { name: '콘텐츠', value: data.콘텐츠, color: '#3b82f6' },
-    { name: '전문성', value: data.전문성, color: '#22c55e' },
-    { name: '활동성', value: data.활동성, color: '#f97316' },
+    { name: '방문자', value: data.방문자, color: '#8b5cf6' },
+    { name: 'SEO', value: data.SEO, color: '#22c55e' },
     { name: '신뢰도', value: data.신뢰도, color: '#06b6d4' },
   ]
 
@@ -163,7 +161,7 @@ function CategoryTooltip({ active, payload }: any) {
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: line.color }} />
             {line.name}
           </span>
-          <span className="font-bold">{line.value ?? '-'}/20</span>
+          <span className="font-bold">{line.value ?? '-'}/25</span>
         </div>
       ))}
     </div>
@@ -194,11 +192,10 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
         label: `${date}|`,
         date,
         rawDate: h.checked_at,
-        방문자: h.popularity_score,
         콘텐츠: h.content_score,
-        전문성: (h.metrics?.topicAuthorityScore as number | null) ?? null,
-        활동성: h.activity_score,
-        신뢰도: (h.metrics?.trustScore as number | null) ?? null,
+        방문자: h.popularity_score,
+        SEO: h.search_score,
+        신뢰도: h.activity_score,  // DB 컬럼 activity_score → v9에서는 신뢰도 저장
       }
     })
 
@@ -208,7 +205,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span className="text-muted-foreground">{stats.measurements}회 측정</span>
           <span className="text-muted-foreground/40">|</span>
-          <span className="text-muted-foreground">5개 카테고리별 점수 추이 (각 20점 만점)</span>
+          <span className="text-muted-foreground">4개 카테고리별 점수 추이 (각 25점 만점)</span>
         </div>
 
         {categoryData.length < 2 ? (
@@ -227,7 +224,7 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
                 height={40}
               />
               <YAxis
-                domain={[0, 20]}
+                domain={[0, 25]}
                 tick={{ fontSize: 11 }}
                 stroke="hsl(var(--muted-foreground))"
                 tickFormatter={(v: number) => String(v)}
@@ -238,10 +235,9 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
                 iconType="circle"
                 iconSize={8}
               />
-              <Line type="monotone" dataKey="방문자" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} connectNulls name="방문자" />
               <Line type="monotone" dataKey="콘텐츠" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} connectNulls name="콘텐츠" />
-              <Line type="monotone" dataKey="전문성" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: '#22c55e' }} connectNulls name="전문성" />
-              <Line type="monotone" dataKey="활동성" stroke="#f97316" strokeWidth={2} dot={{ r: 3, fill: '#f97316' }} connectNulls name="활동성" />
+              <Line type="monotone" dataKey="방문자" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} connectNulls name="방문자" />
+              <Line type="monotone" dataKey="SEO" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: '#22c55e' }} connectNulls name="SEO" />
               <Line type="monotone" dataKey="신뢰도" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3, fill: '#06b6d4' }} connectNulls name="신뢰도" />
             </LineChart>
           </ResponsiveContainer>

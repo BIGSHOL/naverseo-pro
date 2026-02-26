@@ -1,17 +1,19 @@
 /**
- * NaverSEO Pro - 블로그 지수 측정 엔진 v7
+ * NaverSEO Pro - 블로그 지수 측정 엔진 v9
  *
- * v7 점수 체계: 5축 균등 배분 + 검색 보너스 분리
+ * v9 점수 체계: 4축 × 25점 = 100점
  *
- * 5대 분석 축 (각 20점 × 5 = 100점):
- * 1. 방문자 & 인기도 - 20점: 일평균 방문자(7), 댓글(5), 공감(4), 이웃수(4)
- * 2. 콘텐츠 품질 - 20점: 깊이(7), 이미지(5), 구조(4), 품질일관성(4)
- * 3. 주제 전문성 - 20점: 집중도, 일관성
- * 4. 활동성 - 20점: 빈도(8), 규칙성(6), 최근성(6)
- * 5. 블로그 신뢰도 - 20점: 활동기간(10), 누적포스팅(10)
+ * 4대 분석 축 (각 25점 × 4 = 100점):
+ * 1. 콘텐츠 품질 - 25점: 깊이(7), 이미지(5), 주제집중도(4), 구조(3), 내부링크(3), 일관성(3)
+ * 2. 방문자 활동 - 25점: 방문자(8), 댓글(5), 공감(4), 이웃(4), 체류시간(4)
+ * 3. SEO 최적화 - 25점: 순위(7), 노출률(5), 제목최적화(5), TOP10(4), 경쟁가치(4)
+ * 4. 신뢰도 - 25점: 규칙성(7), 빈도(6), 최근성(5), 누적포스팅(4), 운영기간(3)
  * P. 어뷰징 감점 - 최대 -20점
  *
- * 검색 보너스 +α (25점 만점, 등급 미반영)
+ * v8→v9 변경:
+ * - 5축→4축 (주제 전문성→콘텐츠 품질 병합, 활동성+신뢰도→신뢰도 통합)
+ * - 검색 보너스(별도 25점)→SEO 최적화(본축 25점) 승격
+ * - 블로그 연차(추정)→최초 포스팅일 기반 표시
  */
 
 import { stripHtml, countImageMarkers, daysBetween, parsePostDate, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
@@ -37,10 +39,9 @@ export type {
 
 // 서브 모듈 함수 import
 import { analyzeContentQuality } from './analyzers/content-quality'
-import { analyzeTopicAuthority } from './analyzers/topic-authority'
 import { analyzeSearchPower } from './analyzers/search-power'
-import { analyzeActivity } from './analyzers/activity'
 import { analyzePopularity } from './analyzers/popularity'
+import { analyzeTrust } from './analyzers/activity'
 import { analyzeAbuse } from './analyzers/abuse'
 import { determineLevelInfo, generateRecommendations } from './grading'
 import { scorePost } from './scoring'
@@ -83,34 +84,12 @@ export function analyzeBlogIndex(
   // 인기도 데이터 집계 (scrapedData에서 댓글/공감 추출)
   const engagementData = aggregateEngagementData(scrapedData)
 
-  // 5대 분석 축 + 검색 보너스 + 어뷰징 페널티 실행
-  const searchPerformance = analyzeSearchPower(keywordResults, keywordCompetition)  // 25점 (보너스, 등급 미반영)
-  const popularity = analyzePopularity(visitorData, engagementData, blogProfileData) // 20점
-  const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 20점
-  const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts, blogName, blogId)  // 20점
-  const { activity, trust, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 활동성(20) + 신뢰도(20)
-  const abusePenalty = analyzeAbuse(posts, scrapedData)                              // -20점 max
-
-  // 5축 (각 20점 × 5 = 100점)
-  const categories = [popularity, contentQuality, topicAuthority, activity, trust]
-  const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
-  const totalScore = Math.max(0, Math.min(100, rawScore + abusePenalty.score))  // 0~100 범위
-  const level = determineLevelInfo(totalScore)
-
-  // 검색 보너스 (별도, 등급 미반영)
-  const searchBonus = {
-    score: searchPerformance.score,
-    maxScore: searchPerformance.maxScore,
-    grade: searchPerformance.grade,
-    details: searchPerformance.details,
-  }
-
-  // 포스트 분석 요약
+  // 포스트 분석 요약 (recentPosts 생성 먼저 - 방문자 활동에서 사용)
   const avgTitleLength = posts.length > 0
     ? Math.round(posts.reduce((s, p) => s + stripHtml(p.title).length, 0) / posts.length)
     : 0
 
-  // 개별 포스트 상세 데이터 생성 (v4: 댓글/공감 포함)
+  // 개별 포스트 상세 데이터 생성
   const recentPosts: PostDetail[] = posts
     .map((p) => {
       const cleanTitle = stripHtml(p.title)
@@ -121,7 +100,6 @@ export function analyzeBlogIndex(
         ? `${postDate.getFullYear()}.${String(postDate.getMonth() + 1).padStart(2, '0')}.${String(postDate.getDate()).padStart(2, '0')}`
         : '날짜 없음'
 
-      // 스크래핑 데이터 우선 사용, 없으면 description 기반 폴백
       const scraped = scrapedData?.get(p.link) ?? null
       const charCount = scraped ? scraped.charCount : cleanDesc.length
       const imgCount = scraped ? scraped.imageCount : countImageMarkers(p.description)
@@ -131,7 +109,6 @@ export function analyzeBlogIndex(
       const sympathyCount = scraped?.sympathyCount ?? null
       const quality = scorePost(cleanTitle, p.description, charCount, imgCount, isScrapped, commentCount, sympathyCount)
 
-      // v8: 예상 체류 시간 추정 (한국어 평균 읽기 속도 400자/분 + 이미지당 3초)
       const estimatedReadTimeSec = isScrapped
         ? Math.round((charCount / 400) * 60 + imgCount * 3)
         : undefined
@@ -156,6 +133,27 @@ export function analyzeBlogIndex(
     .sort((a, b) => a.daysAgo - b.daysAgo)
     .slice(0, 20)
 
+  // 4대 분석 축 + 어뷰징 페널티 실행
+  const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId)
+  const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts)
+  const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
+  const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData)
+  const abusePenalty = analyzeAbuse(posts, scrapedData)
+
+  // 4축 (각 25점 × 4 = 100점)
+  const categories = [contentQuality, popularity, seoOptimization, trust]
+  const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
+  const totalScore = Math.max(0, Math.min(100, rawScore + abusePenalty.score))
+  const level = determineLevelInfo(totalScore)
+
+  // v9: searchBonus는 레거시 호환용 (SEO 최적화가 본축으로 흡수)
+  const searchBonus = {
+    score: seoOptimization.score,
+    maxScore: seoOptimization.maxScore,
+    grade: seoOptimization.grade,
+    details: seoOptimization.details,
+  }
+
   const avgDescLength = posts.length > 0
     ? Math.round(posts.reduce((s, p) => s + stripHtml(p.description).length, 0) / posts.length)
     : 0
@@ -163,15 +161,11 @@ export function analyzeBlogIndex(
     ? Math.round((posts.reduce((s, p) => s + countImageMarkers(p.description), 0) / posts.length) * 10) / 10
     : 0
 
-  // 블로그 프로필 생성
+  // 블로그 프로필 생성 - v9: 최초 포스팅일 우선순위 (검색API > 개설일 > 수집포스트)
   const sortedDates = posts
     .map((p) => parsePostDate(p.postdate))
     .filter((d) => !isNaN(d.getTime()))
     .sort((a, b) => a.getTime() - b.getTime())
-
-  const estimatedStartDate = sortedDates.length > 0
-    ? `${sortedDates[0].getFullYear()}.${String(sortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(sortedDates[0].getDate()).padStart(2, '0')}`
-    : null
 
   let postsPerWeek: number | null = null
   if (sortedDates.length >= 2) {
@@ -179,23 +173,36 @@ export function analyzeBlogIndex(
     postsPerWeek = Math.round((sortedDates.length / spanDays) * 7 * 10) / 10
   }
 
-  // 블로그 연차 계산 (3단계 폴백)
-  // 1) 프로필 스크래핑에서 개설일 추출 성공 → 정확한 값
-  // 2) 총 포스트 수 + 포스팅 빈도로 추정 (예: 203개 / 주4회 = 약 51주)
-  // 3) 조회된 포스트 중 가장 오래된 것 기준 (최후 수단, 부정확)
-  let blogAgeDays: number | null = blogProfileData?.blogAgeDays ?? null
+  // v9: 최초 포스팅일 결정 (우선순위: 검색API → 개설일 → 수집 포스트 최소일)
+  let estimatedStartDate: string | null = null
+  let blogAgeDays: number | null = null
   let blogAgeEstimated = false
 
-  if (blogAgeDays === null && postsPerWeek && postsPerWeek > 0) {
-    const totalPosts = blogProfileData?.totalPostCount ?? posts.length
-    if (totalPosts > posts.length) {
-      // 총 포스트가 조회 포스트보다 많으면 → 빈도로 역산
-      blogAgeDays = Math.round((totalPosts / postsPerWeek) * 7)
-      blogAgeEstimated = true
-    }
-  }
+  const firstPostDateStr = blogProfileData?.firstPostDate  // YYYYMMDD
+  const profileStartDate = blogProfileData?.blogStartDate  // YYYY-MM-DD
 
-  if (blogAgeDays === null && sortedDates.length > 0) {
+  if (firstPostDateStr && /^\d{8}$/.test(firstPostDateStr)) {
+    // 1순위: 검색 API로 조회한 실제 최초 포스팅 날짜
+    const y = firstPostDateStr.slice(0, 4)
+    const m = firstPostDateStr.slice(4, 6)
+    const d = firstPostDateStr.slice(6, 8)
+    estimatedStartDate = `${y}.${m}.${d}`
+    const firstDate = new Date(`${y}-${m}-${d}`)
+    if (!isNaN(firstDate.getTime())) {
+      blogAgeDays = daysBetween(now, firstDate)
+    }
+    blogAgeEstimated = !(blogProfileData?.firstPostDateAccurate ?? true)
+  } else if (profileStartDate) {
+    // 2순위: 프로필 페이지에서 추출한 블로그 개설일
+    estimatedStartDate = profileStartDate.replace(/-/g, '.')
+    const startDate = new Date(profileStartDate)
+    if (!isNaN(startDate.getTime())) {
+      blogAgeDays = daysBetween(now, startDate)
+    }
+    blogAgeEstimated = true  // 개설일은 첫 포스팅과 다를 수 있음
+  } else if (sortedDates.length > 0) {
+    // 3순위: 수집된 포스트 중 가장 오래된 것 (가장 부정확)
+    estimatedStartDate = `${sortedDates[0].getFullYear()}.${String(sortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(sortedDates[0].getDate()).padStart(2, '0')}`
     blogAgeDays = daysBetween(now, sortedDates[0])
     blogAgeEstimated = true
   }
@@ -239,7 +246,6 @@ export function analyzeBlogIndex(
 
   const optimizationPct = Math.round(totalScore * 1.0)
 
-  // 전체 상위 X% 추정
   let categoryPercentile: number
   if (totalScore >= 95) categoryPercentile = 3
   else if (totalScore >= 85) categoryPercentile = 10
@@ -251,7 +257,6 @@ export function analyzeBlogIndex(
   else if (totalScore >= 25) categoryPercentile = 80
   else categoryPercentile = 95
 
-  // 카테고리별 벤치마크 값 (없으면 기존 하드코딩 폴백)
   const cb = categoryBenchmarkValues
 
   const benchmark: BenchmarkData = {
@@ -268,7 +273,6 @@ export function analyzeBlogIndex(
     avgImageCount: { mine: avgImageCount, recommended: cb?.avgImageCount.recommended ?? 3 },
     optimizationPct,
     categoryPercentile,
-    // v4 신규 벤치마크 항목 (데이터 수집 성공 시에만 포함)
     ...(engagementData?.isAvailable && engagementData.avgCommentCount !== null ? {
       avgCommentCount: {
         mine: engagementData.avgCommentCount,
@@ -304,7 +308,6 @@ export function analyzeBlogIndex(
     } : {}),
   }
 
-  // 벤치마크/포스트 데이터를 활용한 구체적 추천 생성
   const recommendations = generateRecommendations(categories, abusePenalty, {
     benchmark,
     level,

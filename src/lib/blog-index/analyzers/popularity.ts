@@ -1,30 +1,33 @@
 /**
- * 블로그 지수 - 축1. 방문자 & 인기도 분석 — 20점 (v7: 이웃수 추가)
+ * 블로그 지수 - 축2. 방문자 활동 (25점)
  *
- * 일평균 방문자(7) + 평균 댓글 수(5) + 평균 공감 수(4) + 이웃/구독자 수(4)
+ * v9: 체류 시간 추가 + 25점 확대 + 이름 변경
  *
- * 데이터 수집 실패 시 중립 점수: 방문자(2) + 댓글(1) + 공감(1) + 이웃(0) = 4/20
+ * 일평균 방문자(8) + 댓글 참여(5) + 공감 참여(4) + 이웃/구독자(4) + 체류 시간(4)
+ *
+ * 데이터 수집 실패 시 중립 점수: 방문자(2) + 댓글(1) + 공감(1) + 이웃(0) + 체류(0) = 4/25
  */
 
-import type { VisitorData, EngagementData, AnalysisCategory, BlogProfileData } from '../types'
+import type { VisitorData, EngagementData, AnalysisCategory, BlogProfileData, PostDetail } from '../types'
 
 export function analyzePopularity(
   visitorData?: VisitorData | null,
   engagementData?: EngagementData | null,
-  blogProfileData?: BlogProfileData | null
+  blogProfileData?: BlogProfileData | null,
+  recentPosts?: PostDetail[] | null,
 ): AnalysisCategory {
-  const maxScore = 20
+  const maxScore = 25
   const details: string[] = []
   let score = 0
 
-  // === 일평균 방문자 수 (7점) ===
+  // === 일평균 방문자 수 (8점) ===
   if (visitorData && visitorData.isAvailable) {
     const avg = visitorData.avgDailyVisitors
     if (avg >= 1000) {
-      score += 7
+      score += 8
       details.push(`일평균 방문자: ${avg.toLocaleString()}명 (최우수)`)
     } else if (avg >= 500) {
-      score += 5
+      score += 6
       details.push(`일평균 방문자: ${avg.toLocaleString()}명 (우수)`)
     } else if (avg >= 200) {
       score += 4
@@ -40,7 +43,6 @@ export function analyzePopularity(
       details.push(`일평균 방문자: ${avg}명 (매우 부족)`)
     }
   } else {
-    // 방문자 데이터 수집 실패 → 중립 점수
     score += 2
     details.push('방문자 데이터 미제공 (기본 2점)')
   }
@@ -119,7 +121,32 @@ export function analyzePopularity(
     details.push('이웃 수 데이터 미제공')
   }
 
-  const grade = score >= 16 ? 'S' : score >= 12 ? 'A' : score >= 8 ? 'B' : score >= 4 ? 'C' : 'D'
+  // === 예상 체류 시간 (4점) - v9 신규 ===
+  if (recentPosts && recentPosts.length > 0) {
+    const withTime = recentPosts.filter(p => p.estimatedReadTimeSec != null)
+    if (withTime.length > 0) {
+      const avgSec = withTime.reduce((s, p) => s + p.estimatedReadTimeSec!, 0) / withTime.length
+      const avgMin = avgSec / 60
 
-  return { name: '방문자 & 인기도', score: Math.min(maxScore, score), maxScore, grade, details }
+      if (avgMin >= 5) {
+        score += 4
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (최우수)`)
+      } else if (avgMin >= 3) {
+        score += 3
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수)`)
+      } else if (avgMin >= 2) {
+        score += 2
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호)`)
+      } else if (avgMin >= 1) {
+        score += 1
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (보통)`)
+      } else {
+        details.push(`예상 체류 시간: 평균 ${Math.round(avgSec)}초 (부족 - 콘텐츠 깊이를 늘리세요)`)
+      }
+    }
+  }
+
+  const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
+
+  return { name: '방문자 활동', score: Math.min(maxScore, score), maxScore, grade, details }
 }

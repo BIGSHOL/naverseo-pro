@@ -238,8 +238,12 @@ interface BlogIndexHistoryData {
 // 레이더 차트용 축약 라벨 (5축 정오각형에서 라벨 겹침 방지)
 function getRadarLabel(name: string): string {
   switch (name) {
-    case '방문자 & 인기도': return '방문자'
     case '콘텐츠 품질': return '콘텐츠'
+    case '방문자 활동': return '방문자'
+    case 'SEO 최적화': return 'SEO'
+    case '신뢰도': return '신뢰도'
+    // 레거시 호환
+    case '방문자 & 인기도': return '방문자'
     case '주제 전문성': return '전문성'
     case '활동성': return '활동성'
     case '블로그 신뢰도': return '신뢰도'
@@ -248,12 +252,12 @@ function getRadarLabel(name: string): string {
 }
 
 function RadarChart({ categories, totalScore, size = 220 }: { categories: AnalysisCategory[]; totalScore?: number; size?: number }) {
-  const pad = 58 // 라벨용 여백 (5축 대응)
+  const pad = 58 // 라벨용 여백 (4축 대응)
   const totalSize = size + pad * 2
   const center = totalSize / 2
   const radius = size / 2
 
-  // 5축 각도 (12시 방향 시작, 시계 방향)
+  // 4축 각도 (12시 방향 시작, 시계 방향)
   const angles = categories.map((_, i) => (Math.PI * 2 * i) / categories.length - Math.PI / 2)
 
   // 레벨 그리드 그리기
@@ -419,8 +423,12 @@ function getGradeColor(grade: string) {
 
 function getCategoryIcon(name: string) {
   switch (name) {
-    case '방문자 & 인기도': return <Eye className="h-4 w-4" />
     case '콘텐츠 품질': return <FileText className="h-4 w-4" />
+    case '방문자 활동': return <Eye className="h-4 w-4" />
+    case 'SEO 최적화': return <Target className="h-4 w-4" />
+    case '신뢰도': return <Shield className="h-4 w-4" />
+    // 레거시 호환 (캐시된 이전 결과 표시용)
+    case '방문자 & 인기도': return <Eye className="h-4 w-4" />
     case '주제 전문성': return <BookOpen className="h-4 w-4" />
     case '활동성': return <Clock className="h-4 w-4" />
     case '블로그 신뢰도': return <Shield className="h-4 w-4" />
@@ -705,7 +713,7 @@ export default function BlogIndexPage() {
         <div>
           <h1 className="text-2xl font-bold">블로그 지수 측정</h1>
           <p className="mt-1 text-muted-foreground">
-            5대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
+            4대 분석 축으로 블로그의 네이버 검색 노출 파워를 정밀 측정합니다
           </p>
         </div>
 
@@ -808,7 +816,20 @@ export default function BlogIndexPage() {
                         { icon: <FileText className="h-3 w-3" />, label: '총 포스팅', value: `${result.blogProfile?.totalPostCount ?? result.blogProfile?.totalPosts ?? result.postAnalysis.totalFound}개` },
                         { icon: <Clock className="h-3 w-3" />, label: '최근 포스팅', value: result.postAnalysis.recentPostDays !== null ? `${result.postAnalysis.recentPostDays}일 전` : '-' },
                         { icon: <TrendingUp className="h-3 w-3" />, label: '포스팅 빈도', value: result.postAnalysis.postingFrequency },
-                        ...(result.blogProfile?.blogAgeDays ? [{ icon: <Calendar className="h-3 w-3" />, label: result.blogProfile.blogAgeEstimated ? '블로그 연차 (추정)' : '블로그 연차', value: result.blogProfile.blogAgeDays >= 365 ? `${Math.floor(result.blogProfile.blogAgeDays / 365)}년 ${Math.floor((result.blogProfile.blogAgeDays % 365) / 30)}개월` : `${Math.floor(result.blogProfile.blogAgeDays / 30)}개월` }] : []),
+                        ...(result.blogProfile?.estimatedStartDate ? [{
+                          icon: <Calendar className="h-3 w-3" />,
+                          label: result.blogProfile.blogAgeEstimated ? '최초 포스팅 (근사)' : '최초 포스팅',
+                          value: (() => {
+                            const dateStr = result.blogProfile.estimatedStartDate!
+                            const ageDays = result.blogProfile.blogAgeDays
+                            const ageText = ageDays != null
+                              ? ageDays >= 365
+                                ? ` (${Math.floor(ageDays / 365)}년 ${Math.floor((ageDays % 365) / 30)}개월)`
+                                : ` (${Math.floor(ageDays / 30)}개월)`
+                              : ''
+                            return `${dateStr}${ageText}`
+                          })(),
+                        }] : []),
                         ...(result.benchmark?.buddyCount ? [{ icon: <Users className="h-3 w-3" />, label: '이웃', value: `${result.benchmark.buddyCount.mine.toLocaleString()}명` }] : []),
                         { icon: <Target className="h-3 w-3" />, label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
                       ].map((item, i) => (
@@ -874,17 +895,7 @@ export default function BlogIndexPage() {
                         </div>
                       </div>
 
-                      {/* 검색 보너스 */}
-                      {result.searchBonus && (
-                        <div className="mt-2 flex items-center gap-2 rounded-lg bg-purple-50 p-2 dark:bg-purple-950/30">
-                          <Zap className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <span className="text-purple-600 dark:text-purple-300 font-medium">검색 보너스</span>
-                            <span className="font-bold text-purple-700 dark:text-purple-200">+α {result.searchBonus.score}/{result.searchBonus.maxScore}</span>
-                          </div>
-                          <span className="ml-auto text-[9px] text-purple-500/70 dark:text-purple-400/70">기본 지수에 반영되지 않습니다</span>
-                        </div>
-                      )}
+                      {/* v9: 검색 보너스 배너 제거 - SEO 최적화가 본축 */}
 
                       {/* 최적화 수치 */}
                       {result.benchmark && (
@@ -1020,8 +1031,8 @@ export default function BlogIndexPage() {
               </Card>
             )}
 
-            {/* ===== 2행: 5축 + 검색 보너스 상세 카드 (전체 너비) ===== */}
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {/* ===== 2행: 4축 상세 카드 (전체 너비) ===== */}
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               {result.categories.map((cat) => {
                 const pct = Math.round((cat.score / cat.maxScore) * 100)
                 return (
@@ -1053,41 +1064,7 @@ export default function BlogIndexPage() {
                 )
               })}
             </div>
-            {/* 검색 보너스 별도 카드 */}
-            {result.searchBonus && (
-              <Card className="overflow-hidden border-purple-200 dark:border-purple-800">
-                <div className="h-1 bg-purple-500" />
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Zap className="h-4 w-4 text-purple-500" />
-                      <p className="text-xs font-medium">검색 보너스</p>
-                      <Badge className="text-[9px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">+α</Badge>
-                    </div>
-                    <Badge className={`text-[10px] ${getGradeColor(result.searchBonus.grade)}`}>{result.searchBonus.grade}</Badge>
-                  </div>
-                  <div className="mt-2 flex items-end gap-4">
-                    <div>
-                      <div className="flex items-end gap-1">
-                        <span className="text-xl font-bold text-purple-600">{result.searchBonus.score}</span>
-                        <span className="text-[10px] text-muted-foreground">/{result.searchBonus.maxScore}</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-24 rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.round((result.searchBonus.score / result.searchBonus.maxScore) * 100)}%` }} />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] text-purple-500/80 dark:text-purple-400/80">
-                        이 점수는 키워드별로 달라지며, 기본 지수에 반영되지 않습니다
-                      </p>
-                      {result.searchBonus.details[0] && (
-                        <p className="mt-1 text-[10px] text-muted-foreground line-clamp-1">{result.searchBonus.details[0]}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* v9: 검색 보너스 별도 카드 제거 - SEO 최적화가 본축으로 흡수됨 */}
 
             {/* ===== 3행: 벤치마크 비교 (컴팩트 가로 레이아웃) ===== */}
             {result.benchmark && (
@@ -1647,49 +1624,40 @@ export default function BlogIndexPage() {
 
                   // 카테고리별 맞춤 가이드 매핑
                   const guideMap: Record<string, { title: string; tips: string[] }> = {
-                    '방문자 & 인기도': {
-                      title: '방문자 & 인기도 향상',
-                      tips: [
-                        '댓글을 유도하는 질문형 마무리 활용',
-                        '공감 버튼 클릭 유도 문구 삽입',
-                        '검색 유입을 늘리는 키워드 최적화',
-                        '이웃 블로그 소통으로 방문자 유입 확대',
-                      ]
-                    },
                     '콘텐츠 품질': {
                       title: 'D.I.A. 콘텐츠 품질 향상',
                       tips: [
                         '1,500~2,000자 이상의 깊이 있는 글 작성',
                         '소제목(H2, H3)으로 구조화하여 가독성 향상',
                         '포스트당 이미지 3~5장 삽입으로 시각적 풍성함 확보',
-                        '리스트, 구체적 수치 등 구조화 서식 활용',
+                        '한 가지 주제에 집중하여 C-Rank 전문성 확보',
                       ]
                     },
-                    '주제 전문성': {
-                      title: 'C-Rank 주제 전문성 강화',
+                    '방문자 활동': {
+                      title: '방문자 활동 향상',
                       tips: [
-                        '한 가지 주제에 집중하여 블로그 정체성 확립',
-                        '관련 키워드를 자연스럽게 본문에 배치',
-                        '같은 주제로 시리즈 포스팅 작성',
-                        '해당 분야 전문 용어와 인사이트 포함',
+                        '댓글을 유도하는 질문형 마무리 활용',
+                        '공감 버튼 클릭 유도 문구 삽입',
+                        '이웃 블로그 소통으로 방문자 유입 확대',
+                        '검색 유입을 늘리는 키워드 최적화',
                       ]
                     },
-                    '활동성': {
-                      title: '활동성 강화',
+                    'SEO 최적화': {
+                      title: 'SEO 최적화 강화',
+                      tips: [
+                        '제목 앞부분에 핵심 키워드를 배치',
+                        '본문에 키워드를 자연스럽게 3~5회 배치',
+                        '관련 키워드(롱테일)를 함께 사용',
+                        '태그에 키워드 변형을 포함하여 노출 확대',
+                      ]
+                    },
+                    '신뢰도': {
+                      title: '블로그 신뢰도 강화',
                       tips: [
                         '꾸준한 발행 주기 유지 (주 3~5회 권장)',
                         '정해진 요일/시간에 포스팅하여 규칙성 확보',
-                        '최소 주 1회 이상 포스팅하여 활성 상태 유지',
-                        '검색 트렌드에 맞는 시의성 있는 콘텐츠 발행',
-                      ]
-                    },
-                    '블로그 신뢰도': {
-                      title: '블로그 신뢰도 강화',
-                      tips: [
-                        '장기간 꾸준히 운영하여 블로그 연차 확보',
                         '다양한 주제의 양질 글을 축적하여 누적 포스트 수 늘리기',
                         '기존 인기 글을 주기적으로 업데이트',
-                        '독자와의 소통으로 블로그 커뮤니티 구축',
                       ]
                     }
                   }
