@@ -104,14 +104,15 @@ interface CategoryDataPoint {
   신뢰도: number | null
 }
 
-// X축 커스텀 틱: 날짜만 표시
+// X축 커스텀 틱: 날짜만 표시 ("|인덱스" 접미사 제거)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomXTick({ x, y, payload }: any) {
   if (!payload?.value) return null
+  const date = (payload.value as string).split('|')[0] || ''
   return (
     <g transform={`translate(${x},${y})`}>
       <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="hsl(var(--muted-foreground))">
-        {payload.value}
+        {date}
       </text>
     </g>
   )
@@ -202,13 +203,13 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
 
   if (mode === 'algorithm') {
     // D.I.A. + C-Rank 추이 차트
-    const algoData: AlgorithmDataPoint[] = sorted.map((h) => {
+    const algoData: AlgorithmDataPoint[] = sorted.map((h, i) => {
       const date = new Date(h.checked_at).toLocaleDateString('ko-KR', {
         month: 'numeric',
         day: 'numeric',
       })
       return {
-        label: `${date}|`,
+        label: `${date}|${i}`,
         date,
         rawDate: h.checked_at,
         'D.I.A.': (h.metrics?.diaScore as number) ?? null,
@@ -265,13 +266,13 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
 
   if (mode === 'category') {
     // 카테고리별 차트 데이터
-    const categoryData: CategoryDataPoint[] = sorted.map((h) => {
+    const categoryData: CategoryDataPoint[] = sorted.map((h, i) => {
       const date = new Date(h.checked_at).toLocaleDateString('ko-KR', {
         month: 'numeric',
         day: 'numeric',
       })
       return {
-        label: `${date}|`,
+        label: `${date}|${i}`,
         date,
         rawDate: h.checked_at,
         콘텐츠: h.content_score,
@@ -329,14 +330,14 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
     )
   }
 
-  // 총점 차트 (기존)
+  // 총점 차트 (기존) - label에 인덱스 추가로 같은 날짜 구분
   const chartData: (ChartDataPoint & { label: string })[] = sorted.map((h, i) => {
     const date = new Date(h.checked_at).toLocaleDateString('ko-KR', {
       month: 'numeric',
       day: 'numeric',
     })
     return {
-      label: date,
+      label: `${date}|${i}`,
       date,
       keywords: '',
       score: h.total_score,
