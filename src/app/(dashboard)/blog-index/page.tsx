@@ -855,6 +855,12 @@ export default function BlogIndexPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-2 flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        const url = ensureUrl(result.blogUrl)
+                        const w = window.open(url, '_blank', 'noopener,noreferrer')
+                        if (!w) window.location.href = url
+                      }}
                     >
                       블로그 방문 <ExternalLink className="h-3 w-3" />
                     </a>
@@ -1056,8 +1062,15 @@ export default function BlogIndexPage() {
                         </div>
                         <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
                       </div>
-                      {cat.details[0] && (
-                        <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">{cat.details[0]}</p>
+                      {cat.details.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {cat.details.map((detail, di) => (
+                            <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                              <span className="line-clamp-2">{detail}</span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </CardContent>
                   </Card>
@@ -1376,6 +1389,13 @@ export default function BlogIndexPage() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="group flex items-center gap-1 hover:text-primary"
+                                onClick={(e) => {
+                                  // about:blank#blocked 방지: window.open 실패 시 같은 탭에서 열기
+                                  e.preventDefault()
+                                  const url = ensureUrl(post.link)
+                                  const w = window.open(url, '_blank', 'noopener,noreferrer')
+                                  if (!w) window.location.href = url
+                                }}
                               >
                                 <span className="line-clamp-1 text-xs font-medium">{post.title}</span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100" />
