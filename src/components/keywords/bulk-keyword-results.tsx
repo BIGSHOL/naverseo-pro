@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import type { SearchRankResult } from '@/types/search-rank'
 import { ensureUrl } from '@/lib/utils/text'
+import { getScoreColor } from '@/components/keywords/keyword-utils'
 
 export interface BulkKeywordData {
     keyword: string
@@ -135,13 +136,6 @@ function typeOrderValue(type?: string): number {
         case '외부': return 1
         default: return 0
     }
-}
-
-// 점수 색상
-function getScoreColor(score: number): string {
-    if (score >= 70) return 'text-green-600'
-    if (score >= 40) return 'text-amber-600'
-    return 'text-red-600'
 }
 
 export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps) {
@@ -526,7 +520,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
 
                                         {/* 추천 점수 */}
                                         <TableCell className="text-right">
-                                            <span className={`text-sm font-bold ${getScoreColor(row.score)}`}>
+                                            <span className={`text-sm font-bold ${getScoreColor(row.score, true)}`}>
                                                 {row.score}
                                             </span>
                                         </TableCell>

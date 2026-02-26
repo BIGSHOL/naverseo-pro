@@ -12,7 +12,7 @@ import Link from 'next/link'
 export interface TopSearchResult {
   rank: number
   type: '블로그' | '카페' | '외부' | '포스트' | '지식인'
-  source: string  // 네이버 블로그, 네이버 카페, 외부 도메인 등
+  source: string
 }
 
 export interface KeywordData {
@@ -25,7 +25,7 @@ export interface KeywordData {
   plAvgDepth: number
   totalSearch: number
   score: number
-  topResults?: TopSearchResult[]  // 상위 5개 검색결과 타입
+  topResults?: TopSearchResult[]
 }
 
 interface KeywordResultsProps {
@@ -36,13 +36,11 @@ interface KeywordResultsProps {
 type SortKey = 'totalSearch' | 'monthlyPcQcCnt' | 'monthlyMobileQcCnt' | 'compIdx' | 'plAvgDepth' | 'score'
 type SortDir = 'asc' | 'desc'
 
-
-// 검색결과 타입별 배지 스타일
+// 비블로그 타입 배지 스타일
 function getResultTypeBadgeStyle(type: string): string {
   switch (type) {
-    case '블로그': return 'bg-green-500 text-white'
-    case '카페': return 'bg-blue-500 text-white'
-    case '외부': return 'bg-gray-500 text-white'
+    case '카페': return 'bg-green-600 text-white'
+    case '외부': return 'bg-yellow-600 text-white'
     case '포스트': return 'bg-purple-500 text-white'
     case '지식인': return 'bg-orange-500 text-white'
     default: return 'bg-gray-400 text-white'
@@ -78,7 +76,6 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
     return sortDir === 'asc' ? aVal - bVal : bVal - aVal
   })
 
-  // 상위 5개 결과가 있는 키워드가 하나라도 있으면 1위~5위 컬럼 표시
   const hasTopResults = keywords.some(kw => kw.topResults && kw.topResults.length > 0)
 
   const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
@@ -86,6 +83,26 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
     return sortDir === 'asc'
       ? <ArrowUp className="ml-1 h-3 w-3 inline text-primary" />
       : <ArrowDown className="ml-1 h-3 w-3 inline text-primary" />
+  }
+
+  // 1위~5위 셀 렌더링: 블로그면 16등급 배지, 나머지는 타입 배지
+  const renderTopResultCell = (result: TopSearchResult | undefined, kwScore: number) => {
+    if (!result) return <span className="text-[10px] text-muted-foreground">-</span>
+
+    if (result.type === '블로그') {
+      const grade = getKeywordGrade(kwScore)
+      return (
+        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor} ${grade.color}`}>
+          {grade.label}
+        </span>
+      )
+    }
+
+    return (
+      <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${getResultTypeBadgeStyle(result.type)}`}>
+        {result.type}
+      </span>
+    )
   }
 
   return (
@@ -149,13 +166,13 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                   <span className="flex items-center gap-1">경쟁 {getCompBadge(kw.compIdx)}</span>
                   <span className="flex items-center gap-1">포화 {getSaturationBadge(kw.plAvgDepth)}</span>
                 </div>
-                {/* 상위 5개 결과 타입 (모바일) */}
+                {/* 상위 5개 결과 (모바일) */}
                 {kw.topResults && kw.topResults.length > 0 && (
                   <div className="flex items-center gap-1 mt-2">
                     <span className="text-[10px] text-muted-foreground mr-1">상위:</span>
                     {kw.topResults.map((r, idx) => (
-                      <span key={idx} className={`rounded px-1 py-0.5 text-[9px] font-medium ${getResultTypeBadgeStyle(r.type)}`}>
-                        {r.type}
+                      <span key={idx}>
+                        {renderTopResultCell(r, kw.score)}
                       </span>
                     ))}
                   </div>
@@ -175,16 +192,25 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
 
         {/* 데스크탑: 테이블 */}
         <div className="overflow-x-auto hidden md:block">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-[160px]" /> {/* 키워드 */}
+              <col className="w-[72px]" />  {/* PC */}
+              <col className="w-[72px]" />  {/* 모바일 */}
+              <col className="w-[88px]" />  {/* 월 검색량 */}
+              <col className="w-[68px]" />  {/* 경쟁도 */}
+              <col className="w-[68px]" />  {/* 포화도 */}
+              {hasTopResults && <>{[1,2,3,4,5].map(r => <col key={r} className="w-[52px]" />)}</>}
+              <col className="w-[52px]" />  {/* 점수 */}
+              <col className="w-[56px]" />  {/* 등급 */}
+              <col className="w-[72px]" />  {/* 글쓰기 */}
+            </colgroup>
             <thead>
               <tr className="border-b text-left">
-                <th className="pb-3 pr-3 font-medium text-muted-foreground">키워드</th>
+                <th className="pb-3 pr-2 font-medium text-muted-foreground text-xs">키워드</th>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-right font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('monthlyPcQcCnt')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-right font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('monthlyPcQcCnt')}>
                       PC<SortIcon columnKey="monthlyPcQcCnt" />
                     </th>
                   </TooltipTrigger>
@@ -192,10 +218,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-right font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('monthlyMobileQcCnt')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-right font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('monthlyMobileQcCnt')}>
                       모바일<SortIcon columnKey="monthlyMobileQcCnt" />
                     </th>
                   </TooltipTrigger>
@@ -203,10 +226,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-right font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('totalSearch')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-right font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('totalSearch')}>
                       월 검색량<SortIcon columnKey="totalSearch" />
                     </th>
                   </TooltipTrigger>
@@ -214,10 +234,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-center font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('compIdx')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-center font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('compIdx')}>
                       경쟁도<SortIcon columnKey="compIdx" />
                     </th>
                   </TooltipTrigger>
@@ -225,37 +242,27 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-center font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('plAvgDepth')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-center font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('plAvgDepth')}>
                       포화도<SortIcon columnKey="plAvgDepth" />
                     </th>
                   </TooltipTrigger>
                   <TooltipContent><p>광고 평균 노출 깊이. 높을수록 포화 시장</p></TooltipContent>
                 </Tooltip>
-                {/* 상위 5개 검색결과 타입 */}
                 {hasTopResults && [1, 2, 3, 4, 5].map(rank => (
-                  <th key={rank} className="pb-3 px-1 text-center font-medium text-muted-foreground whitespace-nowrap text-xs">
+                  <th key={rank} className="pb-3 px-0.5 text-center font-medium text-muted-foreground whitespace-nowrap text-xs">
                     {rank}위
                   </th>
                 ))}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <th
-                      className="cursor-pointer pb-3 px-2 text-center font-medium text-muted-foreground whitespace-nowrap"
-                      onClick={() => handleSort('score')}
-                    >
+                    <th className="cursor-pointer pb-3 px-1 text-center font-medium text-muted-foreground whitespace-nowrap text-xs" onClick={() => handleSort('score')}>
                       점수<SortIcon columnKey="score" />
                     </th>
                   </TooltipTrigger>
                   <TooltipContent><p>검색량·경쟁도 종합 추천 점수 (0~100)</p></TooltipContent>
                 </Tooltip>
-                <th className="pb-3 pl-2 font-medium text-muted-foreground whitespace-nowrap text-center">
-                  등급
-                </th>
-                <th className="pb-3 pl-2 font-medium text-muted-foreground whitespace-nowrap">
-                </th>
+                <th className="pb-3 px-1 font-medium text-muted-foreground whitespace-nowrap text-center text-xs">등급</th>
+                <th className="pb-3 pl-1"></th>
               </tr>
             </thead>
             <tbody>
@@ -263,53 +270,41 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 const grade = getKeywordGrade(kw.score)
                 return (
                   <tr key={i} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="py-2.5 pr-3 font-medium">{kw.relKeyword}</td>
-                    <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground">
+                    <td className="py-2 pr-2 font-medium text-sm truncate" title={kw.relKeyword}>{kw.relKeyword}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-xs text-muted-foreground">
                       {formatNumber(kw.monthlyPcQcCnt)}
                     </td>
-                    <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground">
+                    <td className="py-2 px-1 text-right tabular-nums text-xs text-muted-foreground">
                       {formatNumber(kw.monthlyMobileQcCnt)}
                     </td>
-                    <td className="py-2.5 px-2 text-right tabular-nums font-medium">
+                    <td className="py-2 px-1 text-right tabular-nums text-xs font-medium">
                       {formatNumber(kw.totalSearch)}
                     </td>
-                    <td className="py-2.5 px-2 text-center">{getCompBadge(kw.compIdx)}</td>
-                    <td className="py-2.5 px-2 text-center">{getSaturationBadge(kw.plAvgDepth)}</td>
-                    {/* 상위 5개 검색결과 타입 배지 */}
-                    {hasTopResults && [0, 1, 2, 3, 4].map(idx => {
-                      const result = kw.topResults?.[idx]
-                      if (!result) return <td key={idx} className="py-2.5 px-1 text-center"><span className="text-[10px] text-muted-foreground">-</span></td>
-                      return (
-                        <td key={idx} className="py-2.5 px-1 text-center">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${getResultTypeBadgeStyle(result.type)}`}>
-                                {result.type}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent><p>{result.source}</p></TooltipContent>
-                          </Tooltip>
-                        </td>
-                      )
-                    })}
-                    <td className="py-2.5 px-2 text-center">
+                    <td className="py-2 px-1 text-center">{getCompBadge(kw.compIdx)}</td>
+                    <td className="py-2 px-1 text-center">{getSaturationBadge(kw.plAvgDepth)}</td>
+                    {hasTopResults && [0, 1, 2, 3, 4].map(idx => (
+                      <td key={idx} className="py-2 px-0.5 text-center">
+                        {renderTopResultCell(kw.topResults?.[idx], kw.score)}
+                      </td>
+                    ))}
+                    <td className="py-2 px-1 text-center">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold cursor-help ${getScoreColor(kw.score)}`}>
+                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold cursor-help ${getScoreColor(kw.score)}`}>
                             {kw.score}
                           </span>
                         </TooltipTrigger>
                         <TooltipContent><p>{getScoreTooltip(kw.score)}</p></TooltipContent>
                       </Tooltip>
                     </td>
-                    <td className="py-2.5 pl-2 text-center">
-                      <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} ${grade.color} border-0 hover:opacity-80`}>
+                    <td className="py-2 px-1 text-center">
+                      <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} ${grade.color} border-0`}>
                         {grade.label}
                       </Badge>
                     </td>
-                    <td className="py-2.5 pl-2 text-center">
+                    <td className="py-2 pl-1 text-center">
                       <Link href={`/content?keyword=${encodeURIComponent(kw.relKeyword)}`}>
-                        <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
+                        <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 px-2">
                           <Wand2 className="h-3 w-3" />
                           글쓰기
                         </Button>

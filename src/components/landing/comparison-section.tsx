@@ -86,7 +86,7 @@ export function ComparisonSection() {
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold">NaverSEO Pro</h3>
               <p className="mt-2">
-                <span className="text-4xl font-bold text-primary">월 9,900원</span>
+                <span className="text-4xl font-bold text-primary">월 $5</span>
                 <span className="text-muted-foreground">부터</span>
               </p>
               <p className="mt-1 text-sm text-muted-foreground">

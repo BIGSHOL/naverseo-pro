@@ -34,7 +34,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // 인증이 필요한 페이지 보호
-  const protectedPaths = ['/dashboard', '/keywords', '/content', '/seo-check', '/tracking', '/report', '/settings', '/admin']
+  const protectedPaths = ['/dashboard', '/keywords', '/content', '/seo-check', '/tracking', '/report', '/settings', '/admin', '/competitors', '/blog-index', '/opportunities']
   const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )

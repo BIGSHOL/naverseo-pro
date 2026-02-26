@@ -28,7 +28,7 @@ export function HeroSection() {
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
             키워드 발굴부터 SEO 최적화 글 작성, 점수 분석, 순위 추적까지.
             <br className="hidden sm:block" />
-            월 <span className="font-semibold text-foreground">9,900원</span>부터 SEO 전문가를 고용하세요.
+            월 <span className="font-semibold text-foreground">$5</span>부터 SEO 전문가를 고용하세요.
           </p>
 
           {/* CTA 버튼 */}

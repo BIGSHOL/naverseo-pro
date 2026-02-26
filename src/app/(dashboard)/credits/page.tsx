@@ -47,6 +47,7 @@ const FEATURE_COLORS: Record<string, string> = {
 export default function CreditsPage() {
   const [data, setData] = useState<CreditsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [promoInput, setPromoInput] = useState('')
   const [promoLoading, setPromoLoading] = useState(false)
   const [promoError, setPromoError] = useState('')
@@ -54,11 +55,12 @@ export default function CreditsPage() {
 
   const loadCredits = async () => {
     try {
+      setError('')
       const res = await fetch('/api/credits')
-      if (!res.ok) return
+      if (!res.ok) throw new Error('로드 실패')
       setData(await res.json())
     } catch {
-      // 로드 실패
+      setError('크레딧 정보를 불러오는 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -108,10 +110,10 @@ export default function CreditsPage() {
     )
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
       <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
-        크레딧 데이터를 불러올 수 없습니다.
+        {error || '크레딧 데이터를 불러올 수 없습니다.'}
       </div>
     )
   }

@@ -74,7 +74,12 @@ export function getCategoryBadge(category: string) {
 
 // ===== 점수 색상/툴팁 =====
 
-export function getScoreColor(score: number): string {
+export function getScoreColor(score: number, textOnly = false): string {
+  if (textOnly) {
+    if (score >= 70) return 'text-green-600'
+    if (score >= 40) return 'text-amber-600'
+    return 'text-red-600'
+  }
   if (score >= 70) return 'text-green-600 bg-green-50'
   if (score >= 40) return 'text-yellow-600 bg-yellow-50'
   return 'text-red-600 bg-red-50'
@@ -95,7 +100,7 @@ const SATURATION_TOOLTIPS: Record<string, string> = {
   '과포화': '매우 치열한 레드오션입니다. 롱테일 키워드를 추천합니다',
 }
 
-export function getSaturationLevel(plAvgDepth: number): string {
+function getSaturationLevel(plAvgDepth: number): string {
   if (plAvgDepth <= 2) return '여유'
   if (plAvgDepth <= 6) return '보통'
   if (plAvgDepth <= 11) return '포화'

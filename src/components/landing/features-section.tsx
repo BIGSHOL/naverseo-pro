@@ -94,7 +94,7 @@ export function FeaturesSection() {
             <span className="text-primary"> AI가 대신합니다</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            대행사 월 50~200만원 수준의 SEO 업무를, 월 9,900원부터 직접 수행하세요.
+            대행사 월 50~200만원 수준의 SEO 업무를, 월 $5부터 직접 수행하세요.
           </p>
         </div>
 

@@ -24,7 +24,7 @@ export function CtaSection() {
           콘텐츠 제작이 아닌, 성과에 집중하세요
         </h2>
         <p className="mt-4 text-lg text-muted-foreground">
-          월 <span className="font-semibold text-foreground">9,900원</span>부터 SEO 전문 도구를 도입하세요.
+          월 <span className="font-semibold text-foreground">$5</span>부터 SEO 전문 도구를 도입하세요.
           <br className="hidden sm:block" />
           매달 <span className="font-semibold text-foreground">50시간 이상</span>을 절약하고, 상위 노출 전략에 집중할 수 있습니다.
         </p>
