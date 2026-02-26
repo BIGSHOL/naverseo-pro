@@ -474,23 +474,37 @@ function getDaysAgoBadge(daysAgo: number) {
 
 // ===== 벤치마크 항목 컴포넌트 (통일 디자인: 0 → 평균 → 상위블로거) =====
 
-function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: rawTop, unit, icon }: {
+function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: rawTop, unit, icon, maxOptimal }: {
   label: string; mine: number; recommended: number; topBlogger: number; unit?: string; icon: React.ReactNode
+  /** 적정 범위 상한 (제목 길이처럼 너무 길면 안 좋은 항목용) */
+  maxOptimal?: number
 }) {
   const mine = rawMine ?? 0
   const recommended = rawRec ?? 0
   const topBlogger = rawTop ?? Math.round(recommended * 1.5)
   const u = unit ?? ''
+  const upperLimit = maxOptimal ?? topBlogger
   const scaleMax = Math.max(topBlogger * 1.15, mine * 1.1, recommended * 1.3, 1)
   const minePct = Math.min(100, Math.max(0, (mine / scaleMax) * 100))
   const recPct = Math.min(92, Math.max(8, (recommended / scaleMax) * 100))
   const topPct = Math.min(92, Math.max(15, (topBlogger / scaleMax) * 100))
 
-  const isAboveTop = mine >= topBlogger
-  const isAboveRec = mine >= recommended
-  const barColor = isAboveTop ? 'bg-green-500' : isAboveRec ? 'bg-blue-500' : 'bg-orange-400'
-  const statusText = isAboveTop ? '최우수' : isAboveRec ? '달성' : mine >= recommended * 0.7 ? '근접' : '부족'
-  const statusColor = isAboveTop ? 'text-green-600' : isAboveRec ? 'text-blue-600' : mine >= recommended * 0.7 ? 'text-amber-600' : 'text-red-500'
+  // maxOptimal 설정 시: 초과하면 경고 (제목 길이 등 적정 범위가 있는 항목)
+  let barColor: string
+  let statusText: string
+  let statusColor: string
+
+  if (maxOptimal && mine > maxOptimal) {
+    barColor = mine > maxOptimal * 1.3 ? 'bg-red-400' : 'bg-amber-400'
+    statusText = '초과'
+    statusColor = mine > maxOptimal * 1.3 ? 'text-red-500' : 'text-amber-600'
+  } else {
+    const isAboveTop = mine >= upperLimit
+    const isAboveRec = mine >= recommended
+    barColor = isAboveTop ? 'bg-green-500' : isAboveRec ? 'bg-blue-500' : 'bg-orange-400'
+    statusText = isAboveTop ? '최우수' : isAboveRec ? '달성' : mine >= recommended * 0.7 ? '근접' : '부족'
+    statusColor = isAboveTop ? 'text-green-600' : isAboveRec ? 'text-blue-600' : mine >= recommended * 0.7 ? 'text-amber-600' : 'text-red-500'
+  }
   const formatVal = (v: number) => v == null ? '0' : Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1)
 
   return (
@@ -1266,12 +1280,23 @@ export default function BlogIndexPage() {
                       </div>
                       {cat.details.length > 0 && (
                         <ul className="mt-1.5 space-y-0.5">
-                          {cat.details.map((detail, di) => (
-                            <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                              <span className="line-clamp-2">{detail}</span>
-                            </li>
-                          ))}
+                          {cat.details.map((detail, di) => {
+                            const scoreMatch = detail.match(/\(\+(\d+)\)\s*$/)
+                            const pointText = scoreMatch ? `+${scoreMatch[1]}` : null
+                            const detailText = scoreMatch ? detail.replace(/\s*\(\+\d+\)\s*$/, '') : detail
+                            const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : 0
+                            return (
+                              <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                                <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                                <span className="line-clamp-2 flex-1">{detailText}</span>
+                                {pointText && (
+                                  <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${pointNum >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : pointNum >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : pointNum >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
+                                    {pointText}
+                                  </span>
+                                )}
+                              </li>
+                            )
+                          })}
                         </ul>
                       )}
                     </CardContent>
@@ -1327,7 +1352,7 @@ export default function BlogIndexPage() {
                   <CardContent>
                     <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                       <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} recommended={bm.postingFrequency.recommended} topBlogger={bm.postingFrequency.topBlogger} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
-                      <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} recommended={bm.avgTitleLength.optimal} topBlogger={bm.avgTitleLength.topBlogger} unit="자" icon={<Type className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} recommended={bm.avgTitleLength.optimal} topBlogger={bm.avgTitleLength.topBlogger} unit="자" icon={<Type className="h-3.5 w-3.5" />} maxOptimal={36} />
                       <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} recommended={bm.avgContentLength.recommended} topBlogger={bm.avgContentLength.topBlogger} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
                       <BenchmarkItem label="이미지 포함률" mine={bm.imageRate.mine} recommended={bm.imageRate.recommended} topBlogger={bm.imageRate.topBlogger} unit="%" icon={<ImageIcon className="h-3.5 w-3.5" />} />
                       <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
@@ -1717,12 +1742,23 @@ export default function BlogIndexPage() {
                         <Badge className={`ml-auto text-[10px] ${getGradeColor(cat.grade)}`}>{cat.score}/{cat.maxScore}</Badge>
                       </div>
                       <ul className="space-y-0.5">
-                        {cat.details.map((detail, i) => (
-                          <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
-                            {detail}
-                          </li>
-                        ))}
+                        {cat.details.map((detail, i) => {
+                          const scoreMatch = detail.match(/\(\+(\d+)\)\s*$/)
+                          const pointText = scoreMatch ? `+${scoreMatch[1]}` : null
+                          const detailText = scoreMatch ? detail.replace(/\s*\(\+\d+\)\s*$/, '') : detail
+                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : 0
+                          return (
+                            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/50" />
+                              <span className="flex-1">{detailText}</span>
+                              {pointText && (
+                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${pointNum >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : pointNum >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : pointNum >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
+                                  {pointText}
+                                </span>
+                              )}
+                            </li>
+                          )
+                        })}
                       </ul>
                     </div>
                   ))}
