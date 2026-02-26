@@ -25,26 +25,26 @@ export function analyzePopularity(
     const avg = visitorData.avgDailyVisitors
     if (avg >= 1000) {
       score += 8
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (최우수)`)
+      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (최우수) (+8)`)
     } else if (avg >= 500) {
       score += 6
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (우수)`)
+      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (우수) (+6)`)
     } else if (avg >= 200) {
       score += 4
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (양호)`)
+      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (양호) (+4)`)
     } else if (avg >= 50) {
       score += 2
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (보통)`)
+      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (보통) (+2)`)
     } else if (avg >= 10) {
       score += 1
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (부족)`)
+      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (부족) (+1)`)
     } else {
       score += 0
-      details.push(`일평균 방문자: ${avg}명 (매우 부족)`)
+      details.push(`일평균 방문자: ${avg}명 (매우 부족) (+0)`)
     }
   } else {
     score += 2
-    details.push('방문자 데이터 미제공 (기본 2점)')
+    details.push('방문자 데이터 미제공 (+2)')
   }
 
   // === 평균 댓글 수 (5점) ===
@@ -52,26 +52,26 @@ export function analyzePopularity(
     const avgComments = engagementData.avgCommentCount
     if (avgComments >= 20) {
       score += 5
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (최우수)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (최우수) (+5)`)
     } else if (avgComments >= 10) {
       score += 4
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+4)`)
     } else if (avgComments >= 5) {
       score += 3
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+3)`)
     } else if (avgComments >= 2) {
       score += 2
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+2)`)
     } else if (avgComments >= 0.5) {
       score += 1
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족) (+1)`)
     } else {
       score += 0
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (매우 부족)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (매우 부족) (+0)`)
     }
   } else {
     score += 1
-    details.push('댓글 데이터 미제공 (기본 1점)')
+    details.push('댓글 데이터 미제공 (+1)')
   }
 
   // === 평균 공감 수 (4점) ===
@@ -79,23 +79,23 @@ export function analyzePopularity(
     const avgSympathy = engagementData.avgSympathyCount
     if (avgSympathy >= 30) {
       score += 4
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (최우수)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (최우수) (+4)`)
     } else if (avgSympathy >= 15) {
       score += 3
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+3)`)
     } else if (avgSympathy >= 5) {
       score += 2
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+2)`)
     } else if (avgSympathy >= 1) {
       score += 1
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (보통)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (보통) (+1)`)
     } else {
       score += 0
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족) (+0)`)
     }
   } else {
     score += 1
-    details.push('공감 데이터 미제공 (기본 1점)')
+    details.push('공감 데이터 미제공 (+1)')
   }
 
   // === 이웃/구독자 수 (4점) ===
@@ -103,22 +103,22 @@ export function analyzePopularity(
   if (buddyCount !== null) {
     if (buddyCount >= 5000) {
       score += 4
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (최우수)`)
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (최우수) (+4)`)
     } else if (buddyCount >= 1000) {
       score += 3
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수)`)
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+3)`)
     } else if (buddyCount >= 300) {
       score += 2
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호)`)
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+2)`)
     } else if (buddyCount >= 50) {
       score += 1
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (보통)`)
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (보통) (+1)`)
     } else {
       score += 0
-      details.push(`이웃: ${buddyCount}명 (부족)`)
+      details.push(`이웃: ${buddyCount}명 (부족) (+0)`)
     }
   } else {
-    details.push('이웃 수 데이터 미제공')
+    details.push('이웃 수 데이터 미제공 (+0)')
   }
 
   // === 예상 체류 시간 (4점) - v9 신규 ===
@@ -130,18 +130,18 @@ export function analyzePopularity(
 
       if (avgMin >= 5) {
         score += 4
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (최우수)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (최우수) (+4)`)
       } else if (avgMin >= 3) {
         score += 3
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수) (+3)`)
       } else if (avgMin >= 2) {
         score += 2
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호) (+2)`)
       } else if (avgMin >= 1) {
         score += 1
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (보통)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (보통) (+1)`)
       } else {
-        details.push(`예상 체류 시간: 평균 ${Math.round(avgSec)}초 (부족 - 콘텐츠 깊이를 늘리세요)`)
+        details.push(`예상 체류 시간: 평균 ${Math.round(avgSec)}초 (부족 - 콘텐츠 깊이를 늘리세요) (+0)`)
       }
     }
   }

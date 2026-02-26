@@ -81,14 +81,23 @@ function calculateScore(
     })
   }
 
-  const finalScore = Math.round(totalWeightedScore)
+  // 소수점 1자리까지 유지
+  const finalScore = Math.round(totalWeightedScore * 10) / 10
+
+  // 고정 순서: 콘텐츠 품질 → 방문자 활동 → SEO 최적화 → 신뢰도
+  const CATEGORY_ORDER = ['콘텐츠 품질', '방문자 활동', 'SEO 최적화', '신뢰도']
+  const sortedFactors = factors.sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a.name)
+    const bi = CATEGORY_ORDER.indexOf(b.name)
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+  })
 
   return {
     score: Math.min(100, Math.max(0, finalScore)),
     grade: assignGrade(finalScore),
     label,
     summary: summaryFn(finalScore),
-    factors: factors.sort((a, b) => b.contribution - a.contribution),
+    factors: sortedFactors,
   }
 }
 

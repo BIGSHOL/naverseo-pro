@@ -60,18 +60,18 @@ export function analyzeTrust(
 
     if (cv < 0.3) {
       score += 7
-      details.push('포스팅 주기 매우 규칙적')
+      details.push('포스팅 주기 매우 규칙적 (+7)')
     } else if (cv < 0.5) {
       score += 5
-      details.push('포스팅 주기 규칙적')
+      details.push('포스팅 주기 규칙적 (+5)')
     } else if (cv < 1.0) {
       score += 3
-      details.push('포스팅 주기 비교적 규칙적')
+      details.push('포스팅 주기 비교적 규칙적 (+3)')
     } else if (cv < 2.0) {
       score += 1
-      details.push('포스팅 주기 불규칙 - 꾸준한 발행이 C-Rank에 도움됩니다')
+      details.push('포스팅 주기 불규칙 - 꾸준한 발행이 C-Rank에 도움됩니다 (+1)')
     } else {
-      details.push('포스팅 주기 매우 불규칙')
+      details.push('포스팅 주기 매우 불규칙 (+0)')
     }
   }
 
@@ -83,19 +83,19 @@ export function analyzeTrust(
     if (postsPerWeek >= 5) {
       score += 6
       frequency = `주 ${postsPerWeek.toFixed(1)}회 (매일)`
-      details.push(`포스팅 빈도: ${frequency}`)
+      details.push(`포스팅 빈도: ${frequency} (+6)`)
     } else if (postsPerWeek >= 3) {
       score += 5
       frequency = `주 ${postsPerWeek.toFixed(1)}회 (격일)`
-      details.push(`포스팅 빈도: ${frequency}`)
+      details.push(`포스팅 빈도: ${frequency} (+5)`)
     } else if (postsPerWeek >= 1) {
       score += 3
       frequency = `주 ${postsPerWeek.toFixed(1)}회`
-      details.push(`포스팅 빈도: ${frequency}`)
+      details.push(`포스팅 빈도: ${frequency} (+3)`)
     } else {
       score += 1
       frequency = `주 ${postsPerWeek.toFixed(1)}회 (부족)`
-      details.push(`포스팅 빈도: ${frequency} - 주 3회 이상을 권장합니다`)
+      details.push(`포스팅 빈도: ${frequency} - 주 3회 이상을 권장합니다 (+1)`)
     }
   }
 
@@ -103,19 +103,19 @@ export function analyzeTrust(
   recentPostDays = daysBetween(now, dates[0])
   if (recentPostDays <= 3) {
     score += 5
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (매우 활발)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (매우 활발) (+5)`)
   } else if (recentPostDays <= 7) {
     score += 4
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (활발)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (활발) (+4)`)
   } else if (recentPostDays <= 14) {
     score += 3
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (양호)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (양호) (+3)`)
   } else if (recentPostDays <= 30) {
     score += 1
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (보통)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (보통) (+1)`)
   } else {
     score += 0
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (비활성)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (비활성) (+0)`)
   }
 
   // === 누적 포스팅 수 (4점) ===
@@ -123,19 +123,19 @@ export function analyzeTrust(
 
   if (totalPostCount >= 500) {
     score += 4
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (최우수)`)
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (최우수) (+4)`)
   } else if (totalPostCount >= 200) {
     score += 3
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (우수)`)
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (우수) (+3)`)
   } else if (totalPostCount >= 100) {
     score += 2
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (양호)`)
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (양호) (+2)`)
   } else if (totalPostCount >= 50) {
     score += 1
-    details.push(`누적 포스팅: ${totalPostCount}개 (보통)`)
+    details.push(`누적 포스팅: ${totalPostCount}개 (보통) (+1)`)
   } else {
     score += 0
-    details.push(`누적 포스팅: ${totalPostCount}개 (부족)`)
+    details.push(`누적 포스팅: ${totalPostCount}개 (부족) (+0)`)
   }
 
   // === 운영 기간 (3점) — 엔진 계산값 우선, 없으면 포스트 기준 폴백 ===
@@ -149,15 +149,15 @@ export function analyzeTrust(
 
     if (activeSpanDays >= 1095) { // 3년+
       score += 3
-      details.push(`운영 기간: ${label} (최우수)`)
+      details.push(`운영 기간: ${label} (최우수) (+3)`)
     } else if (activeSpanDays >= 365) { // 1년+
       score += 2
-      details.push(`운영 기간: ${label} (양호)`)
+      details.push(`운영 기간: ${label} (양호) (+2)`)
     } else if (activeSpanDays >= 180) { // 6개월+
       score += 1
-      details.push(`운영 기간: ${label} (보통)`)
+      details.push(`운영 기간: ${label} (보통) (+1)`)
     } else {
-      details.push(`운영 기간: ${label} (초기)`)
+      details.push(`운영 기간: ${label} (초기) (+0)`)
     }
   }
 

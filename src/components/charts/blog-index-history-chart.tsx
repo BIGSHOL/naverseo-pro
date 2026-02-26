@@ -104,23 +104,16 @@ interface CategoryDataPoint {
   신뢰도: number | null
 }
 
-// X축 커스텀 틱: 1행 날짜, 2행 키워드
+// X축 커스텀 틱: 날짜만 표시
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomXTick({ x, y, payload }: any) {
   if (!payload?.value) return null
-  // payload.value = date string, 키워드는 chartData에서 찾아야 함
-  // Recharts tick에서 직접 접근 불가 → date|keywords 형식으로 합쳐서 분리
-  const parts = (payload.value as string).split('|')
-  const date = parts[0] || ''
-  const kw = parts[1] || ''
+  const date = (payload.value as string).split('|')[0] || ''
 
   return (
     <g transform={`translate(${x},${y})`}>
       <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="hsl(var(--muted-foreground))">
         {date}
-      </text>
-      <text x={0} y={0} dy={24} textAnchor="middle" fontSize={9} fill="hsl(var(--muted-foreground))" opacity={0.7}>
-        {kw}
       </text>
     </g>
   )

@@ -1024,6 +1024,28 @@ export default function BlogIndexPage() {
                         </div>
                       )}
 
+                      {/* 어뷰징 감점 */}
+                      {result.abusePenalty && result.abusePenalty.score < 0 ? (
+                        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-2.5 dark:bg-red-950/30 dark:border-red-800">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1 font-medium text-red-700 dark:text-red-300">
+                              <ShieldAlert className="h-3 w-3" />감점 적용
+                            </span>
+                            <span className="font-bold text-red-600 dark:text-red-400">{result.abusePenalty.score}점</span>
+                          </div>
+                          <ul className="mt-1 space-y-0.5">
+                            {result.abusePenalty.details.map((d, i) => (
+                              <li key={i} className="text-[10px] text-red-600/80 dark:text-red-400/80">• {d}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-green-50 border border-green-200 px-2.5 py-1.5 text-xs text-green-700 dark:bg-green-950/30 dark:border-green-800 dark:text-green-300">
+                          <Shield className="h-3 w-3" />
+                          <span className="font-medium">감점 없음</span>
+                        </div>
+                      )}
+
                       {/* 다음 등급 */}
                       {result.level.nextTierScore !== null && (
                         <div className="mt-2">
@@ -1172,7 +1194,7 @@ export default function BlogIndexPage() {
                           <Badge className={`text-[10px] ${getGradeColor(algo.grade)}`}>{algo.grade}</Badge>
                         </div>
                         <div className="mt-2 flex items-end gap-1">
-                          <span className={`text-2xl font-bold ${scoreColor}`}>{algo.score}</span>
+                          <span className={`text-2xl font-bold ${scoreColor}`}>{algo.score.toFixed(1)}</span>
                           <span className="text-[10px] text-muted-foreground mb-0.5">/100</span>
                         </div>
                         <div className="mt-1.5 h-1.5 rounded-full bg-muted">
@@ -1183,7 +1205,7 @@ export default function BlogIndexPage() {
                           {algo.factors.map((f) => (
                             <div key={f.name} className="flex items-center justify-between text-[9px]">
                               <span className="text-muted-foreground">{f.name} ({Math.round(f.weight * 100)}%)</span>
-                              <span className="font-medium">{f.score}/{25} → {f.contribution}점</span>
+                              <span className="font-medium">{f.score}/{25} → {f.contribution.toFixed(1)}점</span>
                             </div>
                           ))}
                         </div>

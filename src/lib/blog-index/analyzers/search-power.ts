@@ -30,19 +30,21 @@ export function analyzeSearchPower(
   // === 검색 순위 품질 (7점) ===
   if (rankedCount > 0) {
     const avgRank = ranked.reduce((sum, r) => sum + (r.rank || 0), 0) / rankedCount
-    if (avgRank <= 5) score += 7
-    else if (avgRank <= 10) score += 5
-    else if (avgRank <= 20) score += 4
-    else if (avgRank <= 30) score += 3
-    else if (avgRank <= 50) score += 2
-    else score += 1
-    details.push(`평균 순위: ${Math.round(avgRank)}위`)
+    let rankPts = 0
+    if (avgRank <= 5) rankPts = 7
+    else if (avgRank <= 10) rankPts = 5
+    else if (avgRank <= 20) rankPts = 4
+    else if (avgRank <= 30) rankPts = 3
+    else if (avgRank <= 50) rankPts = 2
+    else rankPts = 1
+    score += rankPts
+    details.push(`평균 순위: ${Math.round(avgRank)}위 (+${rankPts})`)
   }
 
   // === 검색 노출률 (5점) ===
   const exposureScore = Math.round(exposureRate * 5)
   score += exposureScore
-  details.push(`검색 노출률: ${rankedCount}/${total} (${Math.round(exposureRate * 100)}%)`)
+  details.push(`검색 노출률: ${rankedCount}/${total} (${Math.round(exposureRate * 100)}%) (+${exposureScore})`)
 
   // === 제목 키워드 최적화 (5점) - v9 신규 ===
   if (posts && posts.length > 0) {
@@ -82,29 +84,30 @@ export function analyzeSearchPower(
 
     score += titleScore
     if (titleScore >= 4) {
-      details.push('제목 키워드 최적화 우수')
+      details.push(`제목 키워드 최적화 우수 (+${titleScore})`)
     } else if (titleScore >= 2) {
-      details.push('제목 키워드 최적화 양호')
+      details.push(`제목 키워드 최적화 양호 (+${titleScore})`)
     } else {
-      details.push('제목에 핵심 키워드를 자연스럽게 포함하세요 (20~35자 권장)')
+      details.push(`제목에 핵심 키워드를 자연스럽게 포함하세요 (20~35자 권장) (+${titleScore})`)
     }
   } else {
     score += 2
+    details.push('포스트 데이터 없음 (+2)')
   }
 
   // === TOP10 지배력 (4점) ===
   const top10 = ranked.filter((r) => r.rank! <= 10).length
   if (top10 >= 4) {
     score += 4
-    details.push(`TOP 10 키워드: ${top10}개 (우수)`)
+    details.push(`TOP 10 키워드: ${top10}개 (우수) (+4)`)
   } else if (top10 >= 2) {
     score += 3
-    details.push(`TOP 10 키워드: ${top10}개 (양호)`)
+    details.push(`TOP 10 키워드: ${top10}개 (양호) (+3)`)
   } else if (top10 >= 1) {
     score += 2
-    details.push(`TOP 10 키워드: ${top10}개`)
+    details.push(`TOP 10 키워드: ${top10}개 (+2)`)
   } else {
-    details.push('TOP 10 노출 키워드 없음')
+    details.push('TOP 10 노출 키워드 없음 (+0)')
   }
 
   // === 경쟁 키워드 가치 (4점) ===
@@ -135,14 +138,14 @@ export function analyzeSearchPower(
       const avgCompScore = competitiveRankScore / competitiveCount
       const compPoints = Math.min(4, Math.round(avgCompScore * 1.5))
       score += compPoints
-      details.push(`경쟁 키워드 가치: ${compPoints}점`)
+      details.push(`경쟁 키워드 가치 (+${compPoints})`)
     } else {
       score += 2
-      details.push('경쟁 키워드 매칭 없음 (기본 2점)')
+      details.push('경쟁 키워드 매칭 없음 (+2)')
     }
   } else {
     score += 2
-    details.push('키워드 경쟁도 데이터 없음 (기본 2점)')
+    details.push('키워드 경쟁도 데이터 없음 (+2)')
   }
 
   const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'

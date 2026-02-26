@@ -47,36 +47,36 @@ export function analyzeContentQuality(
   if (isActualContent) {
     if (avgContentLen >= 2000) {
       score += 7
-      details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자)`)
+      details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+7)`)
     } else if (avgContentLen >= 1500) {
       score += 5
-      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자)`)
+      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+5)`)
     } else if (avgContentLen >= 1000) {
       score += 4
-      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자)`)
+      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+4)`)
     } else if (avgContentLen >= 500) {
       score += 2
-      details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자)`)
+      details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+2)`)
     } else {
       score += 1
-      details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1500자 이상)`)
+      details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1500자 이상) (+1)`)
     }
   } else {
     if (avgContentLen >= 200) {
       score += 7
-      details.push(`콘텐츠 깊이 최우수 (미리보기 평균 ${Math.round(avgContentLen)}자)`)
+      details.push(`콘텐츠 깊이 최우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+7)`)
     } else if (avgContentLen >= 150) {
       score += 5
-      details.push(`콘텐츠 깊이 우수 (미리보기 평균 ${Math.round(avgContentLen)}자)`)
+      details.push(`콘텐츠 깊이 우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+5)`)
     } else if (avgContentLen >= 100) {
       score += 4
-      details.push(`콘텐츠 깊이 양호 (미리보기 평균 ${Math.round(avgContentLen)}자)`)
+      details.push(`콘텐츠 깊이 양호 (미리보기 평균 ${Math.round(avgContentLen)}자) (+4)`)
     } else if (avgContentLen >= 50) {
       score += 2
-      details.push(`콘텐츠 깊이 보통 (미리보기 평균 ${Math.round(avgContentLen)}자)`)
+      details.push(`콘텐츠 깊이 보통 (미리보기 평균 ${Math.round(avgContentLen)}자) (+2)`)
     } else {
       score += 1
-      details.push(`콘텐츠가 짧습니다 (미리보기 평균 ${Math.round(avgContentLen)}자)`)
+      details.push(`콘텐츠가 짧습니다 (미리보기 평균 ${Math.round(avgContentLen)}자) (+1)`)
     }
   }
 
@@ -98,18 +98,18 @@ export function analyzeContentQuality(
 
   if (imageRate >= 0.8 && avgImageCount >= 3) {
     score += 5
-    details.push(`이미지 활용 최우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장)`)
+    details.push(`이미지 활용 최우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장) (+5)`)
   } else if (imageRate >= 0.8 && avgImageCount >= 2) {
     score += 4
-    details.push(`이미지 활용 우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장)`)
+    details.push(`이미지 활용 우수 (${Math.round(imageRate * 100)}% 포스트에 평균 ${avgImageCount.toFixed(1)}장) (+4)`)
   } else if (imageRate >= 0.5 && avgImageCount >= 1) {
     score += 2
-    details.push(`이미지 활용 양호 (${Math.round(imageRate * 100)}% 포스트에 이미지 포함)`)
+    details.push(`이미지 활용 양호 (${Math.round(imageRate * 100)}% 포스트에 이미지 포함) (+2)`)
   } else if (imageRate >= 0.3) {
     score += 1
-    details.push(`이미지 활용 부족 (${Math.round(imageRate * 100)}% 포스트에만 이미지 포함)`)
+    details.push(`이미지 활용 부족 (${Math.round(imageRate * 100)}% 포스트에만 이미지 포함) (+1)`)
   } else {
-    details.push('이미지가 거의 없습니다 - 직접 촬영한 원본 이미지를 추가하세요')
+    details.push('이미지가 거의 없습니다 - 직접 촬영한 원본 이미지를 추가하세요 (+0)')
   }
 
   // === 주제 집중도/전문성 (4점) - v9: topic-authority에서 병합 ===
@@ -144,16 +144,16 @@ export function analyzeContentQuality(
 
     if (topKeywordRate >= 0.7) {
       score += 4
-      details.push(`주제 집중도 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장`)
+      details.push(`주제 집중도 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+4)`)
     } else if (topKeywordRate >= 0.5) {
       score += 3
-      details.push(`주제 집중도 우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장`)
+      details.push(`주제 집중도 우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+3)`)
     } else if (topKeywordRate >= 0.3) {
       score += 2
-      details.push(`주제 집중도 양호: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장`)
+      details.push(`주제 집중도 양호: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+2)`)
     } else {
       score += 1
-      details.push('주제가 분산됨 - 하나의 주제에 집중하면 C-Rank 향상에 도움')
+      details.push('주제가 분산됨 - 하나의 주제에 집중하면 C-Rank 향상에 도움 (+1)')
     }
   }
 
@@ -176,9 +176,9 @@ export function analyzeContentQuality(
   if (hasFormatting >= posts.length * 0.3) structureScore += 1
 
   score += structureScore
-  if (structureScore >= 3) details.push('콘텐츠 구조화 우수')
-  else if (structureScore >= 1) details.push('콘텐츠 구조화 보통')
-  else details.push('구조화 부족 - 리스트, 소제목, 구체적 수치를 활용하세요')
+  if (structureScore >= 3) details.push(`콘텐츠 구조화 우수 (+${structureScore})`)
+  else if (structureScore >= 1) details.push(`콘텐츠 구조화 보통 (+${structureScore})`)
+  else details.push('구조화 부족 - 리스트, 소제목, 구체적 수치를 활용하세요 (+0)')
 
   // === 내부 링크 활용 (3점) ===
   if (scrapedData && scrapedData.size > 0) {
@@ -195,12 +195,12 @@ export function analyzeContentQuality(
 
       if (avgInternalLinks >= 2 && sameBlogRate >= 0.3) {
         score += 3
-        details.push(`내부 링크 활용 우수 (평균 ${avgInternalLinks.toFixed(1)}개)`)
+        details.push(`내부 링크 활용 우수 (평균 ${avgInternalLinks.toFixed(1)}개) (+3)`)
       } else if (avgInternalLinks >= 1 || sameBlogRate >= 0.1) {
         score += 1
-        details.push(`내부 링크 활용 보통 (평균 ${avgInternalLinks.toFixed(1)}개)`)
+        details.push(`내부 링크 활용 보통 (평균 ${avgInternalLinks.toFixed(1)}개) (+1)`)
       } else {
-        details.push('내부 링크 부족 - 관련 글 링크로 체류 시간을 늘리세요')
+        details.push('내부 링크 부족 - 관련 글 링크로 체류 시간을 늘리세요 (+0)')
       }
     }
   }
@@ -214,15 +214,15 @@ export function analyzeContentQuality(
 
     if (cv < 0.25) {
       score += 3
-      details.push('품질 일관성 최우수')
+      details.push('품질 일관성 최우수 (+3)')
     } else if (cv < 0.5) {
       score += 2
-      details.push('품질 일관성 우수')
+      details.push('품질 일관성 우수 (+2)')
     } else if (cv < 0.8) {
       score += 1
-      details.push('품질 일관성 보통')
+      details.push('품질 일관성 보통 (+1)')
     } else {
-      details.push('품질 일관성 부족 - 글마다 길이 차이가 큽니다')
+      details.push('품질 일관성 부족 - 글마다 길이 차이가 큽니다 (+0)')
     }
   }
 
