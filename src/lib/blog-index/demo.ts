@@ -89,7 +89,11 @@ export function generateDemoScrapedData(posts: BlogPost[]): Map<string, ScrapedP
     map.set(p.link, {
       charCount: Math.floor(Math.random() * 2000) + 500,
       imageCount: Math.floor(Math.random() * 5) + 1,
+      videoCount: Math.random() > 0.7 ? 1 : 0,
+      linkCount: Math.floor(Math.random() * 4),
+      tableCount: Math.random() > 0.8 ? 1 : 0,
       hasImage: true,
+      imageUrls: [],
       isScrapped: true,
       commentCount: Math.floor(Math.random() * 20),
       sympathyCount: Math.floor(Math.random() * 40),

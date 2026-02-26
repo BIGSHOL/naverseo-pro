@@ -89,7 +89,7 @@ export function analyzeBlogIndex(
   const contentQuality = analyzeContentQuality(posts, scrapedData)                  // 20점
   const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts)  // 20점
   const { activity, trust, frequency, recentPostDays } = analyzeActivity(posts, blogProfileData)  // 활동성(20) + 신뢰도(20)
-  const abusePenalty = analyzeAbuse(posts)                                          // -20점 max
+  const abusePenalty = analyzeAbuse(posts, scrapedData)                              // -20점 max
 
   // 5축 (각 20점 × 5 = 100점)
   const categories = [popularity, contentQuality, topicAuthority, activity, trust]
@@ -131,6 +131,11 @@ export function analyzeBlogIndex(
       const sympathyCount = scraped?.sympathyCount ?? null
       const quality = scorePost(cleanTitle, p.description, charCount, imgCount, isScrapped, commentCount, sympathyCount)
 
+      // v8: 예상 체류 시간 추정 (한국어 평균 읽기 속도 400자/분 + 이미지당 3초)
+      const estimatedReadTimeSec = isScrapped
+        ? Math.round((charCount / 400) * 60 + imgCount * 3)
+        : undefined
+
       return {
         title: cleanTitle,
         link: p.link,
@@ -144,6 +149,7 @@ export function analyzeBlogIndex(
         isScrapped,
         commentCount,
         sympathyCount,
+        estimatedReadTimeSec,
       }
     })
     .filter((p) => p.daysAgo >= 0)
@@ -308,6 +314,12 @@ export function analyzeBlogIndex(
       recentPostDays,
       avgCommentCount: engagementData?.avgCommentCount ?? null,
       avgSympathyCount: engagementData?.avgSympathyCount ?? null,
+      avgEstimatedReadTimeSec: (() => {
+        const withTime = recentPosts.filter(p => p.estimatedReadTimeSec != null)
+        return withTime.length > 0
+          ? Math.round(withTime.reduce((s, p) => s + p.estimatedReadTimeSec!, 0) / withTime.length)
+          : undefined
+      })(),
     },
     recentPosts,
     blogProfile,

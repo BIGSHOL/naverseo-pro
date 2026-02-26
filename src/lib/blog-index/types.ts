@@ -85,6 +85,7 @@ export interface PostDetail {
   isScrapped?: boolean   // true면 실제 본문 데이터, false/undefined면 description 추정
   commentCount?: number | null   // v4: 댓글 수
   sympathyCount?: number | null  // v4: 공감 수
+  estimatedReadTimeSec?: number  // v8: 예상 체류 시간 (초)
 }
 
 export interface BlogProfile {
@@ -170,6 +171,7 @@ export interface BlogIndexResult {
     recentPostDays: number | null
     avgCommentCount?: number | null  // v4 추가
     avgSympathyCount?: number | null // v4 추가
+    avgEstimatedReadTimeSec?: number // v8: 평균 예상 체류 시간 (초)
   }
   recentPosts: PostDetail[]
   blogProfile: BlogProfile

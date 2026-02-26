@@ -1,8 +1,10 @@
 /**
- * 블로그 지수 - 축4. 활동성(20점) + 축5. 블로그 신뢰도(20점) (v5: 30점 → 20+20 분리)
+ * 블로그 지수 - 축4. 활동성(20점) + 축5. 블로그 신뢰도(20점) (v7: 연차→활동기간 대체)
  *
  * 활동성(20): 포스팅 빈도(8) + 포스팅 규칙성(6) + 최근성(6)
- * 블로그 신뢰도(20): 블로그 연차(10) + 누적 포스팅 수(10)
+ * 블로그 신뢰도(20): 활동 기간(10) + 누적 포스팅 수(10)
+ *
+ * v7 변경: 블로그 연차(개설일 기반, 스크래핑 불안정) → 활동 기간(포스트 날짜 기반, 안정적)
  */
 
 import { daysBetween, parsePostDate } from '@/lib/utils/text'
@@ -120,32 +122,34 @@ export function analyzeActivity(
 
   // ============ 블로그 신뢰도 (20점) ============
 
-  // === 블로그 연차 (10점) ===
-  const blogAgeDays = blogProfileData?.blogAgeDays
-    ?? (dates.length > 0 ? daysBetween(now, dates[dates.length - 1]) : null)
+  // === 활동 기간 (10점) — 실제 포스팅 날짜 기반 (개설일 X) ===
+  // 가장 오래된 글 ~ 현재까지의 기간 = 실제로 활동한 기간
+  const activeSpanDays = dates.length >= 2
+    ? daysBetween(now, dates[dates.length - 1])  // 가장 오래된 포스트 ~ 현재
+    : null
 
-  if (blogAgeDays !== null) {
-    if (blogAgeDays >= 1825) { // 5년+
+  if (activeSpanDays !== null) {
+    if (activeSpanDays >= 1825) { // 5년+
       trustScore += 10
-      trustDetails.push(`블로그 연차: ${Math.floor(blogAgeDays / 365)}년 (최우수)`)
-    } else if (blogAgeDays >= 1095) { // 3년+
+      trustDetails.push(`활동 기간: ${Math.floor(activeSpanDays / 365)}년+ (최우수)`)
+    } else if (activeSpanDays >= 1095) { // 3년+
       trustScore += 7
-      trustDetails.push(`블로그 연차: ${Math.floor(blogAgeDays / 365)}년 (우수)`)
-    } else if (blogAgeDays >= 365) { // 1년+
+      trustDetails.push(`활동 기간: ${Math.floor(activeSpanDays / 365)}년+ (우수)`)
+    } else if (activeSpanDays >= 365) { // 1년+
       trustScore += 5
-      trustDetails.push(`블로그 연차: ${Math.floor(blogAgeDays / 365)}년 (양호)`)
-    } else if (blogAgeDays >= 180) { // 6개월+
+      trustDetails.push(`활동 기간: ${Math.floor(activeSpanDays / 365)}년+ (양호)`)
+    } else if (activeSpanDays >= 180) { // 6개월+
       trustScore += 3
-      trustDetails.push(`블로그 연차: ${Math.floor(blogAgeDays / 30)}개월 (보통)`)
-    } else if (blogAgeDays >= 90) { // 3개월+
+      trustDetails.push(`활동 기간: ${Math.floor(activeSpanDays / 30)}개월 (보통)`)
+    } else if (activeSpanDays >= 90) { // 3개월+
       trustScore += 1
-      trustDetails.push(`블로그 연차: ${Math.floor(blogAgeDays / 30)}개월 (부족)`)
+      trustDetails.push(`활동 기간: ${Math.floor(activeSpanDays / 30)}개월 (부족)`)
     } else {
       trustScore += 0
-      trustDetails.push(`블로그 연차: ${blogAgeDays}일 (신규 블로그)`)
+      trustDetails.push(`활동 기간: ${activeSpanDays}일 (활동 초기)`)
     }
   } else {
-    trustDetails.push('블로그 연차를 추정할 수 없습니다')
+    trustDetails.push('활동 기간을 측정할 수 없습니다')
   }
 
   // === 누적 포스팅 수 (10점) ===

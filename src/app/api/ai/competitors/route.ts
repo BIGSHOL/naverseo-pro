@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
+import { callAI, getUserAiProvider, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
@@ -57,6 +57,12 @@ interface TitlePatternWords {
   count: number
 }
 
+interface ImageAnalysis {
+  totalImages: number
+  imageTypes: string[]       // 사용된 이미지 유형 (직촬, 인포그래픽, 캡처 등)
+  recommendation: string     // 이미지 전략 추천
+}
+
 interface AiInsights {
   summary: string
   topPatterns: string[]
@@ -66,6 +72,7 @@ interface AiInsights {
   recommendedTone?: string
   relatedKeywords?: string[]
   titleSuggestions: string[]
+  imageAnalysis?: ImageAnalysis
 }
 
 // === 유틸리티 함수 ===
@@ -276,6 +283,61 @@ ${competitorList}
   return parseGeminiJson<AiInsights>(response)
 }
 
+// === 이미지 분석 ===
+
+async function analyzeCompetitorImages(
+  competitorLinks: string[],
+  keyword: string,
+): Promise<ImageAnalysis | null> {
+  try {
+    const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
+    // 상위 5개 글만 스크래핑 (속도/비용 최적화)
+    const scrapedData = await scrapeMultiplePosts(competitorLinks.slice(0, 5), 5)
+
+    // 모든 이미지 URL 수집 (글당 최대 3장, 총 최대 10장)
+    const allImageUrls: string[] = []
+    for (const [, data] of scrapedData) {
+      if (data.imageUrls && data.imageUrls.length > 0) {
+        allImageUrls.push(...data.imageUrls.slice(0, 3))
+      }
+    }
+
+    if (allImageUrls.length === 0) {
+      return { totalImages: 0, imageTypes: ['이미지 없음'], recommendation: '상위 글에서 이미지를 추출할 수 없었습니다.' }
+    }
+
+    // Gemini Vision으로 이미지 유형 분석 (최대 10장)
+    const prompt = `"${keyword}" 키워드의 네이버 블로그 상위 노출 글에서 사용된 이미지 ${allImageUrls.length}장입니다.
+
+다음을 분석해서 JSON으로 응답하세요:
+{
+  "imageTypes": ["직접 촬영 사진", "인포그래픽/도표", "제품 사진", "캡처/스크린샷", "일러스트/아이콘" 등 발견된 유형],
+  "dominantType": "가장 많이 사용된 이미지 유형 1개",
+  "recommendation": "이 키워드에서 상위 노출을 위해 어떤 이미지를 준비해야 하는지 구체적 추천 (2-3문장)"
+}`
+
+    const visionResult = await analyzeImagesWithGemini(allImageUrls, prompt, { maxImages: 10, thinkingBudget: 0 })
+
+    try {
+      const parsed = JSON.parse(visionResult)
+      return {
+        totalImages: allImageUrls.length,
+        imageTypes: parsed.imageTypes || [],
+        recommendation: parsed.recommendation || '',
+      }
+    } catch {
+      return {
+        totalImages: allImageUrls.length,
+        imageTypes: ['분석 실패'],
+        recommendation: visionResult.substring(0, 200),
+      }
+    }
+  } catch (err) {
+    console.error('[Competitors] 이미지 분석 실패:', err)
+    return null
+  }
+}
+
 // === 데모 데이터 ===
 
 function generateDemoCompetitors(keyword: string): CompetitorItem[] {
@@ -349,6 +411,11 @@ function getDemoAiInsights(keyword: string): AiInsights {
       `${keyword} 실제 비용 비교 분석 | 가성비 순위 TOP 5`,
       `${keyword} 3개월 직접 경험 후기 - 장단점 솔직 리뷰`,
     ],
+    imageAnalysis: {
+      totalImages: 15,
+      imageTypes: ['직접 촬영 사진', '제품 비교 사진', '인포그래픽/도표'],
+      recommendation: `${keyword} 관련 상위 글들은 직접 촬영한 실물 사진을 중심으로 사용하고 있습니다. 비교표나 인포그래픽을 추가하면 차별화할 수 있습니다.`,
+    },
   }
 }
 
@@ -439,14 +506,28 @@ export async function POST(request: NextRequest) {
     const difficulty = assessDifficulty(patterns, competitors)
     const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
 
-    // AI 인사이트 (옵션)
+    // AI 인사이트 + 이미지 분석 (병렬 실행)
     let aiInsights: AiInsights | null = null
     if (includeAi && hasAiApiKey(provider)) {
       try {
-        aiInsights = await getAiInsights(cleanKeyword, competitors, patterns, difficulty, provider)
+        // AI 텍스트 분석 + 이미지 Vision 분석을 동시 실행
+        const competitorLinks = competitors.map(c => c.link)
+        const [aiResult, imageResult] = await Promise.allSettled([
+          getAiInsights(cleanKeyword, competitors, patterns, difficulty, provider),
+          analyzeCompetitorImages(competitorLinks, cleanKeyword),
+        ])
+
+        aiInsights = aiResult.status === 'fulfilled' ? aiResult.value : null
+        if (aiResult.status === 'rejected') {
+          console.error('[Competitors AI] AI 분석 실패:', aiResult.reason)
+        }
+
+        // 이미지 분석 결과를 aiInsights에 병합
+        if (aiInsights && imageResult.status === 'fulfilled' && imageResult.value) {
+          aiInsights.imageAnalysis = imageResult.value
+        }
       } catch (aiError) {
         console.error('[Competitors AI] AI 분석 실패:', aiError)
-        // AI 실패해도 기본 분석은 반환
       }
     }
 

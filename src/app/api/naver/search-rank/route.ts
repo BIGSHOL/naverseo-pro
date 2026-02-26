@@ -2,26 +2,42 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'
 import type { SearchRankResult } from '@/types/search-rank'
 
-// 블로그 URL에서 유형 판별
-function classifyBlogType(url: string, bloggerName?: string): { type: string; typeDetail: string } {
-    const lowerUrl = url.toLowerCase()
+// URL에서 유형 판별
+function classifyByUrl(url: string): { type: string; typeDetail: string; source: string } {
+    const lower = url.toLowerCase()
 
-    if (lowerUrl.includes('post.naver.com')) {
-        return { type: '포스트', typeDetail: '포스트' }
+    if (lower.includes('blog.naver.com') || lower.includes('m.blog.naver.com')) {
+        return { type: '블로그', typeDetail: '블로그', source: 'blog.naver.com' }
     }
-    if (lowerUrl.includes('cafe.naver.com')) {
-        return { type: '카페', typeDetail: '카페' }
+    if (lower.includes('cafe.naver.com') || lower.includes('m.cafe.naver.com')) {
+        return { type: '카페', typeDetail: '카페', source: 'cafe.naver.com' }
     }
-    if (lowerUrl.includes('blog.naver.com') || lowerUrl.includes('m.blog.naver.com')) {
-        // 네이버 블로그 — 최적/준최 판별은 추가 분석 필요
-        // 간이 판별: 블로그명 길이 등으로 추정 (정확한 판별은 블로그 지수 API 필요)
-        return { type: '최적', typeDetail: '최적' }
+    if (lower.includes('post.naver.com')) {
+        return { type: '포스트', typeDetail: '포스트', source: 'post.naver.com' }
     }
-    if (lowerUrl.includes('tistory.com') || lowerUrl.includes('velog.io') || lowerUrl.includes('brunch.co.kr')) {
-        return { type: '외부', typeDetail: '외부' }
+    if (lower.includes('tistory.com')) {
+        return { type: '외부', typeDetail: '티스토리', source: 'tistory.com' }
+    }
+    if (lower.includes('brunch.co.kr')) {
+        return { type: '외부', typeDetail: '브런치', source: 'brunch.co.kr' }
+    }
+    if (lower.includes('velog.io')) {
+        return { type: '외부', typeDetail: 'velog', source: 'velog.io' }
     }
 
-    return { type: '외부', typeDetail: '외부' }
+    // 호스트명 추출
+    try {
+        const hostname = new URL(url).hostname
+        return { type: '외부', typeDetail: '외부', source: hostname }
+    } catch {
+        return { type: '외부', typeDetail: '외부', source: 'unknown' }
+    }
+}
+
+// data-cr-on 속성에서 순위(r=) 파싱
+function parseRank(crOn: string): number | null {
+    const match = crOn.match(/r=(\d+)/)
+    return match ? parseInt(match[1], 10) : null
 }
 
 // 네이버 모바일 검색 결과 파싱
@@ -34,7 +50,7 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
     }
 
     try {
-        // 네이버 모바일 검색
+        // 네이버 모바일 블로그 탭 검색
         const searchUrl = `https://m.search.naver.com/search.naver?query=${encodeURIComponent(keyword)}&where=m_blog`
         const response = await fetch(searchUrl, {
             headers: {
@@ -52,114 +68,102 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
         const html = await response.text()
         const $ = cheerio.load(html)
 
-        // 인기글 스마트블록 탐색
-        const smartBlockSelectors = [
-            '.api_subject_bx',           // 인기글 영역
-            '.sp_nreview',               // VIEW/인기글 블록
-            '#_blog_list',               // 블로그 리스트
-            '.lst_view',                 // VIEW 목록
-            '.blog_list',                // 블로그 목록
-            '.view_wrap',                // VIEW 래핑
-        ]
-
-        let hasSmartBlock = false
-        let smartBlockOrder: number | null = null
         const topResults: SearchRankResult['topResults'] = []
 
-        // 스마트블록 순서 확인
-        const sections = $('section, .api_subject_bx, .sc_new')
-        sections.each((index, el) => {
-            const $section = $(el)
-            const text = $section.text().toLowerCase()
-            if (text.includes('인기글') || text.includes('블로그') || $section.find('.blog_list, .lst_view, .view_wrap').length > 0) {
-                hasSmartBlock = true
-                if (smartBlockOrder === null) {
-                    smartBlockOrder = index + 1
-                }
-            }
-        })
+        // ── 방법 1: _keep_trigger 버튼의 data-url + data-cr-on 사용 (가장 정확) ──
+        const keepBtns = $('button._keep_trigger[data-url]')
+        if (keepBtns.length > 0) {
+            const seen = new Set<string>()
+            keepBtns.each((_i, el) => {
+                const dataUrl = $(el).attr('data-url') || ''
+                const crOn = $(el).attr('data-cr-on') || ''
+                if (!dataUrl || seen.has(dataUrl)) return
+                seen.add(dataUrl)
 
-        // 상위 블로그 항목 추출
-        const blogItemSelectors = [
-            '.view_wrap .view_item',     // VIEW 아이템
-            '.blog_list .bx',            // 블로그 목록 아이템
-            '.lst_view li',              // VIEW 목록 아이템
-            '.api_txt_lines',            // 텍스트 라인
-            'li.bx',                     // 일반 리스트 아이템
-        ]
+                const rank = parseRank(crOn)
+                const { type, typeDetail, source } = classifyByUrl(dataUrl)
 
-        for (const selector of blogItemSelectors) {
-            const items = $(selector)
-            if (items.length > 0) {
-                items.slice(0, 5).each((index, el) => {
-                    const $item = $(el)
-                    const link = $item.find('a').attr('href') || ''
-                    const bloggerName = $item.find('.sub_txt, .writer_info, .blog_name').text().trim()
-
-                    if (link) {
-                        const { type, typeDetail } = classifyBlogType(link, bloggerName)
-                        let fullUrl: string
-                        try {
-                            fullUrl = new URL(link, 'https://m.naver.com').href
-                        } catch {
-                            fullUrl = link
-                        }
-                        topResults.push({
-                            rank: index + 1,
-                            type,
-                            typeDetail,
-                            source: new URL(link, 'https://m.naver.com').hostname,
-                            url: fullUrl,
-                        })
-                    }
+                topResults.push({
+                    rank: rank ?? topResults.length + 1,
+                    type,
+                    typeDetail,
+                    source,
+                    url: dataUrl,
                 })
-                break // 첫 번째 매칭되는 셀렉터만 사용
-            }
+            })
         }
 
-        // 인기글 블록을 못 찾았으면 대체 방법
-        if (!hasSmartBlock) {
-            // 어떤 블로그 컨텐츠든 있으면 포함으로 간주
-            const anyBlogContent = $('a[href*="blog.naver.com"], a[href*="post.naver.com"]')
-            if (anyBlogContent.length > 0) {
-                hasSmartBlock = true
-                smartBlockOrder = 1
+        // ── 방법 2: _keep_trigger가 없으면 data-heatmap-target=".link" 링크 사용 ──
+        if (topResults.length === 0) {
+            const linkEls = $('a[data-heatmap-target=".link"]')
+            const seen = new Set<string>()
+            linkEls.each((_i, el) => {
+                const href = $(el).attr('href') || ''
+                if (!href || seen.has(href) || href.startsWith('#') || href.startsWith('javascript')) return
+                // 블로그/카페 URL만 수집
+                if (!href.includes('blog.naver.com') && !href.includes('cafe.naver.com') && !href.includes('post.naver.com')) return
+                seen.add(href)
 
-                if (topResults.length === 0) {
-                    anyBlogContent.slice(0, 5).each((index, el) => {
-                        const href = $(el).attr('href') || ''
-                        if (href) {
-                            const { type, typeDetail } = classifyBlogType(href)
-                            let fullUrl: string
-                            try {
-                                fullUrl = new URL(href, 'https://m.naver.com').href
-                            } catch {
-                                fullUrl = href
-                            }
-                            topResults.push({
-                                rank: index + 1,
-                                type,
-                                typeDetail,
-                                source: (() => {
-                                    try {
-                                        return new URL(href, 'https://m.naver.com').hostname
-                                    } catch {
-                                        return 'unknown'
-                                    }
-                                })(),
-                                url: fullUrl,
-                            })
-                        }
-                    })
+                let fullUrl: string
+                try {
+                    fullUrl = new URL(href, 'https://m.naver.com').href
+                } catch {
+                    fullUrl = href
                 }
-            }
+                const { type, typeDetail, source } = classifyByUrl(fullUrl)
+                topResults.push({
+                    rank: topResults.length + 1,
+                    type,
+                    typeDetail,
+                    source,
+                    url: fullUrl,
+                })
+            })
         }
+
+        // ── 방법 3: 최후 폴백 - blog.naver.com/cafe.naver.com 링크 전체 탐색 ──
+        if (topResults.length === 0) {
+            const blogLinks = $('a[href*="blog.naver.com"], a[href*="cafe.naver.com"], a[href*="post.naver.com"]')
+            const seen = new Set<string>()
+            blogLinks.each((_i, el) => {
+                const href = $(el).attr('href') || ''
+                if (!href || seen.has(href)) return
+                // 프로필 링크가 아닌 게시물 링크만 (숫자 ID 포함)
+                if (!/\/\d+/.test(href)) return
+                seen.add(href)
+
+                let fullUrl: string
+                try {
+                    fullUrl = new URL(href, 'https://m.naver.com').href
+                } catch {
+                    fullUrl = href
+                }
+                const { type, typeDetail, source } = classifyByUrl(fullUrl)
+                topResults.push({
+                    rank: topResults.length + 1,
+                    type,
+                    typeDetail,
+                    source,
+                    url: fullUrl,
+                })
+            })
+        }
+
+        // 순위로 정렬 후 상위 5개
+        topResults.sort((a, b) => a.rank - b.rank)
+        const top5 = topResults.slice(0, 5).map((r, i) => ({ ...r, rank: i + 1 }))
+
+        // 인기글 블록 존재 여부: 결과가 1개 이상이면 있다고 판단
+        const hasSmartBlock = top5.length > 0
+
+        // 스마트블록 순서: 통합검색이 아닌 블로그 탭이므로 항상 1번째
+        const smartBlockOrder = hasSmartBlock ? 1 : null
 
         return {
             keyword,
             hasSmartBlock,
-            smartBlockOrder: hasSmartBlock ? (smartBlockOrder || 1) : null,
-            topResults: topResults.slice(0, 5),
+            smartBlockOrder,
+            topResults: top5,
         }
     } catch (error) {
         console.error(`[Search Rank] 파싱 실패 (${keyword}):`, error)

@@ -28,6 +28,7 @@ import {
     Minus,
 } from 'lucide-react'
 import type { SearchRankResult } from '@/types/search-rank'
+import { ensureUrl } from '@/lib/utils/text'
 
 export interface BulkKeywordData {
     keyword: string
@@ -106,22 +107,31 @@ function getCompColor(compIdx: string): string {
 // 상위 유형 색상
 function getTypeColor(type: string): string {
     switch (type) {
-        case '최적': return 'bg-red-500 text-white'
-        case '준최': return 'bg-blue-500 text-white'
-        case '카페': return 'bg-green-500 text-white'
+        case '블로그': return 'bg-emerald-600 text-white'
+        case '카페': return 'bg-blue-500 text-white'
         case '포스트': return 'bg-purple-500 text-white'
         case '외부': return 'bg-gray-500 text-white'
         default: return 'bg-muted text-muted-foreground'
     }
 }
 
+// 유형에 대응하는 추정 지수 라벨 (typeDetail로 더 상세 표시)
+function getEstimatedGrade(type: string, typeDetail: string): { label: string; color: string } {
+    switch (type) {
+        case '블로그': return { label: '네이버 블로그', color: 'text-emerald-600' }
+        case '카페': return { label: '네이버 카페', color: 'text-blue-600' }
+        case '포스트': return { label: '네이버 포스트', color: 'text-purple-600' }
+        case '외부': return { label: typeDetail !== '외부' ? typeDetail : '외부 블로그', color: 'text-gray-500' }
+        default: return { label: '-', color: 'text-muted-foreground' }
+    }
+}
+
 // 유형 정렬용 숫자값
 function typeOrderValue(type?: string): number {
     switch (type) {
-        case '최적': return 5
-        case '준최': return 4
-        case '카페': return 3
-        case '포스트': return 2
+        case '블로그': return 5
+        case '카페': return 4
+        case '포스트': return 3
         case '외부': return 1
         default: return 0
     }
@@ -221,12 +231,19 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
     const handleExportCSV = () => {
         const headers = [
             '키워드', 'PC조회수', 'MB조회수', '월 검색량', '경쟁도',
-            '월발행수', '평균 발행일', '인기글 순서', '자동완성',
-            '1위', '2위', '3위', '4위', '5위', '추천점수',
+            '발행량', '평균 발행일', '인기글 순서', '자동완성',
+            '1위 유형', '1위 URL', '2위 유형', '2위 URL',
+            '3위 유형', '3위 URL', '4위 유형', '4위 URL',
+            '5위 유형', '5위 URL', '추천점수',
         ]
 
         const rows = sortedResults.map((r) => {
             const topResults = r.searchRank?.topResults || []
+            const rankCols: (string | number)[] = []
+            for (let i = 0; i < 5; i++) {
+                rankCols.push(topResults[i]?.typeDetail || '-')
+                rankCols.push(topResults[i]?.url || '-')
+            }
             return [
                 r.keyword,
                 r.pcSearchVolume,
@@ -239,11 +256,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                     ? `${r.searchRank.smartBlockOrder}번째`
                     : '미포함',
                 r.autocomplete?.included ? '포함' : '미포함',
-                topResults[0]?.typeDetail || '-',
-                topResults[1]?.typeDetail || '-',
-                topResults[2]?.typeDetail || '-',
-                topResults[3]?.typeDetail || '-',
-                topResults[4]?.typeDetail || '-',
+                ...rankCols,
                 r.score,
             ]
         })
@@ -338,7 +351,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                         onClick={() => handleSort('monthlyPostCount')}
                                         className="flex items-center justify-end text-xs font-semibold whitespace-nowrap"
                                     >
-                                        월발행수 <SortIcon field="monthlyPostCount" />
+                                        발행량 <SortIcon field="monthlyPostCount" />
                                     </button>
                                 </TableHead>
                                 <TableHead className="text-center">
@@ -374,10 +387,10 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                     </button>
                                 </TableHead>
                                 {([1, 2, 3, 4, 5] as const).map((n) => (
-                                    <TableHead key={n} className="text-center">
+                                    <TableHead key={n} className="text-center min-w-[60px]">
                                         <button
                                             onClick={() => handleSort(`rank${n}` as SortField)}
-                                            className="flex items-center justify-center text-xs font-semibold whitespace-nowrap"
+                                            className="flex items-center justify-center text-xs font-semibold whitespace-nowrap w-full"
                                         >
                                             {n}위 <SortIcon field={`rank${n}` as SortField} />
                                         </button>
@@ -423,7 +436,7 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                             {row.totalSearchVolume.toLocaleString()}
                                         </TableCell>
 
-                                        {/* 월발행수 */}
+                                        {/* 발행량 */}
                                         <TableCell className="text-right tabular-nums text-sm">
                                             {row.monthlyPostCount !== null
                                                 ? row.monthlyPostCount.toLocaleString()
@@ -476,30 +489,40 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                             )}
                                         </TableCell>
 
-                                        {/* 1~5위 유형 (클릭 시 해당 사이트 이동) */}
-                                        {[0, 1, 2, 3, 4].map((rankIdx) => (
-                                            <TableCell key={rankIdx} className="text-center">
-                                                {topResults[rankIdx] ? (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <a
-                                                                href={topResults[rankIdx].url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold cursor-pointer hover:opacity-80 transition-opacity ${getTypeColor(topResults[rankIdx].type)}`}
-                                                            >
-                                                                {topResults[rankIdx].typeDetail}
-                                                            </a>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p className="text-xs">{topResults[rankIdx].source}</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                ) : (
-                                                    <Minus className="mx-auto h-3 w-3 text-muted-foreground" />
-                                                )}
-                                            </TableCell>
-                                        ))}
+                                        {/* 1~5위 유형 (클릭 시 해당 사이트 이동) + 추정 지수 */}
+                                        {[0, 1, 2, 3, 4].map((rankIdx) => {
+                                            const item = topResults[rankIdx]
+                                            const grade = item ? getEstimatedGrade(item.type, item.typeDetail) : null
+                                            return (
+                                                <TableCell key={rankIdx} className="text-center align-middle p-1.5">
+                                                    {item ? (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <a
+                                                                    href={ensureUrl(item.url)}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex flex-col items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity"
+                                                                >
+                                                                    <span className={`inline-block min-w-[44px] rounded px-2 py-0.5 text-[10px] font-bold leading-tight ${getTypeColor(item.type)}`}>
+                                                                        {item.typeDetail}
+                                                                    </span>
+                                                                    <span className={`text-[9px] font-medium leading-tight ${grade!.color}`}>
+                                                                        {grade!.label}
+                                                                    </span>
+                                                                </a>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="bottom">
+                                                                <p className="text-xs font-medium">{item.source}</p>
+                                                                <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.url}</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Minus className="mx-auto h-3 w-3 text-muted-foreground" />
+                                                    )}
+                                                </TableCell>
+                                            )
+                                        })}
 
                                         {/* 추천 점수 */}
                                         <TableCell className="text-right">

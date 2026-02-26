@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildImprovementSystemPrompt(patchable)
     const userMessage = buildImprovementUserPrompt(keyword, title, content, patchable, extraction)
 
-    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true })
+    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true, thinkingBudget: 2048 })
 
     console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
     if (!response || response.trim().length === 0) {

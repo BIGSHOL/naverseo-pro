@@ -173,10 +173,8 @@ export function generateRecommendations(
           }
           break
         case '블로그 신뢰도':
-          if (profile?.blogAgeDays != null && profile.blogAgeDays < 180) {
-            recs.push('블로그 운영 기간이 짧습니다 - 6개월 이상 꾸준히 운영하면 신뢰도가 크게 올라갑니다')
-          }
           recs.push('양질의 글을 꾸준히 축적하여 누적 포스팅 수를 늘리세요')
+          recs.push('6개월 이상 꾸준히 포스팅하면 활동 기간 점수가 크게 올라갑니다')
           break
       }
     } else if (pct < 0.6) {

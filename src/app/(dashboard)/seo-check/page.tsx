@@ -15,6 +15,7 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
+import { ensureUrl } from '@/lib/utils/text'
 
 interface SeoCategory {
   name: string
@@ -278,7 +279,7 @@ export default function SeoCheckPage() {
                   URL에서 가져옴
                 </Badge>
                 <a
-                  href={fetchSource}
+                  href={ensureUrl(fetchSource)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="min-w-0 truncate text-xs text-muted-foreground hover:underline"

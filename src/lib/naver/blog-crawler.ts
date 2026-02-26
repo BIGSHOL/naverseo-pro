@@ -11,6 +11,25 @@
 
 import { STOPWORDS, stripHtml, extractKoreanKeywords } from '@/lib/utils/text'
 
+/**
+ * 네이버 블로그 포스트 URL 정규화
+ * PostView.nhn/naver 쿼리 파라미터 형식 → 클린 URL 변환
+ * 예: PostView.nhn?blogId=xxx&logNo=123 → https://blog.naver.com/xxx/123
+ */
+export function normalizePostLink(link: string): string {
+  const pvMatch = link.match(/blogId=([a-zA-Z0-9_-]+)/)
+  const logMatch = link.match(/logNo=(\d+)/)
+  if (pvMatch && logMatch) {
+    return `https://blog.naver.com/${pvMatch[1]}/${logMatch[1]}`
+  }
+  let normalized = link.replace('://m.blog.naver.com/', '://blog.naver.com/')
+  // 프로토콜이 없으면 https:// 추가 (상대 경로 404 방지)
+  if (!/^https?:\/\//i.test(normalized)) {
+    normalized = normalized.startsWith('//') ? `https:${normalized}` : `https://${normalized}`
+  }
+  return normalized
+}
+
 export interface BlogPost {
   title: string
   link: string
@@ -57,9 +76,9 @@ function parseRssXml(xml: string, blogId: string): BlogPost[] {
       || itemXml.match(/<title>([\s\S]*?)<\/title>/)
     const title = titleMatch ? titleMatch[1].trim() : ''
 
-    // 링크 추출
+    // 링크 추출 + 정규화
     const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/)
-    const link = linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`
+    const link = normalizePostLink(linkMatch ? linkMatch[1].trim() : `https://blog.naver.com/${blogId}`)
 
     // 설명 추출 (HTML 원본 보존 - 이미지 태그 감지에 필요)
     const descMatch = itemXml.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)
@@ -169,7 +188,7 @@ export async function fetchBlogPostsViaSearch(
 
     const posts = userPosts.map((item: { title: string; link: string; description: string; postdate: string }) => ({
       title: item.title,
-      link: item.link,
+      link: normalizePostLink(item.link),
       description: item.description,
       postdate: item.postdate || '',
     }))

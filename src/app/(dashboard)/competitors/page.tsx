@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays } from 'lucide-react'
+import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { PlanGateAlert } from '@/components/plan-gate-alert'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
+import { ensureUrl } from '@/lib/utils/text'
 
 // === 타입 ===
 
@@ -63,6 +64,12 @@ interface TitlePatternWord {
   count: number
 }
 
+interface ImageAnalysis {
+  totalImages: number
+  imageTypes: string[]
+  recommendation: string
+}
+
 interface AiInsights {
   summary: string
   topPatterns: string[]
@@ -72,6 +79,7 @@ interface AiInsights {
   recommendedTone?: string
   relatedKeywords?: string[]
   titleSuggestions: string[]
+  imageAnalysis?: ImageAnalysis
 }
 
 // === 날짜 표시 헬퍼 ===
@@ -396,7 +404,7 @@ export default function CompetitorsPage() {
                         </td>
                         <td className="py-3 pr-4">
                           <a
-                            href={comp.link}
+                            href={ensureUrl(comp.link)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group flex items-start gap-1 font-medium hover:text-primary"
@@ -668,6 +676,27 @@ export default function CompetitorsPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* 이미지 전략 분석 */}
+                  {aiInsights.imageAnalysis && (
+                    <div>
+                      <h4 className="mb-2 font-medium flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4 text-emerald-500" />
+                        이미지 전략 분석
+                        <Badge variant="secondary" className="text-xs">{aiInsights.imageAnalysis.totalImages}장 분석</Badge>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {aiInsights.imageAnalysis.imageTypes.map((type, i) => (
+                            <Badge key={i} variant="outline" className="border-emerald-200 text-emerald-700">{type}</Badge>
+                          ))}
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+                          {aiInsights.imageAnalysis.recommendation}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

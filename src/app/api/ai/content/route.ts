@@ -514,7 +514,7 @@ export async function POST(request: NextRequest) {
       additionalKeywords: additionalKeywords.length > 0 ? additionalKeywords : undefined,
       contentType: requestedType || detectContentType(keyword.trim()),
       targetLength: targetLength || 'medium',
-      includeFaq: includeFaq !== false,
+      includeFaq: includeFaq === true,
       businessInfo: businessInfo?.name ? businessInfo : undefined,
       contentDirection: typeof contentDirection === 'string' && contentDirection.trim() ? contentDirection.trim() : undefined,
     }
@@ -775,7 +775,7 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
     const hasEnrichment = Object.keys(enrichment).length > 0
 
     try {
-      const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true })
+      const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 4096 })
 
       const parsed = parseGeminiJson<{
         title: string

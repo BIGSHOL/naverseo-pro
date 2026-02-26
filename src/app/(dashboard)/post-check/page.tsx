@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { ensureUrl } from '@/lib/utils/text'
 
 interface PostCheckResult {
   title: string
@@ -211,7 +212,7 @@ export default function PostCheckPage() {
                         )}
                       </div>
                       <a
-                        href={post.link}
+                        href={ensureUrl(post.link)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="shrink-0"
@@ -263,7 +264,7 @@ export default function PostCheckPage() {
                       <p className="text-sm flex-1 min-w-0 truncate">{post.title}</p>
                       <Badge variant="outline" className="text-xs shrink-0">색인됨</Badge>
                       <a
-                        href={post.link}
+                        href={ensureUrl(post.link)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="shrink-0"

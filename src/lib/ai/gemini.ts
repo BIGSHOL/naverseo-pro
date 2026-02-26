@@ -1,6 +1,5 @@
 // AI 유틸리티 (Gemini + Claude 이중 지원)
 
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import Anthropic from '@anthropic-ai/sdk'
 
 export type AiProvider = 'gemini' | 'claude'
@@ -8,11 +7,21 @@ export type AiProvider = 'gemini' | 'claude'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any
 
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+
+/**
+ * Gemini REST API 직접 호출 (thinkingConfig 지원)
+ *
+ * thinkingBudget: Gemini 2.5 Flash의 내부 reasoning 토큰 제한
+ *   - 0: thinking 완전 비활성 (가장 빠름, 10~15초)
+ *   - 1024~2048: 짧은 thinking 허용 (15~30초)
+ *   - 미지정/높은값: 모델이 자유롭게 thinking (1~3분+, 504 위험)
+ */
 export async function callGemini(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number = 4096,
-  options?: { jsonMode?: boolean }
+  options?: { jsonMode?: boolean; thinkingBudget?: number }
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
 
@@ -20,21 +29,47 @@ export async function callGemini(
     throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: systemPrompt,
+  const url = `${GEMINI_API_BASE}/gemini-2.5-flash:generateContent?key=${apiKey}`
+
+  // thinkingBudget 기본값: 1024 (빠른 응답 보장, 504 방지)
+  const thinkingBudget = options?.thinkingBudget ?? 1024
+
+  const body = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
     generationConfig: {
       maxOutputTokens: maxTokens,
       temperature: 0.7,
       ...(options?.jsonMode && { responseMimeType: 'application/json' }),
+      thinkingConfig: {
+        thinkingBudget: thinkingBudget,
+      },
     },
-  })
+  }
 
   try {
-    const result = await model.generateContent(userMessage)
-    const response = result.response
-    return response.text()
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      const errBody = await res.text()
+      if (res.status === 429 || errBody.includes('quota') || errBody.includes('Too Many Requests')) {
+        throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
+      }
+      throw new Error(`Gemini API 오류 (${res.status}): ${errBody.substring(0, 200)}`)
+    }
+
+    const data = await res.json()
+    const candidate = data.candidates?.[0]
+    if (!candidate?.content?.parts?.[0]?.text) {
+      const reason = candidate?.finishReason || 'UNKNOWN'
+      throw new Error(`Gemini 응답이 비어있습니다 (finishReason: ${reason})`)
+    }
+
+    return candidate.content.parts[0].text
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
@@ -42,6 +77,90 @@ export async function callGemini(
     }
     throw err
   }
+}
+
+/**
+ * Gemini Vision API: 이미지 URL 목록을 분석
+ * 이미지를 fetch → base64 → Gemini에 전달
+ *
+ * @param imageUrls 분석할 이미지 URL 배열 (최대 10장)
+ * @param prompt 분석 지시문
+ * @returns AI 분석 텍스트
+ */
+export async function analyzeImagesWithGemini(
+  imageUrls: string[],
+  prompt: string,
+  options?: { maxImages?: number; thinkingBudget?: number }
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!apiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
+
+  const maxImages = options?.maxImages ?? 10
+  const urls = imageUrls.slice(0, maxImages)
+
+  // 이미지 URL → base64 병렬 변환 (실패한 이미지는 건너뜀)
+  const imageParts: { inline_data: { mime_type: string; data: string } }[] = []
+  const fetchResults = await Promise.allSettled(
+    urls.map(async (url) => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 5000)
+      try {
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'Referer': 'https://m.blog.naver.com/' },
+        })
+        if (!res.ok) return null
+        const contentType = res.headers.get('content-type') || 'image/jpeg'
+        const buffer = await res.arrayBuffer()
+        const base64 = Buffer.from(buffer).toString('base64')
+        return { mime_type: contentType.split(';')[0], data: base64 }
+      } finally {
+        clearTimeout(timer)
+      }
+    })
+  )
+
+  for (const result of fetchResults) {
+    if (result.status === 'fulfilled' && result.value) {
+      imageParts.push({ inline_data: result.value })
+    }
+  }
+
+  if (imageParts.length === 0) {
+    return '이미지를 가져올 수 없어 분석을 건너뛰었습니다.'
+  }
+
+  const url = `${GEMINI_API_BASE}/gemini-2.5-flash:generateContent?key=${apiKey}`
+  const body = {
+    contents: [{
+      role: 'user',
+      parts: [
+        ...imageParts,
+        { text: prompt },
+      ],
+    }],
+    generationConfig: {
+      maxOutputTokens: 1024,
+      temperature: 0.3,
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: options?.thinkingBudget ?? 0 },
+    },
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.error('[GeminiVision] API 오류:', res.status, errBody.substring(0, 200))
+    throw new Error(`Gemini Vision API 오류 (${res.status})`)
+  }
+
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
 /**
@@ -121,7 +240,7 @@ export async function callAI(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number = 4096,
-  options?: { jsonMode?: boolean }
+  options?: { jsonMode?: boolean; thinkingBudget?: number }
 ): Promise<string> {
   if (provider === 'claude') {
     return callClaude(systemPrompt, userMessage, maxTokens, options)

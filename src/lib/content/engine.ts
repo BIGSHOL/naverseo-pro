@@ -47,7 +47,7 @@ export interface ContentGenerationRequest {
   contentType?: ContentType    // 자동 감지 또는 수동 지정
   targetLength?: 'short' | 'medium' | 'long' // 짧은(1000자), 중간(2000자), 긴(3000자+)
   includeImages?: boolean      // 이미지 위치 표시 여부 (기본: true)
-  includeFaq?: boolean         // FAQ 섹션 포함 여부 (기본: true)
+  includeFaq?: boolean         // FAQ 섹션 포함 여부 (기본: false)
   businessInfo?: BusinessInfo  // 내 업체 홍보글 모드
   // 고급 옵션
   advancedOptions?: {
@@ -624,8 +624,11 @@ A, B, C, D, E 같은 가짜 업체 목록을 생성하지 마세요.`
     }
   }
 
-  if (request.includeFaq !== false) {
-    prompt += `\n\n본문 하단에 "자주 묻는 질문 (FAQ)" 섹션도 포함해주세요 (3~4개 질문).`
+  if (request.includeFaq === true) {
+    prompt += `\n\n본문 하단에 "자주 묻는 질문" 섹션을 포함해주세요 (3~4개).
+- 실제 사용자가 네이버에 검색할 법한 구체적인 질문으로 구성
+- "시작하기 좋은 시기는?" 같은 뻔한 질문 금지
+- 키워드와 직접 관련된 비용, 방법, 비교, 주의사항 등 실용적 질문 위주`
   }
 
   if (!isPromo) {

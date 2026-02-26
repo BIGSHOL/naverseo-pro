@@ -18,6 +18,7 @@ import {
 import Link from 'next/link'
 import { PLANS, type Plan } from '@/types/database'
 import { timeAgo } from '@/lib/utils/date'
+import { ensureUrl } from '@/lib/utils/text'
 
 // ---------- 타입 ----------
 
@@ -380,7 +381,7 @@ export default function DashboardPage() {
                   <div>
                     <h3 className="font-semibold text-lg">{blogProfile.blogName}</h3>
                     <a
-                      href={blogProfile.blogUrl}
+                      href={ensureUrl(blogProfile.blogUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"

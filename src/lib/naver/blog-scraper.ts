@@ -19,7 +19,11 @@ import { extractPostMetaData, type PostMetaData } from './post-meta-extractor'
 export interface ScrapedPostData {
     charCount: number    // 실제 본문 글자수
     imageCount: number   // 실제 이미지 개수
+    videoCount: number   // 동영상 개수 (네이버 동영상, 유튜브 임베드 등)
+    linkCount: number    // 본문 내 링크 개수
+    tableCount: number   // 표 개수
     hasImage: boolean
+    imageUrls: string[]  // 콘텐츠 이미지 URL 목록 (AI 분석용)
     isScrapped: true     // 스크래핑 성공 여부 (폴백과 구분)
     meta?: PostMetaData  // 메타 데이터 (태그, 카테고리, 링크 분석)
     commentCount: number | null   // v4: 댓글 수 (추출 실패 시 null)
@@ -122,10 +126,50 @@ function extractSympathyCount(html: string): number | null {
     return null
 }
 
-function parsePostHtml(html: string): { charCount: number; imageCount: number; commentCount: number | null; sympathyCount: number | null } {
+function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null } {
     // 이미지 카운트 (전체 HTML에서)
     const imgMatches = html.match(/<img[\s>]/gi)
     const imageCount = imgMatches ? imgMatches.length : 0
+
+    // 이미지 URL 추출 (실제 콘텐츠 이미지만)
+    const imageUrls: string[] = []
+    const imgUrlRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi
+    let imgUrlMatch: RegExpExecArray | null
+    while ((imgUrlMatch = imgUrlRegex.exec(html)) !== null) {
+        const src = imgUrlMatch[1]
+        // 네이버 블로그 콘텐츠 이미지만 (아이콘/UI 이미지 제외)
+        if (src.includes('postfiles') || src.includes('blogfiles') || src.includes('pstatic.net/mblogthumb')) {
+            imageUrls.push(src)
+        }
+    }
+
+    // 동영상 카운트 (네이버 동영상, 유튜브 임베드, video 태그)
+    const videoPatterns = [
+        /<video[\s>]/gi,
+        /se-video/gi,
+        /naver\.com\/video/gi,
+        /tv\.naver\.com/gi,
+        /youtube\.com\/embed/gi,
+        /youtu\.be/gi,
+        /class="[^"]*movie[^"]*"/gi,
+    ]
+    let videoCount = 0
+    for (const pattern of videoPatterns) {
+        const matches = html.match(pattern)
+        if (matches) videoCount += matches.length
+    }
+
+    // 본문 내 링크 카운트
+    const linkMatches = html.match(/<a\s+[^>]*href=["']https?:\/\/[^"']+["'][^>]*>/gi)
+    const linkCount = linkMatches ? linkMatches.length : 0
+
+    // 표 카운트
+    const tablePatterns = [/<table[\s>]/gi, /se-table/gi]
+    let tableCount = 0
+    for (const pattern of tablePatterns) {
+        const matches = html.match(pattern)
+        if (matches) tableCount += matches.length
+    }
 
     let bodyHtml = ''
 
@@ -210,7 +254,7 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; c
     const commentCount = extractCommentCount(html)
     const sympathyCount = extractSympathyCount(html)
 
-    return { charCount: text.length, imageCount, commentCount, sympathyCount }
+    return { charCount: text.length, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount }
 }
 
 /**
@@ -323,7 +367,7 @@ export async function scrapeBlogPost(
             }
 
             const html = await res.text()
-            const { charCount, imageCount, commentCount, sympathyCount } = parsePostHtml(html)
+            const { charCount, imageCount, videoCount, linkCount, tableCount, imageUrls, commentCount, sympathyCount } = parsePostHtml(html)
 
             // 공감 수: HTML에서 추출 실패 시 Like API로 폴백
             let finalSympathyCount = sympathyCount
@@ -334,12 +378,16 @@ export async function scrapeBlogPost(
                 }
             }
 
-            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, 댓글${commentCount ?? '?'}, 공감${finalSympathyCount ?? '?'} ← ${mobileUrl}`)
+            console.log(`[Scraper] 파싱 성공: ${charCount}자, ${imageCount}이미지, ${videoCount}동영상, ${linkCount}링크, ${tableCount}표, 댓글${commentCount ?? '?'}, 공감${finalSympathyCount ?? '?'} ← ${mobileUrl}`)
 
             const result: ScrapedPostData = {
                 charCount,
                 imageCount,
+                videoCount,
+                linkCount,
+                tableCount,
                 hasImage: imageCount > 0,
+                imageUrls,
                 isScrapped: true,
                 commentCount,
                 sympathyCount: finalSympathyCount,

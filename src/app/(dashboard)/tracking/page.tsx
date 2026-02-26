@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ensureUrl } from '@/lib/utils/text'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { timeAgo } from '@/lib/utils/date'
 
@@ -515,7 +516,7 @@ export default function TrackingPage() {
                       <p className="truncate font-semibold">{kw.keyword}</p>
                       <div className="mt-0.5 flex items-center gap-2">
                         <a
-                          href={kw.blog_url}
+                          href={ensureUrl(kw.blog_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1 truncate text-xs text-muted-foreground hover:text-primary"

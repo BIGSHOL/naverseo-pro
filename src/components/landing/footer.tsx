@@ -20,6 +20,12 @@ export function Footer() {
             >
               개인정보처리방침
             </Link>
+            <Link
+              href="/updates"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              업데이트 내역
+            </Link>
             <a
               href="mailto:soseon203@gmail.com"
               className="text-sm text-muted-foreground hover:text-foreground"

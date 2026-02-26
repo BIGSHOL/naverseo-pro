@@ -63,15 +63,26 @@ export function scorePost(
   else if (engagement >= 10) score += 2
   else if (engagement >= 3) score += 1
 
-  // score 0~15 → 등급 매핑 (v6: 저품질 폐지, 5단계)
+  // score 0~15 → 16등급 매핑 (v7: 블로그 지수와 동일한 16등급 체계)
   let tier: number
   let category: string
   let label: string
 
-  if (score >= 14) { tier = 5; category = '파워'; label = '파워' }
-  else if (score >= 12) { tier = 4; category = '최적화'; label = '최적화' }
-  else if (score >= 8) { tier = 3; category = '준최적화'; label = '준최적화' }
-  else if (score >= 4) { tier = 2; category = '일반'; label = '일반' }
+  if (score >= 15) { tier = 16; category = '파워'; label = '파워' }
+  else if (score >= 14) { tier = 15; category = '최적화+'; label = '최적화4+' }
+  else if (score >= 13) { tier = 14; category = '최적화+'; label = '최적화3+' }
+  else if (score >= 12) { tier = 13; category = '최적화+'; label = '최적화2+' }
+  else if (score >= 11) { tier = 12; category = '최적화+'; label = '최적화1+' }
+  else if (score >= 10) { tier = 11; category = '최적화'; label = '최적화3' }
+  else if (score >= 9) { tier = 10; category = '최적화'; label = '최적화2' }
+  else if (score >= 8) { tier = 9; category = '최적화'; label = '최적화1' }
+  else if (score >= 7) { tier = 8; category = '준최적화'; label = '준최적화7' }
+  else if (score >= 6) { tier = 7; category = '준최적화'; label = '준최적화6' }
+  else if (score >= 5) { tier = 6; category = '준최적화'; label = '준최적화5' }
+  else if (score >= 4) { tier = 5; category = '준최적화'; label = '준최적화4' }
+  else if (score >= 3) { tier = 4; category = '준최적화'; label = '준최적화3' }
+  else if (score >= 2) { tier = 3; category = '준최적화'; label = '준최적화2' }
+  else if (score >= 1) { tier = 2; category = '준최적화'; label = '준최적화1' }
   else { tier = 1; category = '일반'; label = '일반' }
 
   return { score, tier, label, category }

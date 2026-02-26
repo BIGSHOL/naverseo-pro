@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     // ===== 상세 분석 추가 (블로그 스크래핑 시스템 통합) =====
     let detailedAnalysis: PostMetaData | null = null
-    let scrapedData: { charCount: number; imageCount: number; hasImage: boolean } | null = null
+    let scrapedData: { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; hasImage: boolean; imageUrls: string[] } | null = null
 
     try {
       // 모바일 URL로 변환하여 상세 스크래핑 시도
@@ -186,7 +186,11 @@ export async function POST(request: NextRequest) {
           scrapedData = {
             charCount: scraped.charCount,
             imageCount: scraped.imageCount,
+            videoCount: scraped.videoCount,
+            linkCount: scraped.linkCount,
+            tableCount: scraped.tableCount,
             hasImage: scraped.hasImage,
+            imageUrls: scraped.imageUrls,
           }
         }
 
@@ -211,7 +215,11 @@ export async function POST(request: NextRequest) {
         scrapedData?: {
           charCount: number
           imageCount: number
+          videoCount: number
+          linkCount: number
+          tableCount: number
           hasImage: boolean
+          imageUrls: string[]
         }
       }
     } = {

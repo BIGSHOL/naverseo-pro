@@ -56,6 +56,10 @@ export async function scrapeBlogProfile(blogId: string): Promise<BlogProfileData
         // 일일 방문자 수 추출 (__INITIAL_STATE__ 내 dayVisitorCount)
         const dayVisitorCount = extractDayVisitorCount(html)
 
+        // 이웃 수 / 구독자 수 추출
+        const buddyCount = extractBuddyCount(html)
+        const subscriberCount = extractSubscriberCount(html)
+
         // 블로그 연차 계산
         let blogAgeDays: number | null = null
         if (blogStartDate) {
@@ -65,9 +69,9 @@ export async function scrapeBlogProfile(blogId: string): Promise<BlogProfileData
             }
         }
 
-        console.log(`[ProfileScraper] 프로필 추출: 총 ${totalPostCount ?? '?'}개 포스트, 개설일 ${blogStartDate ?? '추정 불가'}, 연차 ${blogAgeDays ?? '?'}일, 오늘 방문자 ${dayVisitorCount ?? '?'}명`)
+        console.log(`[ProfileScraper] 프로필 추출: 총 ${totalPostCount ?? '?'}개 포스트, 개설일 ${blogStartDate ?? '추정 불가'}, 연차 ${blogAgeDays ?? '?'}일, 오늘 방문자 ${dayVisitorCount ?? '?'}명, 이웃 ${buddyCount ?? '?'}명, 구독자 ${subscriberCount ?? '?'}명`)
 
-        return { totalPostCount, blogStartDate, blogAgeDays, dayVisitorCount }
+        return { totalPostCount, blogStartDate, blogAgeDays, dayVisitorCount, buddyCount, subscriberCount }
     } catch (err) {
         const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : 'Unknown error'
         console.warn(`[ProfileScraper] 오류: ${errMsg}`)
@@ -110,6 +114,43 @@ function extractDayVisitorCount(html: string): number | null {
     const patterns = [
         /"dayVisitorCount"\s*:\s*(\d+)/,           // __INITIAL_STATE__ JSON
         /오늘\s+([\d,]+)/,                          // "오늘 6,623" 텍스트
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) {
+            return parseInt(match[1].replace(/,/g, ''), 10)
+        }
+    }
+    return null
+}
+
+/**
+ * HTML에서 이웃 수 추출
+ * __INITIAL_STATE__ 내 buddyCount 또는 "이웃 N" 텍스트에서 추출
+ */
+function extractBuddyCount(html: string): number | null {
+    const patterns = [
+        /"buddyCount"\s*:\s*(\d+)/,              // __INITIAL_STATE__ JSON
+        /"neighborCount"\s*:\s*(\d+)/,           // 대안 키 이름
+        /이웃\s+([\d,]+)/,                         // "이웃 1,234" 텍스트
+    ]
+    for (const pattern of patterns) {
+        const match = html.match(pattern)
+        if (match) {
+            return parseInt(match[1].replace(/,/g, ''), 10)
+        }
+    }
+    return null
+}
+
+/**
+ * HTML에서 구독자 수 추출
+ * __INITIAL_STATE__ 내 subscriberCount 관련 패턴에서 추출
+ */
+function extractSubscriberCount(html: string): number | null {
+    const patterns = [
+        /"subscriberCount"\s*:\s*(\d+)/,         // __INITIAL_STATE__ JSON
+        /"followerCount"\s*:\s*(\d+)/,           // 대안 키 이름
     ]
     for (const pattern of patterns) {
         const match = html.match(pattern)

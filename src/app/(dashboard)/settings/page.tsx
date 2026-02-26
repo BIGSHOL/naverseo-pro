@@ -30,6 +30,7 @@ import { PLANS, type Plan } from '@/types/database'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ensureUrl } from '@/lib/utils/text'
 
 interface ProfileData {
   plan: Plan
@@ -628,7 +629,7 @@ export default function SettingsPage() {
                           )}
                         </div>
                         <a
-                          href={blogProfile.blogUrl}
+                          href={ensureUrl(blogProfile.blogUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"

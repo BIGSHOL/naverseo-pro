@@ -79,6 +79,15 @@ export function jaccardSimilarity(a: string[], b: string[]): number {
 }
 
 /** 블로그 URL에서 블로그 ID 추출 */
+/** URL에 https:// 프로토콜이 없으면 추가 (외부 링크 href용) */
+export function ensureUrl(url: string): string {
+  if (!url) return url
+  const trimmed = url.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.startsWith('//')) return `https:${trimmed}`
+  return `https://${trimmed}`
+}
+
 export function extractBlogId(url: string): string | null {
   const match = url.match(
     /(?:blog\.naver\.com|m\.blog\.naver\.com)\/([a-zA-Z0-9_-]+)/

@@ -37,12 +37,16 @@ export async function GET(request: NextRequest) {
         .single()
 
       if (error || !latestEntry) {
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows found (정상), 그 외는 실제 에러
+          console.error('[BlogIndexHistory] 캐시 조회 실패:', error.message, error.code, error.hint)
+        }
         return NextResponse.json({ cached: null })
       }
 
-      // v5 형식 검증: searchBonus 필드가 없으면 v4 이전 캐시 → 무효화
+      // v5+ 형식 검증: categories 배열이 5축이면 유효 (searchBonus 또는 categories 존재 확인)
       const result = latestEntry.full_result as Record<string, unknown> | null
-      if (!result || !result.searchBonus) {
+      if (!result || (!result.searchBonus && !result.categories)) {
         return NextResponse.json({ cached: null })
       }
 

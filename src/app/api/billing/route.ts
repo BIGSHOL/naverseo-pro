@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,57 +14,21 @@ export async function GET() {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const profileSelect = 'id, plan, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, analysis_reset_date, email, created_at, subscription_status, lemonsqueezy_subscription_id'
-
-    // 유저 클라이언트로 프로필 조회
-    const { data: profile, error: profileError } = await supabase
+    // admin 클라이언트로 프로필 조회 (RLS 우회, 컬럼 누락 방지)
+    const adminDb = createAdminClient()
+    const { data: profile, error: profileError } = await adminDb
       .from('profiles')
-      .select(profileSelect)
+      .select('id, plan, credits_balance, credits_monthly_quota, credits_reset_at, email, created_at, subscription_status, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
     if (profileError) {
-      console.error('[Billing] 유저 클라이언트 프로필 조회 실패:', profileError.message, profileError.code)
-    }
-
-    // 유저 클라이언트 실패 시 admin 클라이언트로 재시도
-    let finalProfile = profile
-    if (!finalProfile) {
-      console.warn('[Billing] 유저 클라이언트 실패 → admin 클라이언트로 재시도')
-      try {
-        const { createAdminClient } = await import('@/lib/supabase/admin')
-        const adminDb = createAdminClient()
-        const { data: adminProfile, error: adminError } = await adminDb
-          .from('profiles')
-          .select(profileSelect)
-          .eq('id', user.id)
-          .single()
-
-        if (adminError) {
-          console.error('[Billing] admin 클라이언트도 실패:', adminError.message)
-        } else {
-          finalProfile = adminProfile
-          console.log('[Billing] admin 클라이언트로 조회 성공, plan:', adminProfile?.plan)
-        }
-      } catch (adminErr) {
-        console.error('[Billing] admin 클라이언트 생성 실패:', adminErr)
-      }
+      console.error('[Billing] 프로필 조회 실패:', profileError.message, profileError.code)
+      return NextResponse.json({ error: '프로필 정보를 불러오지 못했습니다.' }, { status: 500 })
     }
 
     return NextResponse.json({
-      profile: finalProfile || {
-        id: user.id,
-        plan: 'free',
-        credits_balance: 30,
-        credits_monthly_quota: 30,
-        credits_reset_at: null,
-        keywords_used_this_month: 0,
-        content_generated_this_month: 0,
-        analysis_used_today: 0,
-        analysis_reset_date: null,
-        email: user.email,
-        created_at: user.created_at,
-      },
+      profile,
       lemonSqueezyConfigured: !!(process.env.LEMONSQUEEZY_API_KEY && process.env.LEMONSQUEEZY_STORE_ID),
     })
   } catch (error) {

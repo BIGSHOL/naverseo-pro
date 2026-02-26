@@ -120,7 +120,7 @@ export default function ContentPage() {
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [contentType, setContentType] = useState<ContentType | ''>('')
   const [contentDirection, setContentDirection] = useState('')
-  const [includeFaq, setIncludeFaq] = useState(true)
+  const [includeFaq, setIncludeFaq] = useState(false)
 
   // 고급 옵션
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
@@ -1235,7 +1235,7 @@ export default function ContentPage() {
                 </Label>
                 <Input
                   id="content-direction"
-                  placeholder="예: 인재원 학원 방문 후기 느낌으로, 가격 비교 중심으로, 초보자 대상 가이드"
+                  placeholder="예: 실제 사용 후기 느낌으로, 장단점 비교 중심으로, 초보자 눈높이에 맞춰서"
                   value={contentDirection}
                   onChange={(e) => setContentDirection(e.target.value)}
                   disabled={loading}
