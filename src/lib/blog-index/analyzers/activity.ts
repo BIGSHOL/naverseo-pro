@@ -14,6 +14,8 @@ import type { BlogPost, AnalysisCategory, BlogProfileData } from '../types'
 export function analyzeTrust(
   posts: BlogPost[],
   blogProfileData?: BlogProfileData | null,
+  /** 엔진에서 계산한 정확한 운영 일수 (검색API 최초포스팅 > 개설일 > 포스트최소일 순) */
+  actualBlogAgeDays?: number | null,
 ): { category: AnalysisCategory; frequency: string; recentPostDays: number | null } {
   const maxScore = 25
   const details: string[] = []
@@ -136,23 +138,26 @@ export function analyzeTrust(
     details.push(`누적 포스팅: ${totalPostCount}개 (부족)`)
   }
 
-  // === 운영 기간 (3점) — 가장 오래된 포스트 기준 ===
-  const activeSpanDays = dates.length >= 2
-    ? daysBetween(now, dates[dates.length - 1])
-    : null
+  // === 운영 기간 (3점) — 엔진 계산값 우선, 없으면 포스트 기준 폴백 ===
+  const activeSpanDays = actualBlogAgeDays
+    ?? (dates.length >= 2 ? daysBetween(now, dates[dates.length - 1]) : null)
 
   if (activeSpanDays !== null) {
+    const label = activeSpanDays >= 365
+      ? `${Math.floor(activeSpanDays / 365)}년 ${Math.floor((activeSpanDays % 365) / 30)}개월`
+      : `${Math.floor(activeSpanDays / 30)}개월`
+
     if (activeSpanDays >= 1095) { // 3년+
       score += 3
-      details.push(`운영 기간: ${Math.floor(activeSpanDays / 365)}년+ (최우수)`)
+      details.push(`운영 기간: ${label} (최우수)`)
     } else if (activeSpanDays >= 365) { // 1년+
       score += 2
-      details.push(`운영 기간: ${Math.floor(activeSpanDays / 365)}년+ (양호)`)
+      details.push(`운영 기간: ${label} (양호)`)
     } else if (activeSpanDays >= 180) { // 6개월+
       score += 1
-      details.push(`운영 기간: ${Math.floor(activeSpanDays / 30)}개월 (보통)`)
+      details.push(`운영 기간: ${label} (보통)`)
     } else {
-      details.push(`운영 기간: ${Math.floor(activeSpanDays / 30)}개월 (초기)`)
+      details.push(`운영 기간: ${label} (초기)`)
     }
   }
 

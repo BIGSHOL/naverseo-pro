@@ -29,6 +29,9 @@ import {
   Sparkles,
   Crown,
   ShieldAlert,
+  Pencil,
+  Type,
+  Focus,
   Eye,
   MessageCircle,
   Heart,
@@ -458,37 +461,50 @@ function getDaysAgoBadge(daysAgo: number) {
   return <Badge variant="outline" className="text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
 }
 
-// ===== 벤치마크 바 컴포넌트 =====
+// ===== 벤치마크 항목 컴포넌트 =====
 
-function BenchmarkBar({ label, mine, target, targetLabel, max }: {
-  label: string; mine: number; target: number; targetLabel: string; max: number
+function BenchmarkItem({ label, mine, target, targetLabel, max, unit, icon }: {
+  label: string; mine: number; target: number; targetLabel: string; max: number; unit?: string; icon: React.ReactNode
 }) {
+  const ratio = target > 0 ? Math.round((mine / target) * 100) : 100
   const minePct = Math.min(100, (mine / max) * 100)
   const targetPct = Math.min(100, (target / max) * 100)
   const isGood = mine >= target
+  const isClose = !isGood && ratio >= 70
+  const statusColor = isGood ? 'text-green-600 dark:text-green-400' : isClose ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400'
+  const barColor = isGood ? 'bg-green-500' : isClose ? 'bg-amber-400' : 'bg-red-400'
+  const bgColor = isGood ? 'bg-green-50 dark:bg-green-950/30' : isClose ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-red-50 dark:bg-red-950/30'
+  const statusText = isGood ? '달성' : isClose ? '근접' : '부족'
+  const u = unit ?? ''
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className={`font-bold ${isGood ? 'text-green-600' : 'text-orange-600'}`}>
-          {mine}{typeof mine === 'number' && mine % 1 !== 0 ? '' : ''}
+    <div className={`rounded-lg border p-3 ${bgColor}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">{icon}</span>
+          <span className="text-xs font-medium">{label}</span>
+        </div>
+        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${statusColor} ${bgColor} ring-1 ring-current/20`}>
+          {statusText}
         </span>
       </div>
-      <div className="relative h-3 rounded-full bg-muted">
+      <div className="flex items-baseline gap-1 mb-1.5">
+        <span className={`text-lg font-bold ${statusColor}`}>{mine}{u}</span>
+        <span className="text-[10px] text-muted-foreground">/ {targetLabel} {target}{u}</span>
+      </div>
+      <div className="relative h-2 rounded-full bg-muted/80">
         <div
-          className={`absolute inset-y-0 left-0 rounded-full ${isGood ? 'bg-green-500' : 'bg-orange-400'}`}
+          className={`absolute inset-y-0 left-0 rounded-full transition-all ${barColor}`}
           style={{ width: `${minePct}%` }}
         />
-        {/* 기준점 마커 */}
         <div
-          className="absolute top-0 h-full w-0.5 bg-foreground/40"
+          className="absolute top-0 h-full w-0.5 bg-foreground/50 rounded"
           style={{ left: `${targetPct}%` }}
+          title={`${targetLabel}: ${target}${u}`}
         />
       </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>0</span>
-        <span>{targetLabel}: {target}</span>
+      <div className="mt-1 text-right text-[10px] text-muted-foreground">
+        달성률 {ratio}%
       </div>
     </div>
   )
@@ -1143,62 +1159,93 @@ export default function BlogIndexPage() {
             </div>
             {/* v9: 검색 보너스 별도 카드 제거 - SEO 최적화가 본축으로 흡수됨 */}
 
-            {/* ===== 3행: 벤치마크 비교 (컴팩트 가로 레이아웃) ===== */}
-            {result.benchmark && (
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <BarChart3 className="h-4 w-4" />
-                    <p className="text-sm font-semibold">벤치마크 비교</p>
-                    {result.blogCategory && result.blogCategory !== 'general' && (
-                      <span className="text-xs text-muted-foreground">
-                        — {BLOG_CATEGORY_LABELS[result.blogCategory as keyof typeof BLOG_CATEGORY_LABELS] || result.blogCategory} 기준
-                        {result.benchmarkSource === 'accumulated' && result.benchmarkSampleCount
-                          ? ` (${result.benchmarkSampleCount}개 블로그 데이터)`
-                          : ' (기본값)'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    <BenchmarkBar label="주간 포스팅" mine={result.benchmark.postingFrequency.mine} target={result.benchmark.postingFrequency.recommended} targetLabel="권장" max={Math.max(result.benchmark.postingFrequency.topBlogger, result.benchmark.postingFrequency.mine, 7)} />
-                    <BenchmarkBar label="제목 길이" mine={result.benchmark.avgTitleLength.mine} target={result.benchmark.avgTitleLength.optimal} targetLabel="최적" max={50} />
-                    <BenchmarkBar label="콘텐츠 깊이" mine={result.benchmark.avgContentLength.mine} target={result.benchmark.avgContentLength.recommended} targetLabel="권장" max={Math.max(200, result.benchmark.avgContentLength.mine)} />
-                    <BenchmarkBar label="이미지 포함률 (%)" mine={result.benchmark.imageRate.mine} target={result.benchmark.imageRate.recommended} targetLabel="권장" max={100} />
-                    <BenchmarkBar label="주제 집중도 (%)" mine={result.benchmark.topicFocus.mine} target={result.benchmark.topicFocus.recommended} targetLabel="권장" max={100} />
-                    {result.benchmark.dailyVisitors && (
-                      <BenchmarkBar label="일평균 방문자" mine={result.benchmark.dailyVisitors.mine} target={result.benchmark.dailyVisitors.recommended} targetLabel="권장" max={Math.max(result.benchmark.dailyVisitors.topBlogger, result.benchmark.dailyVisitors.mine, 1000)} />
-                    )}
-                    {result.benchmark.avgCommentCount && (
-                      <BenchmarkBar label="평균 댓글 수" mine={result.benchmark.avgCommentCount.mine} target={result.benchmark.avgCommentCount.recommended} targetLabel="권장" max={Math.max(30, result.benchmark.avgCommentCount.mine)} />
-                    )}
-                    {result.benchmark.avgSympathyCount && (
-                      <BenchmarkBar label="평균 공감 수" mine={result.benchmark.avgSympathyCount.mine} target={result.benchmark.avgSympathyCount.recommended} targetLabel="권장" max={Math.max(50, result.benchmark.avgSympathyCount.mine)} />
-                    )}
-                    {/* 포스팅 빈도 비교 미니 차트 */}
-                    <div className="rounded-lg bg-muted/50 p-2.5">
-                      <p className="mb-1 text-[10px] font-medium text-muted-foreground">주간 포스팅 비교</p>
-                      <div className="flex items-end gap-2 h-10">
+            {/* ===== 3행: 벤치마크 비교 ===== */}
+            {result.benchmark && (() => {
+              const bm = result.benchmark!
+              // 전체 달성률 계산
+              const items: { mine: number; target: number }[] = [
+                { mine: bm.postingFrequency.mine, target: bm.postingFrequency.recommended },
+                { mine: bm.avgTitleLength.mine, target: bm.avgTitleLength.optimal },
+                { mine: bm.avgContentLength.mine, target: bm.avgContentLength.recommended },
+                { mine: bm.imageRate.mine, target: bm.imageRate.recommended },
+                { mine: bm.topicFocus.mine, target: bm.topicFocus.recommended },
+              ]
+              if (bm.dailyVisitors) items.push({ mine: bm.dailyVisitors.mine, target: bm.dailyVisitors.recommended })
+              if (bm.avgCommentCount) items.push({ mine: bm.avgCommentCount.mine, target: bm.avgCommentCount.recommended })
+              if (bm.avgSympathyCount) items.push({ mine: bm.avgSympathyCount.mine, target: bm.avgSympathyCount.recommended })
+
+              const achievedCount = items.filter(i => i.mine >= i.target).length
+              const overallPct = Math.round((achievedCount / items.length) * 100)
+              const overallColor = overallPct >= 70 ? 'text-green-600' : overallPct >= 40 ? 'text-amber-600' : 'text-red-500'
+
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <BarChart3 className="h-4 w-4 text-blue-500" />
+                        벤치마크 비교
+                      </CardTitle>
+                      <div className="flex items-center gap-3">
+                        {result.blogCategory && result.blogCategory !== 'general' && (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                            {BLOG_CATEGORY_LABELS[result.blogCategory as keyof typeof BLOG_CATEGORY_LABELS] || result.blogCategory}
+                            {result.benchmarkSource === 'accumulated' && result.benchmarkSampleCount
+                              ? ` (${result.benchmarkSampleCount}개 샘플)`
+                              : ''}
+                          </span>
+                        )}
+                        <div className="text-right">
+                          <p className={`text-lg font-bold ${overallColor}`}>{achievedCount}/{items.length}</p>
+                          <p className="text-[10px] text-muted-foreground">항목 달성</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* 포스팅 빈도 3단 비교 바 */}
+                    <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">주간 포스팅 비교</p>
+                      <div className="flex items-end gap-3 h-16">
                         {[
-                          { label: '나', value: result.benchmark.postingFrequency.mine, color: 'bg-primary' },
-                          { label: '권장', value: result.benchmark.postingFrequency.recommended, color: 'bg-muted-foreground/30' },
-                          { label: '상위', value: result.benchmark.postingFrequency.topBlogger, color: 'bg-green-400' },
+                          { label: '내 블로그', value: bm.postingFrequency.mine, color: 'bg-blue-500' },
+                          { label: '권장', value: bm.postingFrequency.recommended, color: 'bg-muted-foreground/30' },
+                          { label: '상위 블로거', value: bm.postingFrequency.topBlogger, color: 'bg-green-500' },
                         ].map((bar) => {
-                          const maxVal = Math.max(result.benchmark!.postingFrequency.topBlogger, result.benchmark!.postingFrequency.mine, 7)
-                          const h = Math.max(6, (bar.value / maxVal) * 40)
+                          const maxVal = Math.max(bm.postingFrequency.topBlogger, bm.postingFrequency.mine, 7)
+                          const h = Math.max(8, (bar.value / maxVal) * 64)
                           return (
-                            <div key={bar.label} className="flex-1 flex flex-col items-center gap-0.5">
-                              <span className="text-[8px] font-bold">{bar.value}회</span>
-                              <div className={`w-full rounded-t ${bar.color}`} style={{ height: `${h}px` }} />
-                              <span className="text-[7px] text-muted-foreground">{bar.label}</span>
+                            <div key={bar.label} className="flex-1 flex flex-col items-center gap-1">
+                              <span className="text-[11px] font-bold">{bar.value}회</span>
+                              <div className={`w-full rounded-t-md ${bar.color}`} style={{ height: `${h}px` }} />
+                              <span className="text-[10px] text-muted-foreground">{bar.label}</span>
                             </div>
                           )
                         })}
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+
+                    {/* 항목별 벤치마크 카드 그리드 */}
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                      <BenchmarkItem label="주간 포스팅" mine={bm.postingFrequency.mine} target={bm.postingFrequency.recommended} targetLabel="권장" max={Math.max(bm.postingFrequency.topBlogger, bm.postingFrequency.mine, 7)} unit="회" icon={<Pencil className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="제목 길이" mine={bm.avgTitleLength.mine} target={bm.avgTitleLength.optimal} targetLabel="최적" max={50} unit="자" icon={<Type className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="콘텐츠 깊이" mine={bm.avgContentLength.mine} target={bm.avgContentLength.recommended} targetLabel="권장" max={Math.max(200, bm.avgContentLength.mine)} unit="자" icon={<FileText className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="이미지 포함률" mine={bm.imageRate.mine} target={bm.imageRate.recommended} targetLabel="권장" max={100} unit="%" icon={<ImageIcon className="h-3.5 w-3.5" />} />
+                      <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} target={bm.topicFocus.recommended} targetLabel="권장" max={100} unit="%" icon={<Focus className="h-3.5 w-3.5" />} />
+                      {bm.dailyVisitors && (
+                        <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} target={bm.dailyVisitors.recommended} targetLabel="권장" max={Math.max(bm.dailyVisitors.topBlogger, bm.dailyVisitors.mine, 1000)} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
+                      )}
+                      {bm.avgCommentCount && (
+                        <BenchmarkItem label="평균 댓글 수" mine={bm.avgCommentCount.mine} target={bm.avgCommentCount.recommended} targetLabel="권장" max={Math.max(30, bm.avgCommentCount.mine)} unit="개" icon={<MessageCircle className="h-3.5 w-3.5" />} />
+                      )}
+                      {bm.avgSympathyCount && (
+                        <BenchmarkItem label="평균 공감 수" mine={bm.avgSympathyCount.mine} target={bm.avgSympathyCount.recommended} targetLabel="권장" max={Math.max(50, bm.avgSympathyCount.mine)} unit="개" icon={<Heart className="h-3.5 w-3.5" />} />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
 
             {/* ===== AI 심층 분석 (온디맨드) ===== */}
             {!result.aiAnalysis && (

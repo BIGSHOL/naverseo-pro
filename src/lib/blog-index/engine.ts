@@ -134,11 +134,32 @@ export function analyzeBlogIndex(
     .sort((a, b) => a.daysAgo - b.daysAgo)
     .slice(0, 20)
 
+  // v9: 최초 포스팅일 결정 (우선순위: 검색API → 개설일 → 수집 포스트 최소일)
+  // analyzeTrust에 전달하기 위해 먼저 계산
+  const preSortedDates = posts
+    .map((p) => parsePostDate(p.postdate))
+    .filter((d) => !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  let blogAgeDays: number | null = null
+  const firstPostDateStr = blogProfileData?.firstPostDate  // YYYYMMDD
+  const profileStartDate = blogProfileData?.blogStartDate  // YYYY-MM-DD
+
+  if (firstPostDateStr && /^\d{8}$/.test(firstPostDateStr)) {
+    const firstDate = new Date(`${firstPostDateStr.slice(0, 4)}-${firstPostDateStr.slice(4, 6)}-${firstPostDateStr.slice(6, 8)}`)
+    if (!isNaN(firstDate.getTime())) blogAgeDays = daysBetween(now, firstDate)
+  } else if (profileStartDate) {
+    const startDate = new Date(profileStartDate)
+    if (!isNaN(startDate.getTime())) blogAgeDays = daysBetween(now, startDate)
+  } else if (preSortedDates.length > 0) {
+    blogAgeDays = daysBetween(now, preSortedDates[0])
+  }
+
   // 4대 분석 축 + 어뷰징 페널티 실행
   const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId)
   const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts)
   const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
-  const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData)
+  const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays)
   const abusePenalty = analyzeAbuse(posts, scrapedData)
 
   // 4축 (각 25점 × 4 = 100점)
@@ -162,49 +183,28 @@ export function analyzeBlogIndex(
     ? Math.round((posts.reduce((s, p) => s + countImageMarkers(p.description), 0) / posts.length) * 10) / 10
     : 0
 
-  // 블로그 프로필 생성 - v9: 최초 포스팅일 우선순위 (검색API > 개설일 > 수집포스트)
-  const sortedDates = posts
-    .map((p) => parsePostDate(p.postdate))
-    .filter((d) => !isNaN(d.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime())
-
+  // 블로그 프로필 생성 - preSortedDates 재활용
   let postsPerWeek: number | null = null
-  if (sortedDates.length >= 2) {
-    const spanDays = daysBetween(sortedDates[sortedDates.length - 1], sortedDates[0]) || 1
-    postsPerWeek = Math.round((sortedDates.length / spanDays) * 7 * 10) / 10
+  if (preSortedDates.length >= 2) {
+    const spanDays = daysBetween(preSortedDates[preSortedDates.length - 1], preSortedDates[0]) || 1
+    postsPerWeek = Math.round((preSortedDates.length / spanDays) * 7 * 10) / 10
   }
 
-  // v9: 최초 포스팅일 결정 (우선순위: 검색API → 개설일 → 수집 포스트 최소일)
+  // estimatedStartDate + blogAgeEstimated (blogAgeDays는 이미 위에서 계산됨)
   let estimatedStartDate: string | null = null
-  let blogAgeDays: number | null = null
   let blogAgeEstimated = false
 
-  const firstPostDateStr = blogProfileData?.firstPostDate  // YYYYMMDD
-  const profileStartDate = blogProfileData?.blogStartDate  // YYYY-MM-DD
-
   if (firstPostDateStr && /^\d{8}$/.test(firstPostDateStr)) {
-    // 1순위: 검색 API로 조회한 실제 최초 포스팅 날짜
     const y = firstPostDateStr.slice(0, 4)
     const m = firstPostDateStr.slice(4, 6)
     const d = firstPostDateStr.slice(6, 8)
     estimatedStartDate = `${y}.${m}.${d}`
-    const firstDate = new Date(`${y}-${m}-${d}`)
-    if (!isNaN(firstDate.getTime())) {
-      blogAgeDays = daysBetween(now, firstDate)
-    }
     blogAgeEstimated = !(blogProfileData?.firstPostDateAccurate ?? true)
   } else if (profileStartDate) {
-    // 2순위: 프로필 페이지에서 추출한 블로그 개설일
     estimatedStartDate = profileStartDate.replace(/-/g, '.')
-    const startDate = new Date(profileStartDate)
-    if (!isNaN(startDate.getTime())) {
-      blogAgeDays = daysBetween(now, startDate)
-    }
-    blogAgeEstimated = true  // 개설일은 첫 포스팅과 다를 수 있음
-  } else if (sortedDates.length > 0) {
-    // 3순위: 수집된 포스트 중 가장 오래된 것 (가장 부정확)
-    estimatedStartDate = `${sortedDates[0].getFullYear()}.${String(sortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(sortedDates[0].getDate()).padStart(2, '0')}`
-    blogAgeDays = daysBetween(now, sortedDates[0])
+    blogAgeEstimated = true
+  } else if (preSortedDates.length > 0) {
+    estimatedStartDate = `${preSortedDates[0].getFullYear()}.${String(preSortedDates[0].getMonth() + 1).padStart(2, '0')}.${String(preSortedDates[0].getDate()).padStart(2, '0')}`
     blogAgeEstimated = true
   }
 
