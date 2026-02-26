@@ -474,11 +474,14 @@ function getDaysAgoBadge(daysAgo: number) {
 
 // ===== 벤치마크 항목 컴포넌트 (통일 디자인: 0 → 평균 → 상위블로거) =====
 
-function BenchmarkItem({ label, mine, recommended, topBlogger, unit, icon }: {
+function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: rawTop, unit, icon }: {
   label: string; mine: number; recommended: number; topBlogger: number; unit?: string; icon: React.ReactNode
 }) {
+  const mine = rawMine ?? 0
+  const recommended = rawRec ?? 0
+  const topBlogger = rawTop ?? Math.round(recommended * 1.5)
   const u = unit ?? ''
-  const scaleMax = Math.max(topBlogger * 1.15, mine * 1.1, recommended * 1.3)
+  const scaleMax = Math.max(topBlogger * 1.15, mine * 1.1, recommended * 1.3, 1)
   const minePct = Math.min(100, Math.max(0, (mine / scaleMax) * 100))
   const recPct = Math.min(92, Math.max(8, (recommended / scaleMax) * 100))
   const topPct = Math.min(92, Math.max(15, (topBlogger / scaleMax) * 100))
@@ -488,7 +491,7 @@ function BenchmarkItem({ label, mine, recommended, topBlogger, unit, icon }: {
   const barColor = isAboveTop ? 'bg-green-500' : isAboveRec ? 'bg-blue-500' : 'bg-orange-400'
   const statusText = isAboveTop ? '최우수' : isAboveRec ? '달성' : mine >= recommended * 0.7 ? '근접' : '부족'
   const statusColor = isAboveTop ? 'text-green-600' : isAboveRec ? 'text-blue-600' : mine >= recommended * 0.7 ? 'text-amber-600' : 'text-red-500'
-  const formatVal = (v: number) => Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1)
+  const formatVal = (v: number) => v == null ? '0' : Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1)
 
   return (
     <div className="rounded-lg border p-3">
@@ -1214,7 +1217,7 @@ export default function BlogIndexPage() {
                           <Badge className={`text-[10px] ${getGradeColor(algo.grade)}`}>{algo.grade}</Badge>
                         </div>
                         <div className="mt-2 flex items-end gap-1">
-                          <span className={`text-2xl font-bold ${scoreColor}`}>{algo.score.toFixed(1)}</span>
+                          <span className={`text-2xl font-bold ${scoreColor}`}>{(algo.score ?? 0).toFixed(1)}</span>
                           <span className="text-[10px] text-muted-foreground mb-0.5">/100</span>
                         </div>
                         <div className="mt-1.5 h-1.5 rounded-full bg-muted">
@@ -1225,7 +1228,7 @@ export default function BlogIndexPage() {
                           {algo.factors.map((f) => (
                             <div key={f.name} className="flex items-center justify-between text-[9px]">
                               <span className="text-muted-foreground">{f.name} ({Math.round(f.weight * 100)}%)</span>
-                              <span className="font-medium">{f.score}/{25} → {f.contribution.toFixed(1)}점</span>
+                              <span className="font-medium">{f.score ?? 0}/{25} → {(f.contribution ?? 0).toFixed(1)}점</span>
                             </div>
                           ))}
                         </div>
@@ -1281,13 +1284,13 @@ export default function BlogIndexPage() {
             {/* ===== 3행: 벤치마크 비교 ===== */}
             {result.benchmark && (() => {
               const bm = result.benchmark!
-              // 전체 달성률 계산
+              // 전체 달성률 계산 (캐시된 이전 데이터에 값이 없을 수 있으므로 ?? 0 방어)
               const items: { mine: number; target: number }[] = [
-                { mine: bm.postingFrequency.mine, target: bm.postingFrequency.recommended },
-                { mine: bm.avgTitleLength.mine, target: bm.avgTitleLength.optimal },
-                { mine: bm.avgContentLength.mine, target: bm.avgContentLength.recommended },
-                { mine: bm.imageRate.mine, target: bm.imageRate.recommended },
-                { mine: bm.topicFocus.mine, target: bm.topicFocus.recommended },
+                { mine: bm.postingFrequency?.mine ?? 0, target: bm.postingFrequency?.recommended ?? 3 },
+                { mine: bm.avgTitleLength?.mine ?? 0, target: bm.avgTitleLength?.optimal ?? 25 },
+                { mine: bm.avgContentLength?.mine ?? 0, target: bm.avgContentLength?.recommended ?? 150 },
+                { mine: bm.imageRate?.mine ?? 0, target: bm.imageRate?.recommended ?? 80 },
+                { mine: bm.topicFocus?.mine ?? 0, target: bm.topicFocus?.recommended ?? 60 },
               ]
               if (bm.dailyVisitors) items.push({ mine: bm.dailyVisitors.mine, target: bm.dailyVisitors.recommended })
               if (bm.avgCommentCount) items.push({ mine: bm.avgCommentCount.mine, target: bm.avgCommentCount.recommended })
