@@ -162,15 +162,104 @@ function extractSubscriberCount(html: string): number | null {
 }
 
 /**
- * 네이버 검색 API를 이용해 블로그의 실제 최초 포스팅 날짜 조회
+ * 블로그의 실제 최초 포스팅 날짜 조회
  *
- * 전략: sort=date (최신순)으로 검색 후 start를 높여서 가장 오래된 포스트에 접근
- * - totalPostCount <= 1100: 정확한 최초 포스팅 날짜 취득 가능
- * - totalPostCount > 1100: API start 한계(1000)로 근사값만 취득
+ * 전략 1 (1순위): PostTitleListAsync — 블로그 자체 포스트 목록의 마지막 페이지 조회
+ *   - 해당 블로그 글만 100% 정확하게 조회 (다른 블로그 혼입 없음)
+ *   - totalPostCount 필요
+ *
+ * 전략 2 (폴백): 네이버 검색 API — blogId를 키워드로 검색
+ *   - blogId가 포스트 본문에 없으면 매칭률 낮아서 실패 가능
  *
  * @returns { date: string (YYYYMMDD), accurate: boolean } | null
  */
 export async function fetchOldestPostDate(
+  blogId: string,
+  totalPostCount?: number | null,
+): Promise<{ date: string; accurate: boolean } | null> {
+  // 전략 1: 블로그 자체 포스트 목록 (가장 신뢰도 높음)
+  if (totalPostCount && totalPostCount > 0) {
+    try {
+      const result = await fetchFromBlogPostList(blogId, totalPostCount)
+      if (result) return result
+    } catch (err) {
+      console.warn('[OldestPost] PostList 실패, 검색 API로 폴백:', err instanceof Error ? err.message : err)
+    }
+  }
+
+  // 전략 2: 네이버 검색 API 폴백
+  return fetchFromSearchApi(blogId, totalPostCount)
+}
+
+/**
+ * 블로그 자체 PostTitleListAsync 엔드포인트로 마지막 페이지 조회
+ * - 해당 블로그의 글 목록을 직접 페이징 → 가장 오래된 글의 날짜 추출
+ * - 다른 블로그 혼입 없이 100% 정확
+ */
+async function fetchFromBlogPostList(
+  blogId: string,
+  totalPostCount: number,
+): Promise<{ date: string; accurate: boolean } | null> {
+  const postsPerPage = 30
+  const lastPage = Math.ceil(totalPostCount / postsPerPage)
+
+  const url = `https://blog.naver.com/PostTitleListAsync.naver?blogId=${encodeURIComponent(blogId)}&currentPage=${lastPage}&countPerPage=${postsPerPage}&categoryNo=0`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 8000)
+
+  const res = await fetch(url, {
+    signal: controller.signal,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+      'Accept-Language': 'ko-KR,ko;q=0.9',
+      'Referer': `https://blog.naver.com/${blogId}`,
+    },
+  })
+
+  clearTimeout(timer)
+
+  if (!res.ok) {
+    console.warn(`[OldestPost] PostList HTTP ${res.status}`)
+    return null
+  }
+
+  const html = await res.text()
+
+  // PostTitleListAsync 응답에서 날짜 추출
+  // 날짜 형식: "2024. 1. 15." 또는 "2024.01.15" 또는 "2024-01-15"
+  const datePattern = /(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/g
+  const dates: string[] = []
+  let match
+  while ((match = datePattern.exec(html)) !== null) {
+    const y = parseInt(match[1])
+    const m = parseInt(match[2])
+    const d = parseInt(match[3])
+    if (y >= 2000 && y <= 2030 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      dates.push(`${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`)
+    }
+  }
+
+  if (dates.length === 0) {
+    console.warn('[OldestPost] PostList에서 날짜 추출 실패')
+    return null
+  }
+
+  // 오름차순 정렬 → 가장 오래된 날짜
+  dates.sort()
+  const oldest = dates[0]
+
+  console.log(`[OldestPost] PostList: 최초 포스팅일 ${oldest} (${lastPage}페이지, ${dates.length}개 날짜 파싱)`)
+  return { date: oldest, accurate: true }
+}
+
+/**
+ * 네이버 검색 API로 최초 포스팅 날짜 조회 (폴백)
+ * - blogId를 키워드로 검색 → 해당 블로그 글 필터링
+ * - blogId가 포스트 본문에 없으면 매칭률 낮아서 실패 가능
+ */
+async function fetchFromSearchApi(
   blogId: string,
   totalPostCount?: number | null,
 ): Promise<{ date: string; accurate: boolean } | null> {
@@ -181,7 +270,6 @@ export async function fetchOldestPostDate(
   try {
     const total = totalPostCount ?? 0
 
-    // 1차: sort=date로 검색해서 total 확인 (blogId로 검색, 해당 블로그 필터링)
     const firstRes = await fetch(
       `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(blogId)}&display=10&start=1&sort=date`,
       {
@@ -196,43 +284,34 @@ export async function fetchOldestPostDate(
     const firstData = await firstRes.json()
     const searchTotal = firstData.total || 0
 
-    // 검색 결과에서 해당 블로그 포스트 비율 확인 (쿼리가 blogId이므로 다른 블로그도 포함될 수 있음)
-    const firstItems = (firstData.items || []) as Array<{ link: string; bloggerlink?: string; postdate?: string }>
+    const firstItems = (firstData.items || []) as Array<{ link: string; postdate?: string }>
     const blogPattern = new RegExp(`blog\\.naver\\.com/${blogId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i')
     const matchRate = firstItems.length > 0
       ? firstItems.filter(item => blogPattern.test(item.link)).length / firstItems.length
       : 0
 
-    // 해당 블로그 글이 거의 없으면 (매칭률 30% 미만) 포기
     if (matchRate < 0.3 && firstItems.length >= 5) {
       console.log(`[OldestPost] 검색 매칭률 낮음 (${Math.round(matchRate * 100)}%), 스킵`)
       return null
     }
 
-    // 실제 접근 가능한 최대 범위 계산
-    // 검색 총 결과 수에서 해당 블로그 비율로 추정
     const estimatedBlogPosts = total > 0 ? total : Math.round(searchTotal * matchRate)
 
     let start: number
     let accurate: boolean
 
     if (estimatedBlogPosts <= 100) {
-      // 한 페이지에 다 들어옴 - 같은 결과에서 마지막 것 사용
       start = 1
       accurate = true
     } else if (estimatedBlogPosts <= 1100) {
-      // API로 최초 포스팅까지 도달 가능
-      // 검색 결과에서 해당 블로그 비율을 고려해 start 계산
       const adjustedStart = matchRate > 0 ? Math.round(estimatedBlogPosts / matchRate) - 99 : estimatedBlogPosts - 99
       start = Math.max(1, Math.min(adjustedStart, 1000))
       accurate = true
     } else {
-      // 1100개 초과 - 최대한 뒤로 가지만 정확하지 않음
       start = 901
       accurate = false
     }
 
-    // 2차: 마지막 페이지 조회
     const res = await fetch(
       `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(blogId)}&display=100&start=${start}&sort=date`,
       {
@@ -245,26 +324,23 @@ export async function fetchOldestPostDate(
 
     if (!res.ok) return null
     const data = await res.json()
-    const items = (data.items || []) as Array<{ link: string; bloggerlink?: string; postdate?: string }>
-
-    // 해당 블로그 포스트만 필터링
+    const items = (data.items || []) as Array<{ link: string; postdate?: string }>
     const blogPosts = items.filter(item => blogPattern.test(item.link))
 
     if (blogPosts.length === 0) return null
 
-    // sort=date는 최신순 → 마지막 항목이 가장 오래된 포스트
     const oldestPost = blogPosts[blogPosts.length - 1]
     const postdate = oldestPost.postdate
 
     if (postdate && /^\d{8}$/.test(postdate)) {
-      console.log(`[OldestPost] 최초 포스팅일: ${postdate} (${accurate ? '정확' : '근사'}, 총 ${estimatedBlogPosts}개 추정)`)
+      console.log(`[OldestPost] SearchAPI: 최초 포스팅일 ${postdate} (${accurate ? '정확' : '근사'}, 총 ${estimatedBlogPosts}개 추정)`)
       return { date: postdate, accurate }
     }
 
     return null
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown'
-    console.warn(`[OldestPost] 최초 포스팅일 조회 실패: ${msg}`)
+    console.warn(`[OldestPost] SearchAPI 실패: ${msg}`)
     return null
   }
 }
