@@ -39,10 +39,50 @@ interface HistoryStats {
   trend: 'up' | 'down' | 'stable'
 }
 
+interface AlgorithmDataPoint {
+  date: string
+  rawDate: string
+  label: string
+  'D.I.A.': number | null
+  'C-Rank': number | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function AlgorithmTooltip({ active, payload }: any) {
+  if (!active || !payload || !payload.length) return null
+
+  const data = payload[0].payload as AlgorithmDataPoint
+  const dateStr = new Date(data.rawDate).toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  const lines: { name: string; value: number | null; color: string }[] = [
+    { name: 'D.I.A.', value: data['D.I.A.'], color: '#a855f7' },
+    { name: 'C-Rank', value: data['C-Rank'], color: '#f59e0b' },
+  ]
+
+  return (
+    <div className="rounded-lg border bg-background p-2.5 shadow-md max-w-[200px]">
+      <p className="text-xs text-muted-foreground mb-1.5">{dateStr}</p>
+      {lines.map(line => (
+        <div key={line.name} className="flex items-center justify-between gap-3 text-[11px]">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: line.color }} />
+            {line.name}
+          </span>
+          <span className="font-bold">{line.value ?? '-'}/100</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface BlogIndexHistoryChartProps {
   history: HistoryEntry[]
   stats: HistoryStats
-  mode?: 'total' | 'category'
+  mode?: 'total' | 'category' | 'algorithm'
 }
 
 interface ChartDataPoint {
@@ -180,6 +220,68 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
   const sorted = history.slice().sort(
     (a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime()
   )
+
+  if (mode === 'algorithm') {
+    // D.I.A. + C-Rank 추이 차트
+    const algoData: AlgorithmDataPoint[] = sorted.map((h) => {
+      const date = new Date(h.checked_at).toLocaleDateString('ko-KR', {
+        month: 'numeric',
+        day: 'numeric',
+      })
+      return {
+        label: `${date}|`,
+        date,
+        rawDate: h.checked_at,
+        'D.I.A.': (h.metrics?.diaScore as number) ?? null,
+        'C-Rank': (h.metrics?.crankScore as number) ?? null,
+      }
+    })
+
+    const hasData = algoData.some(d => d['D.I.A.'] !== null || d['C-Rank'] !== null)
+
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="text-muted-foreground">{stats.measurements}회 측정</span>
+          <span className="text-muted-foreground/40">|</span>
+          <span className="text-muted-foreground">D.I.A. / C-Rank 추정 점수 추이 (각 100점 만점)</span>
+        </div>
+
+        {!hasData || algoData.length < 2 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            최신 측정부터 D.I.A./C-Rank 데이터가 기록됩니다. 2회 이상 측정 후 추이가 표시됩니다.
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={algoData} margin={{ top: 5, right: 10, left: -10, bottom: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis
+                dataKey="label"
+                tick={<CategoryXTick />}
+                stroke="hsl(var(--muted-foreground))"
+                interval={0}
+                height={40}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 11 }}
+                stroke="hsl(var(--muted-foreground))"
+                tickFormatter={(v: number) => String(v)}
+              />
+              <Tooltip content={<AlgorithmTooltip />} />
+              <Legend
+                wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                iconType="circle"
+                iconSize={8}
+              />
+              <Line type="monotone" dataKey="D.I.A." stroke="#a855f7" strokeWidth={2.5} dot={{ r: 4, fill: '#a855f7', strokeWidth: 2, stroke: '#fff' }} connectNulls name="D.I.A." />
+              <Line type="monotone" dataKey="C-Rank" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} connectNulls name="C-Rank" />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    )
+  }
 
   if (mode === 'category') {
     // 카테고리별 차트 데이터

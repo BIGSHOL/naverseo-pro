@@ -27,6 +27,9 @@ export type { BlogCategory, CategoryBenchmarkValues } from './categories'
 export { getCategoryBenchmark } from './benchmark-provider'
 export { accumulateBenchmarkData } from './benchmark-accumulator'
 
+// 네이버 알고리즘 추정
+export { calculateDiaScore, calculateCrankScore } from './naver-scores'
+
 // 타입
 export type {
   BlogPost,
@@ -42,4 +45,6 @@ export type {
   AbusePenalty,
   AiAnalysis,
   BlogIndexResult,
+  NaverAlgorithmScore,
+  NaverScoreFactor,
 } from './types'

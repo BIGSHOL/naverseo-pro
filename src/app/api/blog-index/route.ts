@@ -325,6 +325,8 @@ export async function POST(request: NextRequest) {
           postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
           trustScore: trustCat?.score ?? null,
           seoScore: seoCat?.score ?? null,
+          diaScore: result.diaScore?.score ?? null,
+          crankScore: result.crankScore?.score ?? null,
         },
         full_result: result,
         is_demo: isDemo,

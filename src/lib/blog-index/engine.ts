@@ -45,6 +45,7 @@ import { analyzeTrust } from './analyzers/activity'
 import { analyzeAbuse } from './analyzers/abuse'
 import { determineLevelInfo, generateRecommendations } from './grading'
 import { scorePost } from './scoring'
+import { calculateDiaScore, calculateCrankScore } from './naver-scores'
 
 // public re-export
 export { determineLevelInfo } from './grading'
@@ -317,6 +318,10 @@ export function analyzeBlogIndex(
     searchBonus,
   })
 
+  // v9.1: 네이버 알고리즘 추정 점수
+  const diaScore = calculateDiaScore(categories)
+  const crankScore = calculateCrankScore(categories)
+
   return {
     blogUrl,
     blogId,
@@ -349,6 +354,8 @@ export function analyzeBlogIndex(
     recommendations,
     isDemo,
     checkedAt: new Date().toISOString(),
+    diaScore,
+    crankScore,
   }
 }
 

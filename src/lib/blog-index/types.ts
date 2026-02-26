@@ -186,4 +186,23 @@ export interface BlogIndexResult {
   blogCategory?: string              // 감지된 블로그 카테고리 (food, it_tech 등)
   benchmarkSource?: 'accumulated' | 'static'  // 벤치마크 데이터 출처
   benchmarkSampleCount?: number      // 축적 데이터 샘플 수
+  // v9.1: 네이버 알고리즘 추정 점수
+  diaScore?: NaverAlgorithmScore
+  crankScore?: NaverAlgorithmScore
+}
+
+/** v9.1: 네이버 알고리즘(D.I.A., C-Rank) 추정 점수 */
+export interface NaverAlgorithmScore {
+  score: number         // 0~100
+  grade: string         // S, A+, A, B+, B, C, D, F
+  label: string         // "D.I.A." or "C-Rank"
+  summary: string       // 한 줄 요약
+  factors: NaverScoreFactor[]  // 기여 요소 목록
+}
+
+export interface NaverScoreFactor {
+  name: string          // 요소 이름
+  weight: number        // 가중치 (0~1)
+  score: number         // 원점수 (0~25)
+  contribution: number  // 가중 기여점 (score * weight * 4)
 }

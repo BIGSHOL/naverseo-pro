@@ -27,6 +27,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Sparkles,
+  Crown,
   ShieldAlert,
   Eye,
   MessageCircle,
@@ -199,6 +200,15 @@ interface BlogIndexResult {
   blogCategory?: string
   benchmarkSource?: 'accumulated' | 'static'
   benchmarkSampleCount?: number
+  // v9.1: 네이버 알고리즘 추정 점수
+  diaScore?: {
+    score: number; grade: string; label: string; summary: string
+    factors: { name: string; weight: number; score: number; contribution: number }[]
+  }
+  crankScore?: {
+    score: number; grade: string; label: string; summary: string
+    factors: { name: string; weight: number; score: number; contribution: number }[]
+  }
 }
 
 interface BlogIndexHistoryEntry {
@@ -213,6 +223,8 @@ interface BlogIndexHistoryEntry {
   level_label: string | null
   metrics?: {
     keywords?: string[]
+    diaScore?: number | null
+    crankScore?: number | null
     [key: string]: unknown
   } | null
   is_demo: boolean
@@ -494,7 +506,7 @@ export default function BlogIndexPage() {
   const [result, setResult] = useState<BlogIndexResult | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [historyData, setHistoryData] = useState<BlogIndexHistoryData | null>(null)
-  const [chartMode, setChartMode] = useState<'total' | 'category'>('total')
+  const [chartMode, setChartMode] = useState<'total' | 'category' | 'algorithm'>('total')
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [aiCardModal, setAiCardModal] = useState<{
@@ -1022,7 +1034,13 @@ export default function BlogIndexPage() {
                         onClick={() => setChartMode('category')}
                         className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'category' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                       >
-                        카테고리별 추이
+                        카테고리별
+                      </button>
+                      <button
+                        onClick={() => setChartMode('algorithm')}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'algorithm' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        D.I.A./C-Rank
                       </button>
                     </div>
                   </div>
@@ -1035,6 +1053,52 @@ export default function BlogIndexPage() {
                   />
                 </CardContent>
               </Card>
+            )}
+
+            {/* ===== 1.5행: D.I.A. + C-Rank 네이버 알고리즘 추정 ===== */}
+            {(result.diaScore || result.crankScore) && (
+              <div className="grid gap-3 grid-cols-2">
+                {[result.diaScore, result.crankScore].filter(Boolean).map((algo) => {
+                  if (!algo) return null
+                  const scoreColor = algo.score >= 70 ? 'text-green-600' : algo.score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                  const barColor = algo.score >= 70 ? 'bg-green-500' : algo.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                  return (
+                    <Card key={algo.label} className="overflow-hidden">
+                      <div className={`h-1 ${barColor}`} />
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            {algo.label === 'D.I.A.' ? (
+                              <Sparkles className="h-4 w-4 text-purple-500" />
+                            ) : (
+                              <Crown className="h-4 w-4 text-amber-500" />
+                            )}
+                            <p className="text-xs font-semibold">{algo.label}</p>
+                            <span className="text-[9px] text-muted-foreground">추정</span>
+                          </div>
+                          <Badge className={`text-[10px] ${getGradeColor(algo.grade)}`}>{algo.grade}</Badge>
+                        </div>
+                        <div className="mt-2 flex items-end gap-1">
+                          <span className={`text-2xl font-bold ${scoreColor}`}>{algo.score}</span>
+                          <span className="text-[10px] text-muted-foreground mb-0.5">/100</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${algo.score}%` }} />
+                        </div>
+                        <p className="mt-2 text-[10px] text-muted-foreground">{algo.summary}</p>
+                        <div className="mt-2 space-y-0.5">
+                          {algo.factors.map((f) => (
+                            <div key={f.name} className="flex items-center justify-between text-[9px]">
+                              <span className="text-muted-foreground">{f.name} ({Math.round(f.weight * 100)}%)</span>
+                              <span className="font-medium">{f.score}/{25} → {f.contribution}점</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
             )}
 
             {/* ===== 2행: 4축 상세 카드 (전체 너비) ===== */}

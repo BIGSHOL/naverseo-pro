@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { extractBlogId } from '@/lib/utils/text'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,15 +24,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // blog_id 추출하여 매칭 (URL 형식이 달라도 같은 블로그면 매칭)
+    const blogId = extractBlogId(blogUrl.trim())
+
     // latest=true: 최신 1건의 full_result 반환 (캐시 즉시 로딩용)
     const latest = request.nextUrl.searchParams.get('latest') === 'true'
 
     if (latest) {
-      const { data: latestEntry, error } = await supabase
+      let query = supabase
         .from('blog_index_history')
         .select('id, full_result, checked_at')
         .eq('user_id', user.id)
-        .eq('blog_url', blogUrl.trim())
+
+      // blog_id로 매칭 (우선), 없으면 blog_url 폴백
+      if (blogId) {
+        query = query.eq('blog_id', blogId)
+      } else {
+        query = query.eq('blog_url', blogUrl.trim())
+      }
+
+      const { data: latestEntry, error } = await query
         .order('checked_at', { ascending: false })
         .limit(1)
         .single()
@@ -57,11 +69,18 @@ export async function GET(request: NextRequest) {
     }
 
     // 기본: 히스토리 목록 + 통계 (추이 차트용)
-    const { data: history, error } = await supabase
+    let historyQuery = supabase
       .from('blog_index_history')
       .select('id, total_score, search_score, popularity_score, content_score, activity_score, abuse_penalty, level_tier, level_label, metrics, is_demo, checked_at')
       .eq('user_id', user.id)
-      .eq('blog_url', blogUrl.trim())
+
+    if (blogId) {
+      historyQuery = historyQuery.eq('blog_id', blogId)
+    } else {
+      historyQuery = historyQuery.eq('blog_url', blogUrl.trim())
+    }
+
+    const { data: history, error } = await historyQuery
       .order('checked_at', { ascending: false })
       .limit(30)
 
