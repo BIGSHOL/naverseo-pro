@@ -197,10 +197,18 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       const result = await res.json()
       if (!res.ok) {
         setError(result.error || '저장 중 오류가 발생했습니다.')
+        // 저장 실패 시 드롭다운을 DB의 실제 값으로 되돌림
+        setEditPlan(data.profile.plan)
+        setEditRole(data.profile.role)
+        setEditAiProvider(data.profile.ai_provider || 'gemini')
         return
       }
 
       setData({ ...data, profile: result.profile })
+      // 저장 후 드롭다운을 DB 응답값으로 재동기화 (DB 거부 시 원래 값 복원)
+      setEditPlan(result.profile.plan)
+      setEditRole(result.profile.role)
+      setEditAiProvider(result.profile.ai_provider || 'gemini')
       setSuccess('사용자 정보가 수정되었습니다.')
     } catch {
       setError('저장 중 오류가 발생했습니다.')

@@ -48,7 +48,9 @@ export default function BillingPage() {
       }
       const data = await res.json()
       const profile = data.profile
-      setCurrentPlan((profile?.plan || 'free') as Plan)
+      // admin 역할이면 plan='admin'으로 표시 (sidebar와 동일 패턴)
+      const effectivePlan = profile?.role === 'admin' ? 'admin' : (profile?.plan || 'free')
+      setCurrentPlan(effectivePlan as Plan)
       setSubscriptionStatus((profile?.subscription_status || 'none') as SubscriptionStatus)
       setHasSubscription(!!profile?.lemonsqueezy_subscription_id)
       setCreditsResetAt(profile?.credits_reset_at || null)
@@ -177,7 +179,8 @@ export default function BillingPage() {
   }
 
   const planOrder: Plan[] = ['free', 'lite', 'starter', 'pro', 'enterprise']
-  const currentPlanIndex = planOrder.indexOf(currentPlan)
+  // admin은 모든 플랜보다 상위 (index = planOrder.length)
+  const currentPlanIndex = currentPlan === 'admin' ? planOrder.length : planOrder.indexOf(currentPlan)
 
   const formatResetDate = (dateStr: string | null) => {
     if (!dateStr) return null
@@ -303,11 +306,27 @@ export default function BillingPage() {
         </div>
       )}
 
+      {/* 관리자 안내 */}
+      {currentPlan === 'admin' && (
+        <Card className="border-primary bg-primary/5">
+          <CardContent className="flex items-center gap-3 py-4">
+            <Zap className="h-5 w-5 text-primary" />
+            <div>
+              <p className="font-medium">관리자 계정</p>
+              <p className="text-sm text-muted-foreground">
+                모든 기능을 무제한으로 사용할 수 있습니다. 결제가 필요하지 않습니다.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 플랜 카드 그리드 */}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {planOrder.map((planKey) => {
           const planInfo = PLANS[planKey] as PlanInfo
           const isCurrent = planKey === currentPlan
+          const isAdmin = currentPlan === 'admin'
           const isDowngrade = planOrder.indexOf(planKey) < currentPlanIndex
           const isFree = planKey === 'free'
 
@@ -361,7 +380,11 @@ export default function BillingPage() {
                 </ul>
 
                 <div className="mt-4 pt-3">
-                  {isCurrent ? (
+                  {isAdmin ? (
+                    <Button variant="outline" className="w-full" disabled>
+                      관리자
+                    </Button>
+                  ) : isCurrent ? (
                     <Button variant="outline" className="w-full" disabled>
                       사용 중
                     </Button>

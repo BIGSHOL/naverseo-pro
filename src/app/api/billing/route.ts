@@ -18,7 +18,7 @@ export async function GET() {
     const adminDb = createAdminClient()
     const { data: profile, error: profileError } = await adminDb
       .from('profiles')
-      .select('id, plan, credits_balance, credits_monthly_quota, credits_reset_at, email, created_at, subscription_status, lemonsqueezy_subscription_id')
+      .select('id, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, email, created_at, subscription_status, lemonsqueezy_subscription_id')
       .eq('id', user.id)
       .single()
 
