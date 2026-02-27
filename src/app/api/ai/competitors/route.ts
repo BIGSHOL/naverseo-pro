@@ -303,32 +303,23 @@ function assessDifficulty(patterns: PatternAnalysis, competitors: CompetitorItem
   let engagement = 0
 
   if (cq) {
-    // 평균 댓글 (0~8)
+    // 평균 댓글 (0~13)
     const avgCmt = cq.avgCommentCount
     if (avgCmt !== null) {
-      if (avgCmt >= 20) { engagement += 8; reasons.push(`평균 댓글 ${avgCmt}개 — 독자 참여도 매우 높음`) }
-      else if (avgCmt >= 10) { engagement += 6 }
-      else if (avgCmt >= 3) { engagement += 3 }
-      else { engagement += 1; reasons.push(`평균 댓글 ${avgCmt}개 — 반응 장벽 낮음`) }
-    } else { engagement += 3 } // 중립
+      if (avgCmt >= 20) { engagement += 13; reasons.push(`평균 댓글 ${avgCmt}개 — 독자 참여도 매우 높음`) }
+      else if (avgCmt >= 10) { engagement += 9 }
+      else if (avgCmt >= 3) { engagement += 5 }
+      else { engagement += 2; reasons.push(`평균 댓글 ${avgCmt}개 — 반응 장벽 낮음`) }
+    } else { engagement += 5 } // 중립
 
-    // 평균 공감 (0~8)
+    // 평균 공감 (0~12)
     const avgSym = cq.avgSympathyCount
     if (avgSym !== null) {
-      if (avgSym >= 30) { engagement += 8; reasons.push(`평균 공감 ${avgSym}개 — 독자 호감도 높음`) }
-      else if (avgSym >= 10) { engagement += 5 }
-      else if (avgSym >= 3) { engagement += 3 }
+      if (avgSym >= 30) { engagement += 12; reasons.push(`평균 공감 ${avgSym}개 — 독자 호감도 높음`) }
+      else if (avgSym >= 10) { engagement += 8 }
+      else if (avgSym >= 3) { engagement += 4 }
       else { engagement += 1 }
-    } else { engagement += 3 } // 중립
-
-    // 평균 조회수 (0~9)
-    const avgRead = cq.avgReadCount
-    if (avgRead !== null) {
-      if (avgRead >= 5000) { engagement += 9; reasons.push(`평균 조회수 ${avgRead.toLocaleString()}회 — 높은 트래픽 구간`) }
-      else if (avgRead >= 2000) { engagement += 6 }
-      else if (avgRead >= 500) { engagement += 3 }
-      else { engagement += 1 }
-    } else { engagement += 4 } // 중립
+    } else { engagement += 5 } // 중립
   } else {
     engagement = 10
   }
