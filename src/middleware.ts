@@ -91,6 +91,8 @@ export async function middleware(request: NextRequest) {
     '/dashboard', '/keywords', '/content', '/seo-check',
     '/tracking', '/report', '/settings', '/competitors',
     '/blog-index', '/opportunities', '/admin',
+    '/credits', '/billing', '/post-check', '/instagram',
+    '/keywords-bulk', '/learning',
   ]
   const isProtectedPage = protectedFromBots.some((p) => pathname.startsWith(p))
 

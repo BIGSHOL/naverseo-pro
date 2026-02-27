@@ -16,8 +16,8 @@ export async function POST(req: Request) {
     }
 
     // 차단 해제
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = createClient()
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const supabase = createAdminClient()
     const { error: updateError } = await supabase
       .from('profiles')
       .update({

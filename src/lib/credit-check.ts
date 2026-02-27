@@ -5,8 +5,8 @@
  * - deductCredits(): RPC 원자적 차감 + 로그 기록
  *
  * 플랜별 기능 제한:
- * - Free (3기능): keyword_research, seo_check, blog_index
- * - Lite (5기능): Free + content_generation, seo_report
+ * - Free (4기능): keyword_research, seo_check, blog_index, post_check
+ * - Lite (6기능): Free + content_generation, seo_report
  * - Starter 이상: 모든 기능 사용 가능
  */
 
@@ -66,7 +66,7 @@ export async function checkCredits(
     return { allowed: true, balance: profile.credits_balance ?? 999999, cost, plan }
   }
 
-  // Free 플랜 기능 게이트 (3기능만 허용)
+  // Free 플랜 기능 게이트 (4기능만 허용)
   if (plan === 'free' && !FREE_ALLOWED_FEATURES.includes(feature)) {
     return {
       allowed: false,
@@ -78,7 +78,7 @@ export async function checkCredits(
     }
   }
 
-  // Lite 플랜 기능 게이트 (5기능만 허용)
+  // Lite 플랜 기능 게이트 (6기능만 허용)
   if (plan === 'lite' && !LITE_ALLOWED_FEATURES.includes(feature)) {
     return {
       allowed: false,

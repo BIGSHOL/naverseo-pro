@@ -20,6 +20,12 @@ Disallow: /competitors
 Disallow: /blog-index
 Disallow: /opportunities
 Disallow: /admin
+Disallow: /credits
+Disallow: /billing
+Disallow: /post-check
+Disallow: /instagram
+Disallow: /keywords-bulk
+Disallow: /learning
 
 # 차단: 인증 페이지
 Disallow: /login

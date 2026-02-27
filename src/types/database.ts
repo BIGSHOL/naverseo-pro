@@ -181,8 +181,8 @@ export const PLAN_CREDITS: Record<Plan, number> = {
 
 /**
  * 플랜별 기능 게이트
- * Free (3기능): 키워드 리서치, SEO 점수 체크, 블로그 지수 분석
- * Lite (5기능): Free + AI 콘텐츠 생성, SEO 리포트
+ * Free (4기능): 키워드 리서치, SEO 점수 체크, 블로그 지수 분석, 검색 누락 조회
+ * Lite (6기능): Free + AI 콘텐츠 생성, SEO 리포트
  * Starter 이상: 모든 기능 사용 가능
  */
 export const FREE_ALLOWED_FEATURES: CreditFeature[] = [

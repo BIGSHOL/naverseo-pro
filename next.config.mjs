@@ -32,7 +32,7 @@ const nextConfig = {
       },
       {
         // 대시보드 페이지 검색엔진 차단
-        source: '/(dashboard|keywords|content|seo-check|tracking|report|settings|competitors|blog-index|opportunities|admin)(.*)',
+        source: '/(dashboard|keywords|content|seo-check|tracking|report|settings|competitors|blog-index|opportunities|admin|credits|billing|post-check|instagram|keywords-bulk|learning)(.*)',
         headers: [
           { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
         ],
