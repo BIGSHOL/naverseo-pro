@@ -16,6 +16,7 @@ import {
   BarChart3,
   PenTool,
   Coins,
+  Pencil,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { markdownToHtml, htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
 
 // 콘텐츠 아이템 (본문 보기용)
 interface ContentItem {
@@ -74,6 +76,23 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay()
 }
 
+/** 마크다운 → 플레인텍스트 (클립보드 text/plain 용) */
+function markdownToPlainText(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, '')           // 제목 마커 제거
+    .replace(/\*\*(.+?)\*\*/g, '$1')       // 볼드 제거
+    .replace(/\*(.+?)\*/g, '$1')           // 이탤릭 제거
+    .replace(/~~(.+?)~~/g, '$1')           // 취소선 제거
+    .replace(/`(.+?)`/g, '$1')             // 인라인 코드 제거
+    .replace(/\[이미지[:\s][^\]]*\]/g, '')  // 이미지 마커 제거
+    .replace(/\[(.+?)\]\([^)]*\)/g, '$1')  // 링크 → 텍스트만
+    .replace(/^[-*]\s+/gm, '• ')           // 리스트 마커 통일
+    .replace(/^>\s+/gm, '')                // 인용 제거
+    .replace(/---+/g, '')                  // 수평선 제거
+    .replace(/\n{3,}/g, '\n\n')            // 과도한 빈줄 정리
+    .trim()
+}
+
 export default function ContentCalendarPage() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -85,7 +104,6 @@ export default function ContentCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [updating, setUpdating] = useState<string | null>(null)
   const [viewingContent, setViewingContent] = useState<ContentItem | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -144,27 +162,22 @@ export default function ContentCalendarPage() {
     setDialogOpen(true)
   }
 
-  const handleStatusChange = async (contentId: string, newStatus: string) => {
-    setUpdating(contentId)
+  const handleCopy = async (title: string, markdown: string) => {
     try {
-      const res = await fetch('/api/content/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentId, status: newStatus }),
-      })
-      if (res.ok) {
-        await loadData()
-      }
-    } catch {
-      // 업데이트 실패
-    } finally {
-      setUpdating(null)
-    }
-  }
+      const rawHtml = `<h1>${title}</h1>${markdownToHtml(markdown)}`
+      const html = htmlForNaverClipboard(rawHtml)
+      const text = `${title}\n\n${markdownToPlainText(markdown)}`
 
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          }),
+        ])
+      } catch {
+        await navigator.clipboard.writeText(text)
+      }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -509,40 +522,21 @@ export default function ContentCalendarPage() {
                               {/* 콘텐츠 전용 액션 버튼 */}
                               {a.type === 'content' && (
                                 <div className="mt-1.5 flex items-center gap-1">
-                                  {a.status === 'draft' && (
-                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
-                                      onClick={() => handleStatusChange(a.id, 'published')}
-                                      disabled={updating === a.id}
-                                    >
-                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '발행'}
-                                    </Button>
-                                  )}
-                                  {a.status === 'published' && (
-                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
-                                      onClick={() => handleStatusChange(a.id, 'archived')}
-                                      disabled={updating === a.id}
-                                    >
-                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '보관'}
-                                    </Button>
-                                  )}
-                                  {a.status === 'archived' && (
-                                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
-                                      onClick={() => handleStatusChange(a.id, 'draft')}
-                                      disabled={updating === a.id}
-                                    >
-                                      {updating === a.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : '초안으로'}
-                                    </Button>
-                                  )}
                                   <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs"
                                     onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) { setDialogOpen(false); setViewingContent(item) } }}
                                   >
                                     <Eye className="h-3 w-3" /> 보기
                                   </Button>
                                   <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs"
-                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) handleCopy(`${item.title}\n\n${item.content}`) }}
+                                    onClick={() => { const item = contents.find((c) => c.id === a.id); if (item) handleCopy(item.title, item.content) }}
                                   >
                                     <Copy className="h-3 w-3" /> 복사
                                   </Button>
+                                  <Link href={`/content?keyword=${encodeURIComponent(a.label)}`}>
+                                    <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs">
+                                      <Pencil className="h-3 w-3" /> 편집
+                                    </Button>
+                                  </Link>
                                 </div>
                               )}
 
@@ -579,7 +573,7 @@ export default function ContentCalendarPage() {
                   variant="outline"
                   size="sm"
                   className="gap-1"
-                  onClick={() => handleCopy(`${viewingContent.title}\n\n${viewingContent.content}`)}
+                  onClick={() => handleCopy(viewingContent.title, viewingContent.content)}
                 >
                   {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                   {copied ? '복사됨' : '전체 복사'}
@@ -594,9 +588,10 @@ export default function ContentCalendarPage() {
               </div>
             </div>
             <div className="overflow-y-auto p-4" style={{ maxHeight: 'calc(80vh - 80px)' }}>
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-                {viewingContent.content}
-              </div>
+              <div
+                className="prose prose-sm max-w-none text-sm leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: markdownToHtml(viewingContent.content) }}
+              />
             </div>
           </div>
         </div>

@@ -127,34 +127,73 @@ body:has(.mockup-root) {
 }
 
 /* AI 패치 하이라이트 애니메이션 */
+
+/* 수정 전: 빨간 sweep (←→) + 취소선 + 흐려짐 = "지워지는" 느낌 */
+.patch-highlight-find {
+  position: relative;
+  border-bottom: 2px solid rgb(239, 68, 68);
+  border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.28), rgba(239, 68, 68, 0.28)) no-repeat left;
+  background-size: 0% 100%;
+  animation: patch-find-sweep 0.7s ease-out forwards;
+}
+
+@keyframes patch-find-sweep {
+  0% {
+    background-size: 0% 100%;
+    text-decoration-color: transparent;
+    opacity: 1;
+  }
+  40% {
+    background-size: 100% 100%;
+    text-decoration-color: transparent;
+    opacity: 1;
+  }
+  70% {
+    background-size: 100% 100%;
+    text-decoration-color: rgba(239, 68, 68, 0.7);
+    opacity: 0.75;
+  }
+  100% {
+    background-size: 100% 100%;
+    text-decoration-color: rgba(239, 68, 68, 0.7);
+    opacity: 0.5;
+  }
+}
+
+/* 수정 후: 초록 타이핑 reveal (←→) = "채워지는" 느낌 */
 .patch-highlight-active {
-  background-color: rgba(74, 222, 128, 0.4);
+  position: relative;
   border-bottom: 2px solid rgb(34, 197, 94);
   border-radius: 2px;
-  transition: background-color 0.3s ease-in, border-color 0.3s ease-in;
-  animation: patch-pulse 0.7s ease-in-out;
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.4), rgba(74, 222, 128, 0.4)) no-repeat left;
+  background-size: 0% 100%;
+  animation: patch-type-reveal 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
-.patch-highlight-fade {
-  background-color: transparent;
-  border-bottom: 2px solid transparent;
-  border-radius: 2px;
-  transition: background-color 0.8s ease-out, border-color 0.8s ease-out;
-}
-
-@keyframes patch-pulse {
+@keyframes patch-type-reveal {
   0% {
-    background-color: rgba(59, 130, 246, 0.45);
-    border-bottom-color: rgb(59, 130, 246);
+    background-size: 0% 100%;
+    border-bottom-color: transparent;
   }
-  50% {
-    background-color: rgba(74, 222, 128, 0.5);
+  15% {
     border-bottom-color: rgb(34, 197, 94);
   }
   100% {
-    background-color: rgba(74, 222, 128, 0.4);
+    background-size: 100% 100%;
     border-bottom-color: rgb(34, 197, 94);
   }
+}
+
+/* 페이드아웃 */
+.patch-highlight-fade {
+  background: rgba(74, 222, 128, 0.4);
+  border-bottom: 2px solid transparent;
+  border-radius: 2px;
+  transition: background 0.8s ease-out, border-color 0.8s ease-out, opacity 0.8s ease-out;
+  opacity: 0;
 }
 
 /* PDF 프린트용 스타일 */
