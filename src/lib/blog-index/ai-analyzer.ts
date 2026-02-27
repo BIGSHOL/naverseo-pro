@@ -10,7 +10,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callGemini, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
+import { callGemini, callGeminiStream, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 import type { AiAnalysis, BlogPost } from './types'
 
@@ -289,6 +289,10 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 20): Bl
 export async function analyzeWithAi(
   posts: BlogPost[],
   isDemo: boolean,
+  callbacks?: {
+    onProgress?: (message: string) => void
+    onChunk?: (delta: string) => void
+  },
 ): Promise<AiAnalysis | null> {
   // Gemini API 키가 없으면 스킵 (분석은 항상 Gemini 사용 — 비용 최적화)
   if (!process.env.GEMINI_API_KEY?.trim()) {
@@ -319,6 +323,7 @@ export async function analyzeWithAi(
       }
     } else {
       // 실제 모드: 배치 병렬 크롤링 (4개씩, rate limit 방지)
+      callbacks?.onProgress?.(`포스트 본문 크롤링 중... (0/${targetPosts.length})`)
       const BATCH_SIZE = 4
       for (let i = 0; i < targetPosts.length; i += BATCH_SIZE) {
         const batch = targetPosts.slice(i, i + BATCH_SIZE)
@@ -349,6 +354,8 @@ export async function analyzeWithAi(
         for (const r of results) {
           if (r.status === 'fulfilled') postContents.push(r.value)
         }
+        const processed = Math.min(i + BATCH_SIZE, targetPosts.length)
+        callbacks?.onProgress?.(`포스트 본문 크롤링 중... (${processed}/${targetPosts.length})`)
         // 배치 간 rate limit 방지
         if (i + BATCH_SIZE < targetPosts.length) {
           await new Promise(resolve => setTimeout(resolve, 500))
@@ -370,7 +377,14 @@ ${p.content}
 `).join('\n')}`
 
     console.log(`[BlogIndex AI] Gemini 분석: ${postContents.length}개 포스트 (${userMessage.length}자)`)
-    const response = await callGemini(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
+    callbacks?.onProgress?.(`AI가 ${postContents.length}개 포스트를 분석하고 있습니다...`)
+
+    let response: string
+    if (callbacks?.onChunk) {
+      response = await callGeminiStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+    } else {
+      response = await callGemini(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
+    }
 
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 

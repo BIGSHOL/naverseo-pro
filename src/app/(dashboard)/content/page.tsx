@@ -7,7 +7,7 @@ import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
   Pencil, Save, Link2, MessageSquareQuote, Sparkles,
-  Search, Trash2,
+  Search, Trash2, ChevronsDown, Pause,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -161,6 +161,10 @@ export default function ContentPage() {
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const streamingTextRef = useRef('')
+  const streamingContentRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
+  const autoScrollRef = useRef(true)
   const resultRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
@@ -641,21 +645,36 @@ export default function ContentPage() {
                   total: event.total,
                 })
               } else if (event.type === 'stream') {
-                setStreamingText(prev => {
-                  const updated = prev + event.delta
-                  if (!prev) setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-                  // 스트리밍 중 실시간 SEO 점수 업데이트
-                  const parsed = extractFromStreamJson(updated)
-                  if (parsed.title) setEditTitle(parsed.title)
-                  if (parsed.content) setEditContent(parsed.content)
-                  return updated
-                })
+                const isFirst = !streamingTextRef.current
+                streamingTextRef.current += event.delta
+                const accumulated = streamingTextRef.current
+                setStreamingText(accumulated)
+
+                // 첫 chunk 시 스크롤
+                if (isFirst) {
+                  setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                }
+
+                // 스트리밍 콘텐츠 auto-scroll (하단 따라가기)
+                if (autoScrollRef.current) {
+                  setTimeout(() => {
+                    const el = streamingContentRef.current
+                    if (el) el.scrollTop = el.scrollHeight
+                  }, 0)
+                }
+
+                // 스트리밍 중 실시간 SEO 점수 업데이트
+                const parsed = extractFromStreamJson(accumulated)
+                if (parsed.title) setEditTitle(parsed.title)
+                if (parsed.content) setEditContent(parsed.content)
               } else if (event.type === 'result') {
                 setStreamingText('')
+                streamingTextRef.current = ''
                 setResult(event)
                 setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
               } else if (event.type === 'error') {
                 setStreamingText('')
+                streamingTextRef.current = ''
                 setError(event.error || '콘텐츠 생성에 실패했습니다.')
               }
             } catch {
@@ -691,6 +710,9 @@ export default function ContentPage() {
     e.preventDefault()
     setResult(null)
     setStreamingText('')
+    streamingTextRef.current = ''
+    setAutoScroll(true)
+    autoScrollRef.current = true
     await generateContent()
   }
 
@@ -1951,9 +1973,42 @@ export default function ContentPage() {
               </CardHeader>
               {parsed.content && (
                 <CardContent className="pt-0">
-                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
+                  <div ref={streamingContentRef} className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
                     {parsed.content}
                     <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+                  </div>
+                  {/* 자동 스크롤 안내 + 토글 */}
+                  <div className="mt-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !autoScroll
+                        setAutoScroll(next)
+                        autoScrollRef.current = next
+                        // 다시 켜면 즉시 하단으로 이동
+                        if (next) {
+                          const el = streamingContentRef.current
+                          if (el) el.scrollTop = el.scrollHeight
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        autoScroll
+                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {autoScroll ? (
+                        <>
+                          <ChevronsDown className="h-3 w-3" />
+                          자동 스크롤 중
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="h-3 w-3" />
+                          자동 스크롤 중지됨
+                        </>
+                      )}
+                    </button>
                   </div>
                 </CardContent>
               )}

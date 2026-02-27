@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 const comparisonItems = [
-  { task: '키워드 리서치', manual: '직접 조사 1시간+', tool: 'AI 자동 분석 30초' },
+  { task: '키워드 검색', manual: '직접 조사 1시간+', tool: 'AI 자동 분석 30초' },
   { task: '블로그 글 작성', manual: '3~4시간/편', tool: 'AI 자동 생성 10분/편 (타 도구에 없는 기능)' },
   { task: 'SEO 최적화 검토', manual: 'SEO 지식 필요', tool: '100점 만점 자동 분석' },
   { task: '순위 모니터링', manual: '매일 수동 검색', tool: '자동 트래킹 알림' },

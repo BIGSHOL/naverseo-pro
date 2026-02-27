@@ -53,7 +53,7 @@ interface Activity {
 
 const ACTIVITY_CONFIG: Record<string, { name: string; icon: typeof FileText; color: string; bgColor: string }> = {
   content: { name: '콘텐츠', icon: PenTool, color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  keyword: { name: '키워드 리서치', icon: Search, color: 'text-purple-700', bgColor: 'bg-purple-100' },
+  keyword: { name: '키워드 검색', icon: Search, color: 'text-purple-700', bgColor: 'bg-purple-100' },
   discovery: { name: '키워드 발굴', icon: Compass, color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
   tracking: { name: '순위 트래킹', icon: BarChart3, color: 'text-orange-700', bgColor: 'bg-orange-100' },
 }
@@ -258,7 +258,7 @@ export default function ContentCalendarPage() {
           <CardContent className="p-4">
             <div className="flex items-center gap-1.5">
               <Search className="h-3.5 w-3.5 text-purple-600" />
-              <p className="text-sm text-muted-foreground">키워드 리서치</p>
+              <p className="text-sm text-muted-foreground">키워드 검색</p>
             </div>
             <p className="mt-1 text-2xl font-bold text-purple-600">{keywordCount}건</p>
           </CardContent>

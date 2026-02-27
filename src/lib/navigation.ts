@@ -46,7 +46,7 @@ export function canAccessFeature(currentPlan: Plan, minPlan?: Plan): boolean {
 
 export const navItems: NavItem[] = [
   { label: '대시보드', href: '/dashboard', icon: LayoutDashboard },
-  { label: '키워드 리서치', href: '/keywords', icon: Search },
+  { label: '키워드 검색', href: '/keywords', icon: Search },
   { label: '키워드 대량조회', href: '/keywords-bulk', icon: ListChecks, minPlan: 'starter' },
   { label: '키워드 발굴', href: '/opportunities', icon: Lightbulb, minPlan: 'starter' },
   { label: 'AI 콘텐츠 생성', href: '/content', icon: Wand2, minPlan: 'lite' },

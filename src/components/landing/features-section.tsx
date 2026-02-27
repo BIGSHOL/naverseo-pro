@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 const coreFeatures = [
   {
     icon: Search,
-    title: '키워드 리서치',
+    title: '키워드 검색',
     description:
       '네이버 검색광고 API 연동으로 실시간 검색량, PC·모바일 비율, 경쟁도, 클릭률을 한 화면에서 확인. 감이 아닌 데이터로 키워드를 선택하세요.',
     color: 'bg-blue-500/10 text-blue-600',

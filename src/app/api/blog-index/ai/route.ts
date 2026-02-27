@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeWithAi } from '@/lib/blog-index/ai-analyzer'
-import { determineLevelInfo, type BlogPost } from '@/lib/blog-index/engine'
+import { type BlogPost } from '@/lib/blog-index/engine'
 import { hasAiApiKey } from '@/lib/ai/gemini'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     if (!hasAiApiKey('gemini')) {
       return NextResponse.json(
-        { error: 'AI API 키가 설정되지 않았습니다. 데모 모드에서는 AI 심층 분석을 사용할 수 없습니다.' },
+        { error: 'AI API 키가 설정되지 않았습니다.' },
         { status: 400 }
       )
     }
@@ -75,21 +75,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // AI 심층 분석 실행
-    const aiAnalysis = await analyzeWithAi(posts, false)
+    // NDJSON 스트리밍으로 프로그레스 + AI 분석 결과 전송
+    const encoder = new TextEncoder()
 
-    if (!aiAnalysis) {
-      return NextResponse.json(
-        { error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' },
-        { status: 500 }
-      )
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (data: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+        }
 
-    // 점수 보정값과 재계산된 등급 반환
-    return NextResponse.json({
-      aiAnalysis,
-      scoreAdjustment: aiAnalysis.scoreAdjustment,
-      adjustmentReason: aiAnalysis.adjustmentReason,
+        try {
+          const aiAnalysis = await analyzeWithAi(posts, false, {
+            onProgress: (message) => send({ type: 'progress', message }),
+            onChunk: (delta) => send({ type: 'stream', delta }),
+          })
+
+          if (!aiAnalysis) {
+            send({ type: 'error', error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' })
+          } else {
+            send({
+              type: 'result',
+              aiAnalysis,
+              scoreAdjustment: aiAnalysis.scoreAdjustment,
+              adjustmentReason: aiAnalysis.adjustmentReason,
+            })
+          }
+        } catch (error) {
+          console.error('[BlogIndex AI] 스트리밍 오류:', error)
+          send({ type: 'error', error: 'AI 심층 분석 중 오류가 발생했습니다.' })
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache',
+      },
     })
   } catch (error) {
     console.error('[BlogIndex AI] 오류:', error)

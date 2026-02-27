@@ -588,6 +588,7 @@ export default function BlogIndexPage() {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiProgress, setAiProgress] = useState('')
   const [error, setError] = useState('')
   const [result, setResult] = useState<BlogIndexResult | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
@@ -737,37 +738,84 @@ export default function BlogIndexPage() {
   const handleAiAnalysis = async () => {
     if (!result || aiLoading) return
     setAiLoading(true)
+    setAiProgress('')
     try {
       const res = await fetch('/api/blog-index/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blogUrl: result.blogUrl }),
       })
-      const data = await res.json()
+
       if (!res.ok) {
-        setError(data.error || 'AI 심층 분석에 실패했습니다.')
+        // 에러 응답은 JSON일 수 있음
+        try {
+          const errData = await res.json()
+          setError(errData.error || 'AI 심층 분석에 실패했습니다.')
+        } catch {
+          setError('AI 심층 분석에 실패했습니다.')
+        }
         return
       }
-      // 결과에 AI 분석 병합
-      const updated = { ...result }
-      updated.aiAnalysis = data.aiAnalysis
-      // 점수 보정 적용
-      if (data.aiAnalysis.scoreAdjustment !== 0) {
-        updated.totalScore = Math.max(0, Math.min(100, updated.totalScore + data.aiAnalysis.scoreAdjustment))
+
+      // NDJSON 스트리밍 수신
+      const reader = res.body?.getReader()
+      if (!reader) {
+        setError('스트리밍 응답을 읽을 수 없습니다.')
+        return
       }
-      // AI 추천 병합
-      if (data.aiAnalysis.recommendations?.length > 0) {
-        const existingSet = new Set(updated.recommendations.map((r: string) => r.substring(0, 20)))
-        const newRecs = data.aiAnalysis.recommendations.filter(
-          (r: string) => !existingSet.has(r.substring(0, 20))
-        )
-        updated.recommendations = [...updated.recommendations, ...newRecs].slice(0, 8)
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+
+            if (event.type === 'progress') {
+              setAiProgress(event.message)
+            } else if (event.type === 'stream') {
+              // AI 스트리밍 중 — 분석 진행 표시
+              setAiProgress('AI가 분석 결과를 작성하고 있습니다...')
+            } else if (event.type === 'result') {
+              // 결과에 AI 분석 병합
+              const data = event
+              const updated = { ...result }
+              updated.aiAnalysis = data.aiAnalysis
+              // 점수 보정 적용
+              if (data.aiAnalysis.scoreAdjustment !== 0) {
+                updated.totalScore = Math.max(0, Math.min(100, updated.totalScore + data.aiAnalysis.scoreAdjustment))
+              }
+              // AI 추천 병합
+              if (data.aiAnalysis.recommendations?.length > 0) {
+                const existingSet = new Set(updated.recommendations.map((r: string) => r.substring(0, 20)))
+                const newRecs = data.aiAnalysis.recommendations.filter(
+                  (r: string) => !existingSet.has(r.substring(0, 20))
+                )
+                updated.recommendations = [...updated.recommendations, ...newRecs].slice(0, 8)
+              }
+              setResult(updated)
+            } else if (event.type === 'error') {
+              setError(event.error)
+            }
+          } catch {
+            // JSON 파싱 실패 — 무시
+          }
+        }
       }
-      setResult(updated)
     } catch {
       setError('AI 분석 중 네트워크 오류가 발생했습니다.')
     } finally {
       setAiLoading(false)
+      setAiProgress('')
     }
   }
 
@@ -1472,7 +1520,7 @@ export default function BlogIndexPage() {
                       className="gap-2"
                     >
                       {aiLoading ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" />분석 중... (20~40초 소요)</>
+                        <><Loader2 className="h-4 w-4 animate-spin" />{aiProgress || '분석 준비 중...'}</>
                       ) : canUseAi ? (
                         <><Brain className="h-4 w-4" />AI 심층 분석 실행</>
                       ) : (

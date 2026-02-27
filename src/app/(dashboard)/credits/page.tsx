@@ -425,7 +425,7 @@ export default function CreditsPage() {
               <p className="text-sm text-muted-foreground">사용 내역이 없습니다</p>
               <Link href="/keywords">
                 <Button variant="link" size="sm" className="mt-1 text-xs">
-                  키워드 리서치 시작하기
+                  키워드 검색 시작하기
                 </Button>
               </Link>
             </div>

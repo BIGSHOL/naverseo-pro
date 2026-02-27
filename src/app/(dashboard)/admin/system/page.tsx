@@ -22,7 +22,7 @@ interface SystemData {
 }
 
 const FEATURE_LABELS: Record<string, string> = {
-  keyword_research: '키워드 리서치',
+  keyword_research: '키워드 검색',
   keyword_discovery: '키워드 발굴',
   content_generation: 'AI 콘텐츠 생성',
   seo_check: 'SEO 점수 체크',

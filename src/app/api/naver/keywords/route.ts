@@ -215,12 +215,50 @@ export async function GET(request: NextRequest) {
           })
 
           const results = await getKeywordStats(trimmed)
-          const resultsWithScore = results.map((kw) => ({
+          let resultsWithScore = results.map((kw) => ({
             ...kw,
             totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
             score: calculateKeywordScore(kw),
           }))
           resultsWithScore.sort((a, b) => b.score - a.score)
+
+          // 연관 키워드가 너무 적으면 핵심 단어로 확장 검색
+          let expandedNotice = ''
+          if (resultsWithScore.length <= 3 && hasSpaces) {
+            const words = trimmed.split(/\s+/).filter(w => w.length >= 2)
+            // 가장 긴 단어를 핵심 키워드로 선택
+            const sorted = [...words].sort((a, b) => b.length - a.length)
+            const expandKeyword = sorted[0]
+
+            if (expandKeyword && expandKeyword !== trimmed.replace(/\s+/g, '')) {
+              send({
+                type: 'progress',
+                step: 1,
+                totalSteps: 3,
+                message: `연관 키워드가 적어 "${expandKeyword}" 키워드로 확장 검색 중...`,
+              })
+
+              try {
+                const expandedResults = await getKeywordStats(expandKeyword)
+                const expandedWithScore = expandedResults.map(kw => ({
+                  ...kw,
+                  totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
+                  score: calculateKeywordScore(kw),
+                }))
+
+                // 중복 제거 후 병합 (원본 키워드 우선)
+                const existingKeywords = new Set(resultsWithScore.map(r => r.relKeyword))
+                const newResults = expandedWithScore.filter(r => !existingKeywords.has(r.relKeyword))
+                resultsWithScore = [...resultsWithScore, ...newResults]
+                resultsWithScore.sort((a, b) => b.score - a.score)
+
+                expandedNotice = `연관 키워드가 적어 "${expandKeyword}" 키워드로 확장 검색했습니다. (${newResults.length}개 추가)`
+                console.log(`[Keywords] 확장 검색: "${expandKeyword}" → ${newResults.length}개 추가, 총 ${resultsWithScore.length}개`)
+              } catch (e) {
+                console.error('[Keywords] 확장 검색 실패:', e)
+              }
+            }
+          }
 
           // Step 2: 상위 노출 분석 (상위 100개만)
           const hasSearchApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
@@ -315,6 +353,7 @@ export async function GET(request: NextRequest) {
               searchedAs: trimmed.replace(/\s+/g, ''),
               spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,
             }),
+            ...(expandedNotice && { expandedNotice }),
           })
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)

@@ -94,7 +94,7 @@ function buildNotifications(data: {
     notifications.push({
       icon: Info,
       title: '활동을 시작해보세요',
-      message: '최근 7일간 활동이 없습니다. 키워드 리서치부터 시작해보세요!',
+      message: '최근 7일간 활동이 없습니다. 키워드 검색부터 시작해보세요!',
       time: '활동',
       actionable: true,
       href: '/keywords',

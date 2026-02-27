@@ -97,7 +97,7 @@ function CircularProgress({ percent, size = 48, stroke = 4, color = '#3b82f6' }:
 // ---------- 빠른 시작 데이터 ----------
 
 const quickActions = [
-  { title: '키워드 리서치', href: '/keywords', icon: Search, bg: 'bg-blue-100 text-blue-600' },
+  { title: '키워드 검색', href: '/keywords', icon: Search, bg: 'bg-blue-100 text-blue-600' },
   { title: '키워드 발굴', href: '/opportunities', icon: Lightbulb, bg: 'bg-amber-100 text-amber-600' },
   { title: 'AI 콘텐츠', href: '/content', icon: Wand2, bg: 'bg-purple-100 text-purple-600' },
   { title: 'SEO 체크', href: '/seo-check', icon: BarChart3, bg: 'bg-green-100 text-green-600' },
@@ -280,7 +280,7 @@ export default function DashboardPage() {
         {/* 워크플로우 3단계 */}
         <div className="flex items-center gap-1 sm:gap-2">
           {[
-            { label: '키워드 리서치', icon: Search, href: '/keywords' },
+            { label: '키워드 검색', icon: Search, href: '/keywords' },
             { label: 'AI 콘텐츠', icon: Wand2, href: '/content' },
             { label: 'SEO 체크', icon: BarChart3, href: '/seo-check' },
           ].map((step, i) => (
@@ -446,7 +446,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">최근 7일간 활동이 없습니다</p>
               <Link href="/keywords">
                 <Button variant="link" size="sm" className="mt-1 text-xs">
-                  키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
+                  키워드 검색 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </Link>
             </div>
@@ -517,7 +517,7 @@ export default function DashboardPage() {
               {recommendedKeywords.length > 0 && recentKeywords.length > 0
                 ? '최근 검색 기록을 바탕으로 추천 키워드를 준비했습니다. 클릭하면 바로 콘텐츠 생성을 시작할 수 있습니다.'
                 : contentStats.total === 0 && recentKeywords.length === 0
-                  ? '키워드 리서치부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
+                  ? '키워드 검색부터 시작해보세요! 검색량과 경쟁도를 분석하면 효과적인 콘텐츠 전략을 세울 수 있습니다.'
                   : recentKeywords.length > 0 && contentStats.total === 0
                     ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
                     : contentStats.total > 0 && recentContent.some(c => c.status === 'draft')
@@ -638,7 +638,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">아직 활동 기록이 없습니다</p>
               <Link href="/keywords">
                 <Button variant="link" size="sm" className="mt-1 text-xs">
-                  키워드 리서치 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
+                  키워드 검색 시작하기 <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </Link>
             </div>

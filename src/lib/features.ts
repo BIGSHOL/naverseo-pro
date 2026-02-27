@@ -17,7 +17,7 @@ export interface FeatureConfig {
 export const TOGGLEABLE_FEATURES: FeatureConfig[] = [
   {
     key: 'keywords',
-    label: '키워드 리서치',
+    label: '키워드 검색',
     description: '네이버 검색광고 API를 통한 키워드 검색량 조회',
     href: '/keywords',
   },

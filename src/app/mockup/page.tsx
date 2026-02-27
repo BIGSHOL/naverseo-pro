@@ -173,7 +173,7 @@ function DashboardMockup() {
                 <div className="space-y-px">
                   {[
                     { icon: LayoutDashboard, label: '대시보드', active: true },
-                    { icon: Search, label: '키워드 리서치', active: false },
+                    { icon: Search, label: '키워드 검색', active: false },
                     { icon: Lightbulb, label: '키워드 발굴', active: false },
                     { icon: Wand2, label: 'AI 콘텐츠 생성', active: false },
                     { icon: BarChart3, label: 'SEO 점수 체크', active: false },
@@ -242,7 +242,7 @@ function DashboardMockup() {
                 </div>
                 <div className="flex items-center gap-1">
                   {[
-                    { icon: Search, label: '키워드 리서치' },
+                    { icon: Search, label: '키워드 검색' },
                     { icon: Wand2, label: 'AI 콘텐츠' },
                     { icon: BarChart3, label: 'SEO 체크' },
                   ].map((step, i) => (
@@ -477,7 +477,7 @@ function FeaturesSection() {
             <span className="text-slate-500">한 곳에서 해결</span>
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto text-lg font-light">
-            키워드 리서치부터 AI 글쓰기, SEO 분석, 순위 추적까지 올인원으로.
+            키워드 검색부터 AI 글쓰기, SEO 분석, 순위 추적까지 올인원으로.
           </p>
         </div>
 
@@ -661,7 +661,7 @@ function FeaturesSection() {
               <Search className="h-5 w-5" />
             </div>
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-xl font-bold text-white">키워드 리서치</h3>
+              <h3 className="text-xl font-bold text-white">키워드 검색</h3>
               <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">1시간 → 30초</span>
             </div>
             <p className="text-sm text-slate-400 mb-6">네이버 검색량, 경쟁도, 추천 점수를 실시간으로 분석합니다.</p>
@@ -714,7 +714,7 @@ function FeaturesSection() {
 /* ──────────────────── Comparison Table ──────────────────── */
 function ComparisonSection() {
   const rows = [
-    { feature: '키워드 리서치', before: '1시간+ 수작업', after: '30초 자동 분석' },
+    { feature: '키워드 검색', before: '1시간+ 수작업', after: '30초 자동 분석' },
     { feature: '블로그 글 작성', before: '3~4시간', after: '10분 AI 생성' },
     { feature: 'SEO 최적화', before: '감에 의존', after: '100점 만점 자동 분석' },
     { feature: '순위 모니터링', before: '매일 수동 확인', after: '자동 추적 & 알림' },
@@ -772,7 +772,7 @@ function PricingSection() {
       priceNote: '무료',
       popular: false,
       badge: '3가지 기능',
-      features: ['월 30 크레딧', '키워드 리서치', 'SEO 점수 체크', '블로그 지수 분석'],
+      features: ['월 30 크레딧', '키워드 검색', 'SEO 점수 체크', '블로그 지수 분석'],
       cta: '무료 시작하기',
       ctaLink: '/signup',
     },
@@ -964,7 +964,7 @@ function Footer() {
             <p className="text-slate-500 text-xs leading-relaxed max-w-xs">
               AI 기반 네이버 블로그 SEO 올인원 도구.
               <br />
-              키워드 리서치부터 AI 글쓰기, SEO 분석, 순위 추적까지.
+              키워드 검색부터 AI 글쓰기, SEO 분석, 순위 추적까지.
             </p>
           </div>
           <div className="flex gap-12">

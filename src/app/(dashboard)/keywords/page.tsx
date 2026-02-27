@@ -43,6 +43,7 @@ export default function KeywordsPage() {
   const [error, setError] = useState('')
   const [searched, setSearched] = useState(false)
   const [spaceNotice, setSpaceNotice] = useState('')
+  const [expandedNotice, setExpandedNotice] = useState('')
   const [searchedKeyword, setSearchedKeyword] = useState('')
   const [progress, setProgress] = useState<SearchProgress | null>(null)
 
@@ -59,6 +60,7 @@ export default function KeywordsPage() {
     setLoading(true)
     setError('')
     setSpaceNotice('')
+    setExpandedNotice('')
     setSearched(true)
     setSearchedKeyword(keyword)
     setAiRecommendations([])
@@ -103,6 +105,7 @@ export default function KeywordsPage() {
                 setKeywords(data.keywords)
                 setIsDemo(data.isDemo || false)
                 setSpaceNotice(data.spaceNotice || '')
+                setExpandedNotice(data.expandedNotice || '')
               } else if (data.type === 'error') {
                 setError(data.error || '키워드 조회에 실패했습니다.')
                 setKeywords([])
@@ -178,7 +181,7 @@ export default function KeywordsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">키워드 리서치</h1>
+        <h1 className="text-2xl font-bold">키워드 검색</h1>
         <p className="mt-1 text-muted-foreground">
           네이버 검색량과 경쟁도를 분석하여 최적의 키워드를 찾으세요
         </p>
@@ -235,6 +238,20 @@ export default function KeywordsPage() {
       {spaceNotice && (
         <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
           ⚠ {spaceNotice}
+        </div>
+      )}
+
+      {/* 확장 검색 안내 */}
+      {expandedNotice && (
+        <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+          {expandedNotice}
+        </div>
+      )}
+
+      {/* 결과가 적을 때 안내 (확장 검색 없이 3개 이하) */}
+      {!loading && searched && keywords.length > 0 && keywords.length <= 3 && !expandedNotice && (
+        <div className="rounded-md bg-gray-50 border border-gray-200 p-3 text-sm text-gray-600">
+          검색 결과가 적습니다. 더 넓은 키워드로 검색하거나 하단의 AI 키워드 추천을 이용해보세요.
         </div>
       )}
 

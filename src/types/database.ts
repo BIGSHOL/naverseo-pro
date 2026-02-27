@@ -137,7 +137,7 @@ export interface ReferralConfig {
 
 /** 기능별 크레딧 소모량 */
 export const CREDIT_COSTS = {
-  keyword_research: 1,       // 키워드 리서치
+  keyword_research: 1,       // 키워드 검색
   keyword_discovery: 3,      // 키워드 발굴
   content_generation: 5,     // AI 콘텐츠 생성
   seo_check: 2,              // SEO 점수 체크
@@ -155,7 +155,7 @@ export type CreditFeature = keyof typeof CREDIT_COSTS
 
 /** 기능별 한국어 이름 */
 export const CREDIT_FEATURE_LABELS: Record<CreditFeature, string> = {
-  keyword_research: '키워드 리서치',
+  keyword_research: '키워드 검색',
   keyword_discovery: '키워드 발굴',
   content_generation: 'AI 콘텐츠 생성',
   seo_check: 'SEO 점수 체크',
@@ -181,7 +181,7 @@ export const PLAN_CREDITS: Record<Plan, number> = {
 
 /**
  * 플랜별 기능 게이트
- * Free (4기능): 키워드 리서치, SEO 점수 체크, 블로그 지수 분석, 검색 누락 조회
+ * Free (4기능): 키워드 검색, SEO 점수 체크, 블로그 지수 분석, 검색 누락 조회
  * Lite (6기능): Free + AI 콘텐츠 생성, SEO 리포트
  * Starter 이상: 모든 기능 사용 가능
  */
@@ -229,7 +229,7 @@ export const PLANS: Record<Plan, PlanInfo> = {
     aiModel: '기본 AI',
     features: [
       '월 30 크레딧',
-      '키워드 리서치 (~30회)',
+      '키워드 검색 (~30회)',
       'SEO 점수 체크 (~15회)',
       '블로그 지수 분석 (~10회)',
       '검색 누락 조회 (~15회)',

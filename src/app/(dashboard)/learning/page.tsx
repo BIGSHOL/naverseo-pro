@@ -39,7 +39,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  keyword_research: '키워드 리서치',
+  keyword_research: '키워드 검색',
   content_generation: '콘텐츠 생성',
   competitor_analysis: '경쟁사 분석',
   blog_index: '블로그 지수',
@@ -286,7 +286,7 @@ export default function LearningPage() {
             </div>
           ) : (
             <p className="py-10 text-center text-muted-foreground">
-              아직 수집된 데이터가 없습니다. 키워드 리서치, 콘텐츠 생성, 경쟁사 분석 등을 사용하면 자동으로 데이터가 수집됩니다.
+              아직 수집된 데이터가 없습니다. 키워드 검색, 콘텐츠 생성, 경쟁사 분석 등을 사용하면 자동으로 데이터가 수집됩니다.
             </p>
           )}
         </CardContent>
@@ -300,7 +300,7 @@ export default function LearningPage() {
             <div className="text-sm">
               <p className="font-medium text-blue-900 dark:text-blue-100">자동 학습 시스템</p>
               <p className="mt-1 text-blue-700 dark:text-blue-300">
-                키워드 리서치, AI 콘텐츠 생성, 상위노출 분석, 블로그 지수, 순위 트래킹을 사용할 때마다
+                키워드 검색, AI 콘텐츠 생성, 상위노출 분석, 블로그 지수, 순위 트래킹을 사용할 때마다
                 상위 블로그 포스트의 구조 패턴(글자 수, 이미지 수, 소제목 수, 톤 등)이 자동으로 수집됩니다.
                 충분한 데이터가 쌓이면 AI 콘텐츠 생성 시 검증된 패턴이 프롬프트에 자동 주입되어 더 높은 품질의 콘텐츠를 생성합니다.
               </p>

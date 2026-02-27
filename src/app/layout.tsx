@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://www.naverseopro.com'),
   title: 'NaverSEO Pro - AI 기반 네이버 블로그 SEO 올인원 도구',
   description:
-    '키워드 리서치, AI 콘텐츠 생성, SEO 점수 분석, 순위 트래킹까지. 네이버 블로그 SEO의 모든 것을 한 곳에서.',
+    '키워드 검색, AI 콘텐츠 생성, SEO 점수 분석, 순위 트래킹까지. 네이버 블로그 SEO의 모든 것을 한 곳에서.',
   keywords: ['네이버 SEO', '블로그 SEO', 'AI 콘텐츠', '키워드 분석', '순위 트래킹'],
   openGraph: {
     title: 'NaverSEO Pro - 네이버 블로그 상위 노출의 비밀',

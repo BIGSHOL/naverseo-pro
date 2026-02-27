@@ -161,7 +161,7 @@ export default function ReportPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-blue-600" />
-                <p className="text-sm text-muted-foreground">키워드 리서치</p>
+                <p className="text-sm text-muted-foreground">키워드 검색</p>
               </div>
               <p className="mt-1 text-2xl font-bold">{data.keywords.length}건</p>
             </CardContent>
@@ -230,11 +230,11 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
-        {/* 최근 키워드 리서치 */}
+        {/* 최근 키워드 검색 */}
         {data.keywords.length > 0 && (
           <Card className="print:border print:shadow-none">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">최근 키워드 리서치</CardTitle>
+              <CardTitle className="text-base">최근 키워드 검색</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
