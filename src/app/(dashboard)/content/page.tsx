@@ -7,7 +7,7 @@ import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
   Pencil, Save, Link2, MessageSquareQuote, Sparkles,
-  Search, Trash2, ChevronsDown, Pause,
+  Search, Trash2, ChevronsDown, Pause, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
 import type { Editor } from '@tiptap/core'
-import { animatePatches } from '@/lib/editor/patch-animator'
+import { animatePatchesSequential } from '@/lib/editor/patch-animator'
 import { analyzeSeo, type ContentType, type DomainCategory, DOMAIN_CATEGORY_NAMES } from '@/lib/content/engine'
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
@@ -449,6 +449,7 @@ export default function ContentPage() {
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null)
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'draft' | 'published' | 'archived'>('all')
+  const [historyListCollapsed, setHistoryListCollapsed] = useState(false)
   const [historyEditMode, setHistoryEditMode] = useState(false)
   const [historyEditTitle, setHistoryEditTitle] = useState('')
   const [historyEditContent, setHistoryEditContent] = useState('')
@@ -678,10 +679,8 @@ export default function ContentPage() {
                   }, 0)
                 }
 
-                // 스트리밍 중 실시간 SEO 점수 업데이트
-                const parsed = extractFromStreamJson(accumulated)
-                if (parsed.title) setEditTitle(parsed.title)
-                if (parsed.content) setEditContent(parsed.content)
+                // 스트리밍 중에는 SEO 분석 안 함 (렉 방지)
+                // editTitle/editContent는 result 이벤트 후 설정됨
               } else if (event.type === 'result') {
                 setStreamingText('')
                 streamingTextRef.current = ''
@@ -900,74 +899,100 @@ export default function ContentPage() {
         setGuidanceItems([])
       }
 
-      // Patch 방식으로 부분 수정 적용
-      let updatedContent = editContent
-      let appliedCount = 0
-      let skippedCount = 0
-      const appliedPatches: Array<{ find: string; replace: string }> = []
+      // 적용 가능한 패치 필터링
+      const validPatches = (data.patches && Array.isArray(data.patches))
+        ? data.patches.filter((p: { find: string; replace: string }) =>
+            typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0 && editContent.includes(p.find)
+          )
+        : []
 
-      if (data.patches && Array.isArray(data.patches)) {
-        for (const patch of data.patches) {
+      // 편집기 탭 + 에디터 있으면 → 순차 애니메이션 (패치 하나씩 적용)
+      if (validPatches.length > 0 && editorRef.current && !showRawMarkdown) {
+        cancelAnimationRef.current?.()
+        let currentContent = editContent
+
+        cancelAnimationRef.current = animatePatchesSequential(
+          editorRef.current,
+          validPatches,
+          {
+            initialDelay: 300,
+            findDuration: 900,
+            replaceDuration: 1400,
+            interPatchDelay: 400,
+            onApplyPatch: (patch) => {
+              return new Promise((resolve) => {
+                if (!currentContent.includes(patch.find)) {
+                  resolve(false)
+                  return
+                }
+                currentContent = currentContent.replace(patch.find, patch.replace)
+                setEditContent(currentContent)
+                // React 리렌더 + TipTap 동기화 대기
+                requestAnimationFrame(() => {
+                  setTimeout(() => resolve(true), 150)
+                })
+              })
+            },
+            onProgress: (current, total, phase) => {
+              if (phase === 'find') {
+                setAnimatingPatch(`${current}/${total} 수정 중...`)
+              } else {
+                setAnimatingPatch(`${current}/${total} 적용 완료`)
+              }
+            },
+            onComplete: (applied, skipped) => {
+              // append (태그/CTA 등 끝에 추가)
+              if (data.append) {
+                currentContent = currentContent.trimEnd() + '\n\n' + data.append
+                setEditContent(currentContent)
+              }
+              if (data.title) setEditTitle(data.title)
+
+              setAnimatingPatch('')
+              cancelAnimationRef.current = null
+
+              const messages: string[] = []
+              if (applied > 0) messages.push(`${applied}개 수정 적용 완료!`)
+              if (skipped > 0) messages.push(`${skipped}개 건너뜀`)
+              if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
+              setImproveMessage(messages.join(', ') + (applied > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
+              setTimeout(() => setImproveMessage(''), 5000)
+            },
+          }
+        )
+      } else {
+        // 폴백: 마크다운 탭이거나 에디터 없으면 일괄 적용 (기존 방식)
+        let updatedContent = editContent
+        let appliedCount = 0
+        let skippedCount = 0
+
+        for (const patch of validPatches) {
           if (updatedContent.includes(patch.find)) {
             updatedContent = updatedContent.replace(patch.find, patch.replace)
             appliedCount++
-            appliedPatches.push(patch)
           } else {
             skippedCount++
           }
         }
-      }
 
-      // append (태그/CTA 등 끝에 추가)
-      if (data.append) {
-        updatedContent = updatedContent.trimEnd() + '\n\n' + data.append
-        appliedCount++
-      }
-
-      // 제목 변경
-      if (data.title) setEditTitle(data.title)
-
-      // 콘텐츠 반영
-      if (appliedCount > 0) {
-        cancelAnimationRef.current?.()
-        setEditContent(updatedContent)
-
-        // 편집기 탭 + 에디터 인스턴스가 있으면 하이라이트 애니메이션 시작
-        if (appliedPatches.length > 0 && editorRef.current && !showRawMarkdown) {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              if (!editorRef.current || editorRef.current.isDestroyed) return
-              cancelAnimationRef.current = animatePatches(
-                editorRef.current,
-                appliedPatches,
-                {
-                  initialDelay: 200,
-                  highlightDuration: 1800,
-                  interPatchDelay: 500,
-                  onPatchShown: (current, total) => {
-                    setAnimatingPatch(`${current}/${total} 수정 확인 중...`)
-                  },
-                  onComplete: () => {
-                    setAnimatingPatch('')
-                    cancelAnimationRef.current = null
-                  },
-                }
-              )
-            }, 150)
-          })
+        if (data.append) {
+          updatedContent = updatedContent.trimEnd() + '\n\n' + data.append
+          appliedCount++
         }
-      }
+        if (data.title) setEditTitle(data.title)
+        if (appliedCount > 0) setEditContent(updatedContent)
 
-      const messages: string[] = []
-      if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용 완료!`)
-      if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
-      if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
-      if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
-        setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
-      } else {
-        setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
+        const messages: string[] = []
+        if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용 완료!`)
+        if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
+        if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
+        if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
+          setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
+        } else {
+          setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
+        }
+        setTimeout(() => setImproveMessage(''), 5000)
       }
-      setTimeout(() => setImproveMessage(''), 5000)
     } catch {
       setImproveMessage('네트워크 오류가 발생했습니다.')
     } finally {
@@ -1147,40 +1172,42 @@ export default function ContentPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+            <div className={`grid gap-4 ${historyListCollapsed ? '' : 'lg:grid-cols-[380px_1fr]'}`}>
               {/* 좌측: 목록 */}
-              <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
-                {filteredHistory.map(c => (
-                  <div
-                    key={c.id}
-                    className={`cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent/50 ${
-                      selectedContentId === c.id ? 'border-primary bg-accent/30' : ''
-                    }`}
-                    onClick={() => {
-                      setSelectedContentId(c.id)
-                      setHistoryEditMode(false)
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-medium line-clamp-1 flex-1">{c.title}</h3>
-                      {c.seo_score !== null && (
-                        <span className={`text-xs font-bold shrink-0 ${getContentScoreColor(c.seo_score)}`}>
-                          {c.seo_score}점
+              {!historyListCollapsed && (
+                <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+                  {filteredHistory.map(c => (
+                    <div
+                      key={c.id}
+                      className={`cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent/50 ${
+                        selectedContentId === c.id ? 'border-primary bg-accent/30' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedContentId(c.id)
+                        setHistoryEditMode(false)
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-medium line-clamp-1 flex-1">{c.title}</h3>
+                        {c.seo_score !== null && (
+                          <span className={`text-xs font-bold shrink-0 ${getContentScoreColor(c.seo_score)}`}>
+                            {c.seo_score}점
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.target_keyword}</Badge>
+                        <Badge className={`text-[10px] px-1.5 py-0 ${statusLabel[c.status]?.color || ''}`}>
+                          {statusLabel[c.status]?.label || c.status}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground ml-auto">
+                          {new Date(c.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                         </span>
-                      )}
+                      </div>
                     </div>
-                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.target_keyword}</Badge>
-                      <Badge className={`text-[10px] px-1.5 py-0 ${statusLabel[c.status]?.color || ''}`}>
-                        {statusLabel[c.status]?.label || c.status}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground ml-auto">
-                        {new Date(c.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* 우측: 상세 보기 */}
               <div>
@@ -1188,6 +1215,13 @@ export default function ContentPage() {
                   <Card>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
+                        <button
+                          className="mt-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors hidden lg:block"
+                          onClick={() => setHistoryListCollapsed(!historyListCollapsed)}
+                          title={historyListCollapsed ? '목록 펼치기' : '목록 접기'}
+                        >
+                          {historyListCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                        </button>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Badge variant="outline">{selectedContent.target_keyword}</Badge>
@@ -2181,19 +2215,22 @@ export default function ContentPage() {
               )}
             </Card>
 
-            {/* 스트리밍 중 실시간 SEO 패널 */}
+            {/* 스트리밍 중 SEO 안내 */}
             <div className="hidden lg:block">
               <div className="sticky top-4">
                 <div className="mb-2 flex items-center gap-1.5">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
                   <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
                 </div>
-                <LiveSeoPanel
-                  keyword={keyword}
-                  title={editTitle}
-                  content={editContent}
-                  compact
-                />
+                <div className="rounded-lg border bg-muted/30 p-4 text-center">
+                  <BarChart3 className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    작성 완료 후 분석
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground/70">
+                    AI 콘텐츠 생성이 끝나면<br />실시간 SEO 분석이 시작됩니다
+                  </p>
+                </div>
               </div>
             </div>
           </div>
