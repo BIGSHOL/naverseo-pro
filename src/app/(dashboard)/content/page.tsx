@@ -642,8 +642,13 @@ export default function ContentPage() {
                 })
               } else if (event.type === 'stream') {
                 setStreamingText(prev => {
+                  const updated = prev + event.delta
                   if (!prev) setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-                  return prev + event.delta
+                  // 스트리밍 중 실시간 SEO 점수 업데이트
+                  const parsed = extractFromStreamJson(updated)
+                  if (parsed.title) setEditTitle(parsed.title)
+                  if (parsed.content) setEditContent(parsed.content)
+                  return updated
                 })
               } else if (event.type === 'result') {
                 setStreamingText('')
@@ -1933,25 +1938,43 @@ export default function ContentPage() {
       {loading && streamingText && (() => {
         const parsed = extractFromStreamJson(streamingText)
         return (
-          <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2 text-blue-700">
-                <Sparkles className="h-4 w-4 animate-pulse" />
-                <span className="text-sm font-medium">AI가 글을 작성하고 있습니다...</span>
-              </div>
-              {parsed.title && (
-                <h3 className="text-lg font-bold mt-2">{parsed.title}</h3>
-              )}
-            </CardHeader>
-            {parsed.content && (
-              <CardContent className="pt-0">
-                <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
-                  {parsed.content}
-                  <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+          <div className="grid gap-4 lg:grid-cols-[1fr,280px]">
+            <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2 text-blue-700">
+                  <Sparkles className="h-4 w-4 animate-pulse" />
+                  <span className="text-sm font-medium">AI가 글을 작성하고 있습니다...</span>
                 </div>
-              </CardContent>
-            )}
-          </Card>
+                {parsed.title && (
+                  <h3 className="text-lg font-bold mt-2">{parsed.title}</h3>
+                )}
+              </CardHeader>
+              {parsed.content && (
+                <CardContent className="pt-0">
+                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
+                    {parsed.content}
+                    <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* 스트리밍 중 실시간 SEO 패널 */}
+            <div className="hidden lg:block">
+              <div className="sticky top-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                  <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
+                </div>
+                <LiveSeoPanel
+                  keyword={keyword}
+                  title={editTitle}
+                  content={editContent}
+                  compact
+                />
+              </div>
+            </div>
+          </div>
         )
       })()}
 
