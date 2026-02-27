@@ -55,12 +55,12 @@ export async function GET() {
       .from('keyword_patterns')
       .select('*', { count: 'exact', head: true })
 
-    // 6. 최근 수집 (최신 10개)
+    // 6. 최근 수집 (최신 50개 - 프론트에서 더보기 페이지네이션)
     const { data: recentPosts } = await supabase
       .from('analyzed_posts')
       .select('keyword, keyword_category, post_url, quality_score, collected_from, collected_at')
       .order('collected_at', { ascending: false })
-      .limit(10)
+      .limit(50)
 
     // 7. 평균 품질 점수
     const { data: qualityData } = await supabase
@@ -71,6 +71,38 @@ export async function GET() {
       ? Math.round(qualityData.reduce((sum, r) => sum + (r.quality_score || 0), 0) / qualityData.length * 10) / 10
       : 0
 
+    // 8. 마지막 수집 시간
+    const lastCollectedAt = recentPosts && recentPosts.length > 0
+      ? recentPosts[0].collected_at
+      : null
+
+    // 9. 최근 14일 일별 수집 추이
+    const fourteenDaysAgo = new Date()
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13)
+    fourteenDaysAgo.setHours(0, 0, 0, 0)
+
+    const { data: dailyData } = await supabase
+      .from('analyzed_posts')
+      .select('collected_at')
+      .gte('collected_at', fourteenDaysAgo.toISOString())
+
+    const dailyCounts: Record<string, number> = {}
+    for (let d = 0; d < 14; d++) {
+      const date = new Date(fourteenDaysAgo)
+      date.setDate(date.getDate() + d)
+      dailyCounts[date.toISOString().slice(0, 10)] = 0
+    }
+    for (const row of dailyData || []) {
+      const dateKey = new Date(row.collected_at).toISOString().slice(0, 10)
+      if (dailyCounts[dateKey] !== undefined) {
+        dailyCounts[dateKey]++
+      }
+    }
+    const dailyTrend = Object.entries(dailyCounts).map(([date, count]) => ({
+      date,
+      count,
+    }))
+
     return NextResponse.json({
       totalPosts: totalPosts || 0,
       uniqueKeywords: uniqueKeywords.size,
@@ -79,6 +111,8 @@ export async function GET() {
       patternCount: patternCount || 0,
       avgQualityScore: avgQuality,
       recentCollections: recentPosts || [],
+      lastCollectedAt,
+      dailyTrend,
     })
   } catch (error) {
     console.error('[BlogLearning Stats] 오류:', error)
