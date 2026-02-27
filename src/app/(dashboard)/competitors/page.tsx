@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon } from 'lucide-react'
+import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon, FileText, MessageCircle, Heart, Eye } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,24 @@ interface CompetitorItem {
   daysSincePosted: number
   titleLength: number
   hasKeywordInTitle: boolean
+  charCount?: number | null
+  imageCount?: number | null
+  videoCount?: number | null
+  commentCount?: number | null
+  sympathyCount?: number | null
+  readCount?: number | null
+}
+
+interface ContentQualityStats {
+  avgCharCount: number
+  medianCharCount: number
+  charCountRange: [number, number]
+  avgImageCount: number
+  avgVideoCount: number
+  avgCommentCount: number | null
+  avgSympathyCount: number | null
+  avgReadCount: number | null
+  scrapedCount: number
 }
 
 interface PatternAnalysis {
@@ -51,12 +69,19 @@ interface PatternAnalysis {
     diversityRate: number
     repeatedBlogs: { name: string; count: number }[]
   }
+  contentQuality?: ContentQualityStats | null
 }
 
 interface DifficultyAssessment {
   level: 'easy' | 'medium' | 'hard' | 'very_hard'
   score: number
   reasons: string[]
+  breakdown?: {
+    competition: number
+    quality: number
+    engagement: number
+    freshness: number
+  }
 }
 
 interface TitlePatternWord {
@@ -100,6 +125,13 @@ function getDifficultyInfo(level: string) {
     case 'very_hard': return { label: '매우 어려움', color: 'text-red-600', bg: 'bg-red-100', barColor: 'bg-red-500' }
     default: return { label: '알 수 없음', color: 'text-gray-600', bg: 'bg-gray-100', barColor: 'bg-gray-500' }
   }
+}
+
+function getBarColor(value: number, max: number): string {
+  const ratio = value / max
+  if (ratio >= 0.7) return 'bg-red-500'
+  if (ratio >= 0.4) return 'bg-yellow-500'
+  return 'bg-green-500'
 }
 
 // === 메인 페이지 ===
@@ -193,6 +225,8 @@ export default function CompetitorsPage() {
     }
   }
 
+  const cq = patterns?.contentQuality
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -224,9 +258,10 @@ export default function CompetitorsPage() {
 
       {/* 로딩 */}
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
           <span className="text-muted-foreground">상위 블로그 분석 중...</span>
+          <span className="text-xs text-muted-foreground">콘텐츠 품질 및 독자 반응 데이터를 수집합니다</span>
         </div>
       )}
 
@@ -249,47 +284,46 @@ export default function CompetitorsPage() {
                     <Shield className={`h-6 w-6 ${getDifficultyInfo(difficulty.level).color}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <h3 className="font-semibold">경쟁 진입 난이도</h3>
                       <Badge className={`${getDifficultyInfo(difficulty.level).bg} ${getDifficultyInfo(difficulty.level).color} border-0`}>
                         {getDifficultyInfo(difficulty.level).label}
                       </Badge>
+                      <span className="text-sm text-muted-foreground ml-auto">{difficulty.score}점 / 100</span>
                     </div>
-                    <div className="mb-3">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                        <span>쉬움</span>
-                        <span>{difficulty.score}점</span>
-                        <span>어려움</span>
+
+                    {/* 4차원 프로그레스바 */}
+                    {difficulty.breakdown && (
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-3">
+                        {([
+                          ['경쟁 치열도', difficulty.breakdown.competition],
+                          ['콘텐츠 품질 장벽', difficulty.breakdown.quality],
+                          ['사용자 반응 장벽', difficulty.breakdown.engagement],
+                          ['최신성 경쟁', difficulty.breakdown.freshness],
+                        ] as const).map(([label, value]) => (
+                          <div key={label}>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-0.5">
+                              <span>{label}</span>
+                              <span>{value}/25</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-muted">
+                              <div
+                                className={`h-1.5 rounded-full transition-all ${getBarColor(value, 25)}`}
+                                style={{ width: `${(value / 25) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
-                        <div
-                          className={`h-2 rounded-full transition-all ${getDifficultyInfo(difficulty.level).barColor}`}
-                          style={{ width: `${difficulty.score}%` }}
-                        />
-                      </div>
-                    </div>
-                    <ul className="space-y-1.5">
-                      {difficulty.reasons.map((reason, i) => {
-                        // 요인별 아이콘/색상: 신선도, 집중도, 키워드, 제목
-                        const factorStyles = [
-                          { icon: '🕐', color: 'text-blue-600' },
-                          { icon: '👥', color: 'text-purple-600' },
-                          { icon: '🔤', color: 'text-green-600' },
-                          { icon: '📝', color: 'text-amber-600' },
-                        ]
-                        const style = factorStyles[i] || factorStyles[0]
-                        // "—" 이후가 해석 부분
-                        const parts = reason.split(' — ')
-                        return (
-                          <li key={i} className="text-xs flex items-start gap-1.5">
-                            <span className="shrink-0 text-[11px] leading-4">{style.icon}</span>
-                            <span>
-                              <span className={`font-medium ${style.color}`}>{parts[0]}</span>
-                              {parts[1] && <span className="text-muted-foreground"> — {parts[1]}</span>}
-                            </span>
-                          </li>
-                        )
-                      })}
+                    )}
+
+                    <ul className="space-y-1">
+                      {difficulty.reasons.map((reason, i) => (
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                          {reason}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -298,7 +332,7 @@ export default function CompetitorsPage() {
           )}
 
           {/* 요약 통계 */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -308,6 +342,21 @@ export default function CompetitorsPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">분석 대상</p>
                     <p className="text-xl font-bold">{competitors.length}개</p>
+                    {cq && <p className="text-xs text-muted-foreground">{cq.scrapedCount}개 심층</p>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+                    <FileText className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">본문 깊이</p>
+                    <p className="text-xl font-bold">{cq ? `${cq.medianCharCount.toLocaleString()}자` : '-'}</p>
+                    <p className="text-xs text-muted-foreground">중앙값</p>
                   </div>
                 </div>
               </CardContent>
@@ -316,11 +365,30 @@ export default function CompetitorsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                    <Type className="h-5 w-5 text-green-600" />
+                    <ImageIcon className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">키워드 포함률</p>
-                    <p className="text-xl font-bold">{patterns.titleStats.keywordInTitleRate}%</p>
+                    <p className="text-sm text-muted-foreground">평균 이미지</p>
+                    <p className="text-xl font-bold">{cq ? `${cq.avgImageCount}장` : '-'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-100">
+                    <Heart className="h-5 w-5 text-pink-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">평균 반응</p>
+                    <p className="text-xl font-bold">
+                      {cq && (cq.avgCommentCount !== null || cq.avgSympathyCount !== null)
+                        ? `${Math.round((cq.avgCommentCount ?? 0) + (cq.avgSympathyCount ?? 0))}개`
+                        : '-'
+                      }
+                    </p>
+                    <p className="text-xs text-muted-foreground">댓글+공감</p>
                   </div>
                 </div>
               </CardContent>
@@ -332,7 +400,7 @@ export default function CompetitorsPage() {
                     <Clock className="h-5 w-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">상위글 평균 작성시기</p>
+                    <p className="text-sm text-muted-foreground">평균 작성시기</p>
                     <p className="text-xl font-bold">{formatDaysAgo(patterns.dateStats.avgDaysAgo)}</p>
                   </div>
                 </div>
@@ -397,19 +465,20 @@ export default function CompetitorsPage() {
                       <th className="pb-3 pr-4 font-medium">제목</th>
                       <th className="hidden pb-3 pr-4 font-medium md:table-cell">블로그</th>
                       <th className="pb-3 pr-4 font-medium">작성일</th>
-                      <th className="hidden pb-3 font-medium lg:table-cell">키워드</th>
+                      <th className="hidden pb-3 pr-4 font-medium lg:table-cell">글자수</th>
+                      <th className="hidden pb-3 font-medium lg:table-cell">반응</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCompetitors.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                           해당 기간에 작성된 글이 없습니다
                         </td>
                       </tr>
                     )}
                     {filteredCompetitors.map(comp => (
-                      <tr key={comp.rank} className="border-b last:border-0">
+                      <tr key={comp.rank} className={`border-b last:border-0 ${comp.charCount != null ? 'bg-muted/20' : ''}`}>
                         <td className="py-3 pr-4">
                           <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
                             comp.rank <= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
@@ -438,12 +507,29 @@ export default function CompetitorsPage() {
                           <div className="whitespace-nowrap">{comp.postDateFormatted}</div>
                           <div className="text-xs">{formatDaysAgo(comp.daysSincePosted)}</div>
                         </td>
+                        <td className="hidden py-3 pr-4 lg:table-cell whitespace-nowrap text-muted-foreground">
+                          {comp.charCount != null ? `${comp.charCount.toLocaleString()}자` : '-'}
+                        </td>
                         <td className="hidden py-3 lg:table-cell whitespace-nowrap">
-                          {comp.hasKeywordInTitle ? (
-                            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">포함</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground">미포함</Badge>
-                          )}
+                          {comp.charCount != null ? (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {comp.commentCount != null && (
+                                <span className="flex items-center gap-0.5">
+                                  <MessageCircle className="h-3 w-3" />{comp.commentCount}
+                                </span>
+                              )}
+                              {comp.sympathyCount != null && (
+                                <span className="flex items-center gap-0.5">
+                                  <Heart className="h-3 w-3" />{comp.sympathyCount}
+                                </span>
+                              )}
+                              {comp.readCount != null && (
+                                <span className="flex items-center gap-0.5">
+                                  <Eye className="h-3 w-3" />{comp.readCount.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : '-'}
                         </td>
                       </tr>
                     ))}
@@ -454,7 +540,7 @@ export default function CompetitorsPage() {
           </Card>
 
           {/* 패턴 분석 */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* 제목 분석 */}
             <Card>
               <CardHeader className="pb-3">
@@ -485,12 +571,91 @@ export default function CompetitorsPage() {
               </CardContent>
             </Card>
 
+            {/* 콘텐츠 품질 */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4" />
+                  콘텐츠 품질
+                  {cq && <Badge variant="secondary" className="text-xs ml-auto">{cq.scrapedCount}개 분석</Badge>}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {cq ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">본문 중앙값</span>
+                      <span className="font-medium">{cq.medianCharCount.toLocaleString()}자</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">본문 범위</span>
+                      <span className="font-medium">{cq.charCountRange[0].toLocaleString()}~{cq.charCountRange[1].toLocaleString()}자</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">평균 이미지</span>
+                      <span className="font-medium">{cq.avgImageCount}장</span>
+                    </div>
+                    {cq.avgVideoCount > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">평균 동영상</span>
+                        <span className="font-medium">{cq.avgVideoCount}개</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {cq.medianCharCount >= 2000
+                        ? '정보 밀도가 높은 콘텐츠 — 충실한 콘텐츠가 필요합니다'
+                        : cq.medianCharCount >= 1000
+                        ? '적정 수준의 콘텐츠 — 질 높은 구조로 차별화 가능'
+                        : '콘텐츠 깊이가 낮아 양질의 글로 쉽게 차별화 가능'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">스크래핑 데이터 없음</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 사용자 반응 */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Heart className="h-4 w-4" />
+                  사용자 반응
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {cq ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> 평균 댓글</span>
+                      <span className="font-medium">{cq.avgCommentCount !== null ? `${cq.avgCommentCount}개` : '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> 평균 공감</span>
+                      <span className="font-medium">{cq.avgSympathyCount !== null ? `${cq.avgSympathyCount}개` : '-'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> 평균 조회수</span>
+                      <span className="font-medium">{cq.avgReadCount !== null ? `${cq.avgReadCount.toLocaleString()}회` : '-'}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {(cq.avgCommentCount ?? 0) >= 10
+                        ? '독자 참여도가 높은 경쟁 구간입니다'
+                        : '독자 반응이 낮아 적극적 소통으로 차별화 가능'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">반응 데이터 없음</p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* 포스트 연령 분포 */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Clock className="h-4 w-4" />
-                  포스트 연령 분포
+                  포스트 연령
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -523,47 +688,6 @@ export default function CompetitorsPage() {
                 </p>
               </CardContent>
             </Card>
-
-            {/* 블로그 다양성 */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-4 w-4" />
-                  블로그 다양성
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">고유 블로그 수</span>
-                  <span className="font-medium">{patterns.blogDiversity.uniqueBlogCount}/{patterns.blogDiversity.totalResults}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      patterns.blogDiversity.diversityRate >= 80 ? 'bg-green-500' :
-                      patterns.blogDiversity.diversityRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${patterns.blogDiversity.diversityRate}%` }}
-                  />
-                </div>
-                {patterns.blogDiversity.repeatedBlogs.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-xs text-muted-foreground">중복 블로그:</p>
-                    {patterns.blogDiversity.repeatedBlogs.map((blog) => (
-                      <div key={blog.name} className="flex items-center justify-between text-xs">
-                        <span className="truncate">{blog.name}</span>
-                        <Badge variant="secondary" className="text-xs">{blog.count}개</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {patterns.blogDiversity.diversityRate >= 80
-                    ? '다양한 블로그가 노출되어 신규 진입 기회가 있습니다'
-                    : '특정 블로그가 독점 중이라 진입이 어려울 수 있습니다'}
-                </p>
-              </CardContent>
-            </Card>
           </div>
 
           {/* 제목 패턴 워드 */}
@@ -585,7 +709,7 @@ export default function CompetitorsPage() {
                       className="text-sm px-3 py-1"
                     >
                       {tp.word}
-                      <span className="ml-1.5 text-xs text-muted-foreground">×{tp.count}</span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">&times;{tp.count}</span>
                     </Badge>
                   ))}
                 </div>
@@ -724,7 +848,6 @@ export default function CompetitorsPage() {
               <p className="text-xs text-muted-foreground">분석 데이터가 자동으로 적용되어 최적화된 블로그 글을 바로 생성합니다</p>
             </div>
             <Button className="gap-2" onClick={() => {
-              // 분석 데이터를 sessionStorage에 저장하여 콘텐츠 페이지에 전달
               const contentPreset = {
                 keyword: searchedKeyword,
                 relatedKeywords: [
@@ -737,6 +860,12 @@ export default function CompetitorsPage() {
                 titleSuggestions: aiInsights?.titleSuggestions || [],
                 strategy: aiInsights?.recommendedStrategy || '',
                 difficulty: difficulty ? { level: difficulty.level, score: difficulty.score } : null,
+                avgCharCount: cq?.medianCharCount ?? null,
+                avgImageCount: cq?.avgImageCount ?? null,
+                avgEngagement: cq ? {
+                  comments: cq.avgCommentCount,
+                  sympathy: cq.avgSympathyCount,
+                } : null,
               }
               sessionStorage.setItem('naverseo-competitor-preset', JSON.stringify(contentPreset))
               router.push(`/content?keyword=${encodeURIComponent(searchedKeyword)}&from=competitors`)
@@ -755,7 +884,7 @@ export default function CompetitorsPage() {
             <Users className="mb-4 h-12 w-12 text-muted-foreground/50" />
             <h3 className="mb-2 text-lg font-medium">키워드를 입력하여 경쟁사를 분석하세요</h3>
             <p className="mb-4 text-center text-sm text-muted-foreground">
-              네이버 블로그 상위 10개 결과의 제목, 작성일, 블로그 패턴을 분석합니다
+              네이버 블로그 상위 10개 결과의 콘텐츠 품질, 독자 반응, 패턴을 심층 분석합니다
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {['다이어트 식단', '강남 맛집', '제주도 여행', '인테리어 비용'].map(kw => (

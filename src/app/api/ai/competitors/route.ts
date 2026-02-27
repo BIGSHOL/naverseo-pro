@@ -4,6 +4,7 @@ import { callGemini, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMP
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
+import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
 // === 타입 정의 ===
 
@@ -19,6 +20,25 @@ interface CompetitorItem {
   daysSincePosted: number
   titleLength: number
   hasKeywordInTitle: boolean
+  // 스크래핑 데이터 (상위 5개만 값 존재, 6~10위는 null)
+  charCount: number | null
+  imageCount: number | null
+  videoCount: number | null
+  commentCount: number | null
+  sympathyCount: number | null
+  readCount: number | null
+}
+
+interface ContentQualityStats {
+  avgCharCount: number
+  medianCharCount: number
+  charCountRange: [number, number]
+  avgImageCount: number
+  avgVideoCount: number
+  avgCommentCount: number | null
+  avgSympathyCount: number | null
+  avgReadCount: number | null
+  scrapedCount: number
 }
 
 interface PatternAnalysis {
@@ -44,12 +64,19 @@ interface PatternAnalysis {
     diversityRate: number
     repeatedBlogs: { name: string; count: number }[]
   }
+  contentQuality: ContentQualityStats | null
 }
 
 interface DifficultyAssessment {
   level: 'easy' | 'medium' | 'hard' | 'very_hard'
   score: number // 0~100 (높을수록 어려움)
   reasons: string[]
+  breakdown: {
+    competition: number   // 경쟁 치열도 (0~25)
+    quality: number       // 콘텐츠 품질 장벽 (0~25)
+    engagement: number    // 사용자 반응 장벽 (0~25)
+    freshness: number     // 최신성 경쟁 (0~25)
+  }
 }
 
 interface TitlePatternWords {
@@ -59,8 +86,8 @@ interface TitlePatternWords {
 
 interface ImageAnalysis {
   totalImages: number
-  imageTypes: string[]       // 사용된 이미지 유형 (직촬, 인포그래픽, 캡처 등)
-  recommendation: string     // 이미지 전략 추천
+  imageTypes: string[]
+  recommendation: string
 }
 
 interface AiInsights {
@@ -77,7 +104,6 @@ interface AiInsights {
 
 // === 유틸리티 함수 ===
 
-// postdate(YYYYMMDD) → 오늘까지 경과 일수
 function daysSince(postdate: string): number {
   const year = parseInt(postdate.substring(0, 4))
   const month = parseInt(postdate.substring(4, 6)) - 1
@@ -88,16 +114,28 @@ function daysSince(postdate: string): number {
   return Math.max(0, diff)
 }
 
-// YYYYMMDD → YYYY.MM.DD
 function formatDate(postdate: string): string {
   return `${postdate.substring(0, 4)}.${postdate.substring(4, 6)}.${postdate.substring(6, 8)}`
+}
+
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0
+  const sorted = [...arr].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+}
+
+function avgNonNull(arr: (number | null)[]): number | null {
+  const valid = arr.filter((v): v is number => v !== null)
+  if (valid.length === 0) return null
+  return Math.round((valid.reduce((s, v) => s + v, 0) / valid.length) * 10) / 10
 }
 
 // === 패턴 분석 ===
 
 function analyzePatterns(competitors: CompetitorItem[], keyword: string): PatternAnalysis {
   const keywordLower = keyword.toLowerCase().replace(/\s+/g, '')
-  const count = competitors.length || 1 // 빈 배열 시 Division by Zero 방지
+  const count = competitors.length || 1
 
   // 제목 분석
   const lengths = competitors.map(c => c.titleLength)
@@ -142,89 +180,201 @@ function analyzePatterns(competitors: CompetitorItem[], keyword: string): Patter
     repeatedBlogs,
   }
 
-  return { titleStats, dateStats, blogDiversity }
+  // 콘텐츠 품질 통계 (스크래핑 데이터 기반)
+  const scraped = competitors.filter(c => c.charCount !== null)
+  let contentQuality: ContentQualityStats | null = null
+
+  if (scraped.length > 0) {
+    const charCounts = scraped.map(c => c.charCount!).filter(v => v > 0)
+    const imageCounts = scraped.map(c => c.imageCount ?? 0)
+    const videoCounts = scraped.map(c => c.videoCount ?? 0)
+
+    contentQuality = {
+      avgCharCount: charCounts.length > 0 ? Math.round(charCounts.reduce((s, v) => s + v, 0) / charCounts.length) : 0,
+      medianCharCount: median(charCounts),
+      charCountRange: charCounts.length > 0 ? [Math.min(...charCounts), Math.max(...charCounts)] : [0, 0],
+      avgImageCount: Math.round((imageCounts.reduce((s, v) => s + v, 0) / imageCounts.length) * 10) / 10,
+      avgVideoCount: Math.round((videoCounts.reduce((s, v) => s + v, 0) / videoCounts.length) * 10) / 10,
+      avgCommentCount: avgNonNull(scraped.map(c => c.commentCount)),
+      avgSympathyCount: avgNonNull(scraped.map(c => c.sympathyCount)),
+      avgReadCount: avgNonNull(scraped.map(c => c.readCount)),
+      scrapedCount: scraped.length,
+    }
+  }
+
+  return { titleStats, dateStats, blogDiversity, contentQuality }
 }
 
-// === 경쟁 난이도 평가 (v2 — 연속 보간 + 가중치 차등) ===
+// === 경쟁 난이도 평가 (4차원 재설계) ===
 
 function assessDifficulty(patterns: PatternAnalysis, competitors: CompetitorItem[]): DifficultyAssessment {
-  const count = competitors.length || 1
   const reasons: string[] = []
+  const cq = patterns.contentQuality
 
-  // === Factor 1: 콘텐츠 신선도 (max 30점) ===
-  // 최신 글이 많을수록 활발하게 경쟁 중 → 진입 난이도 상승
-  const w30 = patterns.dateStats.within30Days
-  const w90only = patterns.dateStats.within90Days - w30
-  const w365only = patterns.dateStats.within365Days - patterns.dateStats.within90Days
-  const olderCount = patterns.dateStats.older
-  // 가중 합산: 30일내 1.0, 90일내 0.6, 365일내 0.25, 1년이상 0.05
-  const freshnessRaw = (w30 * 1.0 + w90only * 0.6 + w365only * 0.25 + olderCount * 0.05) / count
-  const freshScore = Math.round(Math.min(freshnessRaw, 1) * 30)
+  // ── (A) 경쟁 치열도 (0~25) ──
+  let competition = 0
 
-  if (w30 >= Math.ceil(count * 0.5)) {
-    reasons.push(`최근 30일 내 작성 글 ${w30}/${count}개 — 경쟁이 매우 활발한 키워드`)
-  } else if (patterns.dateStats.within90Days >= Math.ceil(count * 0.5)) {
-    reasons.push(`최근 90일 내 작성 글 ${patterns.dateStats.within90Days}/${count}개 — 보통 수준의 콘텐츠 갱신`)
+  // 키워드 포함률 (0~8)
+  const kwRate = patterns.titleStats.keywordInTitleRate
+  if (kwRate >= 80) { competition += 8; reasons.push(`상위 글 ${kwRate}%가 제목에 키워드 포함 — SEO 최적화 수준 높음`) }
+  else if (kwRate >= 60) { competition += 5; reasons.push(`상위 글 ${kwRate}%가 제목에 키워드 포함`) }
+  else { competition += 2; reasons.push(`제목 키워드 포함률 ${kwRate}%로 낮아 진입 기회 있음`) }
+
+  // 블로그 다양성 (0~8) — 독점 vs 블루오션 구분
+  const diversity = patterns.blogDiversity.diversityRate
+  const topRepeated = patterns.blogDiversity.repeatedBlogs[0]
+  if (diversity < 50 && topRepeated && topRepeated.count >= 3) {
+    competition += 8
+    reasons.push(`${topRepeated.name}이(가) ${topRepeated.count}개 점유 — 파워블로거 독점 구간`)
+  } else if (diversity < 50) {
+    competition += 4
+    reasons.push(`블로그 다양성 낮음 (${diversity}%) — 콘텐츠 부족 구간일 수 있음`)
+  } else if (diversity < 80) {
+    competition += 5
+    reasons.push(`블로그 다양성 보통 (${diversity}%)`)
   } else {
-    reasons.push(`오래된 글이 대부분(평균 ${patterns.dateStats.avgDaysAgo}일 전) — 최신 콘텐츠로 진입 유리`)
+    competition += 2
+    reasons.push(`다양한 블로그가 노출 — 신규 진입 용이`)
   }
 
-  // === Factor 2: 블로그 집중도/독점도 (max 25점) ===
-  // 다양성 낮음 = 파워블로그 독점 = 진입 어려움
-  const diversityRate = patterns.blogDiversity.diversityRate / 100
-  let concScore = Math.round((1 - diversityRate) * 20)
-  // 특정 블로그 3개 이상 독점 시 추가 점수
-  const dominantBlogs = patterns.blogDiversity.repeatedBlogs.filter(b => b.count >= 3)
-  if (dominantBlogs.length > 0) {
-    concScore = Math.min(25, concScore + 5 * dominantBlogs.length)
-    const top = dominantBlogs[0]
-    reasons.push(`'${top.name}'이(가) 상위 ${top.count}개 차지 — 파워블로그가 상위를 장악 중`)
-  } else if (diversityRate < 0.6) {
-    reasons.push(`블로그 다양성 ${patterns.blogDiversity.diversityRate}% — 일부 블로그가 상위에 집중`)
+  // 제목 최적화 수준 (0~5) — 연도/숫자/클릭유도 포함 비율
+  const optimizedTitles = competitors.filter(c => {
+    const t = c.title
+    return /20\d{2}|TOP|추천|비교|후기|정리|방법|가이드|\d+[가지선종개]/.test(t)
+  })
+  const optRate = optimizedTitles.length / (competitors.length || 1)
+  if (optRate >= 0.6) { competition += 5; reasons.push('상위 글 제목이 SEO 최적화 패턴(연도/숫자/클릭유도)을 적극 활용') }
+  else if (optRate >= 0.3) { competition += 3 }
+  else { competition += 1 }
+
+  // 상위 제목 유사도 (0~4)
+  const titleWords = competitors.map(c =>
+    new Set(c.title.replace(/[^\w가-힣]/g, ' ').split(/\s+/).filter(w => w.length >= 2))
+  )
+  let similarPairs = 0
+  let totalPairs = 0
+  for (let i = 0; i < titleWords.length; i++) {
+    for (let j = i + 1; j < titleWords.length; j++) {
+      totalPairs++
+      const intersection = [...titleWords[i]].filter(w => titleWords[j].has(w)).length
+      const union = new Set([...titleWords[i], ...titleWords[j]]).size
+      if (union > 0 && intersection / union >= 0.3) similarPairs++
+    }
+  }
+  const simRate = totalPairs > 0 ? similarPairs / totalPairs : 0
+  if (simRate >= 0.4) { competition += 4 }
+  else if (simRate >= 0.2) { competition += 2 }
+  else { competition += 1 }
+
+  // ── (B) 콘텐츠 품질 장벽 (0~25) ──
+  let quality = 0
+
+  if (cq) {
+    // 콘텐츠 밀도 (0~10) — 길다고 좋은 게 아님
+    const med = cq.medianCharCount
+    if (med >= 2000 && med <= 3000) { quality += 10; reasons.push(`상위 글 본문 중앙값 ${med.toLocaleString()}자 — 정보 밀도 높은 콘텐츠 포진`) }
+    else if (med >= 1000 && med < 2000) { quality += 7; reasons.push(`상위 글 본문 중앙값 ${med.toLocaleString()}자 — 적정 수준`) }
+    else if (med > 3000) { quality += 7; reasons.push(`상위 글 본문 중앙값 ${med.toLocaleString()}자 — 길지만 밀도가 높다고 단정할 수 없음`) }
+    else if (med >= 500) { quality += 4; reasons.push(`상위 글 본문 중앙값 ${med.toLocaleString()}자 — 품질 장벽 낮음`) }
+    else { quality += 2; reasons.push(`상위 글 본문이 짧아 양질의 콘텐츠로 쉽게 차별화 가능`) }
+
+    // 미디어 활용도 (0~8)
+    const avgMedia = cq.avgImageCount + cq.avgVideoCount
+    if (avgMedia >= 8) { quality += 8; reasons.push(`평균 이미지 ${cq.avgImageCount}장 — 미디어 활용 수준 높음`) }
+    else if (avgMedia >= 5) { quality += 5; reasons.push(`평균 이미지 ${cq.avgImageCount}장 — 보통 수준`) }
+    else if (avgMedia >= 2) { quality += 3 }
+    else { quality += 1; reasons.push('이미지 활용이 적어 미디어로 차별화 가능') }
+
+    // 구조화 수준 (0~7) — 이미지, 동영상, 본문 조합 판단
+    const avgChar = cq.avgCharCount
+    const hasVideo = cq.avgVideoCount >= 0.5
+    const hasRichMedia = cq.avgImageCount >= 3 && avgChar >= 1500
+    if (hasRichMedia && hasVideo) { quality += 7 }
+    else if (hasRichMedia) { quality += 5 }
+    else if (avgChar >= 1000 && cq.avgImageCount >= 2) { quality += 3 }
+    else { quality += 1 }
   } else {
-    reasons.push(`${patterns.blogDiversity.uniqueBlogCount}개 고유 블로그 노출 — 다양한 진입 기회`)
+    // 스크래핑 실패 시 중립 (40% = 10점)
+    quality = 10
+    reasons.push('콘텐츠 심층 분석 불가 — 중립 평가 적용')
   }
 
-  // === Factor 3: 키워드 포함률 (max 25점) ===
-  // 제목에 키워드를 넣는 비율이 높으면 SEO 의식 높은 경쟁
-  const kwRate = patterns.titleStats.keywordInTitleRate / 100
-  const kwScore = Math.round(kwRate * 25)
+  // ── (C) 사용자 반응 장벽 (0~25) ──
+  let engagement = 0
 
-  if (kwRate >= 0.7) {
-    reasons.push(`상위 글 ${patterns.titleStats.keywordInTitleRate}%가 제목에 키워드 포함 — SEO 최적화된 경쟁`)
-  } else if (kwRate >= 0.4) {
-    reasons.push(`키워드 포함률 ${patterns.titleStats.keywordInTitleRate}% — 보통 수준의 SEO 경쟁`)
+  if (cq) {
+    // 평균 댓글 (0~8)
+    const avgCmt = cq.avgCommentCount
+    if (avgCmt !== null) {
+      if (avgCmt >= 20) { engagement += 8; reasons.push(`평균 댓글 ${avgCmt}개 — 독자 참여도 매우 높음`) }
+      else if (avgCmt >= 10) { engagement += 6 }
+      else if (avgCmt >= 3) { engagement += 3 }
+      else { engagement += 1; reasons.push(`평균 댓글 ${avgCmt}개 — 반응 장벽 낮음`) }
+    } else { engagement += 3 } // 중립
+
+    // 평균 공감 (0~8)
+    const avgSym = cq.avgSympathyCount
+    if (avgSym !== null) {
+      if (avgSym >= 30) { engagement += 8; reasons.push(`평균 공감 ${avgSym}개 — 독자 호감도 높음`) }
+      else if (avgSym >= 10) { engagement += 5 }
+      else if (avgSym >= 3) { engagement += 3 }
+      else { engagement += 1 }
+    } else { engagement += 3 } // 중립
+
+    // 평균 조회수 (0~9)
+    const avgRead = cq.avgReadCount
+    if (avgRead !== null) {
+      if (avgRead >= 5000) { engagement += 9; reasons.push(`평균 조회수 ${avgRead.toLocaleString()}회 — 높은 트래픽 구간`) }
+      else if (avgRead >= 2000) { engagement += 6 }
+      else if (avgRead >= 500) { engagement += 3 }
+      else { engagement += 1 }
+    } else { engagement += 4 } // 중립
   } else {
-    reasons.push(`키워드 포함률 ${patterns.titleStats.keywordInTitleRate}%로 낮음 — 제목 최적화만으로 차별화 가능`)
+    engagement = 10
   }
 
-  // === Factor 4: 제목 최적화 수준 (max 20점) ===
-  // 평균 제목 길이가 SEO 최적 범위(20~45자)에 가까울수록 경쟁자가 SEO를 의식
-  const avgLen = patterns.titleStats.avgLength
-  const OPTIMAL_MIN = 20
-  const OPTIMAL_MAX = 45
-  const optimalCenter = (OPTIMAL_MIN + OPTIMAL_MAX) / 2 // 32.5
-  const optimalHalfRange = (OPTIMAL_MAX - OPTIMAL_MIN) / 2 // 12.5
-  const distFromCenter = Math.abs(avgLen - optimalCenter)
-  // 최적 범위 안에 있으면 높은 점수, 범위 밖으로 갈수록 감소
-  const titleOptRate = Math.max(0, 1 - distFromCenter / (optimalHalfRange * 1.5))
-  const titleScore = Math.round(titleOptRate * 20)
+  // ── (D) 최신성 경쟁 (0~25) ──
+  let freshness = 0
 
-  if (avgLen >= OPTIMAL_MIN && avgLen <= OPTIMAL_MAX) {
-    reasons.push(`평균 제목 길이 ${avgLen}자 — SEO 최적 범위(${OPTIMAL_MIN}~${OPTIMAL_MAX}자)`)
+  // 30일 내 글 비율 (0~10)
+  const recentRate = patterns.dateStats.within30Days / (competitors.length || 1)
+  if (recentRate >= 0.5) { freshness += 10; reasons.push(`최근 30일 내 ${patterns.dateStats.within30Days}개 — 활발한 경쟁`) }
+  else if (recentRate >= 0.3) { freshness += 6; reasons.push('최근 글이 일부 있어 적당한 경쟁') }
+  else { freshness += 2; reasons.push('오래된 글 위주 — 최신 콘텐츠로 진입 가능') }
+
+  // 최신글 연령 (0~8)
+  const newest = patterns.dateStats.newestDaysAgo
+  if (newest <= 7) { freshness += 8 }
+  else if (newest <= 30) { freshness += 5 }
+  else if (newest <= 90) { freshness += 3 }
+  else { freshness += 1 }
+
+  // 포스팅 빈도 추정 (0~7) — 상위 10개의 날짜 분포 범위
+  const dateRange = patterns.dateStats.oldestDaysAgo - patterns.dateStats.newestDaysAgo
+  if (dateRange > 0) {
+    const estimatedFreq = competitors.length / (dateRange / 7) // 주당 포스팅 추정
+    if (estimatedFreq >= 2) { freshness += 7 }
+    else if (estimatedFreq >= 1) { freshness += 4 }
+    else { freshness += 2 }
   } else {
-    reasons.push(`평균 제목 길이 ${avgLen}자 — 최적 범위 밖이라 제목 최적화로 우위 확보 가능`)
+    freshness += 3 // 모든 글이 같은 날 → 중립
   }
 
-  // === 합산 ===
-  const totalScore = Math.min(100, freshScore + concScore + kwScore + titleScore)
-  const level: DifficultyAssessment['level'] =
-    totalScore >= 75 ? 'very_hard' :
-    totalScore >= 55 ? 'hard' :
-    totalScore >= 35 ? 'medium' :
-    'easy'
+  // 총점 계산
+  const score = Math.min(100, competition + quality + engagement + freshness)
+  const level = score >= 71 ? 'very_hard' : score >= 51 ? 'hard' : score >= 31 ? 'medium' : 'easy'
 
-  return { level, score: totalScore, reasons }
+  return {
+    level,
+    score,
+    reasons,
+    breakdown: {
+      competition: Math.min(25, competition),
+      quality: Math.min(25, quality),
+      engagement: Math.min(25, engagement),
+      freshness: Math.min(25, freshness),
+    },
+  }
 }
 
 // === 제목 패턴 워드 추출 ===
@@ -235,7 +385,6 @@ function extractTitlePatterns(competitors: CompetitorItem[], keyword: string): T
   const wordCount = new Map<string, number>()
 
   for (const comp of competitors) {
-    // 제목에서 특수문자 제거 후 단어 추출
     const words = comp.title
       .replace(/[\[\]【】\(\)「」『』|·\-_~!@#$%^&*+=,.<>?;:'"\/\\]/g, ' ')
       .split(/\s+/)
@@ -266,12 +415,22 @@ async function getAiInsights(
   difficulty: DifficultyAssessment,
 ): Promise<AiInsights> {
   const competitorList = competitors
-    .map((c, i) => `${i + 1}위. 제목: "${c.title}" | 블로그: ${c.bloggerName} | 작성일: ${c.postDateFormatted} | 설명: "${c.description.substring(0, 80)}"`)
+    .map((c, i) => {
+      let line = `${i + 1}위. 제목: "${c.title}" | 블로그: ${c.bloggerName} | 작성일: ${c.postDateFormatted} | 설명: "${c.description.substring(0, 80)}"`
+      if (c.charCount !== null) {
+        line += ` | 본문: ${c.charCount.toLocaleString()}자`
+        if (c.imageCount !== null) line += `, 이미지 ${c.imageCount}장`
+        if (c.commentCount !== null) line += `, 댓글 ${c.commentCount}`
+        if (c.sympathyCount !== null) line += `, 공감 ${c.sympathyCount}`
+        if (c.readCount !== null) line += `, 조회 ${c.readCount.toLocaleString()}`
+      }
+      return line
+    })
     .join('\n')
 
   const difficultyLabel = difficulty.level === 'very_hard' ? '매우 어려움' : difficulty.level === 'hard' ? '어려움' : difficulty.level === 'medium' ? '보통' : '쉬움'
 
-  // 키워드 의미 힌트: 상위 제목에서 키워드를 제거하고 자주 반복되는 2~3어절 추출
+  // 키워드 의미 힌트
   let keywordHint = ''
   const cleanKw = keyword.trim()
   const kwEscaped = cleanKw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -300,6 +459,20 @@ async function getAiInsights(
     .map(b => `${b.name}(${b.count}개)`)
     .join(', ')
 
+  // 콘텐츠 품질 데이터 섹션
+  const cq = patterns.contentQuality
+  let contentQualitySection = ''
+  if (cq) {
+    contentQualitySection = `
+콘텐츠 품질 (상위 ${cq.scrapedCount}개 실제 본문 분석):
+- 본문 길이 중앙값: ${cq.medianCharCount.toLocaleString()}자 (범위: ${cq.charCountRange[0].toLocaleString()}~${cq.charCountRange[1].toLocaleString()}자)
+- 평균 이미지: ${cq.avgImageCount}장 / 평균 동영상: ${cq.avgVideoCount}개
+${cq.avgCommentCount !== null ? `- 평균 댓글: ${cq.avgCommentCount}개` : ''}
+${cq.avgSympathyCount !== null ? `- 평균 공감: ${cq.avgSympathyCount}개` : ''}
+${cq.avgReadCount !== null ? `- 평균 조회수: ${cq.avgReadCount.toLocaleString()}회` : ''}
+`
+  }
+
   const userMessage = `키워드: "${keyword}"
 ${keywordHint}
 네이버 블로그 검색 상위 ${competitors.length}개 결과 분석:
@@ -313,8 +486,12 @@ ${competitorList}
 - 30일 이내 작성: ${patterns.dateStats.within30Days}개 / 90일 이내: ${patterns.dateStats.within90Days}개
 - 블로그 다양성: ${patterns.blogDiversity.uniqueBlogCount}개 고유 블로그 / ${patterns.blogDiversity.totalResults}개 결과 (다양성 ${patterns.blogDiversity.diversityRate}%)
 ${dominantBlogInfo ? `- 다중 노출 블로그: ${dominantBlogInfo}` : ''}
-
+${contentQualitySection}
 경쟁 진입 난이도: ${difficultyLabel} (${difficulty.score}점/100점)
+- 경쟁 치열도: ${difficulty.breakdown.competition}/25
+- 콘텐츠 품질 장벽: ${difficulty.breakdown.quality}/25
+- 사용자 반응 장벽: ${difficulty.breakdown.engagement}/25
+- 최신성 경쟁: ${difficulty.breakdown.freshness}/25
 난이도 근거: ${difficulty.reasons.join(' / ')}
 
 위 데이터를 기반으로 경쟁 분석을 해주세요.
@@ -339,24 +516,14 @@ ${dominantBlogInfo ? `- 다중 노출 블로그: ${dominantBlogInfo}` : ''}
   return parseGeminiJson<AiInsights>(response)
 }
 
-// === 이미지 분석 ===
+// === 이미지 분석 (기존 스크래핑 데이터 재사용) ===
 
 async function analyzeCompetitorImages(
-  competitorLinks: string[],
   keyword: string,
-  searchItems?: import('@/lib/naver/blog-search').NaverBlogSearchItem[],
+  scrapedData: Map<string, ScrapedPostData>,
 ): Promise<ImageAnalysis | null> {
   try {
-    const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
-    // 상위 5개 글만 스크래핑 (속도/비용 최적화)
-    const scrapedData = await scrapeMultiplePosts(competitorLinks.slice(0, 5), 5)
-
-    // 블로그 학습 파이프라인: 스크래핑 데이터 수집 (풀 패턴)
-    if (searchItems && searchItems.length > 0 && scrapedData.size > 0) {
-      scheduleCollection(() => collectFromScrapedPosts(keyword, scrapedData, searchItems, null, 'competitor_analysis'))
-    }
-
-    // 모든 이미지 URL 수집 (글당 최대 3장, 총 최대 10장)
+    // 이미 스크래핑된 데이터에서 이미지 URL 수집 (글당 최대 3장, 총 최대 10장)
     const allImageUrls: string[] = []
     for (const [, data] of scrapedData) {
       if (data.imageUrls && data.imageUrls.length > 0) {
@@ -368,7 +535,6 @@ async function analyzeCompetitorImages(
       return { totalImages: 0, imageTypes: ['이미지 없음'], recommendation: '상위 글에서 이미지를 추출할 수 없었습니다.' }
     }
 
-    // Gemini Vision으로 이미지 유형 분석 (최대 10장)
     const prompt = `"${keyword}" 키워드의 네이버 블로그 상위 노출 글에서 사용된 이미지 ${allImageUrls.length}장입니다.
 
 다음을 분석해서 JSON으로 응답하세요:
@@ -431,6 +597,14 @@ function generateDemoCompetitors(keyword: string): CompetitorItem[] {
     `3개월 동안 직접 사용해본 ${keyword} 솔직 후기입니다. 내돈내산 리뷰!`,
   ]
 
+  // 데모 스크래핑 데이터 (일부러 짧은 글도 포함 — 짧아도 상위 노출 가능)
+  const demoCharCounts = [2340, 1650, 870, 2800, 1900, null, null, null, null, null]
+  const demoImageCounts = [8, 5, 3, 12, 6, null, null, null, null, null]
+  const demoVideoCounts = [0, 1, 0, 2, 0, null, null, null, null, null]
+  const demoCommentCounts = [15, 8, 22, 5, 12, null, null, null, null, null]
+  const demoSympathyCounts = [25, 12, 35, 8, 18, null, null, null, null, null]
+  const demoReadCounts = [3200, 1800, 5400, 2100, 2800, null, null, null, null, null]
+
   const now = new Date()
   return titles.map((title, i) => {
     const daysAgo = Math.floor(Math.random() * 150) + (i < 3 ? 7 : 30)
@@ -449,17 +623,23 @@ function generateDemoCompetitors(keyword: string): CompetitorItem[] {
       daysSincePosted: daysAgo,
       titleLength: title.length,
       hasKeywordInTitle: true,
+      charCount: demoCharCounts[i] ?? null,
+      imageCount: demoImageCounts[i] ?? null,
+      videoCount: demoVideoCounts[i] ?? null,
+      commentCount: demoCommentCounts[i] ?? null,
+      sympathyCount: demoSympathyCounts[i] ?? null,
+      readCount: demoReadCounts[i] ?? null,
     }
   })
 }
 
 function getDemoAiInsights(keyword: string): AiInsights {
   return {
-    summary: `"${keyword}" 키워드의 상위 10개 블로그를 분석한 결과, 대부분의 글이 리스트형 콘텐츠와 후기 형태를 띠고 있습니다. 최근 3개월 이내 작성된 글이 과반수를 차지하며, 네이버 알고리즘이 최신 콘텐츠를 선호하는 경향이 뚜렷합니다.`,
+    summary: `"${keyword}" 키워드의 상위 10개 블로그를 분석한 결과, 리스트형 콘텐츠와 후기가 주를 이루고 있습니다. 독자 반응(댓글/공감)이 높은 글은 구체적 경험과 수치를 포함한 콘텐츠이며, 최신 콘텐츠가 상위 노출에 유리한 경향이 뚜렷합니다.`,
     topPatterns: [
       '제목에 키워드를 앞쪽에 배치하고 "추천", "TOP", "비교" 등 클릭 유도 단어 사용',
-      '2,000~3,000자 분량의 체계적 구조 (소제목 3-5개 활용)',
-      '직접 경험 기반의 솔직한 톤으로 신뢰감 확보',
+      '소제목 3-5개를 활용한 체계적 구조로 독자 체류 시간 확보',
+      '직접 경험 기반의 구체적 수치(가격, 기간)로 신뢰감 확보',
       '최신 연도(2026)를 제목이나 본문에 명시하여 최신성 어필',
     ],
     contentGaps: [
@@ -467,7 +647,7 @@ function getDemoAiInsights(keyword: string): AiInsights {
       '동영상이나 인포그래픽 등 멀티미디어 활용 글이 적어 차별화 가능',
       '초보자 관점의 단계별 가이드가 부족하여 진입 장벽이 낮은 콘텐츠로 공략 가능',
     ],
-    recommendedStrategy: `${keyword} 키워드로 상위 노출을 위해서는 직접 경험 기반의 2,500자 이상 콘텐츠를 작성하되, 기존 상위 글들이 다루지 않는 구체적인 비용 비교나 단계별 가이드 형태로 차별화하세요. 제목은 30자 내외로 키워드를 앞쪽에 배치하고, 소제목 4-5개로 구조화하여 체류 시간을 높이는 것이 핵심입니다.`,
+    recommendedStrategy: `${keyword} 키워드로 상위 노출을 위해서는 직접 경험 기반의 콘텐츠를 핵심 정보 위주로 밀도 높게 작성하세요. 기존 상위 글들이 다루지 않는 구체적인 비용 비교나 단계별 가이드 형태로 차별화하되, 소제목 4-5개로 구조화하여 독자의 체류 시간을 높이는 것이 핵심입니다.`,
     titleSuggestions: [
       `${keyword} 완벽 정리 - 초보자를 위한 단계별 가이드 (2026)`,
       `${keyword} 실제 비용 비교 분석 | 가성비 순위 TOP 5`,
@@ -542,11 +722,28 @@ export async function POST(request: NextRequest) {
     // 블로그 학습 파이프라인: 백그라운드 수집
     scheduleCollection(() => collectFromSearchResults(cleanKeyword, searchResult.items, 'competitor_analysis'))
 
-    // 데이터 가공
+    // 상위 5개 스크래핑 (기본 분석에 통합)
+    let scrapedData = new Map<string, ScrapedPostData>()
+    try {
+      const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
+      const competitorLinks = searchResult.items.slice(0, 5).map(item => item.link)
+      scrapedData = await scrapeMultiplePosts(competitorLinks, 5)
+
+      // 블로그 학습 파이프라인: 스크래핑 데이터 수집
+      if (searchResult.items.length > 0 && scrapedData.size > 0) {
+        scheduleCollection(() => collectFromScrapedPosts(cleanKeyword, scrapedData, searchResult.items, null, 'competitor_analysis'))
+      }
+    } catch (err) {
+      console.error('[Competitors] 스크래핑 실패 (메타데이터만으로 분석):', err)
+    }
+
+    // 데이터 가공 (스크래핑 결과 병합)
     const competitors: CompetitorItem[] = searchResult.items.map((item, i) => {
       const cleanTitle = stripHtml(item.title)
       const cleanDesc = stripHtml(item.description)
       const keywordLower = cleanKeyword.toLowerCase().replace(/\s+/g, '')
+      const scraped = scrapedData.get(item.link)
+
       return {
         rank: i + 1,
         title: cleanTitle,
@@ -559,6 +756,12 @@ export async function POST(request: NextRequest) {
         daysSincePosted: daysSince(item.postdate),
         titleLength: cleanTitle.length,
         hasKeywordInTitle: cleanTitle.toLowerCase().replace(/\s+/g, '').includes(keywordLower),
+        charCount: scraped?.charCount ?? null,
+        imageCount: scraped?.imageCount ?? null,
+        videoCount: scraped?.videoCount ?? null,
+        commentCount: scraped?.commentCount ?? null,
+        sympathyCount: scraped?.sympathyCount ?? null,
+        readCount: scraped?.readCount ?? null,
       }
     })
 
@@ -567,15 +770,13 @@ export async function POST(request: NextRequest) {
     const difficulty = assessDifficulty(patterns, competitors)
     const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
 
-    // AI 인사이트 + 이미지 분석 (병렬 실행)
+    // AI 인사이트 + 이미지 분석 (병렬 실행, 기존 스크래핑 데이터 재사용)
     let aiInsights: AiInsights | null = null
     if (includeAi && hasAiApiKey('gemini')) {
       try {
-        // AI 텍스트 분석 + 이미지 Vision 분석을 동시 실행
-        const competitorLinks = competitors.map(c => c.link)
         const [aiResult, imageResult] = await Promise.allSettled([
           getAiInsights(cleanKeyword, competitors, patterns, difficulty),
-          analyzeCompetitorImages(competitorLinks, cleanKeyword, searchResult.items),
+          analyzeCompetitorImages(cleanKeyword, scrapedData),
         ])
 
         aiInsights = aiResult.status === 'fulfilled' ? aiResult.value : null
@@ -583,7 +784,6 @@ export async function POST(request: NextRequest) {
           console.error('[Competitors AI] AI 분석 실패:', aiResult.reason)
         }
 
-        // 이미지 분석 결과를 aiInsights에 병합
         if (aiInsights && imageResult.status === 'fulfilled' && imageResult.value) {
           aiInsights.imageAnalysis = imageResult.value
         }
