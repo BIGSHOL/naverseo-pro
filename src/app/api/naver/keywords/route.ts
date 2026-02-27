@@ -13,6 +13,7 @@ interface TopSearchResult {
   rank: number
   type: '블로그' | '카페' | '외부' | '포스트' | '지식인'
   source: string
+  link?: string
 }
 
 function classifyUrl(url: string): { type: TopSearchResult['type']; source: string } {
@@ -47,7 +48,7 @@ async function fetchTopResults(keyword: string): Promise<TopSearchResult[]> {
     const data = await res.json()
     return (data.items || []).map((item: { link: string }, i: number) => {
       const classified = classifyUrl(item.link)
-      return { rank: i + 1, ...classified }
+      return { rank: i + 1, ...classified, link: item.link }
     })
   } catch {
     return []

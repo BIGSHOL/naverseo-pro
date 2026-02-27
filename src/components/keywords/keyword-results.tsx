@@ -13,6 +13,7 @@ export interface TopSearchResult {
   rank: number
   type: '블로그' | '카페' | '외부' | '포스트' | '지식인'
   source: string
+  link?: string
 }
 
 export interface KeywordData {
@@ -85,24 +86,32 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
       : <ArrowDown className="ml-1 h-3 w-3 inline text-primary" />
   }
 
-  // 1위~5위 셀 렌더링: 블로그면 16등급 배지, 나머지는 타입 배지
+  // 1위~5위 셀 렌더링: 블로그면 16등급 배지, 나머지는 타입 배지 (클릭 시 링크 이동)
   const renderTopResultCell = (result: TopSearchResult | undefined, kwScore: number) => {
     if (!result) return <span className="text-[10px] text-muted-foreground">-</span>
 
-    if (result.type === '블로그') {
+    const badge = result.type === '블로그' ? (() => {
       const grade = getKeywordGrade(kwScore)
       return (
         <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor} ${grade.color}`}>
           {grade.label}
         </span>
       )
-    }
-
-    return (
+    })() : (
       <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${getResultTypeBadgeStyle(result.type)}`}>
         {result.type}
       </span>
     )
+
+    if (result.link) {
+      return (
+        <a href={result.link} target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity cursor-pointer" title={result.source}>
+          {badge}
+        </a>
+      )
+    }
+
+    return badge
   }
 
   return (
