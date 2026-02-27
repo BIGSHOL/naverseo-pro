@@ -499,28 +499,33 @@ export default function CompetitorsPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-3 pr-4 font-medium">순위</th>
+                      <th className="w-14 pb-3 pr-2 font-medium">순위</th>
                       <th className="pb-3 pr-4 font-medium">제목</th>
-                      <th className="hidden pb-3 pr-4 font-medium md:table-cell">블로그</th>
-                      <th className="pb-3 pr-4 font-medium">작성일</th>
-                      <th className="hidden pb-3 pr-4 font-medium lg:table-cell">글자수</th>
-                      <th className="hidden pb-3 font-medium lg:table-cell">반응</th>
+                      <th className="hidden w-32 pb-3 pr-4 font-medium md:table-cell">블로그</th>
+                      <th className="w-24 pb-3 pr-4 font-medium">작성일</th>
+                      <th className="hidden w-20 pb-3 pr-2 font-medium text-right lg:table-cell">글자수</th>
+                      <th className="hidden w-20 pb-3 pr-2 font-medium text-center lg:table-cell">
+                        <span className="flex items-center justify-center gap-0.5"><MessageCircle className="h-3 w-3" />댓글</span>
+                      </th>
+                      <th className="hidden w-20 pb-3 font-medium text-center lg:table-cell">
+                        <span className="flex items-center justify-center gap-0.5"><Heart className="h-3 w-3" />공감</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCompetitors.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                        <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                           해당 기간에 작성된 글이 없습니다
                         </td>
                       </tr>
                     )}
                     {filteredCompetitors.map(comp => (
-                      <tr key={comp.rank} className={`border-b last:border-0 ${comp.charCount != null ? 'bg-muted/20' : ''}`}>
-                        <td className="py-3 pr-4">
+                      <tr key={comp.rank} className="border-b last:border-0">
+                        <td className="py-3 pr-2">
                           <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
                             comp.rank <= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
                           }`}>
@@ -542,34 +547,27 @@ export default function CompetitorsPage() {
                           </p>
                         </td>
                         <td className="hidden py-3 pr-4 md:table-cell">
-                          <span className="text-muted-foreground">{comp.bloggerName}</span>
+                          <span className="text-muted-foreground truncate block">{comp.bloggerName}</span>
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground">
                           <div className="whitespace-nowrap">{comp.postDateFormatted}</div>
                           <div className="text-xs">{formatDaysAgo(comp.daysSincePosted)}</div>
                         </td>
-                        <td className="hidden py-3 pr-4 lg:table-cell whitespace-nowrap text-muted-foreground">
+                        <td className="hidden py-3 pr-2 lg:table-cell whitespace-nowrap text-right text-muted-foreground">
                           {comp.charCount != null ? `${comp.charCount.toLocaleString()}자` : '-'}
                         </td>
-                        <td className="hidden py-3 lg:table-cell whitespace-nowrap">
-                          {comp.charCount != null ? (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              {comp.commentCount != null && (
-                                <span className="flex items-center gap-0.5">
-                                  <MessageCircle className="h-3 w-3" />{comp.commentCount}
-                                </span>
-                              )}
-                              {comp.sympathyCount != null && (
-                                <span className="flex items-center gap-0.5">
-                                  <Heart className="h-3 w-3" />{comp.sympathyCount}
-                                </span>
-                              )}
-                              {comp.readCount != null && (
-                                <span className="flex items-center gap-0.5">
-                                  <Eye className="h-3 w-3" />{comp.readCount.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
+                        <td className="hidden py-3 pr-2 lg:table-cell whitespace-nowrap text-center text-muted-foreground">
+                          {comp.commentCount != null ? (
+                            <span className="flex items-center justify-center gap-0.5">
+                              <MessageCircle className="h-3 w-3" />{comp.commentCount}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td className="hidden py-3 lg:table-cell whitespace-nowrap text-center text-muted-foreground">
+                          {comp.sympathyCount != null ? (
+                            <span className="flex items-center justify-center gap-0.5">
+                              <Heart className="h-3 w-3" />{comp.sympathyCount}
+                            </span>
                           ) : '-'}
                         </td>
                       </tr>
@@ -676,12 +674,14 @@ export default function CompetitorsPage() {
                       <span className="font-medium">{cq.avgSympathyCount !== null ? `${cq.avgSympathyCount}개` : '-'}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> 평균 조회수</span>
-                      <span className="font-medium">{cq.avgReadCount !== null ? `${cq.avgReadCount.toLocaleString()}회` : '-'}</span>
+                      <span className="text-sm text-muted-foreground flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> 분석 글 수</span>
+                      <span className="font-medium">{cq.scrapedCount}개</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {(cq.avgCommentCount ?? 0) >= 10
                         ? '독자 참여도가 높은 경쟁 구간입니다'
+                        : (cq.avgSympathyCount ?? 0) >= 20
+                        ? '공감 반응이 활발한 구간입니다'
                         : '독자 반응이 낮아 적극적 소통으로 차별화 가능'}
                     </p>
                   </>

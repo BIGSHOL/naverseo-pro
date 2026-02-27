@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callGemini, callGeminiStream, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callGemini, callGeminiStream, callClaudeStream, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, getUserAiProvider, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
@@ -414,6 +414,7 @@ async function getAiInsights(
   patterns: PatternAnalysis,
   difficulty: DifficultyAssessment,
   onChunk?: (delta: string) => void,
+  provider: 'gemini' | 'claude' = 'gemini',
 ): Promise<AiInsights> {
   const competitorList = competitors
     .map((c, i) => {
@@ -514,7 +515,9 @@ ${contentQualitySection}
 }`
 
   const response = onChunk
-    ? await callGeminiStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk)
+    ? (provider === 'claude'
+      ? await callClaudeStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk)
+      : await callGeminiStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk))
     : await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
   return parseGeminiJson<AiInsights>(response)
 }
@@ -698,6 +701,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanKeyword = keyword.trim()
+    const provider = await getUserAiProvider(supabase, user.id)
 
     // API 키가 없으면 데모 데이터
     if (!process.env.NAVER_CLIENT_ID || !process.env.NAVER_CLIENT_SECRET) {
@@ -725,12 +729,12 @@ export async function POST(request: NextRequest) {
     // 블로그 학습 파이프라인: 백그라운드 수집
     scheduleCollection(() => collectFromSearchResults(cleanKeyword, searchResult.items, 'competitor_analysis'))
 
-    // 상위 5개 스크래핑 (기본 분석에 통합)
+    // 상위 10개 전체 스크래핑 (기본 분석에 통합)
     let scrapedData = new Map<string, ScrapedPostData>()
     try {
       const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
-      const competitorLinks = searchResult.items.slice(0, 5).map(item => item.link)
-      scrapedData = await scrapeMultiplePosts(competitorLinks, 5)
+      const competitorLinks = searchResult.items.map(item => item.link)
+      scrapedData = await scrapeMultiplePosts(competitorLinks, 10)
 
       // 블로그 학습 파이프라인: 스크래핑 데이터 수집
       if (searchResult.items.length > 0 && scrapedData.size > 0) {
@@ -774,7 +778,7 @@ export async function POST(request: NextRequest) {
     const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
 
     // AI 인사이트 + 이미지 분석 (병렬 실행, 기존 스크래핑 데이터 재사용)
-    if (includeAi && hasAiApiKey('gemini')) {
+    if (includeAi && hasAiApiKey(provider)) {
       // NDJSON 스트리밍 응답 (AI 토큰 실시간 전달)
       await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
 
@@ -801,7 +805,7 @@ export async function POST(request: NextRequest) {
             const [aiResult, imageResult] = await Promise.allSettled([
               getAiInsights(cleanKeyword, competitors, patterns, difficulty, (delta) => {
                 send({ type: 'stream', delta })
-              }),
+              }, provider),
               analyzeCompetitorImages(cleanKeyword, scrapedData),
             ])
 
