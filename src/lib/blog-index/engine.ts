@@ -323,6 +323,8 @@ export function analyzeBlogIndex(
         mine: visitorData.avgDailyVisitors,
         recommended: cb?.dailyVisitors.recommended ?? 200,
         topBlogger: cb?.dailyVisitors.topBlogger ?? 1000,
+        source: visitorData.source || 'api',
+        historyDays: visitorData.historyDays,
       },
     } : {}),
     blogAge: {

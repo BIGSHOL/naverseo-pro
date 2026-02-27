@@ -60,6 +60,8 @@ export interface VisitorData {
   dailyVisitors: number[]
   avgDailyVisitors: number
   isAvailable: boolean
+  source?: 'api' | 'today' | 'history'  // 데이터 출처
+  historyDays?: number                   // history 소스일 때 누적 일수
 }
 
 export interface BlogLevelInfo {
@@ -125,7 +127,7 @@ export interface BenchmarkData {
   categoryPercentile: number
   avgCommentCount?: { mine: number; recommended: number; topBlogger: number }
   avgSympathyCount?: { mine: number; recommended: number; topBlogger: number }
-  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
+  dailyVisitors?: { mine: number; recommended: number; topBlogger: number; source?: string; historyDays?: number }
   blogAge?: { mine: number; recommended: number }
   totalPostCount?: { mine: number; recommended: number }
   buddyCount?: { mine: number; recommended: number }

@@ -128,7 +128,8 @@ export async function callGeminiStream(
 
   try {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 55000)
+    // 스트리밍은 전체 완료까지 시간이 필요 (thinking + 긴 콘텐츠 출력)
+    const timer = setTimeout(() => controller.abort(), 120000)
 
     const res = await fetch(url, {
       method: 'POST',
@@ -137,9 +138,8 @@ export async function callGeminiStream(
       signal: controller.signal,
     })
 
-    clearTimeout(timer)
-
     if (!res.ok) {
+      clearTimeout(timer)
       const errBody = await res.text()
       if (res.status === 429 || errBody.includes('quota') || errBody.includes('Too Many Requests')) {
         throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
@@ -148,6 +148,7 @@ export async function callGeminiStream(
     }
 
     if (!res.body) {
+      clearTimeout(timer)
       throw new Error('Gemini 스트리밍 응답 body가 없습니다.')
     }
 
@@ -156,38 +157,42 @@ export async function callGeminiStream(
     let buffer = ''
     let fullText = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
+        buffer += decoder.decode(value, { stream: true })
 
-      // SSE 이벤트는 빈 줄(\n\n)로 구분
-      const events = buffer.split('\n')
-      buffer = events.pop() || ''
+        // SSE 이벤트는 빈 줄(\n\n)로 구분
+        const events = buffer.split('\n')
+        buffer = events.pop() || ''
 
-      for (const line of events) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data: ')) continue
+        for (const line of events) {
+          const trimmed = line.trim()
+          if (!trimmed || !trimmed.startsWith('data: ')) continue
 
-        const jsonStr = trimmed.slice(6)
-        if (jsonStr === '[DONE]') continue
+          const jsonStr = trimmed.slice(6)
+          if (jsonStr === '[DONE]') continue
 
-        try {
-          const data = JSON.parse(jsonStr)
-          const parts = data.candidates?.[0]?.content?.parts || []
-          for (const part of parts) {
-            // thinking 토큰 건너뛰기
-            if (part.thought) continue
-            if (part.text) {
-              fullText += part.text
-              onChunk?.(part.text)
+          try {
+            const data = JSON.parse(jsonStr)
+            const parts = data.candidates?.[0]?.content?.parts || []
+            for (const part of parts) {
+              // thinking 토큰 건너뛰기
+              if (part.thought) continue
+              if (part.text) {
+                fullText += part.text
+                onChunk?.(part.text)
+              }
             }
+          } catch {
+            // SSE 라인 파싱 실패 시 무시
           }
-        } catch {
-          // SSE 라인 파싱 실패 시 무시
         }
       }
+    } finally {
+      clearTimeout(timer)
     }
 
     if (!fullText) {
@@ -197,7 +202,7 @@ export async function callGeminiStream(
     return fullText
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('AI 분석 시간이 초과되었습니다 (55초). 다시 시도해주세요.')
+      throw new Error('AI 응답 시간이 초과되었습니다 (120초). 다시 시도해주세요.')
     }
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
@@ -329,6 +334,62 @@ export async function callClaude(
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('AbortError')) {
       throw new Error('AI 분석 시간이 초과되었습니다 (45초). 다시 시도해주세요.')
+    }
+    if (msg.includes('429') || msg.includes('rate') || msg.includes('Too Many Requests')) {
+      throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
+    }
+    throw err
+  }
+}
+
+/**
+ * Claude API 스트리밍 호출
+ *
+ * Anthropic SDK의 stream() 메서드로 토큰 단위 스트리밍.
+ * onChunk 콜백으로 각 텍스트 조각을 실시간 전달.
+ * 반환값은 전체 누적 텍스트 (callClaude와 동일한 최종 결과).
+ */
+export async function callClaudeStream(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 4096,
+  options?: { jsonMode?: boolean },
+  onChunk?: (delta: string) => void
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
+
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.')
+  }
+
+  const client = new Anthropic({ apiKey, timeout: 120000 })
+
+  try {
+    let fullText = ''
+
+    const stream = client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    })
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        fullText += event.delta.text
+        onChunk?.(event.delta.text)
+      }
+    }
+
+    if (!fullText) {
+      throw new Error('Claude 스트리밍 응답이 비어있습니다.')
+    }
+
+    return fullText
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('AbortError')) {
+      throw new Error('AI 응답 시간이 초과되었습니다 (120초). 다시 시도해주세요.')
     }
     if (msg.includes('429') || msg.includes('rate') || msg.includes('Too Many Requests')) {
       throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')

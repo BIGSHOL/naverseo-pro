@@ -144,7 +144,7 @@ interface BenchmarkData {
   categoryPercentile: number
   avgCommentCount?: { mine: number; recommended: number; topBlogger: number }
   avgSympathyCount?: { mine: number; recommended: number; topBlogger: number }
-  dailyVisitors?: { mine: number; recommended: number; topBlogger: number }
+  dailyVisitors?: { mine: number; recommended: number; topBlogger: number; source?: string; historyDays?: number }
   blogAge?: { mine: number; recommended: number }
   totalPostCount?: { mine: number; recommended: number }
   buddyCount?: { mine: number; recommended: number }
@@ -1426,7 +1426,18 @@ export default function BlogIndexPage() {
                       )}
                       <BenchmarkItem label="주제 집중도" mine={bm.topicFocus.mine} recommended={bm.topicFocus.recommended} topBlogger={bm.topicFocus.topBlogger} unit="%" icon={<Focus className="h-3.5 w-3.5" />} maxOptimal={80} />
                       {bm.dailyVisitors && (
-                        <BenchmarkItem label="일평균 방문자" mine={bm.dailyVisitors.mine} recommended={bm.dailyVisitors.recommended} topBlogger={bm.dailyVisitors.topBlogger} unit="명" icon={<Eye className="h-3.5 w-3.5" />} />
+                        <BenchmarkItem
+                          label={bm.dailyVisitors.source === 'history'
+                            ? `일평균 방문자 (${bm.dailyVisitors.historyDays}일)`
+                            : bm.dailyVisitors.source === 'today'
+                              ? '오늘 방문자'
+                              : '일평균 방문자'}
+                          mine={bm.dailyVisitors.mine}
+                          recommended={bm.dailyVisitors.recommended}
+                          topBlogger={bm.dailyVisitors.topBlogger}
+                          unit="명"
+                          icon={<Eye className="h-3.5 w-3.5" />}
+                        />
                       )}
                       {bm.avgCommentCount && (
                         <BenchmarkItem label="평균 댓글 수" mine={bm.avgCommentCount.mine} recommended={bm.avgCommentCount.recommended} topBlogger={bm.avgCommentCount.topBlogger} unit="개" icon={<MessageCircle className="h-3.5 w-3.5" />} />

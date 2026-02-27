@@ -240,14 +240,71 @@ export async function POST(request: NextRequest) {
           console.error('[BlogIndex] 프로필 크롤링 실패 (무시):', profileResult.reason)
         }
 
-        // 방문자 API 실패 시 프로필 페이지의 dayVisitorCount를 폴백으로 사용
+        // 방문자 API 실패 시 프로필 페이지의 dayVisitorCount + DB 히스토리 평균으로 보완
         if ((!visitorData || !visitorData.isAvailable) && blogProfileData?.dayVisitorCount) {
-          visitorData = {
-            dailyVisitors: [blogProfileData.dayVisitorCount],
-            avgDailyVisitors: blogProfileData.dayVisitorCount,
-            isAvailable: true,
+          // DB에서 과거 방문자 기록 조회 (같은 블로그, 서로 다른 날짜)
+          let historyAvg: number | null = null
+          let historyDays = 0
+          try {
+            const { data: pastRecords } = await supabase
+              .from('blog_index_history')
+              .select('checked_at, full_result')
+              .eq('user_id', user.id)
+              .eq('blog_id', blogId)
+              .eq('is_demo', false)
+              .order('checked_at', { ascending: false })
+              .limit(30)
+
+            if (pastRecords && pastRecords.length > 0) {
+              // 날짜별 중복 제거 (같은 날 여러 번 분석 시 최대치 사용)
+              const dailyMap = new Map<string, number>()
+              for (const rec of pastRecords) {
+                const dateKey = rec.checked_at.substring(0, 10) // YYYY-MM-DD
+                const fr = rec.full_result as Record<string, unknown> | null
+                const vd = fr?.visitorData as { avgDailyVisitors?: number } | null
+                if (vd?.avgDailyVisitors && vd.avgDailyVisitors > 0) {
+                  const existing = dailyMap.get(dateKey) || 0
+                  dailyMap.set(dateKey, Math.max(existing, vd.avgDailyVisitors))
+                }
+              }
+
+              // 오늘 날짜는 현재 값으로 대체
+              const todayKey = new Date().toISOString().substring(0, 10)
+              dailyMap.set(todayKey, blogProfileData.dayVisitorCount)
+
+              if (dailyMap.size >= 2) {
+                // 2일 이상 누적되면 히스토리 평균 사용
+                const values = Array.from(dailyMap.values())
+                historyAvg = Math.round(values.reduce((s, v) => s + v, 0) / values.length)
+                historyDays = dailyMap.size
+              }
+            }
+          } catch (err) {
+            console.warn('[BlogIndex] 방문자 히스토리 조회 실패 (무시):', err)
           }
-          console.log(`[BlogIndex] 방문자 데이터 폴백 (프로필): 오늘 ${blogProfileData.dayVisitorCount}명`)
+
+          if (historyAvg !== null && historyDays >= 2) {
+            // 히스토리 기반 평균
+            visitorData = {
+              dailyVisitors: [blogProfileData.dayVisitorCount],
+              avgDailyVisitors: historyAvg,
+              isAvailable: true,
+              source: 'history',
+              historyDays,
+            }
+            console.log(`[BlogIndex] 방문자 데이터 (히스토리 ${historyDays}일 평균): ${historyAvg}명`)
+          } else {
+            // 히스토리 부족 → 오늘 방문자만
+            visitorData = {
+              dailyVisitors: [blogProfileData.dayVisitorCount],
+              avgDailyVisitors: blogProfileData.dayVisitorCount,
+              isAvailable: true,
+              source: 'today',
+            }
+            console.log(`[BlogIndex] 방문자 데이터 (오늘만): ${blogProfileData.dayVisitorCount}명`)
+          }
+        } else if (visitorData?.isAvailable) {
+          visitorData.source = 'api'
         }
 
         // === 5.5단계: 실제 최초 포스팅 날짜 조회 (검색 API) ===

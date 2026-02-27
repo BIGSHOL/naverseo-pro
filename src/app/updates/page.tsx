@@ -18,6 +18,8 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  { date: '2026-02-27', type: 'feat', message: 'AI 실시간 타이핑 효과 — 콘텐츠 생성·상위노출 분석·약점 개선에서 AI가 글을 써내려가는 모습을 실시간으로 확인' },
+  { date: '2026-02-27', type: 'feat', message: '상위노출 분석 전체 리뉴얼 — 4차원 난이도 평가 + 품질·반응 기반 경쟁 분석 + 콘텐츠 길이 중립 원칙 적용' },
   { date: '2026-02-27', type: 'feat', message: 'SEO 점수 체크 — URL에서 통계·태그·서식·이미지 갤러리 표시 + AI 심층 분석에 스크래핑 메타 연동' },
   { date: '2026-02-27', type: 'feat', message: '상위노출 분석 — 블로그 스크래핑 데이터 활용 강화 + AI 프롬프트 개선' },
   { date: '2026-02-27', type: 'feat', message: '비용 최적화 — 분석 라우트(SEO/경쟁사/블로그지수) Gemini 고정' },

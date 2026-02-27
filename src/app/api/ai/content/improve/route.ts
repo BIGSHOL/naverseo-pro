@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callAI, callGeminiStream, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
+import { callAI, callGeminiStream, callClaudeStream, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import {
   buildImprovementSystemPrompt,
@@ -95,127 +95,73 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildImprovementSystemPrompt(patchable)
     const userMessage = buildImprovementUserPrompt(keyword, title, content, patchable, extraction)
 
-    if (provider === 'gemini') {
-      // Gemini: NDJSON 스트리밍 응답
-      const encoder = new TextEncoder()
-      const stream = new ReadableStream({
-        async start(controller) {
-          const send = (data: object) => {
-            controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+    // NDJSON 스트리밍 응답 (Gemini/Claude 공통)
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (data: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+        }
+
+        try {
+          const onDelta = (delta: string) => send({ type: 'stream', delta })
+          const response = provider === 'gemini'
+            ? await callGeminiStream(systemPrompt, userMessage, 8192, { jsonMode: true, thinkingBudget: 2048 }, onDelta)
+            : await callClaudeStream(systemPrompt, userMessage, 8192, { jsonMode: true }, onDelta)
+
+          console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
+          if (!response || response.trim().length === 0) {
+            send({ type: 'error', error: 'AI가 빈 응답을 반환했습니다. 다시 시도해주세요.' })
+            return
           }
 
+          let parsed: PatchResponse
           try {
-            const response = await callGeminiStream(
-              systemPrompt, userMessage, 8192,
-              { jsonMode: true, thinkingBudget: 2048 },
-              (delta) => send({ type: 'stream', delta })
-            )
-
-            console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
-            if (!response || response.trim().length === 0) {
-              send({ type: 'error', error: 'AI가 빈 응답을 반환했습니다. 다시 시도해주세요.' })
-              return
-            }
-
-            let parsed: PatchResponse
-            try {
-              parsed = parseGeminiJson<PatchResponse>(response)
-            } catch (parseError) {
-              const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
-              send({ type: 'error', error: `AI 응답 파싱 실패: ${parseMsg}. 다시 시도해주세요.` })
-              return
-            }
-
-            if (!parsed.patches || !Array.isArray(parsed.patches)) {
-              send({ type: 'error', error: 'AI 응답에 patches 배열이 없습니다. 다시 시도해주세요.' })
-              return
-            }
-
-            const validPatches = parsed.patches.filter(
-              (p): p is PatchItem => typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0
-            )
-
-            await deductCredits(supabase, user.id, 'content_improve', {
-              keyword,
-              categories: patchable.map(c => c.id).join(', '),
-              patchCount: validPatches.length,
-            })
-
-            send({
-              type: 'result',
-              title: parsed.title || null,
-              patches: validPatches,
-              append: parsed.append || null,
-              guidance: guidanceItems,
-              improvedCategories: categories.map(c => c.id),
-            })
-          } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error)
-            console.error('[Content Improve] 스트리밍 오류:', msg)
-            send({ type: 'error', error: `AI 약점 개선 중 오류: ${msg}` })
-          } finally {
-            controller.close()
+            parsed = parseGeminiJson<PatchResponse>(response)
+          } catch (parseError) {
+            const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
+            send({ type: 'error', error: `AI 응답 파싱 실패: ${parseMsg}. 다시 시도해주세요.` })
+            return
           }
-        },
-      })
 
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'application/x-ndjson',
-          'Cache-Control': 'no-cache',
-        },
-      })
-    }
+          if (!parsed.patches || !Array.isArray(parsed.patches)) {
+            send({ type: 'error', error: 'AI 응답에 patches 배열이 없습니다. 다시 시도해주세요.' })
+            return
+          }
 
-    // Claude 또는 기타: 기존 JSON 응답
-    const response = await callAI(provider, systemPrompt, userMessage, 8192, { jsonMode: true, thinkingBudget: 2048 })
+          const validPatches = parsed.patches.filter(
+            (p): p is PatchItem => typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0
+          )
 
-    console.log(`[Content Improve] AI 응답 길이: ${response?.length ?? 0}자`)
-    if (!response || response.trim().length === 0) {
-      console.error('[Content Improve] AI가 빈 응답을 반환했습니다.')
-      return NextResponse.json(
-        { error: 'AI가 빈 응답을 반환했습니다. 다시 시도해주세요.' },
-        { status: 500 }
-      )
-    }
-    let parsed: PatchResponse
-    try {
-      parsed = parseGeminiJson<PatchResponse>(response)
-    } catch (parseError) {
-      const parseMsg = parseError instanceof Error ? parseError.message : String(parseError)
-      console.error(`[Content Improve] JSON 파싱 실패 (${response.length}자): ${parseMsg}`)
-      return NextResponse.json(
-        { error: `AI 응답 파싱 실패: ${parseMsg} (응답 ${response.length}자). 다시 시도해주세요.` },
-        { status: 500 }
-      )
-    }
+          await deductCredits(supabase, user.id, 'content_improve', {
+            keyword,
+            categories: patchable.map(c => c.id).join(', '),
+            patchCount: validPatches.length,
+          })
 
-    if (!parsed.patches || !Array.isArray(parsed.patches)) {
-      console.error('[Content Improve] patches 배열 없음. parsed:', JSON.stringify(parsed).substring(0, 500))
-      return NextResponse.json(
-        { error: 'AI 응답에 patches 배열이 없습니다. 다시 시도해주세요.' },
-        { status: 500 }
-      )
-    }
-
-    // 유효한 patch만 필터 (find, replace 모두 존재)
-    const validPatches = parsed.patches.filter(
-      (p): p is PatchItem => typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0
-    )
-
-    // 크레딧 차감
-    await deductCredits(supabase, user.id, 'content_improve', {
-      keyword,
-      categories: patchable.map(c => c.id).join(', '),
-      patchCount: validPatches.length,
+          send({
+            type: 'result',
+            title: parsed.title || null,
+            patches: validPatches,
+            append: parsed.append || null,
+            guidance: guidanceItems,
+            improvedCategories: categories.map(c => c.id),
+          })
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          console.error('[Content Improve] 스트리밍 오류:', msg)
+          send({ type: 'error', error: `AI 약점 개선 중 오류: ${msg}` })
+        } finally {
+          controller.close()
+        }
+      },
     })
 
-    return NextResponse.json({
-      title: parsed.title || null,
-      patches: validPatches,
-      append: parsed.append || null,
-      guidance: guidanceItems,
-      improvedCategories: categories.map(c => c.id),
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+      },
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

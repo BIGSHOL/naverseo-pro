@@ -9,6 +9,8 @@ export interface VisitorData {
   dailyVisitors: number[]    // 일별 방문자 수 배열
   avgDailyVisitors: number   // 평균 일일 방문자 수
   isAvailable: boolean       // 데이터 조회 성공 여부
+  source?: 'api' | 'today' | 'history'  // 데이터 출처: api=30일API, today=오늘만, history=DB누적평균
+  historyDays?: number       // history 소스일 때 누적 일수
 }
 
 /**

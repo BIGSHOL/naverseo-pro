@@ -21,30 +21,34 @@ export function analyzePopularity(
   const items: ScoreItem[] = []
   let score = 0
 
-  // === 일평균 방문자 수 (8점) ===
+  // === 방문자 수 (8점) ===
   let visitorPts = 0
   if (visitorData && visitorData.isAvailable) {
     const avg = visitorData.avgDailyVisitors
+    const src = visitorData.source || 'api'
+    const visitorLabel = src === 'history'
+      ? `일평균 방문자 (${visitorData.historyDays}일)`
+      : src === 'today' ? '오늘 방문자' : '일평균 방문자'
     if (avg >= 1000) {
       visitorPts = 8
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (최우수) (+8)`)
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (최우수) (+8)`)
     } else if (avg >= 500) {
       visitorPts = 6
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (우수) (+6)`)
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (우수) (+6)`)
     } else if (avg >= 200) {
       visitorPts = 4
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (양호) (+4)`)
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (양호) (+4)`)
     } else if (avg >= 50) {
       visitorPts = 2
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (보통) (+2)`)
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (보통) (+2)`)
     } else if (avg >= 10) {
       visitorPts = 1
-      details.push(`일평균 방문자: ${avg.toLocaleString()}명 (부족) (+1)`)
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (부족) (+1)`)
     } else {
       visitorPts = 0
-      details.push(`일평균 방문자: ${avg}명 (매우 부족) (+0)`)
+      details.push(`${visitorLabel}: ${avg}명 (매우 부족) (+0)`)
     }
-    items.push({ label: `일평균 방문자 (${avg.toLocaleString()}명)`, points: visitorPts })
+    items.push({ label: `${visitorLabel} (${avg.toLocaleString()}명)`, points: visitorPts })
   } else {
     visitorPts = 2
     details.push('방문자 데이터 미제공 (+2)')

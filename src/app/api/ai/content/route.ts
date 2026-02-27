@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callAI, callGeminiStream, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
+import { callAI, callGeminiStream, callClaudeStream, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
 import {
   buildSystemPrompt,
   buildUserPrompt,
@@ -760,16 +760,10 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
           send({ type: 'progress', step: 3, totalSteps: 4, message: 'AI 콘텐츠 생성 중...' })
 
           try {
-            let response: string
-            if (provider === 'gemini') {
-              response = await callGeminiStream(
-                systemPrompt, userMessage, 4096,
-                { jsonMode: true, thinkingBudget: 4096 },
-                (delta) => send({ type: 'stream', delta })
-              )
-            } else {
-              response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 4096 })
-            }
+            const onDelta = (delta: string) => send({ type: 'stream', delta })
+            const response = provider === 'gemini'
+              ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048 }, onDelta)
+              : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true }, onDelta)
 
             // Step 4/4: SEO 분석 + 저장
             send({ type: 'progress', step: 4, totalSteps: 4, message: 'SEO 분석 및 저장 중...' })
