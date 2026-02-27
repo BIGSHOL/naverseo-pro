@@ -471,7 +471,7 @@ async function getAiInsights(
 - 평균 이미지: ${cq.avgImageCount}장 / 평균 동영상: ${cq.avgVideoCount}개
 ${cq.avgCommentCount !== null ? `- 평균 댓글: ${cq.avgCommentCount}개` : ''}
 ${cq.avgSympathyCount !== null ? `- 평균 공감: ${cq.avgSympathyCount}개` : ''}
-${cq.avgReadCount !== null ? `- 평균 조회수: ${cq.avgReadCount.toLocaleString()}회` : ''}
+${cq.avgReadCount !== null ? `- 평균 조회수: ${cq.avgReadCount.toLocaleString()}회` : '- 조회수: 비공개 (네이버 정책상 타인 블로그 조회수 확인 불가)'}
 `
   }
 
