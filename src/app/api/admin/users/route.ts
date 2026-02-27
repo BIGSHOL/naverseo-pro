@@ -27,13 +27,27 @@ export async function GET(request: NextRequest) {
 
         const missing = authUsers.users.filter(u => !existingIds.has(u.id))
         if (missing.length > 0) {
-          const rows = missing.map(u => ({
-            id: u.id,
-            email: u.email || u.user_metadata?.email || '',
-            plan: 'free' as const,
-            credits_balance: 30,
-            credits_monthly_quota: 30,
-          }))
+          // 기존 referral_code 목록 조회 (중복 방지)
+          const { data: existingCodes } = await adminDb
+            .from('profiles')
+            .select('referral_code')
+          const usedCodes = new Set((existingCodes || []).map(p => p.referral_code))
+
+          const rows = missing.map(u => {
+            let code: string
+            do {
+              code = Math.random().toString(36).substring(2, 8).toUpperCase()
+            } while (usedCodes.has(code))
+            usedCodes.add(code)
+            return {
+              id: u.id,
+              email: u.email || u.user_metadata?.email || '',
+              plan: 'free' as const,
+              credits_balance: 30,
+              credits_monthly_quota: 30,
+              referral_code: code,
+            }
+          })
           await adminDb.from('profiles').upsert(rows, { onConflict: 'id' })
           console.log(`[Admin Users] 누락 프로필 ${missing.length}건 동기화 완료`)
         }
