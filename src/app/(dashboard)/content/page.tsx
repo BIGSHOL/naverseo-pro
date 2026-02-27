@@ -23,9 +23,12 @@ import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
-import { analyzeSeo, type ContentType } from '@/lib/content/engine'
+import type { Editor } from '@tiptap/core'
+import { animatePatches } from '@/lib/editor/patch-animator'
+import { analyzeSeo, type ContentType, type DomainCategory, DOMAIN_CATEGORY_NAMES } from '@/lib/content/engine'
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
@@ -171,6 +174,8 @@ export default function ContentPage() {
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [contentType, setContentType] = useState<ContentType | ''>('')
   const [contentDirection, setContentDirection] = useState('')
+  const [domainCategory, setDomainCategory] = useState<DomainCategory | ''>('')
+  const [customDomain, setCustomDomain] = useState('')
   const [includeFaq, setIncludeFaq] = useState(false)
 
   // 고급 옵션
@@ -317,6 +322,8 @@ export default function ContentPage() {
             includeQuotes,
             targetAudience,
             ageGroup,
+            domainCategory: domainCategory || undefined,
+            customDomain: domainCategory === 'other' ? customDomain.trim() || undefined : undefined,
           },
         }),
       })
@@ -361,6 +368,8 @@ export default function ContentPage() {
     setIncludeQuotes(opts.includeQuotes ?? false)
     setTargetAudience(opts.targetAudience ?? 'general')
     setAgeGroup(opts.ageGroup ?? 'all')
+    setDomainCategory(opts.domainCategory ?? '')
+    setCustomDomain(opts.customDomain ?? '')
 
     toast({
       title: '📥 템플릿 불러옴',
@@ -409,7 +418,10 @@ export default function ContentPage() {
   const [saveMessage, setSaveMessage] = useState('')
   const [improving, setImproving] = useState(false)
   const [improveMessage, setImproveMessage] = useState('')
+  const [animatingPatch, setAnimatingPatch] = useState('')
   const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
+  const editorRef = useRef<Editor | null>(null)
+  const cancelAnimationRef = useRef<(() => void) | null>(null)
 
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
@@ -442,6 +454,7 @@ export default function ContentPage() {
   const [historyEditContent, setHistoryEditContent] = useState('')
   const [historySaving, setHistorySaving] = useState(false)
   const [historyCopied, setHistoryCopied] = useState(false)
+  const [showHistoryRawMarkdown, setShowHistoryRawMarkdown] = useState(false)
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -579,6 +592,8 @@ export default function ContentPage() {
           targetLength: overrides?.targetLength || targetLength,
           contentType: overrides?.contentType || contentType || undefined,
           contentDirection: contentDirection.trim() || undefined,
+          domainCategory: domainCategory || undefined,
+          customDomain: domainCategory === 'other' ? customDomain.trim() || undefined : undefined,
           includeFaq,
           additionalKeywords: additionalKeywords
             .split(',')
@@ -889,12 +904,14 @@ export default function ContentPage() {
       let updatedContent = editContent
       let appliedCount = 0
       let skippedCount = 0
+      const appliedPatches: Array<{ find: string; replace: string }> = []
 
       if (data.patches && Array.isArray(data.patches)) {
         for (const patch of data.patches) {
           if (updatedContent.includes(patch.find)) {
             updatedContent = updatedContent.replace(patch.find, patch.replace)
             appliedCount++
+            appliedPatches.push(patch)
           } else {
             skippedCount++
           }
@@ -912,7 +929,33 @@ export default function ContentPage() {
 
       // 콘텐츠 반영
       if (appliedCount > 0) {
+        cancelAnimationRef.current?.()
         setEditContent(updatedContent)
+
+        // 편집기 탭 + 에디터 인스턴스가 있으면 하이라이트 애니메이션 시작
+        if (appliedPatches.length > 0 && editorRef.current && !showRawMarkdown) {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (!editorRef.current || editorRef.current.isDestroyed) return
+              cancelAnimationRef.current = animatePatches(
+                editorRef.current,
+                appliedPatches,
+                {
+                  initialDelay: 200,
+                  highlightDuration: 1800,
+                  interPatchDelay: 500,
+                  onPatchShown: (current, total) => {
+                    setAnimatingPatch(`${current}/${total} 수정 확인 중...`)
+                  },
+                  onComplete: () => {
+                    setAnimatingPatch('')
+                    cancelAnimationRef.current = null
+                  },
+                }
+              )
+            }, 150)
+          })
+        }
       }
 
       const messages: string[] = []
@@ -931,6 +974,11 @@ export default function ContentPage() {
       setImproving(false)
     }
   }
+
+  // 컴포넌트 언마운트 시 애니메이션 정리
+  useEffect(() => {
+    return () => { cancelAnimationRef.current?.() }
+  }, [])
 
   const toneOptions = [
     '친근하고 정보적인',
@@ -1167,7 +1215,7 @@ export default function ContentPage() {
                         </div>
                       </div>
                       {/* 액션 버튼 */}
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
                         {historyEditMode ? (
                           <>
                             <Button size="sm" onClick={saveHistoryEdit} disabled={historySaving}>
@@ -1177,6 +1225,30 @@ export default function ContentPage() {
                             <Button size="sm" variant="outline" onClick={() => setHistoryEditMode(false)}>
                               취소
                             </Button>
+                            <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 ml-auto">
+                              <button
+                                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                  !showHistoryRawMarkdown
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                                onClick={() => setShowHistoryRawMarkdown(false)}
+                              >
+                                <Pencil className="mr-1 inline h-3 w-3" />
+                                편집기
+                              </button>
+                              <button
+                                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                  showHistoryRawMarkdown
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                                onClick={() => setShowHistoryRawMarkdown(true)}
+                              >
+                                <FileText className="mr-1 inline h-3 w-3" />
+                                마크다운
+                              </button>
+                            </div>
                           </>
                         ) : (
                           <>
@@ -1187,23 +1259,11 @@ export default function ContentPage() {
                             <Button size="sm" variant="outline" onClick={() => {
                               setHistoryEditTitle(selectedContent.title)
                               setHistoryEditContent(selectedContent.content)
+                              setShowHistoryRawMarkdown(false)
                               setHistoryEditMode(true)
                             }}>
                               <Pencil className="mr-1 h-3 w-3" />
                               편집
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                sessionStorage.setItem('naverseo-workflow:content-body', selectedContent.content)
-                                sessionStorage.setItem('naverseo-workflow:content-title', selectedContent.title)
-                                sessionStorage.setItem('naverseo-workflow:content-keyword', selectedContent.target_keyword)
-                                router.push('/seo-check?keyword=' + encodeURIComponent(selectedContent.target_keyword))
-                              }}
-                            >
-                              <BarChart3 className="mr-1 h-3 w-3" />
-                              SEO 체크
                             </Button>
                             {selectedContent.status !== 'published' && (
                               <Button size="sm" variant="outline" className="text-green-700" onClick={() => updateContentStatus(selectedContent.id, 'published')}>
@@ -1229,12 +1289,68 @@ export default function ContentPage() {
                     </CardHeader>
                     <CardContent>
                       {historyEditMode ? (
-                        <Textarea
-                          value={historyEditContent}
-                          onChange={(e) => setHistoryEditContent(e.target.value)}
-                          rows={20}
-                          className="font-mono text-sm"
-                        />
+                        <>
+                          <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+                            {/* 좌측: 편집 영역 */}
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>본문</Label>
+                                {showHistoryRawMarkdown ? (
+                                  <>
+                                    <Textarea
+                                      value={historyEditContent}
+                                      onChange={(e) => setHistoryEditContent(e.target.value)}
+                                      rows={20}
+                                      className="font-mono text-sm"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      {historyEditContent.length.toLocaleString()}자
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TiptapEditor
+                                      markdown={historyEditContent}
+                                      onMarkdownChange={setHistoryEditContent}
+                                      placeholder="글을 작성하세요..."
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      {historyEditContent.length.toLocaleString()}자
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {/* 우측: 실시간 SEO 패널 (데스크톱) */}
+                            <div className="hidden lg:block">
+                              <div className="sticky top-4">
+                                <div className="mb-2 flex items-center gap-1.5">
+                                  <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                                  <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
+                                </div>
+                                <LiveSeoPanel
+                                  keyword={selectedContent.target_keyword}
+                                  title={historyEditTitle}
+                                  content={historyEditContent}
+                                  compact
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {/* 모바일: 편집 시 SEO 패널 아래에 표시 */}
+                          <div className="mt-4 lg:hidden">
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                              <span className="text-xs font-medium text-muted-foreground">LIVE SEO</span>
+                            </div>
+                            <LiveSeoPanel
+                              keyword={selectedContent.target_keyword}
+                              title={historyEditTitle}
+                              content={historyEditContent}
+                              compact
+                            />
+                          </div>
+                        </>
                       ) : (
                         <div className="rounded-lg border bg-muted/30 p-4 max-h-[60vh] overflow-y-auto">
                           <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-li:text-foreground/90">
@@ -1381,6 +1497,55 @@ export default function ContentPage() {
                   내 업체 홍보글
                 </Badge>
               </div>
+            </div>
+
+            {/* 산업/분야 도메인 */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 text-teal-500" />
+                산업/분야
+                <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge
+                  variant={domainCategory === '' ? 'default' : 'outline'}
+                  className="cursor-pointer text-xs"
+                  onClick={() => { setDomainCategory(''); setCustomDomain('') }}
+                >
+                  자동 감지
+                </Badge>
+                {(Object.entries(DOMAIN_CATEGORY_NAMES) as [DomainCategory, string][])
+                  .filter(([key]) => key !== 'other')
+                  .map(([key, name]) => (
+                    <Badge
+                      key={key}
+                      variant={domainCategory === key ? 'default' : 'outline'}
+                      className={`cursor-pointer text-xs ${domainCategory === key ? 'bg-teal-600 hover:bg-teal-700 border-teal-600' : ''}`}
+                      onClick={() => { setDomainCategory(key); setCustomDomain('') }}
+                    >
+                      {name}
+                    </Badge>
+                  ))}
+                <Badge
+                  variant={domainCategory === 'other' ? 'default' : 'outline'}
+                  className={`cursor-pointer text-xs ${domainCategory === 'other' ? 'bg-teal-600 hover:bg-teal-700 border-teal-600' : ''}`}
+                  onClick={() => setDomainCategory('other')}
+                >
+                  기타
+                </Badge>
+              </div>
+              {domainCategory === 'other' && (
+                <Input
+                  placeholder="분야를 직접 입력하세요 (예: 웹툰, 반도체, 캠핑용품)"
+                  value={customDomain}
+                  onChange={(e) => setCustomDomain(e.target.value)}
+                  disabled={loading}
+                  className="mt-1.5 border-teal-200 focus:border-teal-400 focus:ring-teal-400"
+                />
+              )}
+              <p className="text-xs text-teal-600/80">
+                분야를 지정하면 해당 산업에 특화된 AI 가이드라인이 적용됩니다
+              </p>
             </div>
 
             {/* 콘텐츠 방향 (선택) */}
@@ -1905,19 +2070,21 @@ export default function ContentPage() {
               </div>
             )}
 
-            <Button type="submit" disabled={loading || !keyword.trim()} className="w-full">
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {progress?.message || '준비 중...'}
-                </>
-              ) : (
-                <>
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  블로그 글 생성하기
-                </>
-              )}
-            </Button>
+            <CreditTooltip feature="content_generation">
+              <Button type="submit" disabled={loading || !keyword.trim()} className="w-full">
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {progress?.message || '준비 중...'}
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    블로그 글 생성하기
+                  </>
+                )}
+              </Button>
+            </CreditTooltip>
 
             {/* 프로그레스 카드 */}
             {loading && progress && (
@@ -2340,7 +2507,7 @@ export default function ContentPage() {
                           ? 'bg-background text-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
-                      onClick={() => setShowRawMarkdown(true)}
+                      onClick={() => { cancelAnimationRef.current?.(); setAnimatingPatch(''); setShowRawMarkdown(true) }}
                     >
                       <FileText className="mr-1 inline h-3 w-3 sm:mr-1.5 sm:h-3.5 sm:w-3.5" />
                       마크다운
@@ -2406,6 +2573,7 @@ export default function ContentPage() {
                             <TiptapEditor
                               markdown={editContent}
                               onMarkdownChange={setEditContent}
+                              onEditorReady={(editor) => { editorRef.current = editor }}
                               placeholder="글을 작성하세요..."
                             />
                             <p className="text-xs text-muted-foreground">
@@ -2449,7 +2617,12 @@ export default function ContentPage() {
                             {saveMessage}
                           </span>
                         )}
-                        {improveMessage && (
+                        {animatingPatch && (
+                          <span className="text-sm font-medium text-blue-600 animate-pulse">
+                            {animatingPatch}
+                          </span>
+                        )}
+                        {improveMessage && !animatingPatch && (
                           <span className={`text-sm font-medium ${improveMessage.includes('완료') || improveMessage.includes('양호') || improveMessage.includes('가이드') ? 'text-green-600' : 'text-red-600'}`}>
                             {improveMessage}
                           </span>
