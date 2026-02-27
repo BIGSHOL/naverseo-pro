@@ -139,16 +139,16 @@ export interface ReferralConfig {
 export const CREDIT_COSTS = {
   keyword_research: 1,       // 키워드 검색
   keyword_discovery: 3,      // 키워드 발굴
-  content_generation: 5,     // AI 콘텐츠 생성
+  content_generation: 7,     // AI 콘텐츠 생성 (AI + 네이버 API 5개 + 스크래핑)
   seo_check: 2,              // SEO 점수 체크
-  competitor_analysis: 3,    // 상위노출 분석
-  blog_index: 3,             // 블로그 지수 분석
+  competitor_analysis: 5,    // 상위노출 분석 (10건 스크래핑 + AI 2회)
+  blog_index: 5,             // 블로그 지수 분석 (100건 크롤링 + 20건 스크래핑)
   tracking_per_keyword: 1,   // 순위 트래킹 (키워드당)
-  seo_report: 2,             // SEO 리포트 생성
+  seo_report: 1,             // SEO 리포트 생성 (DB 쿼리만)
   content_improve: 3,        // 콘텐츠 개선
   keyword_bulk: 3,             // 키워드 대량조회 (10개당)
   post_check: 2,               // 검색 누락 조회
-  instagram_convert: 3,        // 인스타그램 변환
+  instagram_convert: 2,        // 인스타그램 변환 (AI 1회)
 } as const
 
 export type CreditFeature = keyof typeof CREDIT_COSTS

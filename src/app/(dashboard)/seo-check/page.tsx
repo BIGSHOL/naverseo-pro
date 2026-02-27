@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, X } from 'lucide-react'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -487,19 +488,21 @@ export default function SeoCheckPage() {
                 </div>
               )}
 
-              <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    AI 심층 분석 중...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    AI 심층 분석
-                  </>
-                )}
-              </Button>
+              <CreditTooltip feature="seo_check">
+                <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      AI 심층 분석 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      AI 심층 분석
+                    </>
+                  )}
+                </Button>
+              </CreditTooltip>
               {showLivePanel && (
                 <p className="text-center text-xs text-muted-foreground">
                   실시간 기본 분석은 우측에서 확인하세요. AI 심층 분석은 더 정밀한 결과를 제공합니다.

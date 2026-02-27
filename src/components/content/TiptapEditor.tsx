@@ -11,8 +11,10 @@ import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { Extension } from '@tiptap/react'
+import type { Editor } from '@tiptap/core'
 import { useEffect, useRef } from 'react'
 import { markdownToHtml, htmlToMarkdown } from '@/lib/utils/markdown-convert'
+import { createPatchHighlightPlugin } from '@/lib/editor/patch-highlight-plugin'
 import { TiptapToolbar } from './TiptapToolbar'
 
 // 커스텀 FontSize 확장 (TextStyle 기반)
@@ -61,14 +63,23 @@ declare module '@tiptap/core' {
   }
 }
 
+// PatchHighlight 플러그인을 TipTap Extension으로 래핑
+const PatchHighlightExtension = Extension.create({
+  name: 'patchHighlight',
+  addProseMirrorPlugins() {
+    return [createPatchHighlightPlugin()]
+  },
+})
+
 interface TiptapEditorProps {
   markdown: string
   onMarkdownChange: (md: string) => void
+  onEditorReady?: (editor: Editor) => void
   placeholder?: string
   className?: string
 }
 
-export function TiptapEditor({ markdown, onMarkdownChange, placeholder, className }: TiptapEditorProps) {
+export function TiptapEditor({ markdown, onMarkdownChange, onEditorReady, placeholder, className }: TiptapEditorProps) {
   const isExternalUpdate = useRef(false)
   const lastMarkdown = useRef(markdown)
 
@@ -98,8 +109,12 @@ export function TiptapEditor({ markdown, onMarkdownChange, placeholder, classNam
         types: ['heading', 'paragraph'],
       }),
       FontSize,
+      PatchHighlightExtension,
     ],
     content: markdownToHtml(markdown),
+    onCreate: ({ editor }) => {
+      onEditorReady?.(editor)
+    },
     onUpdate: ({ editor }) => {
       if (isExternalUpdate.current) return
       const html = editor.getHTML()

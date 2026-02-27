@@ -83,13 +83,7 @@ BEGIN
   INTO current_balance, current_quota, reset_time, user_role
   FROM profiles WHERE id = uid FOR UPDATE;
 
-  -- 관리자 바이패스 (차감 없이 로그만)
-  IF user_role = 'admin' THEN
-    INSERT INTO credit_usage_log (user_id, feature, credits_spent, credits_before, credits_after, metadata)
-    VALUES (uid, feature_name, cost, current_balance, current_balance, meta);
-    RETURN QUERY SELECT true, current_balance, ''::TEXT;
-    RETURN;
-  END IF;
+  -- 관리자도 동일하게 크레딧 차감 (바이패스 없음)
 
   -- lazy 월간 리셋
   IF NOW() >= reset_time THEN

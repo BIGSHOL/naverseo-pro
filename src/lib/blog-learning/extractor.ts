@@ -8,7 +8,7 @@
 import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 import type { NaverBlogSearchItem } from '@/lib/naver/blog-search'
 import { scorePost } from '@/lib/blog-index/scoring'
-import { detectContentType, type ContentType } from '@/lib/content/engine'
+import { detectContentType, detectDomainCategory, type ContentType } from '@/lib/content/engine'
 import { stripHtml, countImageMarkers } from '@/lib/utils/text'
 import type { AnalyzedPostPattern, CollectionSource, WritingTone } from './types'
 
@@ -27,6 +27,7 @@ export function extractPatternFromScrapedData(
 ): AnalyzedPostPattern {
   const cleanTitle = stripHtml(searchItem.title)
   const category = detectContentType(keyword)
+  const domain = detectDomainCategory(keyword)
 
   // HTML 기반 구조 분석
   const headingCount = rawHtml ? extractHeadingCount(rawHtml) : 0
@@ -64,6 +65,7 @@ export function extractPatternFromScrapedData(
   return {
     keyword,
     keyword_category: category,
+    domain_category: domain,
     search_rank: searchRank,
     post_url: searchItem.link,
     blogger_name: searchItem.bloggername || null,
@@ -106,6 +108,7 @@ export function extractPatternFromSearchItem(
   const cleanTitle = stripHtml(searchItem.title)
   const cleanDesc = stripHtml(searchItem.description)
   const category = detectContentType(keyword)
+  const domain = detectDomainCategory(keyword)
 
   // description에서 추출 가능한 정보
   const imageCount = countImageMarkers(searchItem.description)
@@ -128,6 +131,7 @@ export function extractPatternFromSearchItem(
   return {
     keyword,
     keyword_category: category,
+    domain_category: domain,
     search_rank: searchRank,
     post_url: searchItem.link,
     blogger_name: searchItem.bloggername || null,

@@ -5,7 +5,7 @@
  * 키워드별 + 카테고리 전체 두 레벨로 집계
  */
 
-import type { ContentType } from '@/lib/content/engine'
+import type { ContentType, DomainCategory } from '@/lib/content/engine'
 
 /**
  * 키워드별 + 카테고리 전체 집계 패턴 업데이트
@@ -14,18 +14,24 @@ import type { ContentType } from '@/lib/content/engine'
  */
 export async function updateAggregatePatterns(
   keyword: string,
-  category: ContentType | null
+  category: ContentType | null,
+  domain: DomainCategory | null = null
 ): Promise<void> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
 
     // 1. 키워드별 집계
-    await aggregateForKeyword(supabase, keyword, category)
+    await aggregateForKeyword(supabase, keyword, category, domain)
 
     // 2. 카테고리 전체 집계 (keyword=NULL)
     if (category) {
       await aggregateForCategory(supabase, category)
+    }
+
+    // 3. 도메인 전체 집계 (keyword=NULL, domain 기준)
+    if (domain) {
+      await aggregateForDomain(supabase, domain)
     }
   } catch (err) {
     console.warn('[BlogLearning] 집계 오류:', err instanceof Error ? err.message : err)
@@ -36,7 +42,8 @@ async function aggregateForKeyword(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   keyword: string,
-  category: ContentType | null
+  category: ContentType | null,
+  domain: DomainCategory | null = null
 ): Promise<void> {
   // 해당 키워드의 모든 분석 포스트 조회
   const { data: posts, error } = await supabase
@@ -70,6 +77,7 @@ async function aggregateForKeyword(
     .upsert({
       keyword,
       keyword_category: category || 'informational',
+      domain_category: domain,
       sample_count: posts.length,
       ...aggregated,
       keyword_in_title_rate: avg(posts, 'has_keyword_in_title', true),
@@ -85,7 +93,7 @@ async function aggregateForKeyword(
       optimal_heading_range: optimalHeadingRange,
       last_updated_at: new Date().toISOString(),
     }, {
-      onConflict: 'keyword,keyword_category',
+      onConflict: 'keyword,keyword_category,domain_category',
     })
 }
 
@@ -120,6 +128,7 @@ async function aggregateForCategory(
     .upsert({
       keyword: null,
       keyword_category: category,
+      domain_category: null,
       sample_count: posts.length,
       ...aggregated,
       keyword_in_title_rate: avg(posts, 'has_keyword_in_title', true),
@@ -135,7 +144,58 @@ async function aggregateForCategory(
       optimal_heading_range: optimalHeadingRange,
       last_updated_at: new Date().toISOString(),
     }, {
-      onConflict: 'keyword,keyword_category',
+      onConflict: 'keyword,keyword_category,domain_category',
+    })
+}
+
+async function aggregateForDomain(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  domain: DomainCategory
+): Promise<void> {
+  // 해당 도메인의 모든 분석 포스트 조회 (최대 500개)
+  const { data: posts, error } = await supabase
+    .from('analyzed_posts')
+    .select('*')
+    .eq('domain_category', domain)
+    .order('collected_at', { ascending: false })
+    .limit(500)
+
+  if (error || !posts || posts.length < 3) return
+
+  const aggregated = calculateAggregates(posts)
+  const successPosts = posts.filter((p: Record<string, unknown>) => (p.quality_score as number) >= 9)
+  const successPatterns = successPosts.length >= 2
+    ? calculateSuccessPatterns(successPosts)
+    : {}
+  const topTags = calculateTopTags(posts)
+  const optimalCharRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.char_count as number))
+  const optimalImageRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.image_count as number))
+  const optimalHeadingRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.heading_count as number))
+  const toneDistribution = calculateToneDistribution(posts)
+
+  await supabase
+    .from('keyword_patterns')
+    .upsert({
+      keyword: null,
+      keyword_category: null,
+      domain_category: domain,
+      sample_count: posts.length,
+      ...aggregated,
+      keyword_in_title_rate: avg(posts, 'has_keyword_in_title', true),
+      list_format_rate: avg(posts, 'has_list_format', true),
+      table_usage_rate: avg(posts, 'has_table', true),
+      naver_map_rate: avg(posts, 'has_naver_map', true),
+      youtube_rate: avg(posts, 'has_youtube', true),
+      tone_distribution: toneDistribution,
+      top_tags: topTags,
+      success_patterns: successPatterns,
+      optimal_char_range: optimalCharRange,
+      optimal_image_range: optimalImageRange,
+      optimal_heading_range: optimalHeadingRange,
+      last_updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'keyword,keyword_category,domain_category',
     })
 }
 

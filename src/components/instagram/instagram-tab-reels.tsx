@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import type { Plan } from '@/types/database'
 
 interface ScriptSection {
@@ -121,19 +122,21 @@ export function InstagramTabReels({ userPlan }: Props) {
                 </button>
               </div>
             </div>
-            <Button onClick={handleGenerate} disabled={loading || content.trim().length < 200}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  생성 중...
-                </>
-              ) : (
-                <>
-                  <Clapperboard className="mr-2 h-4 w-4" />
-                  대본 생성
-                </>
-              )}
-            </Button>
+            <CreditTooltip feature="instagram_convert">
+              <Button onClick={handleGenerate} disabled={loading || content.trim().length < 200}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    생성 중...
+                  </>
+                ) : (
+                  <>
+                    <Clapperboard className="mr-2 h-4 w-4" />
+                    대본 생성
+                  </>
+                )}
+              </Button>
+            </CreditTooltip>
           </div>
         </CardContent>
       </Card>

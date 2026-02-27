@@ -5,7 +5,7 @@
  * AI 콘텐츠 생성 프롬프트에 데이터 기반 인사이트를 주입
  */
 
-import type { ContentType } from '@/lib/content/engine'
+import type { ContentType, DomainCategory } from '@/lib/content/engine'
 
 /** 수집 출처 */
 export type CollectionSource =
@@ -20,6 +20,7 @@ export type CollectionSource =
 export interface AnalyzedPostPattern {
   keyword: string
   keyword_category: ContentType | null
+  domain_category: DomainCategory | null
   search_rank: number | null
 
   post_url: string
@@ -90,5 +91,5 @@ export interface AggregatedPattern {
 export interface PromptPatternData {
   text: string
   sampleCount: number
-  matchType: 'exact_keyword' | 'category' | 'none'
+  matchType: 'exact_keyword' | 'category' | 'domain' | 'none'
 }

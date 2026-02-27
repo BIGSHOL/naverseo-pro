@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import type { Plan } from '@/types/database'
 
 interface HashtagItem {
@@ -98,16 +99,18 @@ export function InstagramTabHashtags({ userPlan }: Props) {
               onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !loading && handleGenerate()}
             />
-            <Button onClick={handleGenerate} disabled={loading || !keyword.trim()} className="shrink-0">
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Hash className="mr-2 h-4 w-4" />
-                  추천
-                </>
-              )}
-            </Button>
+            <CreditTooltip feature="instagram_convert">
+              <Button onClick={handleGenerate} disabled={loading || !keyword.trim()} className="shrink-0">
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Hash className="mr-2 h-4 w-4" />
+                    추천
+                  </>
+                )}
+              </Button>
+            </CreditTooltip>
           </div>
         </CardContent>
       </Card>

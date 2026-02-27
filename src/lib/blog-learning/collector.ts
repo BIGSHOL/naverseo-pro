@@ -43,7 +43,7 @@ export async function collectFromSearchResults(
   }
 
   await savePatterns(patterns)
-  await updateAggregatePatterns(keyword, patterns[0]?.keyword_category || null)
+  await updateAggregatePatterns(keyword, patterns[0]?.keyword_category || null, patterns[0]?.domain_category || null)
 }
 
 /**
@@ -78,7 +78,7 @@ export async function collectFromScrapedPosts(
   }
 
   await savePatterns(patterns)
-  await updateAggregatePatterns(keyword, patterns[0]?.keyword_category || null)
+  await updateAggregatePatterns(keyword, patterns[0]?.keyword_category || null, patterns[0]?.domain_category || null)
 }
 
 /**
@@ -97,6 +97,7 @@ async function savePatterns(patterns: AnalyzedPostPattern[]): Promise<void> {
     const rows = patterns.map(p => ({
       keyword: p.keyword,
       keyword_category: p.keyword_category,
+      domain_category: p.domain_category,
       search_rank: p.search_rank,
       post_url: p.post_url,
       blogger_name: p.blogger_name,

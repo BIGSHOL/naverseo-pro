@@ -4,13 +4,17 @@ import { useState } from 'react'
 import { Search, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CreditTooltip } from '@/components/credit-tooltip'
+import type { CreditFeature } from '@/types/database'
 
 interface KeywordSearchProps {
   onSearch: (keyword: string) => void
   loading: boolean
+  /** 크레딧 소모 기능 (툴팁 표시용, 기본: keyword_research) */
+  creditFeature?: CreditFeature
 }
 
-export function KeywordSearch({ onSearch, loading }: KeywordSearchProps) {
+export function KeywordSearch({ onSearch, loading, creditFeature = 'keyword_research' }: KeywordSearchProps) {
   const [keyword, setKeyword] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -33,16 +37,18 @@ export function KeywordSearch({ onSearch, loading }: KeywordSearchProps) {
           disabled={loading}
         />
       </div>
-      <Button type="submit" className="h-11 px-6" disabled={loading || !keyword.trim()}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            분석 중
-          </>
-        ) : (
-          '검색'
-        )}
-      </Button>
+      <CreditTooltip feature={creditFeature}>
+        <Button type="submit" className="h-11 px-6" disabled={loading || !keyword.trim()}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              분석 중
+            </>
+          ) : (
+            '검색'
+          )}
+        </Button>
+      </CreditTooltip>
     </form>
   )
 }

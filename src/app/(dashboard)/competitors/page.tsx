@@ -281,7 +281,7 @@ export default function CompetitorsPage() {
       {/* 검색 폼 */}
       <Card>
         <CardContent className="pt-6">
-          <KeywordSearch onSearch={handleSearch} loading={loading} />
+          <KeywordSearch onSearch={handleSearch} loading={loading} creditFeature="competitor_analysis" />
         </CardContent>
       </Card>
 

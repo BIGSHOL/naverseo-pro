@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import dynamic from 'next/dynamic'
 import {
   Activity,
@@ -970,9 +971,11 @@ export default function BlogIndexPage() {
                   <AlertCircle className="h-4 w-4 shrink-0" />{error}
                 </div>
               )}
-              <Button type="submit" disabled={loading || refreshing || !blogUrl.trim()} className="w-full">
-                {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회</>)}
-              </Button>
+              <CreditTooltip feature="blog_index">
+                <Button type="submit" disabled={loading || refreshing || !blogUrl.trim()} className="w-full">
+                  {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회</>)}
+                </Button>
+              </CreditTooltip>
             </form>
           </CardContent>
         </Card>

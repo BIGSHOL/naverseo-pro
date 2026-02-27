@@ -13,6 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -106,19 +107,21 @@ export default function PostCheckPage() {
                 네이버 블로그 주소를 입력하면 최근 포스트 최대 30개의 검색 색인 상태를 확인합니다
               </p>
             </div>
-            <Button type="submit" disabled={loading || !blogUrl.trim()}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  조회 중... (포스트당 약 0.2초)
-                </>
-              ) : (
-                <>
-                  <FileSearch className="mr-2 h-4 w-4" />
-                  누락 조회 시작
-                </>
-              )}
-            </Button>
+            <CreditTooltip feature="post_check">
+              <Button type="submit" disabled={loading || !blogUrl.trim()}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    조회 중... (포스트당 약 0.2초)
+                  </>
+                ) : (
+                  <>
+                    <FileSearch className="mr-2 h-4 w-4" />
+                    누락 조회 시작
+                  </>
+                )}
+              </Button>
+            </CreditTooltip>
           </form>
         </CardContent>
       </Card>

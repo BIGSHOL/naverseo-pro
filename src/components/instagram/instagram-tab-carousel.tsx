@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import { CreditTooltip } from '@/components/credit-tooltip'
 import type { Plan } from '@/types/database'
 
 interface SlideItem {
@@ -111,19 +112,21 @@ export function InstagramTabCarousel({ userPlan }: Props) {
             <span className="text-xs text-muted-foreground">
               {content.length}자 입력됨 {content.length < 200 && content.length > 0 && '(최소 200자)'}
             </span>
-            <Button onClick={handleGenerate} disabled={loading || content.trim().length < 200}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  생성 중...
-                </>
-              ) : (
-                <>
-                  <Layers className="mr-2 h-4 w-4" />
-                  캐러셀 생성
-                </>
-              )}
-            </Button>
+            <CreditTooltip feature="instagram_convert">
+              <Button onClick={handleGenerate} disabled={loading || content.trim().length < 200}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    생성 중...
+                  </>
+                ) : (
+                  <>
+                    <Layers className="mr-2 h-4 w-4" />
+                    캐러셀 생성
+                  </>
+                )}
+              </Button>
+            </CreditTooltip>
           </div>
         </CardContent>
       </Card>

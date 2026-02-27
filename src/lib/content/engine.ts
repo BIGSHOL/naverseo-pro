@@ -28,6 +28,50 @@ export type ContentType =
   | 'listicle'       // 리스트형: ~가지, ~선, ~BEST
   | 'local'          // 지역업종형: 침산동 수학학원, 강남역 맛집
 
+/** 산업/분야 도메인 카테고리 */
+export type DomainCategory =
+  | 'education'    // 교육/학원
+  | 'medical'      // 의료/건강
+  | 'food'         // 맛집/음식
+  | 'beauty'       // 뷰티/패션
+  | 'tech'         // IT/테크
+  | 'realestate'   // 부동산
+  | 'travel'       // 여행/숙박
+  | 'parenting'    // 육아/교육
+  | 'pets'         // 반려동물
+  | 'finance'      // 재테크/금융
+  | 'auto'         // 자동차
+  | 'interior'     // 인테리어/가구
+  | 'legal'        // 법률/세무
+  | 'fitness'      // 운동/피트니스
+  | 'hobby'        // 취미/DIY
+  | 'wedding'      // 결혼/웨딩
+  | 'digital'      // 디지털/가전
+  | 'culture'      // 문화/공연/전시
+  | 'other'        // 기타 (사용자 입력)
+
+export const DOMAIN_CATEGORY_NAMES: Record<DomainCategory, string> = {
+  education: '교육/학원',
+  medical: '의료/건강',
+  food: '맛집/음식',
+  beauty: '뷰티/패션',
+  tech: 'IT/테크',
+  realestate: '부동산',
+  travel: '여행/숙박',
+  parenting: '육아/교육',
+  pets: '반려동물',
+  finance: '재테크/금융',
+  auto: '자동차',
+  interior: '인테리어/가구',
+  legal: '법률/세무',
+  fitness: '운동/피트니스',
+  hobby: '취미/DIY',
+  wedding: '결혼/웨딩',
+  digital: '디지털/가전',
+  culture: '문화/공연/전시',
+  other: '기타',
+}
+
 /** 내 업체 홍보글용 업체 정보 */
 export interface BusinessInfo {
   name: string              // 업체명 (필수)
@@ -72,6 +116,10 @@ export interface ContentGenerationRequest {
   specificBusinessName?: string
   /** 사용자가 입력한 콘텐츠 방향 지시 (최우선 적용) */
   contentDirection?: string
+  /** 산업/분야 도메인 카테고리 */
+  domainCategory?: DomainCategory
+  /** 'other' 선택 시 사용자 입력 도메인명 */
+  customDomain?: string
 }
 
 /** 생성된 콘텐츠 결과 */
@@ -171,6 +219,142 @@ const CONTENT_TYPE_NAMES: Record<ContentType, string> = {
   howto: '방법/가이드형',
   listicle: '리스트형',
   local: '지역업종형',
+}
+
+// ===== 도메인 카테고리 감지 =====
+
+const DOMAIN_PATTERNS: Record<Exclude<DomainCategory, 'other'>, RegExp[]> = {
+  education: [/학원/, /과외/, /공부방/, /독서실/, /교육/, /수업/, /수학/, /영어/, /코딩/, /입시/, /유치원/, /어린이집/, /학교/, /강의/, /인강/],
+  medical: [/병원/, /치과/, /의원/, /한의원/, /약국/, /피부과/, /정형외과/, /안과/, /이비인후/, /소아과/, /산부인과/, /건강/, /진료/, /수술/, /치료/, /의료/],
+  food: [/맛집/, /카페/, /식당/, /음식점/, /베이커리/, /빵집/, /분식/, /레시피/, /요리/, /맛있/, /먹방/, /디저트/, /술집/, /배달/, /간식/],
+  beauty: [/미용실/, /헤어/, /네일/, /피부관리/, /왁싱/, /화장품/, /스킨케어/, /메이크업/, /뷰티/, /패션/, /옷/, /코디/, /쇼핑/],
+  tech: [/IT/, /프로그래밍/, /코딩/, /개발/, /앱/, /소프트웨어/, /AI/, /인공지능/, /서버/, /클라우드/, /데이터/, /보안/],
+  realestate: [/부동산/, /아파트/, /전세/, /월세/, /매매/, /분양/, /청약/, /오피스텔/, /빌라/, /토지/],
+  travel: [/여행/, /호텔/, /펜션/, /숙소/, /게스트하우스/, /관광/, /항공/, /렌트카/, /투어/, /리조트/, /캠핑/],
+  parenting: [/육아/, /아기/, /아이/, /임신/, /출산/, /돌봄/, /모유/, /이유식/, /유모차/, /카시트/],
+  pets: [/강아지/, /고양이/, /반려동물/, /펫/, /동물병원/, /사료/, /애견/, /펫시터/],
+  finance: [/재테크/, /투자/, /주식/, /코인/, /펀드/, /보험/, /대출/, /금리/, /적금/, /연금/, /세금/],
+  auto: [/자동차/, /중고차/, /신차/, /차량/, /엔진/, /타이어/, /정비/, /세차/, /운전/, /면허/],
+  interior: [/인테리어/, /가구/, /리모델링/, /이사/, /수납/, /조명/, /벽지/, /바닥/, /커튼/, /홈스타일링/],
+  legal: [/변호사/, /법무사/, /회계사/, /세무사/, /법률/, /소송/, /상속/, /이혼/, /계약/],
+  fitness: [/헬스/, /필라테스/, /요가/, /수영/, /체육관/, /골프/, /운동/, /다이어트/, /PT/, /크로스핏/],
+  hobby: [/취미/, /DIY/, /공예/, /그림/, /악기/, /사진/, /독서/, /캘리/, /뜨개질/, /원예/, /낚시/],
+  wedding: [/결혼/, /웨딩/, /예식/, /신혼/, /스드메/, /허니문/, /청첩/, /예물/, /혼수/],
+  digital: [/노트북/, /스마트폰/, /태블릿/, /이어폰/, /모니터/, /키보드/, /마우스/, /가전/, /TV/, /냉장고/],
+  culture: [/공연/, /전시/, /영화/, /뮤지컬/, /콘서트/, /미술관/, /박물관/, /축제/, /독서/, /문화/],
+}
+
+/** 키워드에서 도메인 카테고리 자동 감지 */
+export function detectDomainCategory(keyword: string): DomainCategory | null {
+  let bestDomain: DomainCategory | null = null
+  let bestScore = 0
+
+  for (const [domain, patterns] of Object.entries(DOMAIN_PATTERNS) as [Exclude<DomainCategory, 'other'>, RegExp[]][]) {
+    let score = 0
+    for (const pattern of patterns) {
+      if (pattern.test(keyword)) score++
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestDomain = domain
+    }
+  }
+
+  return bestScore >= 1 ? bestDomain : null
+}
+
+/** 도메인별 AI 작성 가이드라인 */
+const DOMAIN_GUIDES: Record<Exclude<DomainCategory, 'other'>, string> = {
+  education: `교육/학원 콘텐츠 가이드:
+- 학부모 관점의 정보 (수강료, 커리큘럼, 강사진, 반 규모)
+- 학습 효과/성과를 구체적 수치로 제시 (성적 향상, 합격률)
+- 주변 학교명, 학군 정보 포함으로 지역 검색 최적화
+- 체험/상담 안내, 셔틀 정보 등 실용 정보 포함`,
+  medical: `의료/건강 콘텐츠 가이드:
+- 의학적 정확성 최우선 (과장·허위 정보 절대 금지)
+- 증상→원인→치료법→예방법 순서의 체계적 구성
+- 보험 적용 여부, 비용 범위 등 경제적 정보 포함
+- "전문의 상담 필요" 등 의료 면책 문구 자연스럽게 포함`,
+  food: `맛집/음식 콘텐츠 가이드:
+- 위치, 영업시간, 주차 가능 여부 등 방문 실용 정보 필수
+- 대표 메뉴 3~5개 + 가격대 명시
+- 분위기, 좌석 수, 웨이팅 여부 등 체감 정보
+- 네이버 지도 링크 안내, 주변 명소 연계 정보`,
+  beauty: `뷰티/패션 콘텐츠 가이드:
+- 피부 타입, 연령대별 맞춤 추천
+- 가격대, 용량, 지속력 등 구체적 제품 정보
+- Before/After 이미지 위치 적극 표시
+- 성분, 알러지 정보 등 안전 관련 내용 포함`,
+  tech: `IT/테크 콘텐츠 가이드:
+- 기술 용어에 대한 쉬운 설명 병기
+- 벤치마크, 스펙 비교 등 객관적 데이터 활용
+- 최신 버전/업데이트 정보 반영
+- 실제 사용 환경 기반의 성능 리뷰`,
+  realestate: `부동산 콘텐츠 가이드:
+- 시세, 평당 가격, 전세가율 등 구체적 수치 포함
+- 교통(지하철, 버스), 학군, 편의시설 등 입지 분석
+- 향후 개발 호재/비호재 등 투자 관점 정보
+- 관련 법률/세금 정보 간략 포함`,
+  travel: `여행/숙박 콘텐츠 가이드:
+- 가는 방법(교통편), 소요 시간, 비용 정보 필수
+- 일정별 코스 추천 (1박2일, 당일치기 등)
+- 예약 팁, 할인 정보, 최적 방문 시기
+- 주변 맛집, 카페, 관광지 연계 정보`,
+  parenting: `육아/교육 콘텐츠 가이드:
+- 월령/연령별 맞춤 정보 제공
+- 안전성, 인증 마크, 유해 성분 확인 정보
+- 실제 사용 후기 기반의 솔직한 장단점
+- 전문가(소아과 의사, 영양사) 조언 인용`,
+  pets: `반려동물 콘텐츠 가이드:
+- 견종/묘종별 특성에 맞는 맞춤 정보
+- 건강, 영양, 안전 관련 수의사 조언 포함
+- 제품 리뷰 시 성분, 원산지, 급여량 정보
+- 동물병원 정보, 응급 상황 대처법 포함`,
+  finance: `재테크/금융 콘텐츠 가이드:
+- 투자 위험 고지 문구 자연스럽게 포함
+- 수익률, 수수료, 세금 등 구체적 수치 제시
+- 초보자도 이해할 수 있는 용어 해설 포함
+- 최신 금리, 정책 변경 사항 반영`,
+  auto: `자동차 콘텐츠 가이드:
+- 연비, 가격, 옵션 등 객관적 스펙 비교
+- 유지비(보험, 정비, 연료비) 실질 정보 포함
+- 실제 주행 경험 기반의 솔직한 평가
+- 할인, 프로모션, 출고 대기 기간 등 구매 팁`,
+  interior: `인테리어/가구 콘텐츠 가이드:
+- 평수별, 구조별 맞춤 인테리어 제안
+- 비용 범위, 시공 기간, 주의사항 포함
+- Before/After 이미지 위치 적극 표시
+- 자재별 장단점, 관리 방법 등 실용 정보`,
+  legal: `법률/세무 콘텐츠 가이드:
+- 관련 법조문, 판례를 쉽게 풀어서 설명
+- 절차, 기간, 비용 등 실무적 정보 중심
+- "전문가 상담 권장" 등 면책 문구 포함
+- 최신 법률 개정 사항 반영`,
+  fitness: `운동/피트니스 콘텐츠 가이드:
+- 운동 동작 설명 시 자세, 횟수, 세트 수 구체적 명시
+- 부상 방지 주의사항 반드시 포함
+- 초보/중급/고급 수준별 루틴 제안
+- 식단, 보충제 정보와 연계한 종합 가이드`,
+  hobby: `취미/DIY 콘텐츠 가이드:
+- 준비물, 재료비, 난이도 등 시작 정보 상세 제공
+- 단계별 사진/이미지 위치 적극 표시
+- 초보자 실수 방지 팁, 대체 재료 안내
+- 관련 클래스, 커뮤니티 정보 포함`,
+  wedding: `결혼/웨딩 콘텐츠 가이드:
+- 비용 상세 (스드메, 예식장, 허니문 등 항목별)
+- 준비 타임라인, 체크리스트 형태의 실용 정보
+- 실제 경험담 기반의 솔직한 후기와 팁
+- 업체 비교 시 객관적 기준 제시`,
+  digital: `디지털/가전 콘텐츠 가이드:
+- 스펙, 성능 벤치마크 등 객관적 데이터 중심
+- 실사용 환경 기반 장단점 (발열, 소음, 배터리 등)
+- 가격 비교, 구매처, 할인 정보 포함
+- 경쟁 제품과의 비교표 활용`,
+  culture: `문화/공연/전시 콘텐츠 가이드:
+- 일정, 장소, 티켓 가격, 예매 방법 등 기본 정보 필수
+- 관람 후기 시 스포일러 주의 표시
+- 접근성(주차, 대중교통), 소요 시간 정보
+- 관련 작품, 아티스트 배경 정보 포함`,
 }
 
 export function detectContentType(keyword: string): ContentType {
@@ -418,11 +602,23 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
     ? `\n## 🔴 사용자 콘텐츠 방향 지시 (최우선 적용)\n사용자가 다음과 같이 콘텐츠 방향을 지정했습니다:\n"${request.contentDirection}"\n이 지시를 구조 가이드보다 우선하여 반영하세요. 단, SEO 최적화 규칙은 유지하세요.\n`
     : ''
 
+  // 도메인 가이드 섹션
+  let domainGuideSection = ''
+  if (request.domainCategory && request.domainCategory !== 'other') {
+    const domainName = DOMAIN_CATEGORY_NAMES[request.domainCategory]
+    const guide = DOMAIN_GUIDES[request.domainCategory]
+    if (guide) {
+      domainGuideSection = `\n## 산업/분야 특화 가이드라인: ${domainName}\n${guide}\n`
+    }
+  } else if (request.domainCategory === 'other' && request.customDomain) {
+    domainGuideSection = `\n## 산업/분야 특화 가이드라인: ${request.customDomain}\n이 콘텐츠는 "${request.customDomain}" 분야에 특화된 글입니다. 해당 분야의 전문 용어, 독자 관심사, 업계 트렌드를 반영하여 작성하세요.\n`
+  }
+
   return `당신은 네이버 블로그 SEO 전문 작가입니다.
 네이버 C-Rank와 D.I.A. 알고리즘에 최적화된 블로그 글을 작성합니다.
 
 ## 이번 콘텐츠 유형: ${typeName}
-${contentDirectionGuide}
+${contentDirectionGuide}${domainGuideSection}
 ## 톤앤매너
 ${toneGuide}
 
@@ -589,8 +785,15 @@ export function buildUserPrompt(request: ContentGenerationRequest): string {
   const isSpecificBiz = contentType === 'local' && !!request.specificBusinessName
   const typeName = isSpecificBiz ? '특정 업체 소개/리뷰' : isPromo ? '내 업체 홍보글' : CONTENT_TYPE_NAMES[contentType]
 
+  // 도메인 라벨
+  const domainLabel = request.domainCategory
+    ? request.domainCategory === 'other' && request.customDomain
+      ? request.customDomain
+      : DOMAIN_CATEGORY_NAMES[request.domainCategory] || ''
+    : ''
+
   let prompt = `타겟 키워드: "${request.keyword}"
-콘텐츠 유형: ${typeName}
+콘텐츠 유형: ${typeName}${domainLabel ? `\n산업/분야: ${domainLabel}` : ''}
 톤앤매너: ${request.tone || '친근하고 정보적인'}`
 
   if (isSpecificBiz) {

@@ -5,7 +5,7 @@
  * AI 콘텐츠 생성 프롬프트에 주입할 텍스트를 생성
  */
 
-import type { ContentType } from '@/lib/content/engine'
+import type { ContentType, DomainCategory } from '@/lib/content/engine'
 import type { AggregatedPattern, PromptPatternData } from './types'
 
 const TONE_LABELS: Record<string, string> = {
@@ -25,7 +25,8 @@ const TONE_LABELS: Record<string, string> = {
  */
 export async function getPatternPromptSection(
   keyword: string,
-  category: ContentType
+  category: ContentType,
+  domain: DomainCategory | null = null
 ): Promise<PromptPatternData | null> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
@@ -60,6 +61,24 @@ export async function getPatternPromptSection(
         text: formatPatternText(categoryMatch as AggregatedPattern, null),
         sampleCount: categoryMatch.sample_count as number,
         matchType: 'category',
+      }
+    }
+
+    // 3차: 도메인 매치 (domain_category 기준)
+    if (domain) {
+      const { data: domainMatch } = await supabase
+        .from('keyword_patterns')
+        .select('*')
+        .is('keyword', null)
+        .eq('domain_category', domain)
+        .single()
+
+      if (domainMatch && (domainMatch.sample_count as number) >= 5) {
+        return {
+          text: formatPatternText(domainMatch as AggregatedPattern, null),
+          sampleCount: domainMatch.sample_count as number,
+          matchType: 'domain',
+        }
       }
     }
 

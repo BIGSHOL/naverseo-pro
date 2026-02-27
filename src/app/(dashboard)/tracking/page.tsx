@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { ensureUrl } from '@/lib/utils/text'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { timeAgo } from '@/lib/utils/date'
+import { CreditTooltip } from '@/components/credit-tooltip'
 
 const RankHistoryChart = dynamic(
   () => import('@/components/charts/rank-history-chart').then(mod => ({ default: mod.RankHistoryChart })),
@@ -259,17 +260,19 @@ export default function TrackingPage() {
         </div>
         <div className="flex shrink-0 gap-2">
           {keywords.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={handleBulkCheck}
-              disabled={bulkChecking}
-              className="gap-2"
-              size="sm"
-            >
-              <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침'}</span>
-              <span className="sm:hidden">{bulkChecking ? '확인 중' : '새로고침'}</span>
-            </Button>
+            <CreditTooltip feature="tracking_per_keyword">
+              <Button
+                variant="outline"
+                onClick={handleBulkCheck}
+                disabled={bulkChecking}
+                className="gap-2"
+                size="sm"
+              >
+                <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침'}</span>
+                <span className="sm:hidden">{bulkChecking ? '확인 중' : '새로고침'}</span>
+              </Button>
+            </CreditTooltip>
           )}
           <Button onClick={() => setShowAddForm(!showAddForm)} className="gap-2" size="sm">
             <Plus className="h-4 w-4" />

@@ -4,6 +4,7 @@ import {
   buildSystemPrompt,
   buildUserPrompt,
   detectContentType,
+  detectDomainCategory,
   generateDemoContent,
   postProcessContent,
   analyzeSeo,
@@ -498,7 +499,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions, domainCategory, customDomain } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -517,6 +518,8 @@ export async function POST(request: NextRequest) {
       includeFaq: includeFaq === true,
       businessInfo: businessInfo?.name ? businessInfo : undefined,
       contentDirection: typeof contentDirection === 'string' && contentDirection.trim() ? contentDirection.trim() : undefined,
+      domainCategory: domainCategory || detectDomainCategory(keyword.trim()) || undefined,
+      customDomain: domainCategory === 'other' && typeof customDomain === 'string' ? customDomain.trim() || undefined : undefined,
       advancedOptions: advancedOptions || undefined,
     }
 
@@ -568,7 +571,7 @@ export async function POST(request: NextRequest) {
             wrapEnrichment(fetchRelatedKeywordsForContent(trimmedKeyword)),
             wrapEnrichment(fetchKeywordTrendForContent(trimmedKeyword)),
             wrapEnrichment(getSearchEnrichmentData(trimmedKeyword, enrichmentType)),
-            wrapEnrichment(getPatternPromptSection(trimmedKeyword, contentRequest.contentType || 'informational')),
+            wrapEnrichment(getPatternPromptSection(trimmedKeyword, contentRequest.contentType || 'informational', contentRequest.domainCategory || null)),
           ])
 
           const serpRef = serpResult.status === 'fulfilled' ? serpResult.value : null
