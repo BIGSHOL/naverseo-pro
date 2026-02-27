@@ -27,6 +27,15 @@ interface AiRecommendation {
   searchData?: AiSearchData
 }
 
+interface SearchProgress {
+  step: number
+  totalSteps: number
+  message: string
+  keywordCount?: number
+  current?: number
+  total?: number
+}
+
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<KeywordData[]>([])
   const [loading, setLoading] = useState(false)
@@ -35,6 +44,7 @@ export default function KeywordsPage() {
   const [searched, setSearched] = useState(false)
   const [spaceNotice, setSpaceNotice] = useState('')
   const [searchedKeyword, setSearchedKeyword] = useState('')
+  const [progress, setProgress] = useState<SearchProgress | null>(null)
 
   // AI 키워드 추천
   const [aiRecommendations, setAiRecommendations] = useState<AiRecommendation[]>([])
@@ -53,25 +63,68 @@ export default function KeywordsPage() {
     setSearchedKeyword(keyword)
     setAiRecommendations([])
     setAiError('')
+    setKeywords([])
+    setProgress({ step: 0, totalSteps: 3, message: '검색 준비 중...' })
 
     try {
       const res = await fetch(`/api/naver/keywords?keyword=${encodeURIComponent(keyword)}`)
-      const data = await res.json()
 
+      // 에러 응답 (400, 401, 403 등) — 일반 JSON
       if (!res.ok) {
+        const data = await res.json()
         setError(data.error || '키워드 조회에 실패했습니다.')
         setKeywords([])
         return
       }
 
-      setKeywords(data.keywords)
-      setIsDemo(data.isDemo || false)
-      setSpaceNotice(data.spaceNotice || '')
+      const contentType = res.headers.get('Content-Type') || ''
+
+      // NDJSON 스트리밍 응답 (실제 API)
+      if (contentType.includes('ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop()! // 마지막 불완전 라인 보존
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const data = JSON.parse(line)
+              if (data.type === 'progress') {
+                setProgress(data as SearchProgress)
+              } else if (data.type === 'result') {
+                setKeywords(data.keywords)
+                setIsDemo(data.isDemo || false)
+                setSpaceNotice(data.spaceNotice || '')
+              } else if (data.type === 'error') {
+                setError(data.error || '키워드 조회에 실패했습니다.')
+                setKeywords([])
+              }
+            } catch {
+              // JSON 파싱 실패 — 무시
+            }
+          }
+        }
+      } else {
+        // 일반 JSON 응답 (데모 모드)
+        const data = await res.json()
+        setKeywords(data.keywords)
+        setIsDemo(data.isDemo || false)
+        setSpaceNotice(data.spaceNotice || '')
+      }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
       setKeywords([])
     } finally {
       setLoading(false)
+      setProgress(null)
     }
   }
 
@@ -115,6 +168,13 @@ export default function KeywordsPage() {
     '경험형': 'bg-orange-100 text-orange-700',
   }
 
+  // 프로그레스 퍼센트 계산
+  const progressPercent = progress
+    ? progress.current && progress.total
+      ? Math.round((progress.current / progress.total) * 100)
+      : Math.round((progress.step / progress.totalSteps) * 100)
+    : 0
+
   return (
     <div className="space-y-6">
       <div>
@@ -126,6 +186,43 @@ export default function KeywordsPage() {
 
       {/* 검색 폼 */}
       <KeywordSearch onSearch={handleSearch} loading={loading} />
+
+      {/* 프로그레스 표시 */}
+      {loading && progress && (
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="w-full max-w-md space-y-3">
+                <p className="text-center text-sm font-medium">
+                  {progress.message}
+                </p>
+
+                {/* 프로그레스 바 */}
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+
+                {/* 단계 + 키워드 수 표시 */}
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>단계 {progress.step}/{progress.totalSteps}</span>
+                  <div className="flex gap-3">
+                    {progress.keywordCount != null && (
+                      <span>{progress.keywordCount.toLocaleString()}개 키워드</span>
+                    )}
+                    {progress.current != null && progress.total != null && (
+                      <span>{progress.current}/{progress.total} 분석</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 에러 메시지 */}
       {error && (

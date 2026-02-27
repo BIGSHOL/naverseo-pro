@@ -54,30 +54,6 @@ async function fetchTopResults(keyword: string): Promise<TopSearchResult[]> {
   }
 }
 
-// 여러 키워드의 상위 5개 결과를 병렬 조회 (5개씩 배치)
-async function fetchTopResultsBatch(keywords: string[]): Promise<Map<string, TopSearchResult[]>> {
-  const map = new Map<string, TopSearchResult[]>()
-  const BATCH_SIZE = 5
-
-  for (let i = 0; i < keywords.length; i += BATCH_SIZE) {
-    const batch = keywords.slice(i, i + BATCH_SIZE)
-    const results = await Promise.allSettled(
-      batch.map(kw => fetchTopResults(kw))
-    )
-    batch.forEach((kw, idx) => {
-      const result = results[idx]
-      if (result.status === 'fulfilled' && result.value.length > 0) {
-        map.set(kw, result.value)
-      }
-    })
-    // 배치 간 딜레이 (rate limit 방지)
-    if (i + BATCH_SIZE < keywords.length) {
-      await new Promise(r => setTimeout(r, 100))
-    }
-  }
-  return map
-}
-
 // 데모 상위 5개 결과 생성
 function generateDemoTopResults(): TopSearchResult[] {
   const typePool: { type: TopSearchResult['type']; source: string; weight: number }[] = [
@@ -157,6 +133,10 @@ async function saveKeywordResearch(seedKeyword: string, results: unknown[]) {
   }
 }
 
+// 상위 노출 분석 대상 최대 키워드 수 (성능 최적화)
+const TOP_RESULTS_LIMIT = 100
+const BATCH_SIZE = 5
+
 // === API 핸들러 ===
 
 export async function GET(request: NextRequest) {
@@ -189,16 +169,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let resultsWithScore
-
-    // 네이버 API 키가 없으면 데모 데이터 반환
+    // 데모 모드: 스트리밍 불필요 (즉시 반환)
     if (
       !process.env.NAVER_AD_API_KEY ||
       !process.env.NAVER_AD_SECRET_KEY ||
       !process.env.NAVER_AD_CUSTOMER_ID
     ) {
       const demoResults = generateDemoData(keyword.trim())
-      resultsWithScore = demoResults.map((kw) => ({
+      const resultsWithScore = demoResults.map((kw) => ({
         ...kw,
         totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
         score: calculateKeywordScore(kw),
@@ -215,49 +193,147 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // === 실제 API: NDJSON 스트리밍으로 프로그레스 전송 ===
     const trimmed = keyword.trim()
     const hasSpaces = /\s/.test(trimmed)
-    const results = await getKeywordStats(trimmed)
-    resultsWithScore = results.map((kw) => ({
-      ...kw,
-      totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
-      score: calculateKeywordScore(kw),
-    }))
-    resultsWithScore.sort((a, b) => b.score - a.score)
+    const encoder = new TextEncoder()
 
-    // 상위 5개 검색결과 타입 조회 (네이버 검색 API 필요)
-    let topResultsMap: Map<string, TopSearchResult[]> | null = null
-    if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
-      const keywordNames = resultsWithScore.map(kw => kw.relKeyword)
-      topResultsMap = await fetchTopResultsBatch(keywordNames)
-      console.log(`[Keywords] 상위 5개 결과 조회 완료: ${topResultsMap.size}/${keywordNames.length}개`)
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (data: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+        }
 
-    // topResults 병합
-    const keywordsWithTopResults = resultsWithScore.map(kw => ({
-      ...kw,
-      topResults: topResultsMap?.get(kw.relKeyword) || [],
-    }))
+        try {
+          // Step 1: 키워드 검색량 조회
+          send({
+            type: 'progress',
+            step: 1,
+            totalSteps: 3,
+            message: '네이버 키워드 검색량 조회 중...',
+          })
 
-    // 블로그 학습 파이프라인: 백그라운드 수집
-    if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
-      scheduleCollection(async () => {
-        const { searchNaverBlog } = await import('@/lib/naver/blog-search')
-        const blogResults = await searchNaverBlog(trimmed, 5)
-        await collectFromSearchResults(trimmed, blogResults.items, 'keyword_research')
-      })
-    }
+          const results = await getKeywordStats(trimmed)
+          const resultsWithScore = results.map((kw) => ({
+            ...kw,
+            totalSearch: kw.monthlyPcQcCnt + kw.monthlyMobileQcCnt,
+            score: calculateKeywordScore(kw),
+          }))
+          resultsWithScore.sort((a, b) => b.score - a.score)
 
-    // DB에 저장
-    await saveKeywordResearch(trimmed, keywordsWithTopResults)
+          // Step 2: 상위 노출 분석 (상위 100개만)
+          const hasSearchApi = process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET
+          const topResultsMap = new Map<string, TopSearchResult[]>()
 
-    return NextResponse.json({
-      keywords: keywordsWithTopResults,
-      isDemo: false,
-      ...(hasSpaces && {
-        searchedAs: trimmed.replace(/\s+/g, ''),
-        spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,
-      }),
+          if (hasSearchApi) {
+            const keywordsForTopResults = resultsWithScore.slice(0, TOP_RESULTS_LIMIT)
+            const totalToAnalyze = keywordsForTopResults.length
+
+            send({
+              type: 'progress',
+              step: 2,
+              totalSteps: 3,
+              message: `${resultsWithScore.length.toLocaleString()}개 키워드 발견! 상위 노출 분석 중...`,
+              keywordCount: resultsWithScore.length,
+              current: 0,
+              total: totalToAnalyze,
+            })
+
+            for (let i = 0; i < keywordsForTopResults.length; i += BATCH_SIZE) {
+              const batch = keywordsForTopResults.slice(i, i + BATCH_SIZE)
+              const batchResults = await Promise.allSettled(
+                batch.map(kw => fetchTopResults(kw.relKeyword))
+              )
+              batch.forEach((kw, idx) => {
+                const result = batchResults[idx]
+                if (result.status === 'fulfilled' && result.value.length > 0) {
+                  topResultsMap.set(kw.relKeyword, result.value)
+                }
+              })
+
+              const processed = Math.min(i + BATCH_SIZE, totalToAnalyze)
+              send({
+                type: 'progress',
+                step: 2,
+                totalSteps: 3,
+                message: `상위 노출 분석 중... (${processed}/${totalToAnalyze})`,
+                keywordCount: resultsWithScore.length,
+                current: processed,
+                total: totalToAnalyze,
+              })
+
+              // 배치 간 딜레이 (rate limit 방지)
+              if (i + BATCH_SIZE < keywordsForTopResults.length) {
+                await new Promise(r => setTimeout(r, 100))
+              }
+            }
+
+            console.log(`[Keywords] 상위 5개 결과 조회 완료: ${topResultsMap.size}/${totalToAnalyze}개`)
+          } else {
+            send({
+              type: 'progress',
+              step: 2,
+              totalSteps: 3,
+              message: `${resultsWithScore.length.toLocaleString()}개 키워드 발견!`,
+              keywordCount: resultsWithScore.length,
+            })
+          }
+
+          // Step 3: 결과 정리 + DB 저장
+          send({
+            type: 'progress',
+            step: 3,
+            totalSteps: 3,
+            message: '결과 저장 중...',
+          })
+
+          // topResults 병합
+          const keywordsWithTopResults = resultsWithScore.map(kw => ({
+            ...kw,
+            topResults: topResultsMap.get(kw.relKeyword) || [],
+          }))
+
+          // 블로그 학습 파이프라인: 백그라운드 수집
+          if (hasSearchApi) {
+            scheduleCollection(async () => {
+              const { searchNaverBlog } = await import('@/lib/naver/blog-search')
+              const blogResults = await searchNaverBlog(trimmed, 5)
+              await collectFromSearchResults(trimmed, blogResults.items, 'keyword_research')
+            })
+          }
+
+          // DB에 저장
+          await saveKeywordResearch(trimmed, keywordsWithTopResults)
+
+          // 최종 결과 전송
+          send({
+            type: 'result',
+            keywords: keywordsWithTopResults,
+            isDemo: false,
+            ...(hasSpaces && {
+              searchedAs: trimmed.replace(/\s+/g, ''),
+              spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,
+            }),
+          })
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          console.error('[Keywords API] 스트리밍 오류:', errorMessage)
+          send({
+            type: 'error',
+            error: `키워드 조회 중 오류가 발생했습니다: ${errorMessage}`,
+          })
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache',
+      },
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

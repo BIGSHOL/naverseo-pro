@@ -65,6 +65,16 @@ interface EnrichmentData {
   trendDirection?: string
   trendRatio?: number
   serpRefCount?: number
+  learningPatternCount?: number
+  learningMatchType?: string
+}
+
+interface ContentProgress {
+  step: number
+  totalSteps: number
+  message: string
+  current?: number
+  total?: number
 }
 
 interface ContentResult {
@@ -111,7 +121,7 @@ export default function ContentPage() {
   const [tone, setTone] = useState('친근하고 정보적인')
   const [additionalKeywords, setAdditionalKeywords] = useState('')
   const [loading, setLoading] = useState(false)
-  const [loadingStep, setLoadingStep] = useState(0) // 0: 네이버 데이터, 1: AI 생성, 2: SEO 분석
+  const [progress, setProgress] = useState<ContentProgress | null>(null)
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
@@ -513,14 +523,10 @@ export default function ContentPage() {
     if (!keyword.trim() || loading) return
 
     setLoading(true)
-    setLoadingStep(0)
+    setProgress(null)
     setError('')
     setPlanGateMessage('')
     setShowSeoDetail(false)
-
-    // 로딩 단계 타이머 (UX용)
-    const stepTimer1 = setTimeout(() => setLoadingStep(1), 3000)  // 3초 후: AI 생성 중
-    const stepTimer2 = setTimeout(() => setLoadingStep(2), 12000) // 12초 후: SEO 분석 중
 
     try {
       const res = await fetch('/api/ai/content', {
@@ -537,13 +543,11 @@ export default function ContentPage() {
             .split(',')
             .map((k) => k.trim())
             .filter(Boolean),
-          // 참고 URL 분석 결과가 있으면 전달
           referenceAnalysis: referenceAnalysis ? {
             title: referenceAnalysis.title,
             headings: referenceAnalysis.headings,
             charCount: referenceAnalysis.charCount,
           } : undefined,
-          // 홍보글 모드일 때 업체 정보 전달
           businessInfo: isPromoMode && businessName.trim() ? {
             name: businessName.trim(),
             address: businessAddress.trim() || undefined,
@@ -553,7 +557,6 @@ export default function ContentPage() {
             contact: businessContact.trim() || undefined,
             topic: businessTopic.trim() || undefined,
           } : undefined,
-          // 고급 옵션 전달
           advancedOptions: showAdvancedOptions ? {
             imageCount,
             headingCount,
@@ -570,26 +573,65 @@ export default function ContentPage() {
           } : undefined,
         }),
       })
-      const data = await res.json()
 
-      if (!res.ok) {
-        if (data.planGate) {
-          setPlanGateMessage(data.error)
-          setError('')
-        } else {
-          setError(data.error || '콘텐츠 생성에 실패했습니다.')
+      const contentType_ = res.headers.get('Content-Type') || ''
+
+      // NDJSON 스트리밍 응답 처리
+      if (contentType_.includes('application/x-ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+
+              if (event.type === 'progress') {
+                setProgress({
+                  step: event.step,
+                  totalSteps: event.totalSteps,
+                  message: event.message,
+                  current: event.current,
+                  total: event.total,
+                })
+              } else if (event.type === 'result') {
+                setResult(event)
+              } else if (event.type === 'error') {
+                setError(event.error || '콘텐츠 생성에 실패했습니다.')
+              }
+            } catch {
+              // JSON 파싱 실패 시 무시
+            }
+          }
         }
-        return
+      } else {
+        // 일반 JSON 응답 (데모/에러)
+        const data = await res.json()
+        if (!res.ok) {
+          if (data.planGate) {
+            setPlanGateMessage(data.error)
+            setError('')
+          } else {
+            setError(data.error || '콘텐츠 생성에 실패했습니다.')
+          }
+          return
+        }
+        setResult(data)
       }
-
-      setResult(data)
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
-      clearTimeout(stepTimer1)
-      clearTimeout(stepTimer2)
       setLoading(false)
-      setLoadingStep(0)
+      setProgress(null)
     }
   }
 
@@ -1751,9 +1793,7 @@ export default function ContentPage() {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {loadingStep === 0 && '네이버 데이터 수집 중... (연관 키워드 · 트렌드 · 상위 글)'}
-                  {loadingStep === 1 && 'AI가 콘텐츠를 작성하고 있습니다...'}
-                  {loadingStep === 2 && 'SEO 분석 및 최적화 중...'}
+                  {progress?.message || '준비 중...'}
                 </>
               ) : (
                 <>
@@ -1762,6 +1802,39 @@ export default function ContentPage() {
                 </>
               )}
             </Button>
+
+            {/* 프로그레스 카드 */}
+            {loading && progress && (
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-medium text-foreground">{progress.message}</span>
+                  <span className="text-muted-foreground">
+                    {progress.step}/{progress.totalSteps}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                    style={{
+                      width: progress.current && progress.total
+                        ? `${(((progress.step - 1) + progress.current / progress.total) / progress.totalSteps) * 100}%`
+                        : `${(progress.step / progress.totalSteps) * 100}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
+                  <span>
+                    {progress.step === 1 && '네이버 데이터 수집'}
+                    {progress.step === 2 && '검색 데이터 분석'}
+                    {progress.step === 3 && 'AI 콘텐츠 생성'}
+                    {progress.step === 4 && 'SEO 분석 및 저장'}
+                  </span>
+                  {progress.current !== undefined && progress.total !== undefined && (
+                    <span>{progress.current}/{progress.total}</span>
+                  )}
+                </div>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -1823,24 +1896,52 @@ export default function ContentPage() {
           {/* 데이터 강화 요약 */}
           {result.enrichment && (
             <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 mb-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-blue-700 mb-2">
                 <Sparkles className="h-3.5 w-3.5" />
                 AI에 제공된 네이버 데이터 인사이트
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-600">
-                {result.enrichment.relatedKeywordsCount && (
-                  <span>연관 키워드 {result.enrichment.relatedKeywordsCount}개 반영</span>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {result.enrichment.relatedKeywordsCount !== undefined && result.enrichment.relatedKeywordsCount > 0 && (
+                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 gap-1">
+                    <Search className="h-3 w-3" />
+                    연관 키워드 {result.enrichment.relatedKeywordsCount}개
+                  </Badge>
                 )}
                 {result.enrichment.trendDirection && (
-                  <span>트렌드: {result.enrichment.trendDirection} {result.enrichment.trendDirection === '상승 중' ? '↑' : result.enrichment.trendDirection === '하락 중' ? '↓' : '→'}{result.enrichment.trendRatio ? ` (${result.enrichment.trendRatio}/100)` : ''}</span>
+                  <Badge variant="outline" className={`gap-1 ${
+                    result.enrichment.trendDirection === '상승 중' ? 'border-green-200 bg-green-50 text-green-700' :
+                    result.enrichment.trendDirection === '하락 중' ? 'border-red-200 bg-red-50 text-red-700' :
+                    'border-gray-200 bg-gray-50 text-gray-700'
+                  }`}>
+                    <TrendingUp className="h-3 w-3" />
+                    {result.enrichment.trendDirection}
+                    {result.enrichment.trendRatio ? ` (${result.enrichment.trendRatio}/100)` : ''}
+                  </Badge>
                 )}
-                {result.enrichment.serpRefCount && (
-                  <span>상위노출 {result.enrichment.serpRefCount}개 글 분석</span>
+                {result.enrichment.serpRefCount !== undefined && result.enrichment.serpRefCount > 0 && (
+                  <Badge variant="outline" className="border-purple-200 bg-purple-50 text-purple-700 gap-1">
+                    <Eye className="h-3 w-3" />
+                    상위 {result.enrichment.serpRefCount}개 글 분석
+                  </Badge>
                 )}
-                {result.enrichment.autoKeywords && result.enrichment.autoKeywords.length > 0 && (
-                  <span>자동 추가 키워드: {result.enrichment.autoKeywords.join(', ')}</span>
+                {result.enrichment.learningPatternCount !== undefined && result.enrichment.learningPatternCount > 0 && (
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 gap-1">
+                    <FileText className="h-3 w-3" />
+                    학습 패턴 {result.enrichment.learningPatternCount}개
+                    {result.enrichment.learningMatchType ? ` · ${result.enrichment.learningMatchType}` : ''}
+                  </Badge>
                 )}
               </div>
+              {result.enrichment.autoKeywords && result.enrichment.autoKeywords.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <span className="text-xs text-blue-500 mr-1">자동 키워드:</span>
+                  {result.enrichment.autoKeywords.map((kw, i) => (
+                    <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                      {kw}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

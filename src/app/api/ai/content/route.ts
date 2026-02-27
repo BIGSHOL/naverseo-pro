@@ -498,7 +498,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -517,6 +517,7 @@ export async function POST(request: NextRequest) {
       includeFaq: includeFaq === true,
       businessInfo: businessInfo?.name ? businessInfo : undefined,
       contentDirection: typeof contentDirection === 'string' && contentDirection.trim() ? contentDirection.trim() : undefined,
+      advancedOptions: advancedOptions || undefined,
     }
 
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
@@ -530,162 +531,161 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ===== 데이터 강화: 4개 네이버 API 병렬 호출 =====
-    const enrichmentType = contentRequest.contentType === 'local' ? 'local'
-      : contentRequest.contentType === 'comparison' ? 'comparison'
-      : 'other'
+    // === 실제 API: NDJSON 스트리밍으로 프로그레스 전송 ===
+    const trimmedKeyword = keyword.trim()
+    const encoder = new TextEncoder()
 
-    const [serpResult, keywordsResult, trendResult, searchEnrichmentResult, learningResult] = await Promise.allSettled([
-      fetchSerpReference(keyword.trim()),
-      fetchRelatedKeywordsForContent(keyword.trim()),
-      fetchKeywordTrendForContent(keyword.trim()),
-      getSearchEnrichmentData(keyword.trim(), enrichmentType),
-      getPatternPromptSection(keyword.trim(), contentRequest.contentType || 'informational'),
-    ])
-
-    const serpRef = serpResult.status === 'fulfilled' ? serpResult.value : null
-    const keywordsRef = keywordsResult.status === 'fulfilled' ? keywordsResult.value : null
-    const trendRef = trendResult.status === 'fulfilled' ? trendResult.value : null
-    const searchEnrichment = searchEnrichmentResult.status === 'fulfilled' ? searchEnrichmentResult.value : null
-    const learningRef = learningResult.status === 'fulfilled' ? learningResult.value : null
-
-    // 블로그 학습 파이프라인: 백그라운드 수집
-    if (serpRef?.items) {
-      scheduleCollection(() => collectFromSearchResults(keyword.trim(), serpRef.items, 'content_generation'))
-    }
-
-    // 연관 키워드 상위 5개를 additionalKeywords에 자동 병합
-    if (keywordsRef && keywordsRef.topKeywords.length > 0) {
-      const existingSet = new Set(contentRequest.additionalKeywords || [])
-      const merged = [...(contentRequest.additionalKeywords || [])]
-      for (const kw of keywordsRef.topKeywords) {
-        if (!existingSet.has(kw)) {
-          existingSet.add(kw)
-          merged.push(kw)
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (data: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
         }
-      }
-      contentRequest.additionalKeywords = merged.slice(0, 10)
-    }
 
-    // ===== SERP 기반 키워드 분석: 콘텐츠 유형 교정 + 키워드 의미 파악 =====
-    // 핵심: 신조어/약어 키워드가 informational로 오분류되어 AI가 허구 콘텐츠를 생성하는 문제 방지
-    let serpKeywordMeaning: string | null = null
-    let serpInferredCategory = ''
-    let specificBusiness: { isSpecific: boolean; businessName: string | null } = { isSpecific: false, businessName: null }
-    const originalContentType = contentRequest.contentType // SERP 교정 전 원래 타입 보존
+        try {
+          // Step 1/4: 네이버 데이터 수집 (5개 API 병렬 호출, 개별 완료 추적)
+          let enrichmentsDone = 0
+          const TOTAL_ENRICHMENTS = 5
 
-    if (serpRef && serpRef.items.length > 0) {
-      const serpItems = serpRef.items.map(item => ({
-        title: item.title,
-        description: item.description,
-      }))
+          send({ type: 'progress', step: 1, totalSteps: 4, message: '네이버 데이터 수집 중...', current: 0, total: TOTAL_ENRICHMENTS })
 
-      // 1) 지역 업종 키워드: 특정 상호명 vs 카테고리 판별 (SERP 유형 교정보다 먼저!)
-      // 이유: SERP 교정이 local→review로 바꾸면 상호명 감지가 실행되지 않는 버그 방지
-      if (originalContentType === 'local') {
-        specificBusiness = detectSpecificBusiness(keyword.trim(), serpItems)
-        if (specificBusiness.isSpecific) {
-          console.log(`[Content] ★ 특정 상호명 감지: "${specificBusiness.businessName}" → 단일 업체 소개/리뷰 모드`)
-          // buildSystemPrompt에 전달하여 구조 가이드 자체를 교체
-          contentRequest.specificBusinessName = specificBusiness.businessName!
-        }
-      }
+          const wrapEnrichment = <T>(promise: Promise<T>): Promise<T> => {
+            return promise.finally(() => {
+              enrichmentsDone++
+              send({
+                type: 'progress', step: 1, totalSteps: 4,
+                message: `네이버 데이터 수집 중... (${enrichmentsDone}/${TOTAL_ENRICHMENTS})`,
+                current: enrichmentsDone, total: TOTAL_ENRICHMENTS,
+              })
+            })
+          }
 
-      // 2) SERP에서 콘텐츠 유형 추론 (음식/제품 → review, 방법 → howto 등)
-      const inference = inferContentTypeFromSerp(serpItems)
-      serpInferredCategory = inference.category
+          const enrichmentType = contentRequest.contentType === 'local' ? 'local'
+            : contentRequest.contentType === 'comparison' ? 'comparison'
+            : 'other'
 
-      // 사용자가 직접 유형을 선택하지 않았고 SERP가 다른 유형을 강하게 제안하면 → 자동 교정
-      // 단, 특정 상호명이 감지된 경우 local 타입을 유지 (TOP 5가 아닌 단일 업체 모드로 전환)
-      if (!requestedType && inference.suggestedType && inference.suggestedType !== contentRequest.contentType) {
-        if (specificBusiness.isSpecific) {
-          console.log(`[Content] ★ SERP가 ${inference.suggestedType}을 제안했지만, 특정 상호명 감지로 local 유지`)
-        } else {
-          console.log(`[Content] ★ SERP 기반 콘텐츠 유형 교정: ${contentRequest.contentType} → ${inference.suggestedType} (카테고리: ${serpInferredCategory})`)
-          contentRequest.contentType = inference.suggestedType as 'review' | 'howto' | 'comparison'
-        }
-      }
+          const [serpResult, keywordsResult, trendResult, searchEnrichmentResult, learningResult] = await Promise.allSettled([
+            wrapEnrichment(fetchSerpReference(trimmedKeyword)),
+            wrapEnrichment(fetchRelatedKeywordsForContent(trimmedKeyword)),
+            wrapEnrichment(fetchKeywordTrendForContent(trimmedKeyword)),
+            wrapEnrichment(getSearchEnrichmentData(trimmedKeyword, enrichmentType)),
+            wrapEnrichment(getPatternPromptSection(trimmedKeyword, contentRequest.contentType || 'informational')),
+          ])
 
-      // 3) SERP 제목에서 키워드의 실제 의미(풀네임) 추출
-      serpKeywordMeaning = extractKeywordMeaning(keyword.trim(), serpItems)
-      if (serpKeywordMeaning) {
-        console.log(`[Content] ★ 키워드 의미 추출: "${keyword.trim()}" = "${serpKeywordMeaning}"`)
-      }
-    }
+          const serpRef = serpResult.status === 'fulfilled' ? serpResult.value : null
+          const keywordsRef = keywordsResult.status === 'fulfilled' ? keywordsResult.value : null
+          const trendRef = trendResult.status === 'fulfilled' ? trendResult.value : null
+          const searchEnrichment = searchEnrichmentResult.status === 'fulfilled' ? searchEnrichmentResult.value : null
+          const learningRef = learningResult.status === 'fulfilled' ? learningResult.value : null
 
-    // 데이터 없는 키워드 감지 (네이버 API 3개 모두 결과 없음)
-    const noSerpData = !serpRef
-    const noKeywordData = !keywordsRef
-    const noTrendData = !trendRef
-    const isUnknownKeyword = noSerpData && noKeywordData && noTrendData
+          // 블로그 학습 파이프라인: 백그라운드 수집
+          if (serpRef?.items) {
+            scheduleCollection(() => collectFromSearchResults(trimmedKeyword, serpRef.items, 'content_generation'))
+          }
 
-    // 상세 로깅: 각 API 결과 확인
-    console.log(`[Content] 키워드="${keyword.trim()}" enrichment 결과:`)
-    console.log(`  SERP: ${serpRef ? `${serpRef.count}개 결과` : 'null'}`)
-    console.log(`  키워드: ${keywordsRef ? `${keywordsRef.count}개 연관` : 'null'}`)
-    console.log(`  트렌드: ${trendRef ? `${trendRef.direction}(${trendRef.ratio})` : 'null'}`)
-    console.log(`  SERP 추론: 유형=${contentRequest.contentType}, 카테고리=${serpInferredCategory || '없음'}, 의미=${serpKeywordMeaning || '없음'}`)
-    console.log(`  특정상호: ${specificBusiness.isSpecific ? specificBusiness.businessName : '아님'}`)
-    console.log(`  isUnknownKeyword: ${isUnknownKeyword}`)
+          // 연관 키워드 상위 5개를 additionalKeywords에 자동 병합
+          if (keywordsRef && keywordsRef.topKeywords.length > 0) {
+            const existingSet = new Set(contentRequest.additionalKeywords || [])
+            const merged = [...(contentRequest.additionalKeywords || [])]
+            for (const kw of keywordsRef.topKeywords) {
+              if (!existingSet.has(kw)) {
+                existingSet.add(kw)
+                merged.push(kw)
+              }
+            }
+            contentRequest.additionalKeywords = merged.slice(0, 10)
+          }
 
-    // AI 프롬프트 생성 (SERP 기반 유형 교정 적용 후)
-    let systemPrompt = buildSystemPrompt(contentRequest)
+          // Step 2/4: 검색 데이터 분석 (SERP 기반 키워드/콘텐츠 유형 교정)
+          send({ type: 'progress', step: 2, totalSteps: 4, message: '검색 데이터 분석 중...' })
 
-    // ★ 키워드 정의를 시스템 프롬프트 맨 앞에 배치 (primacy effect)
-    // AI가 구조 가이드보다 키워드 의미를 먼저 읽도록 함
-    if (serpKeywordMeaning || serpRef?.keywordContext) {
-      let keywordDefinition = `## 🔴 키워드 정의 (이 정보를 반드시 먼저 읽고 따르세요)\n`
+          let serpKeywordMeaning: string | null = null
+          let serpInferredCategory = ''
+          let specificBusiness: { isSpecific: boolean; businessName: string | null } = { isSpecific: false, businessName: null }
+          const originalContentType = contentRequest.contentType
 
-      if (serpKeywordMeaning) {
-        keywordDefinition += `"${keyword.trim()}"의 실제 의미: "${serpKeywordMeaning}"\n`
-      }
+          if (serpRef && serpRef.items.length > 0) {
+            const serpItems = serpRef.items.map(item => ({
+              title: item.title,
+              description: item.description,
+            }))
 
-      if (serpRef?.keywordContext) {
-        // keywordContext에서 SERP 제목들 추출 (제목만 간결하게)
-        const contextLines = serpRef.keywordContext.split('\n').filter(l => /^\d+\./.test(l.trim()))
-        if (contextLines.length > 0) {
-          keywordDefinition += `\n네이버 검색 결과:\n${contextLines.join('\n')}\n`
-        }
-      }
+            if (originalContentType === 'local') {
+              specificBusiness = detectSpecificBusiness(trimmedKeyword, serpItems)
+              if (specificBusiness.isSpecific) {
+                console.log(`[Content] ★ 특정 상호명 감지: "${specificBusiness.businessName}" → 단일 업체 소개/리뷰 모드`)
+                contentRequest.specificBusinessName = specificBusiness.businessName!
+              }
+            }
 
-      keywordDefinition += `\n**위 정보가 이 키워드의 실제 의미입니다. 이와 다른 의미로 해석하거나 허구의 정의를 만들어내면 안 됩니다.**\n**키워드의 실제 의미에 맞는 콘텐츠를 작성하세요.**\n\n`
+            const inference = inferContentTypeFromSerp(serpItems)
+            serpInferredCategory = inference.category
 
-      // 시스템 프롬프트 맨 앞에 배치 (기존 내용 앞에)
-      systemPrompt = keywordDefinition + systemPrompt
-    }
+            if (!requestedType && inference.suggestedType && inference.suggestedType !== contentRequest.contentType) {
+              if (specificBusiness.isSpecific) {
+                console.log(`[Content] ★ SERP가 ${inference.suggestedType}을 제안했지만, 특정 상호명 감지로 local 유지`)
+              } else {
+                console.log(`[Content] ★ SERP 기반 콘텐츠 유형 교정: ${contentRequest.contentType} → ${inference.suggestedType} (카테고리: ${serpInferredCategory})`)
+                contentRequest.contentType = inference.suggestedType as 'review' | 'howto' | 'comparison'
+              }
+            }
 
-    // ★ 특정 상호명 감지 시: SERP 참고 정보 보강 (구조 가이드는 buildSystemPrompt에서 이미 교체됨)
-    if (specificBusiness.isSpecific && specificBusiness.businessName) {
-      const serpTitles = serpRef?.items
-        ?.slice(0, 5)
-        .map(item => item.title.replace(/<[^>]*>/g, ''))
-        .join('\n- ') || ''
+            serpKeywordMeaning = extractKeywordMeaning(trimmedKeyword, serpItems)
+            if (serpKeywordMeaning) {
+              console.log(`[Content] ★ 키워드 의미 추출: "${trimmedKeyword}" = "${serpKeywordMeaning}"`)
+            }
+          }
 
-      if (serpTitles) {
-        const serpContext = `## 네이버 검색 결과 참고 (${specificBusiness.businessName})
-- ${serpTitles}
+          const noSerpData = !serpRef
+          const noKeywordData = !keywordsRef
+          const noTrendData = !trendRef
+          const isUnknownKeyword = noSerpData && noKeywordData && noTrendData
 
-위 검색 결과를 참고하여 "${specificBusiness.businessName}"에 대한 정보를 정리하세요.
+          console.log(`[Content] 키워드="${trimmedKeyword}" enrichment 결과:`)
+          console.log(`  SERP: ${serpRef ? `${serpRef.count}개 결과` : 'null'}`)
+          console.log(`  키워드: ${keywordsRef ? `${keywordsRef.count}개 연관` : 'null'}`)
+          console.log(`  트렌드: ${trendRef ? `${trendRef.direction}(${trendRef.ratio})` : 'null'}`)
+          console.log(`  SERP 추론: 유형=${contentRequest.contentType}, 카테고리=${serpInferredCategory || '없음'}, 의미=${serpKeywordMeaning || '없음'}`)
+          console.log(`  특정상호: ${specificBusiness.isSpecific ? specificBusiness.businessName : '아님'}`)
+          console.log(`  isUnknownKeyword: ${isUnknownKeyword}`)
 
-`
-        systemPrompt = serpContext + systemPrompt
-      }
-    }
+          // AI 프롬프트 생성
+          let systemPrompt = buildSystemPrompt(contentRequest)
 
-    // ★ 키워드 컨텍스트를 user message 맨 앞에도 배치 (이중 보강)
-    let userMessagePrefix = ''
+          if (serpKeywordMeaning || serpRef?.keywordContext) {
+            let keywordDefinition = `## 🔴 키워드 정의 (이 정보를 반드시 먼저 읽고 따르세요)\n`
+            if (serpKeywordMeaning) {
+              keywordDefinition += `"${trimmedKeyword}"의 실제 의미: "${serpKeywordMeaning}"\n`
+            }
+            if (serpRef?.keywordContext) {
+              const contextLines = serpRef.keywordContext.split('\n').filter(l => /^\d+\./.test(l.trim()))
+              if (contextLines.length > 0) {
+                keywordDefinition += `\n네이버 검색 결과:\n${contextLines.join('\n')}\n`
+              }
+            }
+            keywordDefinition += `\n**위 정보가 이 키워드의 실제 의미입니다. 이와 다른 의미로 해석하거나 허구의 정의를 만들어내면 안 됩니다.**\n**키워드의 실제 의미에 맞는 콘텐츠를 작성하세요.**\n\n`
+            systemPrompt = keywordDefinition + systemPrompt
+          }
 
-    if (serpKeywordMeaning) {
-      userMessagePrefix += `## 키워드 의미 확인\n"${keyword.trim()}" = "${serpKeywordMeaning}"\n이 의미에 맞는 콘텐츠를 작성하세요.\n\n`
-    }
+          if (specificBusiness.isSpecific && specificBusiness.businessName) {
+            const serpTitles = serpRef?.items
+              ?.slice(0, 5)
+              .map(item => item.title.replace(/<[^>]*>/g, ''))
+              .join('\n- ') || ''
+            if (serpTitles) {
+              systemPrompt = `## 네이버 검색 결과 참고 (${specificBusiness.businessName})\n- ${serpTitles}\n\n위 검색 결과를 참고하여 "${specificBusiness.businessName}"에 대한 정보를 정리하세요.\n\n` + systemPrompt
+            }
+          }
 
-    if (serpRef?.keywordContext) {
-      userMessagePrefix += serpRef.keywordContext + '\n\n'
-    }
-
-    if (isUnknownKeyword) {
-      userMessagePrefix += `## ⛔ 중요 경고: 데이터 없는 키워드
-"${keyword.trim()}" 키워드로 네이버 검색 결과, 연관 키워드, 검색 트렌드가 모두 존재하지 않습니다.
+          let userMessagePrefix = ''
+          if (serpKeywordMeaning) {
+            userMessagePrefix += `## 키워드 의미 확인\n"${trimmedKeyword}" = "${serpKeywordMeaning}"\n이 의미에 맞는 콘텐츠를 작성하세요.\n\n`
+          }
+          if (serpRef?.keywordContext) {
+            userMessagePrefix += serpRef.keywordContext + '\n\n'
+          }
+          if (isUnknownKeyword) {
+            userMessagePrefix += `## ⛔ 중요 경고: 데이터 없는 키워드
+"${trimmedKeyword}" 키워드로 네이버 검색 결과, 연관 키워드, 검색 트렌드가 모두 존재하지 않습니다.
 
 이는 다음 중 하나를 의미합니다:
 1. 실제로 존재하지 않는 단어/개념
@@ -700,33 +700,17 @@ export async function POST(request: NextRequest) {
 - 확실하지 않은 정보를 사실인 것처럼 작성하지 마세요
 
 `
-    }
+          }
 
-    // 키워드 컨텍스트(앞) + 메인 프롬프트 + 데이터 강화(뒤) 구조
-    let userMessage = userMessagePrefix + buildUserPrompt(contentRequest)
+          let userMessage = userMessagePrefix + buildUserPrompt(contentRequest)
+          if (keywordsRef) userMessage += '\n\n' + keywordsRef.text
+          if (trendRef) userMessage += '\n\n' + trendRef.text
+          if (serpRef) userMessage += '\n\n' + serpRef.text
+          if (learningRef && learningRef.sampleCount >= 3) userMessage += '\n\n' + learningRef.text
 
-    // 프롬프트 주입 순서: 연관 키워드 → 트렌드 → SERP 상위 분석
-    if (keywordsRef) {
-      userMessage += '\n\n' + keywordsRef.text
-    }
-
-    if (trendRef) {
-      userMessage += '\n\n' + trendRef.text
-    }
-
-    if (serpRef) {
-      userMessage += '\n\n' + serpRef.text
-    }
-
-    // 학습된 패턴 주입 (축적된 상위 노출 포스트 패턴)
-    if (learningRef && learningRef.sampleCount >= 3) {
-      userMessage += '\n\n' + learningRef.text
-    }
-
-    // 실제 검색 결과에서 추출한 업체명/제품명 주입 (local/comparison 타입)
-    if (searchEnrichment) {
-      if (searchEnrichment.realBusinessNames && searchEnrichment.realBusinessNames.length > 0) {
-        userMessage += `\n\n## 네이버 검색에서 확인된 실제 업체
+          if (searchEnrichment) {
+            if (searchEnrichment.realBusinessNames && searchEnrichment.realBusinessNames.length > 0) {
+              userMessage += `\n\n## 네이버 검색에서 확인된 실제 업체
 다음은 "${keyword}" 검색 시 네이버에서 실제로 확인되는 업체들입니다:
 ${searchEnrichment.realBusinessNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
 
@@ -734,120 +718,138 @@ ${searchEnrichment.realBusinessNames.map((name, i) => `${i + 1}. ${name}`).join(
 - 위 업체명 또는 검색 결과에 등장하는 실제 업체명만 사용하세요
 - 가짜 업체명을 만들지 마세요 (A 학원, B 카페 같은 가명 절대 금지)
 - 확인할 수 없는 가격·주소·운영시간은 "직접 문의 필요"로 표시하세요`
-      }
-
-      if (searchEnrichment.realProductNames && searchEnrichment.realProductNames.length > 0) {
-        userMessage += `\n\n## 네이버 검색에서 확인된 실제 제품
+            }
+            if (searchEnrichment.realProductNames && searchEnrichment.realProductNames.length > 0) {
+              userMessage += `\n\n## 네이버 검색에서 확인된 실제 제품
 다음은 "${keyword}" 검색 시 네이버에서 실제로 확인되는 제품들입니다:
 ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
 
 ⚠️ 필수: 위 제품명 또는 검색 결과에 등장하는 실제 제품명만 사용하세요. 가짜 제품명 금지.`
-      }
-    }
+            }
+          }
 
-    // 참고 URL 분석 결과가 있으면 프롬프트에 추가
-    if (referenceAnalysis && referenceAnalysis.headings?.length > 0) {
-      userMessage += `\n\n## 참고 블로그 구조 분석
+          if (referenceAnalysis && referenceAnalysis.headings?.length > 0) {
+            userMessage += `\n\n## 참고 블로그 구조 분석
 상위노출 블로그의 구조를 참고하여 유사하거나 더 나은 구조로 작성해주세요:
 - 참고 글 제목: "${referenceAnalysis.title}"
 - 참고 글 분량: ${referenceAnalysis.charCount?.toLocaleString() || '알 수 없음'}자
 - 참고 글 목차: ${referenceAnalysis.headings.join(' → ')}
 위 구조를 참고하되, 동일한 내용 복사가 아닌 키워드에 맞는 독창적인 콘텐츠를 작성하세요.`
-    }
+          }
 
-    // enrichment 메타데이터 (프론트엔드 표시용)
-    const enrichment: Record<string, unknown> = {}
-    if (keywordsRef) {
-      enrichment.relatedKeywordsCount = keywordsRef.count
-      enrichment.autoKeywords = keywordsRef.topKeywords
-    }
-    if (trendRef) {
-      enrichment.trendDirection = trendRef.direction
-      enrichment.trendRatio = trendRef.ratio
-    }
-    if (serpRef) {
-      enrichment.serpRefCount = serpRef.count
-    }
-    if (learningRef) {
-      enrichment.learningPatternCount = learningRef.sampleCount
-      enrichment.learningMatchType = learningRef.matchType
-    }
-    const hasEnrichment = Object.keys(enrichment).length > 0
+          // enrichment 메타데이터
+          const enrichment: Record<string, unknown> = {}
+          if (keywordsRef) {
+            enrichment.relatedKeywordsCount = keywordsRef.count
+            enrichment.autoKeywords = keywordsRef.topKeywords
+          }
+          if (trendRef) {
+            enrichment.trendDirection = trendRef.direction
+            enrichment.trendRatio = trendRef.ratio
+          }
+          if (serpRef) {
+            enrichment.serpRefCount = serpRef.count
+          }
+          if (learningRef) {
+            enrichment.learningPatternCount = learningRef.sampleCount
+            enrichment.learningMatchType = learningRef.matchType
+          }
+          const hasEnrichment = Object.keys(enrichment).length > 0
 
-    try {
-      const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 4096 })
+          // Step 3/4: AI 콘텐츠 생성
+          send({ type: 'progress', step: 3, totalSteps: 4, message: 'AI 콘텐츠 생성 중...' })
 
-      const parsed = parseGeminiJson<{
-        title: string
-        content: string
-        tags: string[]
-        metaDescription?: string
-      }>(response)
+          try {
+            const response = await callAI(provider, systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 4096 })
 
-      // 엔진으로 후처리 (SEO 분석 + 가독성 분석 + 태그/메타 보강)
-      const processedResult = postProcessContent(contentRequest, parsed)
+            // Step 4/4: SEO 분석 + 저장
+            send({ type: 'progress', step: 4, totalSteps: 4, message: 'SEO 분석 및 저장 중...' })
 
-      // 콘텐츠 품질 검증 (범용 템플릿 남용 감지)
-      const validation = validateContentStructure(
-        processedResult.content,
-        contentRequest.contentType || detectContentType(keyword.trim()),
-        keyword.trim()
-      )
+            const parsed = parseGeminiJson<{
+              title: string
+              content: string
+              tags: string[]
+              metaDescription?: string
+            }>(response)
 
-      // 데이터 없는 키워드인데 AI가 허구 콘텐츠를 생성한 경우 경고 추가
-      if (isUnknownKeyword && !processedResult.content.includes('정보 부족')) {
-        validation.warnings.push('이 키워드는 네이버 검색 데이터가 없습니다. AI가 생성한 내용의 정확성을 직접 확인해주세요.')
-        validation.score = Math.max(0, validation.score - 20)
-      }
+            const processedResult = postProcessContent(contentRequest, parsed)
+            const validation = validateContentStructure(
+              processedResult.content,
+              contentRequest.contentType || detectContentType(trimmedKeyword),
+              trimmedKeyword
+            )
 
-      // DB에 저장
-      const saved = await saveGeneratedContent(keyword.trim(), processedResult.title, processedResult.content, contentRequest.additionalKeywords)
+            if (isUnknownKeyword && !processedResult.content.includes('정보 부족')) {
+              validation.warnings.push('이 키워드는 네이버 검색 데이터가 없습니다. AI가 생성한 내용의 정확성을 직접 확인해주세요.')
+              validation.score = Math.max(0, validation.score - 20)
+            }
 
-      return NextResponse.json({
-        ...processedResult,
-        isDemo: false,
-        contentId: saved?.id,
-        seoScore: saved?.seoScore,
-        enrichment: hasEnrichment ? enrichment : undefined,
-        unknownKeyword: isUnknownKeyword || undefined,
-        validation: {
-          score: validation.score,
-          warnings: validation.warnings,
-          errors: validation.errors,
-          isValid: validation.isValid,
-        },
-      })
-    } catch (aiError) {
-      const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)
+            const saved = await saveGeneratedContent(trimmedKeyword, processedResult.title, processedResult.content, contentRequest.additionalKeywords)
 
-      // 429 Rate Limit
-      if (aiMsg.includes('429') || aiMsg.includes('quota') || aiMsg.includes('Too Many Requests')) {
-        return NextResponse.json(
-          { error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' },
-          { status: 429 }
-        )
-      }
+            send({
+              type: 'result',
+              ...processedResult,
+              isDemo: false,
+              contentId: saved?.id,
+              seoScore: saved?.seoScore,
+              enrichment: hasEnrichment ? enrichment : undefined,
+              unknownKeyword: isUnknownKeyword || undefined,
+              validation: {
+                score: validation.score,
+                warnings: validation.warnings,
+                errors: validation.errors,
+                isValid: validation.isValid,
+              },
+            })
+          } catch (aiError) {
+            const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)
 
-      // JSON 파싱 실패 → 데모 콘텐츠 폴백
-      if (aiMsg.includes('JSON') || aiMsg.includes('파싱')) {
-        const demo = generateDemoContent(contentRequest)
-        const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content)
-        return NextResponse.json({
-          ...demo,
-          contentId: saved?.id,
-          seoScore: saved?.seoScore,
-          isDemo: true,
-          notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
-        })
-      }
+            if (aiMsg.includes('429') || aiMsg.includes('quota') || aiMsg.includes('Too Many Requests')) {
+              send({ type: 'error', error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' })
+              return
+            }
 
-      throw aiError
-    }
+            if (aiMsg.includes('JSON') || aiMsg.includes('파싱')) {
+              const demo = generateDemoContent(contentRequest)
+              const saved = await saveGeneratedContent(trimmedKeyword, demo.title, demo.content)
+              send({
+                type: 'result',
+                ...demo,
+                contentId: saved?.id,
+                seoScore: saved?.seoScore,
+                isDemo: true,
+                notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
+              })
+              return
+            }
+
+            throw aiError
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          console.error('[AI Content] 스트리밍 오류:', errorMessage)
+
+          if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('Too Many Requests')) {
+            send({ type: 'error', error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' })
+          } else {
+            send({ type: 'error', error: 'AI 콘텐츠 생성 중 오류가 발생했습니다.' })
+          }
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+      },
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[AI Content] 오류:', errorMessage)
 
-    // 429 Rate Limit
     if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('Too Many Requests')) {
       return NextResponse.json(
         { error: 'AI API 사용량 한도에 도달했습니다. 1분 후 다시 시도해주세요.' },
