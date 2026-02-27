@@ -92,6 +92,41 @@ interface ContentResult {
   enrichment?: EnrichmentData
 }
 
+/** 스트리밍 중 부분 JSON에서 title/content 필드를 추출 */
+function extractFromStreamJson(json: string): { title?: string; content?: string } {
+  const result: { title?: string; content?: string } = {}
+
+  // title 추출: "title" : "값"
+  const titleMatch = json.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)/)
+  if (titleMatch) {
+    result.title = unescapeJsonString(titleMatch[1])
+  }
+
+  // content 추출: "content" : "값..." (아직 닫히지 않았을 수 있음)
+  const contentIdx = json.search(/"content"\s*:\s*"/)
+  if (contentIdx !== -1) {
+    const afterKey = json.substring(contentIdx).replace(/^"content"\s*:\s*"/, '')
+    // 완성된 content 값인지 확인 (닫는 따옴표 + , 또는 })
+    const closingMatch = afterKey.match(/^([\s\S]*?)(?<!\\)"\s*[,}]/)
+    if (closingMatch) {
+      result.content = unescapeJsonString(closingMatch[1])
+    } else {
+      // 아직 스트리밍 중 — 현재까지의 텍스트
+      result.content = unescapeJsonString(afterKey)
+    }
+  }
+
+  return result
+}
+
+function unescapeJsonString(s: string): string {
+  return s
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+}
+
 function getContentScoreColor(score: number) {
   if (score >= 80) return 'text-green-600'
   if (score >= 60) return 'text-yellow-600'
@@ -125,6 +160,7 @@ export default function ContentPage() {
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
+  const [streamingText, setStreamingText] = useState('')
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
@@ -603,9 +639,13 @@ export default function ContentPage() {
                   current: event.current,
                   total: event.total,
                 })
+              } else if (event.type === 'stream') {
+                setStreamingText(prev => prev + event.delta)
               } else if (event.type === 'result') {
+                setStreamingText('')
                 setResult(event)
               } else if (event.type === 'error') {
+                setStreamingText('')
                 setError(event.error || '콘텐츠 생성에 실패했습니다.')
               }
             } catch {
@@ -639,6 +679,7 @@ export default function ContentPage() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
     setResult(null)
+    setStreamingText('')
     await generateContent()
   }
 
@@ -755,10 +796,52 @@ export default function ContentPage() {
         }),
       })
 
-      const data = await res.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any
 
-      if (!res.ok) {
-        setImproveMessage(data.error || 'AI 개선에 실패했습니다.')
+      const contentType = res.headers.get('Content-Type') || ''
+      if (contentType.includes('application/x-ndjson') && res.body) {
+        // NDJSON 스트리밍 수신
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'stream') {
+                setImproveMessage('AI가 개선안을 작성 중...')
+              } else if (event.type === 'result') {
+                data = event
+              } else if (event.type === 'error') {
+                setImproveMessage(event.error || 'AI 개선에 실패했습니다.')
+                return
+              }
+            } catch {
+              // 파싱 실패 무시
+            }
+          }
+        }
+      } else {
+        // 일반 JSON 응답
+        data = await res.json()
+        if (!res.ok) {
+          setImproveMessage(data.error || 'AI 개선에 실패했습니다.')
+          return
+        }
+      }
+
+      if (!data) {
+        setImproveMessage('AI 응답을 받지 못했습니다.')
         return
       }
 
@@ -1838,6 +1921,32 @@ export default function ContentPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* AI 스트리밍 타이핑 프리뷰 */}
+      {loading && streamingText && (() => {
+        const parsed = extractFromStreamJson(streamingText)
+        return (
+          <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2 text-blue-700">
+                <Sparkles className="h-4 w-4 animate-pulse" />
+                <span className="text-sm font-medium">AI가 글을 작성하고 있습니다...</span>
+              </div>
+              {parsed.title && (
+                <h3 className="text-lg font-bold mt-2">{parsed.title}</h3>
+              )}
+            </CardHeader>
+            {parsed.content && (
+              <CardContent className="pt-0">
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
+                  {parsed.content}
+                  <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )
+      })()}
 
       {/* 생성 결과 */}
       {result && (

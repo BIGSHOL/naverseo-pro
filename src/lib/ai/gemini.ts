@@ -90,6 +90,124 @@ export async function callGemini(
 }
 
 /**
+ * Gemini REST API 스트리밍 호출 (SSE)
+ *
+ * streamGenerateContent?alt=sse 엔드포인트로 토큰 단위 스트리밍.
+ * onChunk 콜백으로 각 텍스트 조각을 실시간 전달.
+ * 반환값은 전체 누적 텍스트 (callGemini과 동일한 최종 결과).
+ */
+export async function callGeminiStream(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number = 4096,
+  options?: { jsonMode?: boolean; thinkingBudget?: number },
+  onChunk?: (delta: string) => void
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
+  }
+
+  const url = `${GEMINI_API_BASE}/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`
+
+  const thinkingBudget = options?.thinkingBudget ?? 1024
+
+  const body = {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      temperature: 0.7,
+      ...(options?.jsonMode && { responseMimeType: 'application/json' }),
+      thinkingConfig: {
+        thinkingBudget: thinkingBudget,
+      },
+    },
+  }
+
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 55000)
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timer)
+
+    if (!res.ok) {
+      const errBody = await res.text()
+      if (res.status === 429 || errBody.includes('quota') || errBody.includes('Too Many Requests')) {
+        throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
+      }
+      throw new Error(`Gemini API 오류 (${res.status}): ${errBody.substring(0, 200)}`)
+    }
+
+    if (!res.body) {
+      throw new Error('Gemini 스트리밍 응답 body가 없습니다.')
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullText = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // SSE 이벤트는 빈 줄(\n\n)로 구분
+      const events = buffer.split('\n')
+      buffer = events.pop() || ''
+
+      for (const line of events) {
+        const trimmed = line.trim()
+        if (!trimmed || !trimmed.startsWith('data: ')) continue
+
+        const jsonStr = trimmed.slice(6)
+        if (jsonStr === '[DONE]') continue
+
+        try {
+          const data = JSON.parse(jsonStr)
+          const parts = data.candidates?.[0]?.content?.parts || []
+          for (const part of parts) {
+            // thinking 토큰 건너뛰기
+            if (part.thought) continue
+            if (part.text) {
+              fullText += part.text
+              onChunk?.(part.text)
+            }
+          }
+        } catch {
+          // SSE 라인 파싱 실패 시 무시
+        }
+      }
+    }
+
+    if (!fullText) {
+      throw new Error('Gemini 스트리밍 응답이 비어있습니다.')
+    }
+
+    return fullText
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('AI 분석 시간이 초과되었습니다 (55초). 다시 시도해주세요.')
+    }
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+      throw new Error('AI API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.')
+    }
+    throw err
+  }
+}
+
+/**
  * Gemini Vision API: 이미지 URL 목록을 분석
  * 이미지를 fetch → base64 → Gemini에 전달
  *

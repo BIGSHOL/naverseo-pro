@@ -155,6 +155,7 @@ export default function CompetitorsPage() {
   const [aiInsights, setAiInsights] = useState<AiInsights | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [aiStreamingText, setAiStreamingText] = useState('')
 
   // 날짜 필터 적용
   const filteredCompetitors = competitors.filter(comp => {
@@ -206,19 +207,59 @@ export default function CompetitorsPage() {
   const handleAiAnalysis = async () => {
     setAiLoading(true)
     setAiError('')
+    setAiStreamingText('')
     try {
       const res = await fetch('/api/ai/competitors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: searchedKeyword, includeAi: true }),
       })
-      const data = await res.json()
-      if (!res.ok) {
-        setAiError(data.error || 'AI 분석에 실패했습니다.')
-        return
+
+      const contentType = res.headers.get('Content-Type') || ''
+
+      if (contentType.includes('application/x-ndjson') && res.body) {
+        // NDJSON 스트리밍 수신
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'stream') {
+                setAiStreamingText(prev => prev + event.delta)
+              } else if (event.type === 'ai_result') {
+                setAiStreamingText('')
+                setAiInsights(event.aiInsights || null)
+              } else if (event.type === 'ai_error') {
+                setAiStreamingText('')
+                setAiError(event.error || 'AI 분석에 실패했습니다.')
+              }
+            } catch {
+              // 파싱 실패 무시
+            }
+          }
+        }
+      } else {
+        // 일반 JSON 응답 (폴백)
+        const data = await res.json()
+        if (!res.ok) {
+          setAiError(data.error || 'AI 분석에 실패했습니다.')
+          return
+        }
+        setAiInsights(data.aiInsights || null)
       }
-      setAiInsights(data.aiInsights || null)
     } catch {
+      setAiStreamingText('')
       setAiError('AI 분석 중 네트워크 오류가 발생했습니다.')
     } finally {
       setAiLoading(false)
@@ -739,10 +780,27 @@ export default function CompetitorsPage() {
               )}
 
               {aiLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin text-purple-500" />
-                  <span className="text-muted-foreground">AI가 경쟁 상황을 분석 중...</span>
-                </div>
+                aiStreamingText ? (
+                  <div className="rounded-lg border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white p-4">
+                    <div className="flex items-center gap-2 text-purple-700 mb-3">
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      <span className="text-sm font-medium">AI가 분석 결과를 작성하고 있습니다...</span>
+                    </div>
+                    <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[300px] overflow-y-auto">
+                      {(() => {
+                        // 부분 JSON에서 summary 필드 추출
+                        const sumMatch = aiStreamingText.match(/"summary"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|\s*$)/)
+                        return sumMatch ? sumMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\') : aiStreamingText.substring(0, 500)
+                      })()}
+                      <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-text-bottom" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin text-purple-500" />
+                    <span className="text-muted-foreground">AI가 경쟁 상황을 분석 중...</span>
+                  </div>
+                )
               )}
 
               {aiError && (

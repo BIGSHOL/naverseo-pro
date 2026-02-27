@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callGemini, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callGemini, callGeminiStream, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
@@ -413,6 +413,7 @@ async function getAiInsights(
   competitors: CompetitorItem[],
   patterns: PatternAnalysis,
   difficulty: DifficultyAssessment,
+  onChunk?: (delta: string) => void,
 ): Promise<AiInsights> {
   const competitorList = competitors
     .map((c, i) => {
@@ -512,7 +513,9 @@ ${contentQualitySection}
   "titleSuggestions": ["추천 제목 1", "추천 제목 2", "추천 제목 3"]
 }`
 
-  const response = await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
+  const response = onChunk
+    ? await callGeminiStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk)
+    : await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
   return parseGeminiJson<AiInsights>(response)
 }
 
@@ -771,27 +774,65 @@ export async function POST(request: NextRequest) {
     const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
 
     // AI 인사이트 + 이미지 분석 (병렬 실행, 기존 스크래핑 데이터 재사용)
-    let aiInsights: AiInsights | null = null
     if (includeAi && hasAiApiKey('gemini')) {
-      try {
-        const [aiResult, imageResult] = await Promise.allSettled([
-          getAiInsights(cleanKeyword, competitors, patterns, difficulty),
-          analyzeCompetitorImages(cleanKeyword, scrapedData),
-        ])
+      // NDJSON 스트리밍 응답 (AI 토큰 실시간 전달)
+      await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
 
-        aiInsights = aiResult.status === 'fulfilled' ? aiResult.value : null
-        if (aiResult.status === 'rejected') {
-          console.error('[Competitors AI] AI 분석 실패:', aiResult.reason)
-        }
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (data: object) => {
+            controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+          }
 
-        if (aiInsights && imageResult.status === 'fulfilled' && imageResult.value) {
-          aiInsights.imageAnalysis = imageResult.value
-        }
-      } catch (aiError) {
-        console.error('[Competitors AI] AI 분석 실패:', aiError)
-      }
+          try {
+            // 기본 분석 결과 먼저 전송
+            send({
+              type: 'data',
+              keyword: cleanKeyword,
+              competitors,
+              patterns,
+              difficulty,
+              titlePatterns,
+              isDemo: false,
+            })
+
+            // AI 스트리밍
+            const [aiResult, imageResult] = await Promise.allSettled([
+              getAiInsights(cleanKeyword, competitors, patterns, difficulty, (delta) => {
+                send({ type: 'stream', delta })
+              }),
+              analyzeCompetitorImages(cleanKeyword, scrapedData),
+            ])
+
+            let aiInsights: AiInsights | null = aiResult.status === 'fulfilled' ? aiResult.value : null
+            if (aiResult.status === 'rejected') {
+              console.error('[Competitors AI] AI 분석 실패:', aiResult.reason)
+            }
+
+            if (aiInsights && imageResult.status === 'fulfilled' && imageResult.value) {
+              aiInsights.imageAnalysis = imageResult.value
+            }
+
+            send({ type: 'ai_result', aiInsights })
+          } catch (error) {
+            console.error('[Competitors AI] 스트리밍 오류:', error)
+            send({ type: 'ai_error', error: 'AI 분석 중 오류가 발생했습니다.' })
+          } finally {
+            controller.close()
+          }
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'application/x-ndjson',
+          'Cache-Control': 'no-cache',
+        },
+      })
     }
 
+    // AI 없이 기본 분석만 (기존 JSON 응답)
     await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
     return NextResponse.json({
       keyword: cleanKeyword,
@@ -799,7 +840,7 @@ export async function POST(request: NextRequest) {
       patterns,
       difficulty,
       titlePatterns,
-      aiInsights,
+      aiInsights: null,
       isDemo: false,
     })
   } catch (error) {
