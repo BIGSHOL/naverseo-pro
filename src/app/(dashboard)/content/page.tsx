@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useCallback } from 'react'
 import {
@@ -161,6 +161,7 @@ export default function ContentPage() {
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
   const [streamingText, setStreamingText] = useState('')
+  const resultRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
@@ -640,10 +641,14 @@ export default function ContentPage() {
                   total: event.total,
                 })
               } else if (event.type === 'stream') {
-                setStreamingText(prev => prev + event.delta)
+                setStreamingText(prev => {
+                  if (!prev) setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                  return prev + event.delta
+                })
               } else if (event.type === 'result') {
                 setStreamingText('')
                 setResult(event)
+                setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
               } else if (event.type === 'error') {
                 setStreamingText('')
                 setError(event.error || '콘텐츠 생성에 실패했습니다.')
@@ -666,6 +671,7 @@ export default function ContentPage() {
           return
         }
         setResult(data)
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -1923,6 +1929,7 @@ export default function ContentPage() {
       </Card>
 
       {/* AI 스트리밍 타이핑 프리뷰 */}
+      <div ref={resultRef} />
       {loading && streamingText && (() => {
         const parsed = extractFromStreamJson(streamingText)
         return (
