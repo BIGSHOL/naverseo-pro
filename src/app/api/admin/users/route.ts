@@ -16,6 +16,32 @@ export async function GET(request: NextRequest) {
 
     const adminDb = createAdminClient()
 
+    // auth.users와 profiles 동기화 (누락된 프로필 자동 생성)
+    try {
+      const { data: authUsers } = await adminDb.auth.admin.listUsers()
+      if (authUsers?.users?.length) {
+        const { data: existingProfiles } = await adminDb
+          .from('profiles')
+          .select('id')
+        const existingIds = new Set((existingProfiles || []).map(p => p.id))
+
+        const missing = authUsers.users.filter(u => !existingIds.has(u.id))
+        if (missing.length > 0) {
+          const rows = missing.map(u => ({
+            id: u.id,
+            email: u.email || u.user_metadata?.email || '',
+            plan: 'free' as const,
+            credits_balance: 30,
+            credits_monthly_quota: 30,
+          }))
+          await adminDb.from('profiles').upsert(rows, { onConflict: 'id' })
+          console.log(`[Admin Users] 누락 프로필 ${missing.length}건 동기화 완료`)
+        }
+      }
+    } catch (syncError) {
+      console.error('[Admin Users] 동기화 오류:', syncError)
+    }
+
     let query = adminDb
       .from('profiles')
       .select('id, email, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, created_at', { count: 'exact' })

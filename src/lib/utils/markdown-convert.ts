@@ -103,7 +103,9 @@ export function markdownToHtml(md: string): string {
     /\[이미지[:\s]([^\]]*)\]/g,
     '<img alt="이미지: $1" src="" />'
   )
-  return marked.parse(processed, { async: false }) as string
+  // ~ 이스케이프 (GFM ~~취소선~~ 방지 - 블로그 콘텐츠에서 ~무늬 등 사용 시 가로줄 방지)
+  const escaped = processed.replace(/~/g, '\\~')
+  return marked.parse(escaped, { async: false }) as string
 }
 
 /**

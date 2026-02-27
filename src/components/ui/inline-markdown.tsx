@@ -9,6 +9,8 @@ import remarkGfm from 'remark-gfm'
  * **bold**, *italic*, `code` 등 인라인 서식만 처리
  */
 export function InlineMarkdown({ children }: { children: string }) {
+  // ~ 이스케이프 (GFM ~~취소선~~ 방지)
+  const escaped = children.replace(/~/g, '\\~')
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -24,7 +26,7 @@ export function InlineMarkdown({ children }: { children: string }) {
         blockquote: ({ children }) => <span>{children}</span>,
       }}
     >
-      {children}
+      {escaped}
     </ReactMarkdown>
   )
 }
