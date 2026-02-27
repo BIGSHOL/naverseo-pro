@@ -44,9 +44,10 @@ export interface CreditCheckResult {
 export async function checkCredits(
   supabase: SupabaseClient,
   userId: string,
-  feature: CreditFeature
+  feature: CreditFeature,
+  quantity: number = 1
 ): Promise<CreditCheckResult> {
-  const cost = CREDIT_COSTS[feature]
+  const cost = CREDIT_COSTS[feature] * quantity
   const featureLabel = CREDIT_FEATURE_LABELS[feature]
 
   const { data: profile, error: profileError } = await supabase
@@ -141,9 +142,10 @@ export async function deductCredits(
   supabase: SupabaseClient,
   userId: string,
   feature: CreditFeature,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  quantity: number = 1
 ): Promise<{ success: boolean; remaining: number }> {
-  const cost = CREDIT_COSTS[feature]
+  const cost = CREDIT_COSTS[feature] * quantity
 
   // RPC 호출 시도
   try {

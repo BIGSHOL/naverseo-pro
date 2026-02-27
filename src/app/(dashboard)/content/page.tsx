@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
-  Pencil, Save, Link2, MessageSquareQuote, Sparkles,
+  Pencil, Save, Link2, MessageSquareQuote, Sparkles, ImagePlus,
   Search, Trash2, ChevronsDown, Pause, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -21,6 +21,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { TiptapEditor, getEditorHtml } from '@/components/content/TiptapEditor'
 import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { TagEditor } from '@/components/content/TagEditor'
 import type { Editor } from '@tiptap/core'
@@ -149,6 +153,46 @@ function getGradeBadgeColor(grade: string) {
   if (grade.startsWith('B')) return 'bg-blue-100 text-blue-700'
   if (grade.startsWith('C')) return 'bg-yellow-100 text-yellow-700'
   return 'bg-red-100 text-red-700'
+}
+
+/** 실제 사진이 필요한 이미지인지 판별 (AI 생성 불가) */
+const REAL_PHOTO_PATTERNS = [
+  /외관/, /내부\s*(사진|모습|전경)/, /전경/, /전면\s*(사진|모습)/,
+  /건물\s*(사진|모습)/, /매장\s*(사진|모습|전경|내부|외부)/,
+  /가게\s*(사진|모습|전경|내부|외부)/, /입구\s*(사진|모습)/, /간판/,
+  /스크린샷/, /캡[처쳐]/, /화면\s*(캡|사진|촬영)/,
+  /지도/, /약도/, /네이버\s*지도/, /구글\s*맵/, /위치\s*(안내|사진)/, /찾아오시는\s*길/,
+  /인물\s*사진/, /얼굴/, /셀[카피]/, /프로필\s*사진/, /증명\s*사진/, /단체\s*사진/,
+  /영수증/, /메뉴판/, /명함/, /자격증/, /수료증/, /성적표/,
+  /실제\s*(사진|촬영|모습)/, /현장\s*(사진|촬영|모습)/,
+  /시공\s*(사진|전후|과정)/, /비포\s*(앤|&)\s*애프터/, /before\s*(and|&)\s*after/i,
+]
+
+function isRealPhotoRequired(description: string): boolean {
+  return REAL_PHOTO_PATTERNS.some(p => p.test(description))
+}
+
+interface ParsedImageMarker {
+  index: number
+  description: string
+  isReal: boolean
+}
+
+/** 마크다운에서 [이미지: ...] 마커 추출 + 실사 판별 */
+function extractImageMarkers(content: string): ParsedImageMarker[] {
+  const regex = /\[이미지[:\s]+([^\]]+)\]/g
+  const markers: ParsedImageMarker[] = []
+  let match: RegExpExecArray | null
+  let idx = 0
+  while ((match = regex.exec(content)) !== null) {
+    const desc = match[1].trim()
+    markers.push({ index: idx++, description: desc, isReal: isRealPhotoRequired(desc) })
+  }
+  return markers
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export default function ContentPage() {
@@ -422,6 +466,12 @@ export default function ContentPage() {
   const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
   const editorRef = useRef<Editor | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
+
+  // AI 이미지 생성
+  const [generatingImages, setGeneratingImages] = useState(false)
+  const [imageGenMessage, setImageGenMessage] = useState('')
+  const [showImageConfirm, setShowImageConfirm] = useState(false)
+  const [imageMarkers, setImageMarkers] = useState<ParsedImageMarker[]>([])
 
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
@@ -997,6 +1047,107 @@ export default function ContentPage() {
       setImproveMessage('네트워크 오류가 발생했습니다.')
     } finally {
       setImproving(false)
+    }
+  }
+
+  // ── AI 이미지 생성 ──
+
+  /** AI 이미지 생성 버튼 클릭 → 마커 추출 → 확인 다이얼로그 */
+  const handleImageGenClick = () => {
+    const markers = extractImageMarkers(editContent)
+    if (markers.length === 0) {
+      toast({ title: '이미지 마커 없음', description: '본문에 [이미지: 설명] 마커가 없습니다.', variant: 'destructive' })
+      return
+    }
+    setImageMarkers(markers)
+    setShowImageConfirm(true)
+  }
+
+  /** 확인 후 이미지 생성 실행 */
+  const handleConfirmImageGeneration = async () => {
+    setShowImageConfirm(false)
+    const generatableMarkers = imageMarkers.filter(m => !m.isReal)
+    if (generatableMarkers.length === 0) {
+      toast({ title: '생성 가능한 이미지 없음', description: '모든 마커가 실제 사진이 필요한 유형입니다.', variant: 'destructive' })
+      return
+    }
+
+    setGeneratingImages(true)
+    setImageGenMessage(`이미지 생성 준비 중...`)
+
+    try {
+      const res = await fetch('/api/ai/images/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contentId: result?.contentId || null,
+          keyword: keyword.trim(),
+          markers: generatableMarkers.map(m => ({ index: m.index, description: m.description })),
+        }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: '알 수 없는 오류' }))
+        if (errData.planGate) setPlanGateMessage(errData.error)
+        else setImageGenMessage(errData.error || '이미지 생성 실패')
+        setTimeout(() => setImageGenMessage(''), 5000)
+        return
+      }
+
+      // NDJSON 스트리밍 파싱
+      const reader = res.body?.getReader()
+      if (!reader) return
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let updatedContent = editContent
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+            if (event.type === 'progress') {
+              setImageGenMessage(event.message)
+            } else if (event.type === 'skipped') {
+              // 서버측 스킵 (안전장치) — 이미 프론트에서 걸러짐
+            } else if (event.type === 'image') {
+              // 마크다운에서 해당 마커를 이미지로 교체
+              const markerInfo = imageMarkers.find(m => m.index === event.index)
+              if (markerInfo) {
+                const markerRegex = new RegExp(
+                  `\\[이미지[:\\s]+${escapeRegex(markerInfo.description)}\\]`,
+                  ''
+                )
+                updatedContent = updatedContent.replace(markerRegex, `![${event.description}](${event.url})`)
+              }
+            } else if (event.type === 'error_partial') {
+              // 부분 실패 — 무시 (최종 결과에서 합산)
+            } else if (event.type === 'result') {
+              setEditContent(updatedContent)
+              const msgs: string[] = []
+              if (event.generated > 0) msgs.push(`${event.generated}장 생성 완료`)
+              if (event.failed > 0) msgs.push(`${event.failed}장 실패`)
+              if (event.skippedCount > 0) msgs.push(`${event.skippedCount}장 스킵 (실사)`)
+              msgs.push(`${event.totalCredits} 크레딧 사용`)
+              setImageGenMessage(msgs.join(', '))
+              setTimeout(() => setImageGenMessage(''), 8000)
+            }
+          } catch { /* NDJSON 파싱 오류 무시 */ }
+        }
+      }
+    } catch {
+      setImageGenMessage('네트워크 오류가 발생했습니다.')
+      setTimeout(() => setImageGenMessage(''), 5000)
+    } finally {
+      setGeneratingImages(false)
     }
   }
 
@@ -2634,18 +2785,52 @@ export default function ContentPage() {
                             <><Save className="mr-1 h-4 w-4" />저장</>
                           )}
                         </Button>
-                        <Button
-                          variant="outline"
-                          onClick={handleImprove}
-                          disabled={improving || !editContent.trim() || !keyword.trim()}
-                          className="gap-1.5"
-                        >
-                          {improving ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
-                          ) : (
-                            <><Sparkles className="h-4 w-4" />AI 약점 개선</>
-                          )}
-                        </Button>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Button
+                                  variant="outline"
+                                  onClick={handleImprove}
+                                  disabled={improving || generatingImages || !!animatingPatch || !editContent.trim() || !keyword.trim()}
+                                  className="gap-1.5"
+                                >
+                                  {improving ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
+                                  ) : (
+                                    <><Sparkles className="h-4 w-4" />AI 약점 개선</>
+                                  )}
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            {generatingImages && (
+                              <TooltipContent>다른 AI 작업이 진행 중입니다</TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Button
+                                  variant="outline"
+                                  onClick={handleImageGenClick}
+                                  disabled={generatingImages || improving || !!animatingPatch || !editContent.trim()}
+                                  className="gap-1.5"
+                                >
+                                  {generatingImages ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" />이미지 생성 중...</>
+                                  ) : (
+                                    <><ImagePlus className="h-4 w-4" />AI 이미지 생성</>
+                                  )}
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            {improving && (
+                              <TooltipContent>다른 AI 작업이 진행 중입니다</TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
                         {!result.contentId && (
                           <span className="text-xs text-muted-foreground">데모 콘텐츠는 저장할 수 없습니다</span>
                         )}
@@ -2662,6 +2847,11 @@ export default function ContentPage() {
                         {improveMessage && !animatingPatch && (
                           <span className={`text-sm font-medium ${improveMessage.includes('완료') || improveMessage.includes('양호') || improveMessage.includes('가이드') ? 'text-green-600' : 'text-red-600'}`}>
                             {improveMessage}
+                          </span>
+                        )}
+                        {imageGenMessage && (
+                          <span className={`text-sm font-medium ${imageGenMessage.includes('완료') ? 'text-green-600' : imageGenMessage.includes('실패') || imageGenMessage.includes('오류') ? 'text-red-600' : 'text-blue-600'}`}>
+                            {imageGenMessage}
                           </span>
                         )}
                       </div>
@@ -2785,6 +2975,74 @@ export default function ContentPage() {
         </>
       )}
       </>)}
+
+      {/* AI 이미지 생성 확인 다이얼로그 */}
+      <Dialog open={showImageConfirm} onOpenChange={setShowImageConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImagePlus className="h-5 w-5" />
+              AI 이미지 생성
+            </DialogTitle>
+            <DialogDescription>
+              본문의 이미지 마커를 AI가 생성한 이미지로 교체합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="max-h-60 space-y-2 overflow-y-auto">
+              {imageMarkers.map((m) => (
+                <div key={m.index} className="flex items-start gap-2 rounded border p-2 text-sm">
+                  <span className="mt-0.5 min-w-[20px] font-mono text-xs text-muted-foreground">{m.index + 1}</span>
+                  <span className="flex-1">{m.description}</span>
+                  {m.isReal ? (
+                    <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 text-red-600 text-xs">
+                      실사 (스킵)
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="shrink-0 border-green-200 bg-green-50 text-green-600 text-xs">
+                      생성 가능
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="rounded bg-muted/50 p-3 text-sm">
+              <div className="flex justify-between">
+                <span>생성 가능</span>
+                <span className="font-medium text-green-600">{imageMarkers.filter(m => !m.isReal).length}장</span>
+              </div>
+              {imageMarkers.some(m => m.isReal) && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>실사 이미지 (스킵)</span>
+                  <span>{imageMarkers.filter(m => m.isReal).length}장</span>
+                </div>
+              )}
+              <div className="mt-1 border-t pt-1 flex justify-between font-medium">
+                <span>크레딧 소모</span>
+                <span>{imageMarkers.filter(m => !m.isReal).length} 크레딧</span>
+              </div>
+            </div>
+            {imageMarkers.some(m => m.isReal) && (
+              <p className="text-xs text-amber-600">
+                <AlertCircle className="mr-1 inline h-3 w-3" />
+                실사 이미지(건물 외관, 스크린샷, 지도 등)는 AI가 생성할 수 없어 건너뜁니다. 직접 촬영한 사진을 사용해주세요.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowImageConfirm(false)}>
+              취소
+            </Button>
+            <Button
+              onClick={handleConfirmImageGeneration}
+              disabled={imageMarkers.filter(m => !m.isReal).length === 0}
+            >
+              <ImagePlus className="mr-1 h-4 w-4" />
+              {imageMarkers.filter(m => !m.isReal).length}장 생성하기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

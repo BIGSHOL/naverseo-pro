@@ -149,6 +149,7 @@ export const CREDIT_COSTS = {
   keyword_bulk: 3,             // 키워드 대량조회 (10개당)
   post_check: 2,               // 검색 누락 조회
   instagram_convert: 2,        // 인스타그램 변환 (AI 1회)
+  image_generation: 1,          // AI 이미지 생성 (장당)
 } as const
 
 export type CreditFeature = keyof typeof CREDIT_COSTS
@@ -167,6 +168,7 @@ export const CREDIT_FEATURE_LABELS: Record<CreditFeature, string> = {
   keyword_bulk: '키워드 대량조회',
   post_check: '검색 누락 조회',
   instagram_convert: '인스타그램 변환',
+  image_generation: 'AI 이미지 생성',
 }
 
 /** 플랜별 월간 크레딧 */
@@ -196,6 +198,7 @@ export const LITE_ALLOWED_FEATURES: CreditFeature[] = [
   ...FREE_ALLOWED_FEATURES,
   'content_generation',
   'seo_report',
+  'image_generation',
 ]
 
 /** 플랜별 템플릿 저장 개수 제한 */
