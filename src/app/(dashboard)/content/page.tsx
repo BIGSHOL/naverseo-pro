@@ -2514,28 +2514,55 @@ export default function ContentPage() {
       <div ref={resultRef} />
       {loading && streamingText && (() => {
         const parsed = extractFromStreamJson(streamingText)
+        const isOptimizing = (progress?.step ?? 0) >= 4
+        const healPatches = selfHealPatchesRef.current?.patches || []
         return (
           <div className="grid gap-4 lg:grid-cols-[1fr,280px]">
-            <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-white overflow-hidden">
+            <Card className={`overflow-hidden ${isOptimizing ? 'border-amber-200 bg-gradient-to-br from-amber-50/50 to-white' : 'border-blue-200 bg-gradient-to-br from-blue-50/50 to-white'}`}>
               <CardHeader className="pb-2">
-                <div className="flex items-center gap-2 text-blue-700">
-                  <Sparkles className="h-4 w-4 animate-pulse" />
+                <div className={`flex items-center gap-2 ${isOptimizing ? 'text-amber-700' : 'text-blue-700'}`}>
+                  {isOptimizing ? (
+                    <Shield className="h-4 w-4 animate-pulse" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 animate-pulse" />
+                  )}
                   <span className="text-sm font-medium">
-                    AI가 글을 작성하고 있습니다...
-                    {parsed.content && (
-                      <span className="ml-2 text-blue-500/70">({parsed.content.length.toLocaleString()}자)</span>
+                    {isOptimizing ? (
+                      healPatches.length > 0
+                        ? `SEO 약점 ${healPatches.length}건 발견 → 자동 수정 중...`
+                        : (progress?.message || 'SEO 약점 체크 중...')
+                    ) : (
+                      <>
+                        AI가 글을 작성하고 있습니다...
+                        {parsed.content && (
+                          <span className="ml-2 text-blue-500/70">({parsed.content.length.toLocaleString()}자)</span>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>
                 {parsed.title && (
                   <h3 className="text-lg font-bold mt-2">{parsed.title}</h3>
                 )}
+                {/* 최적화 단계 상세 */}
+                {isOptimizing && healPatches.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {healPatches.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-amber-600">
+                        <Check className="h-3 w-3" />
+                        <span>{p.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardHeader>
               {parsed.content && (
                 <CardContent className="pt-0">
                   <div ref={streamingContentRef} className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[400px] overflow-y-auto">
                     {parsed.content}
-                    <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+                    {!isOptimizing && (
+                      <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-text-bottom" />
+                    )}
                   </div>
                   {/* 자동 스크롤 안내 + 토글 */}
                   <div className="mt-2 flex items-center justify-end">
