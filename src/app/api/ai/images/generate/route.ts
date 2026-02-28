@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Gemini 이미지 생성 (gemini-2.0-flash-exp, responseModalities: IMAGE)
+ * Gemini 이미지 생성 (gemini-2.5-flash-image, responseModalities: IMAGE)
  * 30초 타임아웃
  */
 async function generateImageWithGemini(
@@ -284,7 +284,7 @@ async function generateImageWithGemini(
   keyword: string,
   description: string
 ): Promise<{ base64: string; mimeType: string } | null> {
-  const url = `${GEMINI_API_BASE}/gemini-2.0-flash-exp:generateContent?key=${apiKey}`
+  const url = `${GEMINI_API_BASE}/gemini-2.5-flash-image:generateContent?key=${apiKey}`
 
   const prompt = [
     '한국 네이버 블로그 포스트에 사용할 이미지를 생성하세요.',
