@@ -106,11 +106,14 @@ export default function OpportunitiesPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            buffer += decoder.decode()
+          } else {
+            buffer += decoder.decode(value, { stream: true })
+          }
 
-          buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop()!
+          buffer = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
@@ -125,6 +128,8 @@ export default function OpportunitiesPage() {
               }
             } catch { /* JSON 파싱 실패 무시 */ }
           }
+
+          if (done) break
         }
       } else {
         // 폴백: 일반 JSON 응답

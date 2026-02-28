@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon, FileText, MessageCircle, Heart, Eye } from 'lucide-react'
+import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon, FileText, MessageCircle, Heart, Eye, CheckCircle2, Circle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -157,6 +157,11 @@ export default function CompetitorsPage() {
   const [aiError, setAiError] = useState('')
   const [aiStreamingText, setAiStreamingText] = useState('')
 
+  // 프로그레스 상태
+  const [progressStep, setProgressStep] = useState(0)
+  const [progressTotal, setProgressTotal] = useState(0)
+  const [progressMessage, setProgressMessage] = useState('')
+
   // 날짜 필터 적용
   const filteredCompetitors = competitors.filter(comp => {
     if (dateFilter === 'all') return true
@@ -165,6 +170,49 @@ export default function CompetitorsPage() {
     if (dateFilter === '6m') return comp.daysSincePosted <= 180
     return true
   })
+
+  // NDJSON 스트림 파서 (공통)
+  const parseNdjsonStream = async (
+    res: Response,
+    handlers: {
+      onProgress?: (step: number, total: number, message: string) => void
+      onData?: (data: Record<string, unknown>) => void
+      onStream?: (delta: string) => void
+      onAiResult?: (aiInsights: AiInsights | null) => void
+      onError?: (error: string) => void
+    }
+  ) => {
+    if (!res.body) return
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        buffer += decoder.decode()
+      } else {
+        buffer += decoder.decode(value, { stream: true })
+      }
+
+      const lines = buffer.split('\n')
+      buffer = done ? '' : (lines.pop() || '')
+
+      for (const line of lines) {
+        if (!line.trim()) continue
+        try {
+          const event = JSON.parse(line)
+          if (event.type === 'progress') handlers.onProgress?.(event.step, event.totalSteps, event.message)
+          else if (event.type === 'data') handlers.onData?.(event)
+          else if (event.type === 'stream') handlers.onStream?.(event.delta)
+          else if (event.type === 'ai_result') handlers.onAiResult?.(event.aiInsights || null)
+          else if (event.type === 'error' || event.type === 'ai_error') handlers.onError?.(event.error || '분석에 실패했습니다.')
+        } catch { /* 파싱 실패 무시 */ }
+      }
+
+      if (done) break
+    }
+  }
 
   const handleSearch = async (keyword: string) => {
     setLoading(true)
@@ -175,6 +223,9 @@ export default function CompetitorsPage() {
     setDateFilter('all')
     setAiInsights(null)
     setAiError('')
+    setProgressStep(0)
+    setProgressTotal(0)
+    setProgressMessage('')
 
     try {
       const res = await fetch('/api/ai/competitors', {
@@ -182,8 +233,9 @@ export default function CompetitorsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword, includeAi: false }),
       })
-      const data = await res.json()
+
       if (!res.ok) {
+        const data = await res.json()
         if (data.planGate) {
           setPlanGateMessage(data.error)
         } else {
@@ -192,15 +244,40 @@ export default function CompetitorsPage() {
         return
       }
 
-      setCompetitors(data.competitors)
-      setPatterns(data.patterns)
-      setDifficulty(data.difficulty || null)
-      setTitlePatterns(data.titlePatterns || [])
-      setIsDemo(data.isDemo || false)
+      const contentType = res.headers.get('Content-Type') || ''
+
+      if (contentType.includes('application/x-ndjson') && res.body) {
+        await parseNdjsonStream(res, {
+          onProgress: (step, total, message) => {
+            setProgressStep(step)
+            setProgressTotal(total)
+            setProgressMessage(message)
+          },
+          onData: (data) => {
+            setCompetitors(data.competitors as CompetitorItem[])
+            setPatterns(data.patterns as PatternAnalysis)
+            setDifficulty((data.difficulty as DifficultyAssessment) || null)
+            setTitlePatterns((data.titlePatterns as TitlePatternWord[]) || [])
+            setIsDemo((data.isDemo as boolean) || false)
+          },
+          onError: (err) => setError(err),
+        })
+      } else {
+        // JSON 폴백 (데모 데이터)
+        const data = await res.json()
+        setCompetitors(data.competitors)
+        setPatterns(data.patterns)
+        setDifficulty(data.difficulty || null)
+        setTitlePatterns(data.titlePatterns || [])
+        setIsDemo(data.isDemo || false)
+      }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      setProgressStep(0)
+      setProgressTotal(0)
+      setProgressMessage('')
     }
   }
 
@@ -208,6 +285,10 @@ export default function CompetitorsPage() {
     setAiLoading(true)
     setAiError('')
     setAiStreamingText('')
+    setProgressStep(0)
+    setProgressTotal(0)
+    setProgressMessage('')
+
     try {
       const res = await fetch('/api/ai/competitors', {
         method: 'POST',
@@ -215,47 +296,36 @@ export default function CompetitorsPage() {
         body: JSON.stringify({ keyword: searchedKeyword, includeAi: true }),
       })
 
+      if (!res.ok) {
+        const data = await res.json()
+        setAiError(data.error || 'AI 분석에 실패했습니다.')
+        return
+      }
+
       const contentType = res.headers.get('Content-Type') || ''
 
       if (contentType.includes('application/x-ndjson') && res.body) {
-        // NDJSON 스트리밍 수신
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.trim()) continue
-            try {
-              const event = JSON.parse(line)
-              if (event.type === 'stream') {
-                setAiStreamingText(prev => prev + event.delta)
-              } else if (event.type === 'ai_result') {
-                setAiStreamingText('')
-                setAiInsights(event.aiInsights || null)
-              } else if (event.type === 'ai_error') {
-                setAiStreamingText('')
-                setAiError(event.error || 'AI 분석에 실패했습니다.')
-              }
-            } catch {
-              // 파싱 실패 무시
-            }
-          }
-        }
+        await parseNdjsonStream(res, {
+          onProgress: (step, total, message) => {
+            setProgressStep(step)
+            setProgressTotal(total)
+            setProgressMessage(message)
+          },
+          onStream: (delta) => {
+            setAiStreamingText(prev => prev + delta)
+          },
+          onAiResult: (aiInsights) => {
+            setAiStreamingText('')
+            setAiInsights(aiInsights)
+          },
+          onError: (err) => {
+            setAiStreamingText('')
+            setAiError(err)
+          },
+        })
       } else {
-        // 일반 JSON 응답 (폴백)
+        // JSON 폴백
         const data = await res.json()
-        if (!res.ok) {
-          setAiError(data.error || 'AI 분석에 실패했습니다.')
-          return
-        }
         setAiInsights(data.aiInsights || null)
       }
     } catch {
@@ -263,6 +333,9 @@ export default function CompetitorsPage() {
       setAiError('AI 분석 중 네트워크 오류가 발생했습니다.')
     } finally {
       setAiLoading(false)
+      setProgressStep(0)
+      setProgressTotal(0)
+      setProgressMessage('')
     }
   }
 
@@ -297,13 +370,56 @@ export default function CompetitorsPage() {
         </div>
       )}
 
-      {/* 로딩 */}
+      {/* 로딩 - 단계별 프로그레스 */}
       {loading && (
-        <div className="flex flex-col items-center justify-center py-12 gap-2">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-muted-foreground">상위 블로그 분석 중...</span>
-          <span className="text-xs text-muted-foreground">콘텐츠 품질 및 독자 반응 데이터를 수집합니다</span>
-        </div>
+        <Card>
+          <CardContent className="py-8">
+            <div className="space-y-4">
+              {progressTotal > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">상위 블로그 분석</span>
+                    <span className="text-xs text-muted-foreground">{progressStep}/{progressTotal}</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${(progressStep / progressTotal) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                {['네이버 블로그 검색', '상위 블로그 콘텐츠 수집', '경쟁 패턴 분석'].map((label, i) => {
+                  const step = i + 1
+                  const isCompleted = progressStep > step
+                  const isCurrent = progressStep === step
+                  return (
+                    <div key={step} className={`flex items-center gap-2.5 text-sm ${isCompleted ? 'text-green-600' : isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground/60'}`}>
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : isCurrent ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <Circle className="h-4 w-4" />
+                      )}
+                      <span>{label}</span>
+                      {isCurrent && progressMessage && (
+                        <span className="ml-auto text-xs text-muted-foreground">{progressMessage}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {progressTotal === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">분석 준비 중...</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* 결과 */}
@@ -780,27 +896,72 @@ export default function CompetitorsPage() {
               )}
 
               {aiLoading && (
-                aiStreamingText ? (
-                  <div className="rounded-lg border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white p-4">
-                    <div className="flex items-center gap-2 text-purple-700 mb-3">
-                      <Sparkles className="h-4 w-4 animate-pulse" />
-                      <span className="text-sm font-medium">AI가 분석 결과를 작성하고 있습니다...</span>
+                <div className="space-y-4">
+                  {/* AI 분석 프로그레스 */}
+                  {progressTotal > 0 && !aiStreamingText && (
+                    <div className="space-y-3">
+                      {progressTotal > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-purple-700">AI 경쟁 분석</span>
+                            <span className="text-xs text-muted-foreground">{progressStep}/{progressTotal}</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-muted">
+                            <div
+                              className="h-2 rounded-full bg-purple-500 transition-all duration-500"
+                              style={{ width: `${(progressStep / progressTotal) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {['네이버 블로그 검색', '상위 블로그 콘텐츠 수집', '경쟁 패턴 분석', 'AI 전략 분석', '이미지 전략 분석'].map((label, i) => {
+                          const step = i + 1
+                          const isCompleted = progressStep > step
+                          const isCurrent = progressStep === step
+                          if (step > progressTotal) return null
+                          return (
+                            <div key={step} className={`flex items-center gap-2.5 text-sm ${isCompleted ? 'text-green-600' : isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground/60'}`}>
+                              {isCompleted ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : isCurrent ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                              ) : (
+                                <Circle className="h-4 w-4" />
+                              )}
+                              <span>{label}</span>
+                              {isCurrent && progressMessage && (
+                                <span className="ml-auto text-xs text-muted-foreground">{progressMessage}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[300px] overflow-y-auto">
-                      {(() => {
-                        // 부분 JSON에서 summary 필드 추출
-                        const sumMatch = aiStreamingText.match(/"summary"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|\s*$)/)
-                        return sumMatch ? sumMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\') : aiStreamingText.substring(0, 500)
-                      })()}
-                      <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-text-bottom" />
+                  )}
+
+                  {/* AI 스트리밍 텍스트 */}
+                  {aiStreamingText ? (
+                    <div className="rounded-lg border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white p-4">
+                      <div className="flex items-center gap-2 text-purple-700 mb-3">
+                        <Sparkles className="h-4 w-4 animate-pulse" />
+                        <span className="text-sm font-medium">AI가 분석 결과를 작성하고 있습니다...</span>
+                      </div>
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground/80 max-h-[300px] overflow-y-auto">
+                        {(() => {
+                          const sumMatch = aiStreamingText.match(/"summary"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|\s*$)/)
+                          return sumMatch ? sumMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\') : aiStreamingText.substring(0, 500)
+                        })()}
+                        <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-text-bottom" />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin text-purple-500" />
-                    <span className="text-muted-foreground">AI가 경쟁 상황을 분석 중...</span>
-                  </div>
-                )
+                  ) : progressTotal === 0 && (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin text-purple-500" />
+                      <span className="text-muted-foreground">AI 분석 준비 중...</span>
+                    </div>
+                  )}
+                </div>
               )}
 
               {aiError && (

@@ -714,85 +714,90 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 네이버 블로그 검색 (상위 10개)
-    const searchResult = await searchNaverBlog(cleanKeyword, 10)
+    // 실제 분석: NDJSON 스트리밍 + 단계별 프로그레스
+    await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
 
-    // 블로그 학습 파이프라인: 백그라운드 수집
-    scheduleCollection(() => collectFromSearchResults(cleanKeyword, searchResult.items, 'competitor_analysis'))
+    const useAi = includeAi && hasAiApiKey(provider)
+    const totalSteps = useAi ? 5 : 3
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (data: object) => {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+        }
 
-    // 상위 10개 전체 스크래핑 (기본 분석에 통합)
-    let scrapedData = new Map<string, ScrapedPostData>()
-    try {
-      const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
-      const competitorLinks = searchResult.items.map(item => item.link)
-      scrapedData = await scrapeMultiplePosts(competitorLinks, 10)
+        try {
+          // Step 1: 네이버 블로그 검색
+          send({ type: 'progress', step: 1, totalSteps, message: '네이버 블로그 검색 중...' })
+          const searchResult = await searchNaverBlog(cleanKeyword, 10)
+          scheduleCollection(() => collectFromSearchResults(cleanKeyword, searchResult.items, 'competitor_analysis'))
+          send({ type: 'progress', step: 1, totalSteps, message: `상위 ${searchResult.items.length}개 블로그 발견` })
 
-      // 블로그 학습 파이프라인: 스크래핑 데이터 수집
-      if (searchResult.items.length > 0 && scrapedData.size > 0) {
-        scheduleCollection(() => collectFromScrapedPosts(cleanKeyword, scrapedData, searchResult.items, null, 'competitor_analysis'))
-      }
-    } catch (err) {
-      console.error('[Competitors] 스크래핑 실패 (메타데이터만으로 분석):', err)
-    }
-
-    // 데이터 가공 (스크래핑 결과 병합)
-    const competitors: CompetitorItem[] = searchResult.items.map((item, i) => {
-      const cleanTitle = stripHtml(item.title)
-      const cleanDesc = stripHtml(item.description)
-      const keywordLower = cleanKeyword.toLowerCase().replace(/\s+/g, '')
-      const scraped = scrapedData.get(item.link)
-
-      return {
-        rank: i + 1,
-        title: cleanTitle,
-        link: item.link,
-        description: cleanDesc,
-        bloggerName: item.bloggername,
-        bloggerLink: item.bloggerlink,
-        postDate: item.postdate,
-        postDateFormatted: formatDate(item.postdate),
-        daysSincePosted: daysSince(item.postdate),
-        titleLength: cleanTitle.length,
-        hasKeywordInTitle: cleanTitle.toLowerCase().replace(/\s+/g, '').includes(keywordLower),
-        charCount: scraped?.charCount ?? null,
-        imageCount: scraped?.imageCount ?? null,
-        videoCount: scraped?.videoCount ?? null,
-        commentCount: scraped?.commentCount ?? null,
-        sympathyCount: scraped?.sympathyCount ?? null,
-        readCount: scraped?.readCount ?? null,
-      }
-    })
-
-    // 패턴 분석
-    const patterns = analyzePatterns(competitors, cleanKeyword)
-    const difficulty = assessDifficulty(patterns, competitors)
-    const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
-
-    // AI 인사이트 + 이미지 분석 (병렬 실행, 기존 스크래핑 데이터 재사용)
-    if (includeAi && hasAiApiKey(provider)) {
-      // NDJSON 스트리밍 응답 (AI 토큰 실시간 전달)
-      await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
-
-      const encoder = new TextEncoder()
-      const stream = new ReadableStream({
-        async start(controller) {
-          const send = (data: object) => {
-            controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
+          // Step 2: 콘텐츠 수집 (스크래핑)
+          send({ type: 'progress', step: 2, totalSteps, message: '상위 블로그 콘텐츠 수집 중...' })
+          let scrapedData = new Map<string, ScrapedPostData>()
+          try {
+            const { scrapeMultiplePosts } = await import('@/lib/naver/blog-scraper')
+            const competitorLinks = searchResult.items.map(item => item.link)
+            scrapedData = await scrapeMultiplePosts(competitorLinks, 10)
+            send({ type: 'progress', step: 2, totalSteps, message: `${scrapedData.size}개 블로그 콘텐츠 수집 완료` })
+            if (searchResult.items.length > 0 && scrapedData.size > 0) {
+              scheduleCollection(() => collectFromScrapedPosts(cleanKeyword, scrapedData, searchResult.items, null, 'competitor_analysis'))
+            }
+          } catch (err) {
+            console.error('[Competitors] 스크래핑 실패 (메타데이터만으로 분석):', err)
+            send({ type: 'progress', step: 2, totalSteps, message: '메타데이터로 분석합니다' })
           }
 
-          try {
-            // 기본 분석 결과 먼저 전송
-            send({
-              type: 'data',
-              keyword: cleanKeyword,
-              competitors,
-              patterns,
-              difficulty,
-              titlePatterns,
-              isDemo: false,
-            })
+          // 데이터 가공 (스크래핑 결과 병합)
+          const competitors: CompetitorItem[] = searchResult.items.map((item, i) => {
+            const cleanTitle = stripHtml(item.title)
+            const cleanDesc = stripHtml(item.description)
+            const keywordLower = cleanKeyword.toLowerCase().replace(/\s+/g, '')
+            const scraped = scrapedData.get(item.link)
 
-            // AI 스트리밍
+            return {
+              rank: i + 1,
+              title: cleanTitle,
+              link: item.link,
+              description: cleanDesc,
+              bloggerName: item.bloggername,
+              bloggerLink: item.bloggerlink,
+              postDate: item.postdate,
+              postDateFormatted: formatDate(item.postdate),
+              daysSincePosted: daysSince(item.postdate),
+              titleLength: cleanTitle.length,
+              hasKeywordInTitle: cleanTitle.toLowerCase().replace(/\s+/g, '').includes(keywordLower),
+              charCount: scraped?.charCount ?? null,
+              imageCount: scraped?.imageCount ?? null,
+              videoCount: scraped?.videoCount ?? null,
+              commentCount: scraped?.commentCount ?? null,
+              sympathyCount: scraped?.sympathyCount ?? null,
+              readCount: scraped?.readCount ?? null,
+            }
+          })
+
+          // Step 3: 패턴 분석
+          send({ type: 'progress', step: 3, totalSteps, message: '경쟁 패턴 분석 중...' })
+          const patterns = analyzePatterns(competitors, cleanKeyword)
+          const difficulty = assessDifficulty(patterns, competitors)
+          const titlePatterns = extractTitlePatterns(competitors, cleanKeyword)
+
+          // 기본 분석 결과 전송
+          send({
+            type: 'data',
+            keyword: cleanKeyword,
+            competitors,
+            patterns,
+            difficulty,
+            titlePatterns,
+            isDemo: false,
+          })
+
+          // AI 분석 (includeAi일 때만)
+          if (useAi) {
+            send({ type: 'progress', step: 4, totalSteps, message: 'AI 경쟁 전략 분석 중...' })
+
             const [aiResult, imageResult] = await Promise.allSettled([
               getAiInsights(cleanKeyword, competitors, patterns, difficulty, (delta) => {
                 send({ type: 'stream', delta })
@@ -809,34 +814,23 @@ export async function POST(request: NextRequest) {
               aiInsights.imageAnalysis = imageResult.value
             }
 
+            send({ type: 'progress', step: 5, totalSteps, message: '분석 완료' })
             send({ type: 'ai_result', aiInsights })
-          } catch (error) {
-            console.error('[Competitors AI] 스트리밍 오류:', error)
-            send({ type: 'ai_error', error: 'AI 분석 중 오류가 발생했습니다.' })
-          } finally {
-            controller.close()
           }
-        },
-      })
+        } catch (error) {
+          console.error('[Competitors] 스트리밍 오류:', error)
+          send({ type: 'error', error: '상위노출 분석 중 오류가 발생했습니다.' })
+        } finally {
+          controller.close()
+        }
+      },
+    })
 
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'application/x-ndjson',
-          'Cache-Control': 'no-cache',
-        },
-      })
-    }
-
-    // AI 없이 기본 분석만 (기존 JSON 응답)
-    await deductCredits(supabase, user.id, 'competitor_analysis', { keyword: cleanKeyword })
-    return NextResponse.json({
-      keyword: cleanKeyword,
-      competitors,
-      patterns,
-      difficulty,
-      titlePatterns,
-      aiInsights: null,
-      isDemo: false,
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+      },
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

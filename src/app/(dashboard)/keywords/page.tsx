@@ -89,11 +89,14 @@ export default function KeywordsPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            buffer += decoder.decode()
+          } else {
+            buffer += decoder.decode(value, { stream: true })
+          }
 
-          buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop()! // 마지막 불완전 라인 보존
+          buffer = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
@@ -114,6 +117,8 @@ export default function KeywordsPage() {
               // JSON 파싱 실패 — 무시
             }
           }
+
+          if (done) break
         }
       } else {
         // 일반 JSON 응답 (데모 모드)

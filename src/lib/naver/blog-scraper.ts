@@ -175,11 +175,7 @@ function extractReadCount(html: string): number | null {
 }
 
 function parsePostHtml(html: string): { charCount: number; imageCount: number; videoCount: number; linkCount: number; tableCount: number; imageUrls: string[]; commentCount: number | null; sympathyCount: number | null; readCount: number | null; formatting: FormattingMetrics } {
-    // 이미지 카운트 (전체 HTML에서)
-    const imgMatches = html.match(/<img[\s>]/gi)
-    const imageCount = imgMatches ? imgMatches.length : 0
-
-    // 이미지 URL 추출 (실제 콘텐츠 이미지만)
+    // 이미지 URL 추출 (콘텐츠 이미지만 — UI 아이콘/placeholder 제외)
     // 모바일에서는 data-lazy-src에 실제 URL이 있고 src는 placeholder인 경우가 많음
     const imageUrls: string[] = []
     const seenUrls = new Set<string>()
@@ -203,21 +199,21 @@ function parsePostHtml(html: string): { charCount: number; imageCount: number; v
             imageUrls.push(src)
         }
     }
+    // imageCount = 실제 콘텐츠 이미지 수 (imageUrls 표시 개수와 일치)
+    const imageCount = imageUrls.length
 
-    // 동영상 카운트 (네이버 동영상, 유튜브 임베드, video 태그)
-    const videoPatterns = [
-        /<video[\s>]/gi,
-        /se-video/gi,
-        /naver\.com\/video/gi,
-        /tv\.naver\.com/gi,
-        /youtube\.com\/embed/gi,
-        /youtu\.be/gi,
-        /class="[^"]*movie[^"]*"/gi,
-    ]
+    // 동영상 카운트 (SE3 컴포넌트 기반 — 중복 방지)
+    // SE3에서는 각 동영상이 개별 se-component로 감싸짐
+    const componentMatches = html.match(/class="[^"]*\bse-component\b[^"]*"/gi) || []
     let videoCount = 0
-    for (const pattern of videoPatterns) {
-        const matches = html.match(pattern)
-        if (matches) videoCount += matches.length
+    for (const cls of componentMatches) {
+        if (/\bse-video\b|\bse-oembed\b/.test(cls)) videoCount++
+    }
+    // SE3 외 에디터 폴백 (구형 에디터)
+    if (videoCount === 0) {
+        const html5 = (html.match(/<video[\s>]/gi) || []).length
+        const youtube = (html.match(/youtube\.com\/embed/gi) || []).length
+        videoCount = html5 + youtube
     }
 
     // 본문 내 링크 카운트

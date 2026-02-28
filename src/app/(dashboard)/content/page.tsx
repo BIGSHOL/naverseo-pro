@@ -218,6 +218,7 @@ export default function ContentPage() {
   const [autoScroll, setAutoScroll] = useState(true)
   const autoScrollRef = useRef(true)
   const resultRef = useRef<HTMLDivElement>(null)
+  const contentCardRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
   const [showSeoDetail, setShowSeoDetail] = useState(false)
   const [targetLength, setTargetLength] = useState<'short' | 'medium' | 'long'>('medium')
@@ -717,11 +718,17 @@ export default function ContentPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            // 스트림 종료 시 TextDecoder 잔여 바이트 플러시
+            buffer += decoder.decode()
+          } else {
+            buffer += decoder.decode(value, { stream: true })
+          }
 
-          buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+          // 스트림 진행 중: 마지막 줄은 불완전할 수 있으므로 버퍼에 유지
+          // 스트림 종료: 모든 줄을 처리 (잔여 버퍼 포함)
+          buffer = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
@@ -784,7 +791,7 @@ export default function ContentPage() {
 
                   // 에디터 렌더링 대기 후 애니메이션 시작
                   setTimeout(() => {
-                    resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
                     // 콘텐츠 패치와 제목 패치 분리
                     const contentPatches = healData.patches.filter(p => p.label !== '제목 키워드 최적화' && p.label !== '제목 길이 조정')
@@ -844,7 +851,7 @@ export default function ContentPage() {
                 } else {
                   // Self-Healing 패치 없음 → 기존 방식
                   setResult(event)
-                  setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                  setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
               } else if (event.type === 'error') {
                 setStreamingText('')
@@ -855,6 +862,8 @@ export default function ContentPage() {
               // JSON 파싱 실패 시 무시
             }
           }
+
+          if (done) break
         }
       } else {
         // 일반 JSON 응답 (데모/에러)
@@ -869,7 +878,7 @@ export default function ContentPage() {
           return
         }
         setResult(data)
-        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+        setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -1024,11 +1033,14 @@ export default function ContentPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            buffer += decoder.decode()
+          } else {
+            buffer += decoder.decode(value, { stream: true })
+          }
 
-          buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+          buffer = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
@@ -1046,6 +1058,8 @@ export default function ContentPage() {
               // 파싱 실패 무시
             }
           }
+
+          if (done) break
         }
       } else {
         // 일반 JSON 응답
@@ -1233,11 +1247,14 @@ export default function ContentPage() {
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done) {
+          buffer += decoder.decode()
+        } else {
+          buffer += decoder.decode(value, { stream: true })
+        }
 
-        buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
+        buffer = done ? '' : (lines.pop() || '')
 
         for (const line of lines) {
           if (!line.trim()) continue
@@ -1271,6 +1288,8 @@ export default function ContentPage() {
             }
           } catch { /* NDJSON 파싱 오류 무시 */ }
         }
+
+        if (done) break
       }
     } catch {
       setImageGenMessage('네트워크 오류가 발생했습니다.')
@@ -2826,7 +2845,7 @@ export default function ContentPage() {
           )}
 
           {/* 생성된 콘텐츠 */}
-          <Card>
+          <Card ref={contentCardRef}>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-lg">생성된 콘텐츠</CardTitle>

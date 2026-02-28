@@ -67,6 +67,7 @@ interface ProgressStep {
   step: number
   total: number
   label: string
+  percent?: number
 }
 
 function getCategoryScoreColor(score: number, max: number) {
@@ -160,7 +161,7 @@ export default function SeoCheckPage() {
   const [fetchSource, setFetchSource] = useState('')
   const [scrapedStats, setScrapedStats] = useState<{
     charCount: number; imageCount: number; videoCount: number
-    commentCount: number | null; sympathyCount: number | null; readCount: number | null
+    commentCount: number | null; sympathyCount: number | null
     imageUrls: string[]
     tags: string[]
     formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number }
@@ -238,7 +239,6 @@ export default function SeoCheckPage() {
           videoCount: sd.videoCount,
           commentCount: sd.commentCount ?? null,
           sympathyCount: sd.sympathyCount ?? null,
-          readCount: sd.readCount ?? null,
           imageUrls: sd.imageUrls ?? [],
           tags: data.detailedAnalysis?.tags ?? [],
           formatting: sd.formatting,
@@ -279,7 +279,6 @@ export default function SeoCheckPage() {
               videoCount: scrapedStats.videoCount,
               commentCount: scrapedStats.commentCount,
               sympathyCount: scrapedStats.sympathyCount,
-              readCount: scrapedStats.readCount,
               tags: scrapedStats.tags,
               formatting: scrapedStats.formatting,
             },
@@ -297,18 +296,21 @@ export default function SeoCheckPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            buffer += decoder.decode()
+          } else {
+            buffer += decoder.decode(value, { stream: true })
+          }
 
-          buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+          buffer = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
             try {
               const event = JSON.parse(line)
               if (event.type === 'progress') {
-                setProgressStep({ step: event.step, total: event.total, label: event.label })
+                setProgressStep({ step: event.step, total: event.total, label: event.label, percent: event.percent })
               } else if (event.type === 'result') {
                 setResult(event as SeoResult)
               } else if (event.type === 'error') {
@@ -318,6 +320,8 @@ export default function SeoCheckPage() {
               // 파싱 실패 무시
             }
           }
+
+          if (done) break
         }
       } else {
         // JSON 폴백 (에러 응답 등)
@@ -404,11 +408,14 @@ export default function SeoCheckPage() {
 
         while (true) {
           const { done, value } = await reader.read()
-          if (done) break
+          if (done) {
+            buf += decoder.decode()
+          } else {
+            buf += decoder.decode(value, { stream: true })
+          }
 
-          buf += decoder.decode(value, { stream: true })
           const lines = buf.split('\n')
-          buf = lines.pop() || ''
+          buf = done ? '' : (lines.pop() || '')
 
           for (const line of lines) {
             if (!line.trim()) continue
@@ -430,6 +437,8 @@ export default function SeoCheckPage() {
               // 파싱 실패 무시
             }
           }
+
+          if (done) break
         }
       } else {
         data = await res.json()
@@ -607,8 +616,7 @@ export default function SeoCheckPage() {
                             <span className="rounded bg-muted px-2 py-0.5">이미지 {scrapedStats.imageCount}개</span>
                             {scrapedStats.videoCount > 0 && <span className="rounded bg-muted px-2 py-0.5">동영상 {scrapedStats.videoCount}개</span>}
                             <span className="rounded bg-muted px-2 py-0.5">댓글 {scrapedStats.commentCount ?? '?'}개</span>
-                            <span className="rounded bg-muted px-2 py-0.5">공감 {scrapedStats.sympathyCount ?? '?'}개</span>
-                            {scrapedStats.readCount != null && <span className="rounded bg-muted px-2 py-0.5">조회 {scrapedStats.readCount.toLocaleString()}회</span>}
+                            {scrapedStats.sympathyCount != null && <span className="rounded bg-muted px-2 py-0.5">공감 {scrapedStats.sympathyCount}개</span>}
                           </div>
                         )}
                       </div>
@@ -806,11 +814,16 @@ export default function SeoCheckPage() {
               {loading && progressStep && (
                 <Card className="border-primary/20 bg-primary/5">
                   <CardContent className="pt-4 pb-4 space-y-3">
-                    {/* 프로그레스 바 */}
+                    {/* 현재 작업 라벨 + 퍼센트 */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-primary">{progressStep.label}</span>
+                      <span className="text-muted-foreground">{progressStep.percent ?? Math.round((progressStep.step / progressStep.total) * 100)}%</span>
+                    </div>
+                    {/* 프로그레스 바 (percent 기반 부드러운 전환) */}
                     <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-2 rounded-full bg-primary transition-all duration-500 ease-out"
-                        style={{ width: `${(progressStep.step / progressStep.total) * 100}%` }}
+                        className="h-2 rounded-full bg-primary transition-all duration-1000 ease-out"
+                        style={{ width: `${progressStep.percent ?? Math.round((progressStep.step / progressStep.total) * 100)}%` }}
                       />
                     </div>
                     {/* 단계 인디케이터 */}

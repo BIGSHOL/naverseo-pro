@@ -347,7 +347,7 @@ export default function ReportPage() {
                     {seoPerformance.gradeDistribution.map((g, i) => (
                       <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
-                        {g.grade} {g.label} ({g.count})
+                        {g.label} ({g.count})
                       </div>
                     ))}
                   </div>

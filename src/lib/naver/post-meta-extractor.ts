@@ -56,63 +56,85 @@ export interface OpenGraphData {
 /**
  * 블로그 포스트 HTML에서 태그 추출
  *
- * 네이버 블로그 태그 위치:
- * 1. <div class="post_tag"> 내의 <a> 태그
- * 2. <div class="se-tag-area"> 내의 <a> 태그
- * 3. og:keyword 메타 태그
- * 4. <meta name="keywords"> 태그
+ * 네이버 블로그 태그 위치 (우선순위):
+ * 1. JSON 임베딩 (logTagList, postTagList 등 — 모바일 SSR 데이터)
+ * 2. DOM 태그 영역 (post_tag, se-tag-area 등)
+ * 3. og:keyword / meta keywords
+ * 4. 본문 내 #해시태그 (폴백)
  */
 export function extractTags(html: string): string[] {
     const tags = new Set<string>()
 
-    // 패턴 1: 포스트 태그 영역 (데스크톱/모바일 - 다양한 클래스명 대응)
-    const tagAreaPatterns = [
-        /<div[^>]*class=["'][^"']*(?:post_tag|tag_area|se-tag-area|post-tag|_postTag|post_tag_area|_tag_list)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
-        /<ul[^>]*class=["'][^"']*(?:tag_list|post_tag_list|_tag_list_body)[^"']*["'][^>]*>([\s\S]*?)<\/ul>/gi,
+    // 패턴 1: JSON 임베딩 (네이버 모바일의 SSR/초기 state 데이터)
+    // 네이버 모바일 블로그는 태그를 JSON 배열로 페이지에 삽입
+    const jsonTagPatterns = [
+        /["'](?:logTagList|postTagList|hashTagList|tagList)["']\s*:\s*\[([^\]]+)\]/g,
     ]
-
-    for (const pattern of tagAreaPatterns) {
-        let match: RegExpExecArray | null
-        while ((match = pattern.exec(html)) !== null) {
-            const tagHtml = match[1]
-            // 태그 영역 내의 <a> 태그에서 텍스트 추출
-            const linkRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi
-            let linkMatch: RegExpExecArray | null
-            while ((linkMatch = linkRegex.exec(tagHtml)) !== null) {
-                const tagText = linkMatch[1]
-                    .replace(/<[^>]+>/g, '')
-                    .replace(/^#/, '')        // # 접두사 제거
-                    .trim()
-                if (tagText.length >= 2 && tagText.length <= 30) {
-                    tags.add(tagText)
-                }
+    for (const pattern of jsonTagPatterns) {
+        let jMatch: RegExpExecArray | null
+        while ((jMatch = pattern.exec(html)) !== null) {
+            const arr = jMatch[1]
+            const strRegex = /["']([^"']{2,30})["']/g
+            let sMatch: RegExpExecArray | null
+            while ((sMatch = strRegex.exec(arr)) !== null) {
+                const t = sMatch[1].replace(/^#/, '').trim()
+                if (t.length >= 2 && t.length <= 30) tags.add(t)
             }
-            // <span> 태그에서도 추출 (모바일에서 span 사용하는 경우)
-            const spanRegex = /<span[^>]*>([\s\S]*?)<\/span>/gi
-            let spanMatch: RegExpExecArray | null
-            while ((spanMatch = spanRegex.exec(tagHtml)) !== null) {
-                const tagText = spanMatch[1]
-                    .replace(/<[^>]+>/g, '')
-                    .replace(/^#/, '')
-                    .trim()
-                if (tagText.length >= 2 && tagText.length <= 30) {
-                    tags.add(tagText)
+        }
+    }
+
+    // 패턴 2: 포스트 태그 영역 (데스크톱/모바일 - 다양한 클래스명 대응)
+    if (tags.size === 0) {
+        const tagAreaPatterns = [
+            /<div[^>]*class=["'][^"']*(?:post_tag|tag_area|se-tag-area|post-tag|_postTag|post_tag_area|_tag_list|tag_wrap|chip_tag|se-module-tag|se-section-tag)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+            /<ul[^>]*class=["'][^"']*(?:tag_list|post_tag_list|_tag_list_body)[^"']*["'][^>]*>([\s\S]*?)<\/ul>/gi,
+        ]
+
+        for (const pattern of tagAreaPatterns) {
+            let match: RegExpExecArray | null
+            while ((match = pattern.exec(html)) !== null) {
+                const tagHtml = match[1]
+                // 태그 영역 내의 <a> 태그에서 텍스트 추출
+                const linkRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi
+                let linkMatch: RegExpExecArray | null
+                while ((linkMatch = linkRegex.exec(tagHtml)) !== null) {
+                    const tagText = linkMatch[1]
+                        .replace(/<[^>]+>/g, '')
+                        .replace(/^#/, '')        // # 접두사 제거
+                        .trim()
+                    if (tagText.length >= 2 && tagText.length <= 30) {
+                        tags.add(tagText)
+                    }
+                }
+                // <span> 태그에서도 추출 (모바일에서 span 사용하는 경우)
+                const spanRegex = /<span[^>]*>([\s\S]*?)<\/span>/gi
+                let spanMatch: RegExpExecArray | null
+                while ((spanMatch = spanRegex.exec(tagHtml)) !== null) {
+                    const tagText = spanMatch[1]
+                        .replace(/<[^>]+>/g, '')
+                        .replace(/^#/, '')
+                        .trim()
+                    if (tagText.length >= 2 && tagText.length <= 30) {
+                        tags.add(tagText)
+                    }
                 }
             }
         }
     }
 
-    // 패턴 2: og:keyword 또는 meta keywords
-    const ogKeywords = html.match(/<meta\s+(?:property|name)=["'](?:og:keyword|keywords)["']\s+content=["']([^"']+)["']/i)
-        || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["'](?:og:keyword|keywords)["']/i)
-    if (ogKeywords) {
-        const metaTags = ogKeywords[1].split(/[,，]/).map((t) => t.trim()).filter(Boolean)
-        metaTags.forEach((t) => {
-            if (t.length >= 2 && t.length <= 30) tags.add(t)
-        })
+    // 패턴 3: og:keyword 또는 meta keywords
+    if (tags.size === 0) {
+        const ogKeywords = html.match(/<meta\s+(?:property|name)=["'](?:og:keyword|keywords)["']\s+content=["']([^"']+)["']/i)
+            || html.match(/<meta\s+content=["']([^"']+)["']\s+(?:property|name)=["'](?:og:keyword|keywords)["']/i)
+        if (ogKeywords) {
+            const metaTags = ogKeywords[1].split(/[,，]/).map((t) => t.trim()).filter(Boolean)
+            metaTags.forEach((t) => {
+                if (t.length >= 2 && t.length <= 30) tags.add(t)
+            })
+        }
     }
 
-    // 패턴 3: 해시태그 형태 (#태그) - style/script 제거 후 본문 텍스트에서만 검색
+    // 패턴 4: 해시태그 형태 (#태그) - style/script 제거 후 본문 텍스트에서만 검색
     // (전체 HTML에서 검색하면 CSS 색상코드 #004e82, ID 셀렉터 #ct 등이 오탐됨)
     if (tags.size === 0) {
         const bodyText = html
