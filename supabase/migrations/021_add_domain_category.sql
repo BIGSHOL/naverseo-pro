@@ -18,7 +18,14 @@ ALTER TABLE keyword_patterns
   ADD COLUMN IF NOT EXISTS domain_category TEXT;
 
 -- 기존 unique constraint 변경: (keyword, keyword_category) → (keyword, keyword_category, domain_category)
--- 기존 데이터의 domain_category는 NULL이므로 안전하게 마이그레이션
+-- 중복 행 제거 (가장 최근 것만 남기고 삭제) 후 constraint 추가
+DELETE FROM keyword_patterns a
+USING keyword_patterns b
+WHERE a.id < b.id
+  AND a.keyword IS NOT DISTINCT FROM b.keyword
+  AND a.keyword_category IS NOT DISTINCT FROM b.keyword_category
+  AND a.domain_category IS NOT DISTINCT FROM b.domain_category;
+
 ALTER TABLE keyword_patterns
   DROP CONSTRAINT IF EXISTS unique_keyword_pattern;
 ALTER TABLE keyword_patterns
