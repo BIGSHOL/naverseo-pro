@@ -10,7 +10,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callGemini, callGeminiStream, parseGeminiJson, BLOG_INDEX_AI_PROMPT } from '@/lib/ai/gemini'
+import { callAI, callGeminiStream, callClaudeStream, parseGeminiJson, hasAiApiKey, BLOG_INDEX_AI_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 import type { AiAnalysis, BlogPost } from './types'
 
@@ -284,6 +284,8 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 20): Bl
  *
  * @param posts - RSS/검색에서 가져온 포스트 목록
  * @param isDemo - 데모 모드 여부
+ * @param callbacks - 스트리밍 콜백
+ * @param provider - AI 제공자 (기본값: gemini)
  * @returns AI 분석 결과 (실패 시 null)
  */
 export async function analyzeWithAi(
@@ -293,10 +295,11 @@ export async function analyzeWithAi(
     onProgress?: (message: string) => void
     onChunk?: (delta: string) => void
   },
+  provider: AiProvider = 'gemini'
 ): Promise<AiAnalysis | null> {
-  // Gemini API 키가 없으면 스킵 (분석은 항상 Gemini 사용 — 비용 최적화)
-  if (!process.env.GEMINI_API_KEY?.trim()) {
-    console.log('[BlogIndex AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
+  // AI API 키 확인
+  if (!hasAiApiKey(provider)) {
+    console.log(`[BlogIndex AI] ${provider} API 키 미설정, AI 분석 스킵`)
     return null
   }
 
@@ -381,9 +384,13 @@ ${p.content}
 
     let response: string
     if (callbacks?.onChunk) {
-      response = await callGeminiStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+      if (provider === 'claude') {
+        response = await callClaudeStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+      } else {
+        response = await callGeminiStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+      }
     } else {
-      response = await callGemini(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
+      response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
     }
 
     const raw = parseGeminiJson<AiAnalysisRaw>(response)

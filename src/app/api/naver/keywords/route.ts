@@ -7,6 +7,8 @@ import {
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
+export const maxDuration = 60
+
 // === 상위 5개 검색결과 타입 조회 ===
 
 interface TopSearchResult {

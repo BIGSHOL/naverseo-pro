@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/seo/engine'
+import { analyzeSeo, analyzeReadability, getGradeByScore, type ReadabilityResult } from '@/lib/seo/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
 import type { AiSeoAnalysis, ScrapedMeta } from '@/lib/seo/ai-analyzer'
+import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 interface SeoCheckResponse {
@@ -99,12 +100,14 @@ export async function POST(request: NextRequest) {
           // Step 3: AI 심층 분석 (가장 오래 걸리는 단계)
           send({ type: 'progress', step: 3, total: 4, label: 'AI 심층 분석 중...' })
 
-          if (!process.env.GEMINI_API_KEY?.trim()) {
+          const provider = await getUserAiProvider(supabase, user.id)
+
+          if (!hasAiApiKey(provider)) {
             send({ type: 'progress', step: 4, total: 4, label: '결과 정리 중...' })
             const response: SeoCheckResponse = {
               ...baseResult,
               isDemo: true,
-              demoReason: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다.',
+              demoReason: `${provider.toUpperCase()} API 키가 설정되지 않았습니다.`,
               aiAnalysis: generateDemoAiAnalysis(),
             }
             send({ type: 'result', ...response })
@@ -115,7 +118,7 @@ export async function POST(request: NextRequest) {
           let aiAnalysis: AiSeoAnalysis | null = null
           let aiFailReason = ''
           try {
-            aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, scrapedMeta)
+            aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, scrapedMeta, provider)
             if (!aiAnalysis) {
               aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
             }
@@ -131,13 +134,7 @@ export async function POST(request: NextRequest) {
           let finalGrade = baseResult.grade
           if (aiAnalysis?.scoreAdjustment) {
             finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
-            if (finalScore >= 90) finalGrade = 'S'
-            else if (finalScore >= 80) finalGrade = 'A+'
-            else if (finalScore >= 70) finalGrade = 'A'
-            else if (finalScore >= 60) finalGrade = 'B+'
-            else if (finalScore >= 50) finalGrade = 'B'
-            else if (finalScore >= 40) finalGrade = 'C'
-            else finalGrade = 'D'
+            finalGrade = getGradeByScore(finalScore).grade
           }
 
           const response: SeoCheckResponse = {

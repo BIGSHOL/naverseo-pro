@@ -3,16 +3,25 @@ import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 export const dynamic = 'force-dynamic'
 
-// ─── SEO 등급 판정 (경량 상수) ───
+// ─── SEO 등급 판정 (16단계 - 블로그 지수와 동일 체계) ───
 
 const GRADE_THRESHOLDS = [
-  { minScore: 90, grade: 'S', label: '최적화 완료', color: '#22c55e' },
-  { minScore: 80, grade: 'A+', label: '우수', color: '#16a34a' },
-  { minScore: 70, grade: 'A', label: '양호', color: '#3b82f6' },
-  { minScore: 60, grade: 'B+', label: '보통 상위', color: '#60a5fa' },
-  { minScore: 50, grade: 'B', label: '보통', color: '#eab308' },
-  { minScore: 40, grade: 'C', label: '개선 필요', color: '#f97316' },
-  { minScore: 0, grade: 'D', label: '심각', color: '#ef4444' },
+  { minScore: 95, grade: 'Lv.16', label: '파워', color: '#f59e0b' },
+  { minScore: 89, grade: 'Lv.15', label: '최적화4+', color: '#10b981' },
+  { minScore: 82, grade: 'Lv.14', label: '최적화3+', color: '#10b981' },
+  { minScore: 76, grade: 'Lv.13', label: '최적화2+', color: '#14b8a6' },
+  { minScore: 70, grade: 'Lv.12', label: '최적화1+', color: '#14b8a6' },
+  { minScore: 64, grade: 'Lv.11', label: '최적화3', color: '#22c55e' },
+  { minScore: 57, grade: 'Lv.10', label: '최적화2', color: '#22c55e' },
+  { minScore: 51, grade: 'Lv.9', label: '최적화1', color: '#84cc16' },
+  { minScore: 45, grade: 'Lv.8', label: '준최적화7', color: '#3b82f6' },
+  { minScore: 38, grade: 'Lv.7', label: '준최적화6', color: '#3b82f6' },
+  { minScore: 32, grade: 'Lv.6', label: '준최적화5', color: '#0ea5e9' },
+  { minScore: 26, grade: 'Lv.5', label: '준최적화4', color: '#0ea5e9' },
+  { minScore: 20, grade: 'Lv.4', label: '준최적화3', color: '#6366f1' },
+  { minScore: 13, grade: 'Lv.3', label: '준최적화2', color: '#6366f1' },
+  { minScore: 7, grade: 'Lv.2', label: '준최적화1', color: '#8b5cf6' },
+  { minScore: 0, grade: 'Lv.1', label: '일반', color: '#94a3b8' },
 ]
 
 function getGrade(score: number) {
@@ -57,11 +66,12 @@ function generateInsights(ctx: {
     insights.push(`현재 평균 SEO 점수는 ${ctx.thisMonthAvg}점입니다. 70점 이상을 목표로 제목 키워드 배치와 소제목 구조를 개선하세요.`)
   }
 
-  // 3. C/D 등급 경고
-  const lowGrades = ctx.gradeDistribution.filter(g => ['C', 'D'].includes(g.grade))
+  // 3. 저등급(Lv.1~Lv.8, 준최적화 이하) 경고
+  const LOW_GRADES = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6', 'Lv.7', 'Lv.8']
+  const lowGrades = ctx.gradeDistribution.filter(g => LOW_GRADES.includes(g.grade))
   const lowCount = lowGrades.reduce((s, g) => s + g.count, 0)
   if (lowCount > 0) {
-    insights.push(`C/D 등급 콘텐츠가 ${lowCount}편 있습니다. SEO 점수 체커로 개선 포인트를 확인하고 수정하세요.`)
+    insights.push(`준최적화 이하(Lv.8 이하) 콘텐츠가 ${lowCount}편 있습니다. SEO 점수 체커로 개선 포인트를 확인하고 수정하세요.`)
   }
 
   // 4. 섹션 분포 분석
@@ -130,7 +140,7 @@ export async function GET() {
       supabase.from('generated_content').select('id, target_keyword, title, status, seo_score, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(500),
       supabase.from('rank_tracking').select('keyword, blog_url, rank_position, section, checked_at').eq('user_id', user.id).gte('checked_at', twoMonthsAgo).order('checked_at', { ascending: false }),
       supabase.from('credit_usage_log').select('credits_spent, created_at').eq('user_id', user.id).gte('created_at', twoMonthsAgo),
-      supabase.from('keyword_research').select('id, seed_keyword, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('keyword_research').select('id, seed_keyword, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100),
     ])
 
     const contents = allContents || []
@@ -262,10 +272,6 @@ export async function GET() {
     // ─── 크레딧 차감 ───
     await deductCredits(supabase, user.id, 'seo_report')
 
-    // ─── 상세 테이블용 데이터 (최신 10건씩) ───
-    const detailContents = contents.slice(0, 10)
-    const detailTracking = uniqueTracking.slice(0, 10)
-
     return NextResponse.json({
       profile: profile || { plan: 'free', email: user.email, credits_balance: 0, credits_monthly_quota: 30 },
       generatedAt: new Date().toISOString(),
@@ -298,8 +304,8 @@ export async function GET() {
       insights,
 
       keywords: keywords || [],
-      contents: detailContents,
-      tracking: detailTracking,
+      contents,
+      tracking: uniqueTracking,
     })
   } catch (error) {
     console.error('[Report] 오류:', error)

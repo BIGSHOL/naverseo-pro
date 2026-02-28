@@ -148,8 +148,8 @@ export function LiveSeoPanel({ keyword, title, content, additionalKeywords, comp
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">실시간 SEO 점수</span>
-              <span className={cn('text-xs font-medium', getScoreTextClass(seo.totalScore))}>
-                {seo.totalScore >= 80 ? '우수' : seo.totalScore >= 60 ? '양호' : seo.totalScore >= 40 ? '보통' : '개선 필요'}
+              <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium', seo.gradeInfo.badgeColor)}>
+                {seo.gradeInfo.label}
               </span>
             </div>
             <div className="mt-1.5 h-2 w-full rounded-full bg-muted">

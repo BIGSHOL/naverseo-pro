@@ -43,6 +43,7 @@ description: 대시보드 및 인증 페이지의 클라이언트 선언, 한국
 | `src/app/(dashboard)/settings/payment/fail/page.tsx` | 결제 실패 페이지 |
 | `src/components/layout/sidebar.tsx` | 사이드바 네비게이션 컴포넌트 |
 | `src/components/layout/mobile-sidebar.tsx` | 모바일 사이드바 네비게이션 컴포넌트 |
+| `src/lib/navigation.ts` | 네비게이션 설정 (navGroups, navItems, NavGroup, NavItem, canAccessFeature) |
 | `src/components/seo/LiveSeoPanel.tsx` | 실시간 SEO 분석 공유 컴포넌트 |
 | `src/components/content/TagEditor.tsx` | 태그 편집 컴포넌트 |
 | `src/components/landing/footer.tsx` | 푸터 컴포넌트 |
@@ -183,23 +184,27 @@ Grep pattern="from '(react-icons|@heroicons|@mui/icons)" path="src/app/(dashboar
 
 ### Step 7: 사이드바 네비게이션 동기화 검증
 
-**파일:** `src/components/layout/sidebar.tsx`, `src/app/(dashboard)/**/page.tsx`
+**파일:** `src/lib/navigation.ts`, `src/components/layout/sidebar.tsx`, `src/components/layout/mobile-sidebar.tsx`, `src/app/(dashboard)/**/page.tsx`
 
-**검사:** 사이드바에 정의된 navItems의 href가 실제 존재하는 페이지와 일치하는지 확인합니다.
+**검사:** `navGroups`에 정의된 href가 실제 존재하는 페이지와 일치하고, sidebar/mobile-sidebar가 navGroups 구조를 사용하는지 확인합니다.
 
 ```bash
-# 사이드바의 navItems에서 href 추출
-Grep pattern="href: '/" path="src/components/layout/sidebar.tsx" output_mode="content"
+# navGroups에서 href 추출 (navigation.ts)
+Grep pattern="href: '/" path="src/lib/navigation.ts" output_mode="content"
+
+# sidebar가 navGroups를 import하는지 확인
+Grep pattern="navGroups" path="src/components/layout/sidebar.tsx" output_mode="content"
+Grep pattern="navGroups" path="src/components/layout/mobile-sidebar.tsx" output_mode="content"
 
 # 실제 대시보드 페이지 디렉토리 확인
 Glob pattern="src/app/(dashboard)/**/page.tsx"
 ```
 
-사이드바의 각 href에 대응하는 페이지 파일이 존재하는지 확인합니다.
+navGroups의 각 href에 대응하는 페이지 파일이 존재하는지 확인합니다. sidebar와 mobile-sidebar 모두 `navGroups`를 import하여 그룹화된 메뉴를 렌더링하는지 확인합니다.
 
-**PASS:** 모든 사이드바 링크에 대응하는 페이지가 존재
-**FAIL:** 사이드바에 링크가 있지만 대응하는 페이지가 없거나, 페이지가 있지만 사이드바에 링크가 없음
-**수정:** 사이드바 navItems 또는 페이지 파일 추가/제거하여 동기화
+**PASS:** 모든 navGroups 링크에 대응하는 페이지가 존재하고, sidebar/mobile-sidebar가 navGroups 사용
+**FAIL:** 링크-페이지 불일치, 또는 sidebar가 구 `navItems` 배열을 직접 사용
+**수정:** navGroups 또는 페이지 파일 추가/제거하여 동기화, sidebar를 navGroups import로 변경
 
 ### Step 8: 동적 데이터 기반 UI 라벨 검증 (blog-index 특화)
 

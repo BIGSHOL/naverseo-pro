@@ -12,6 +12,7 @@ export {
   analyzeSeo,
   analyzeReadability,
   getGradeInfo,
+  getGradeByScore,
 } from './engine'
 
 // AI 분석

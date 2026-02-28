@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callAI, callGeminiStream, callClaudeStream, getUserAiProvider, hasAiApiKey, parseGeminiJson } from '@/lib/ai/gemini'
+
+export const maxDuration = 60
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import {
   buildImprovementSystemPrompt,

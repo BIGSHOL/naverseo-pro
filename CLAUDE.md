@@ -263,7 +263,7 @@ Query:
 
 ### 플랜별 기능 게이트
 - Free (4기능): keyword_research, seo_check, blog_index, post_check
-- Lite (6기능): Free + content_generation, seo_report
+- Lite (7기능): Free + content_generation, seo_report, image_generation
 - Starter 이상: 모든 기능 사용 가능 (크레딧만 있으면 OK)
 
 ### 크레딧 관련 모듈

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeWithAi } from '@/lib/blog-index/ai-analyzer'
 import { type BlogPost } from '@/lib/blog-index/engine'
-import { hasAiApiKey } from '@/lib/ai/gemini'
+import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
+
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +54,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!hasAiApiKey('gemini')) {
+    const provider = await getUserAiProvider(supabase, user.id)
+
+    if (!hasAiApiKey(provider)) {
       return NextResponse.json(
         { error: 'AI API 키가 설정되지 않았습니다.' },
         { status: 400 }
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
           const aiAnalysis = await analyzeWithAi(posts, false, {
             onProgress: (message) => send({ type: 'progress', message }),
             onChunk: (delta) => send({ type: 'stream', delta }),
-          })
+          }, provider)
 
           if (!aiAnalysis) {
             send({ type: 'error', error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' })

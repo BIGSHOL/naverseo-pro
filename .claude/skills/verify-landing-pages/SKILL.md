@@ -31,7 +31,7 @@ description: 랜딩 페이지 컴포넌트의 한국어 마케팅 텍스트, 가
 | `src/components/landing/features-section.tsx` | 기능 소개 섹션 |
 | `src/components/landing/comparison-section.tsx` | 비교 섹션 |
 | `src/components/landing/pricing-section.tsx` | 가격 정책 섹션 |
-| `src/components/landing/faq-section.tsx` | FAQ 섹션 |
+| `src/components/faq/faq-section.tsx` | FAQ 섹션 (가격/기능 안내) |
 | `src/components/landing/cta-section.tsx` | CTA(Call to Action) 섹션 |
 | `src/components/landing/footer.tsx` | 푸터 |
 | `src/types/database.ts` | PLANS 상수 (가격 정보 원본) |
@@ -60,23 +60,28 @@ Grep pattern="<Button[^>]*>[^<]*<" path="src/components/landing" glob="*.tsx" ou
 
 ### Step 2: 가격 정보 일관성 검증
 
-**파일:** `src/components/landing/pricing-section.tsx`, `src/types/database.ts`
+**파일:** `src/components/landing/pricing-section.tsx`, `src/components/faq/faq-section.tsx`, `src/types/database.ts`
 
-**검사:** pricing-section에 표시되는 가격이 `PLANS` 상수에서 가져오는지 확인합니다.
+**검사:** pricing-section에 표시되는 가격이 `PLANS` 상수에서 가져오는지, FAQ의 가격 표기가 USD 단위($)로 통일되어 있는지 확인합니다.
 
 ```bash
 # PLANS import 확인
 Grep pattern="import.*PLANS.*from.*database" path="src/components/landing/pricing-section.tsx" output_mode="content"
 
-# 하드코딩된 가격 검색 (₩ 뒤에 숫자)
-Grep pattern="₩[0-9,]+" path="src/components/landing" glob="*.tsx" output_mode="content" -n
+# 하드코딩된 USD 가격 검색
+Grep pattern="\$[0-9,]+" path="src/components/landing" glob="*.tsx" output_mode="content" -n
+Grep pattern="\$[0-9,]+" path="src/components/faq" glob="*.tsx" output_mode="content" -n
+
+# 구 KRW 가격 잔여 확인 (₩ 또는 원)
+Grep pattern="₩[0-9,]+|[0-9,]+원" path="src/components/landing" glob="*.tsx" output_mode="content" -n
+Grep pattern="₩[0-9,]+|[0-9,]+원" path="src/components/faq" glob="*.tsx" output_mode="content" -n
 ```
 
-pricing-section은 `PLANS` 상수에서 가격 데이터를 가져와야 합니다. hero-section이나 cta-section의 가격 언급은 마케팅 문구로서 허용됩니다.
+pricing-section은 `PLANS` 상수에서 가격 데이터를 가져와야 합니다. FAQ 등 마케팅 문구의 가격은 USD 단위($5, $10, $20 등)로 표기되어야 합니다. hero-section이나 cta-section의 가격 언급도 USD로 통일되어야 합니다.
 
-**PASS:** pricing-section이 `PLANS` import를 사용하고, 가격 데이터가 일원화됨
-**FAIL:** pricing-section에서 가격이 하드코딩되어 `PLANS` 상수와 불일치 가능
-**수정:** `PLANS` import를 사용하여 가격 표시
+**PASS:** pricing-section이 `PLANS` import를 사용하고, 모든 가격이 USD($) 단위로 통일
+**FAIL:** KRW(₩) 가격이 잔여하거나, USD 가격이 PLANS 상수와 불일치
+**수정:** `PLANS` import를 사용하여 가격 표시, 잔여 KRW 표기를 USD로 변환
 
 ### Step 3: shadcn/ui 컴포넌트 사용 검증
 

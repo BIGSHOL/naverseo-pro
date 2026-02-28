@@ -51,6 +51,7 @@ description: API Route의 에러 처리, 입력 검증, 데모 데이터 폴백,
 | `src/lib/ai/gemini.ts` | Gemini AI 유틸리티 (callGemini, 시스템 프롬프트) |
 | `src/lib/naver/search-ad.ts` | 네이버 검색광고 API 유틸리티 |
 | `src/lib/naver/blog-fetch.ts` | 네이버 블로그 URL 파싱/콘텐츠 추출 유틸리티 |
+| `src/lib/naver/post-meta-extractor.ts` | 블로그 포스트 메타데이터 추출 (태그, 서식, 링크 분석) |
 | `src/app/api/search-history/route.ts` | 검색 히스토리 조회/저장 엔드포인트 |
 | `src/app/api/templates/route.ts` | 콘텐츠 템플릿 관리 엔드포인트 (GET/POST/DELETE) |
 | `src/lib/naver/visitor-stats.ts` | 네이버 방문자 통계 유틸리티 |
@@ -230,6 +231,26 @@ Grep pattern="(api[_-]?key|secret|password)\s*[:=]\s*['\"][^'\"]{10,}" path="src
 **FAIL:** API 키나 시크릿이 코드에 하드코딩됨
 **수정:** 환경변수로 이동하고 `.env.local`에 추가
 
+### Step 9: report 라우트 등급 상수와 SEO 엔진 일관성 검증
+
+**파일:** `src/app/api/report/route.ts`, `src/lib/seo/engine.ts`
+
+**검사:** report route에 로컬로 정의된 `GRADE_THRESHOLDS`의 16단계 등급/임계값이 SEO 엔진의 `SEO_GRADE_TABLE`과 동기화되어 있는지 확인합니다.
+
+```bash
+# report route의 로컬 GRADE_THRESHOLDS 16단계 확인
+Grep pattern="minScore:.*grade:" path="src/app/api/report/route.ts" output_mode="content" -n
+
+# SEO 엔진의 SEO_GRADE_TABLE 16단계 확인
+Grep pattern="minScore:.*tier:" path="src/lib/seo/engine.ts" output_mode="content" -n head_limit=16
+```
+
+report route의 16개 항목(95/89/82/76/70/64/57/51/45/38/32/26/20/13/7/0)이 SEO 엔진의 임계값과 동일한지 대조합니다. 등급 라벨(Lv.16~Lv.1)도 일치해야 합니다.
+
+**PASS:** 로컬 GRADE_THRESHOLDS의 16단계 임계값 + 등급 라벨이 SEO 엔진과 동일
+**FAIL:** 임계값 또는 등급 라벨이 불일치
+**수정:** 로컬 상수를 SEO 엔진의 값과 동기화하거나, `getGradeByScore()`를 import하여 사용
+
 ## Output Format
 
 ```markdown
@@ -245,6 +266,7 @@ Grep pattern="(api[_-]?key|secret|password)\s*[:=]\s*['\"][^'\"]{10,}" path="src
 | 6 | AI JSON 파싱 | PASS/FAIL | 파일명 | 상세 설명 |
 | 7 | NDJSON 스트리밍 에러 처리 | PASS/FAIL | 파일명 | 상세 설명 |
 | 8 | 환경변수 검증 | PASS/FAIL | 파일명 | 상세 설명 |
+| 9 | report 등급 상수 일관성 | PASS/FAIL | report/route.ts, seo/engine.ts | 상세 설명 |
 ```
 
 ## Exceptions

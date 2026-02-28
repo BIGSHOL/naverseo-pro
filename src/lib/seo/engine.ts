@@ -6,7 +6,7 @@
  * 주요 기능:
  * 1. 13개 항목 SEO 점수 분석 (100점 만점)
  * 2. 한국어 가독성 분석 (A~F 등급)
- * 3. 등급 체계 (S/A+/A/B+/B/C/D)
+ * 3. 등급 체계 (16단계 - 블로그 지수와 동일 기준)
  * 4. 개선 우선순위 자동 산출
  *
  * 분석 항목:
@@ -15,7 +15,6 @@
  * - 신규 3개: 내부 링크, 메타 설명, 모바일 최적화
  */
 
-import { determineGrade, type GradeTableEntry } from '@/lib/utils/grading'
 import { detectStuffingPatterns } from '@/lib/utils/text'
 
 // ===== 타입 정의 =====
@@ -44,12 +43,23 @@ export interface SeoCategory {
   priority: 'high' | 'medium' | 'low'       // 개선 우선순위
 }
 
-/** 등급 상세 정보 */
+/** 등급 상세 정보 (16단계 - 블로그 지수와 동일 기준) */
 export interface SeoGradeInfo {
-  grade: string        // S/A+/A/B+/B/C/D
-  label: string        // 최적화 완료/우수/양호/보통 상위/보통/개선 필요/심각한 개선 필요
-  color: string        // green/blue/yellow/orange/red
-  description: string  // 상세 설명
+  tier: number         // 1~16
+  category: string     // '파워' | '최적화+' | '최적화' | '준최적화' | '일반'
+  grade: string        // = label (예: 'Lv.16 파워')
+  label: string        // 'Lv.16 파워' 등
+  shortLabel: string   // '파워' 등
+  color: string        // 'amber' 등
+  badgeColor: string   // 'bg-amber-100 text-amber-700 border-amber-300'
+  description: string
+  nextTierScore: number | null
+}
+
+/** SEO 등급 테이블 항목 */
+interface SeoGradeEntry {
+  minScore: number
+  info: SeoGradeInfo
 }
 
 /** SEO 분석 상세 정보 */
@@ -67,8 +77,8 @@ export interface SeoAnalysisDetails {
 /** SEO 분석 결과 (100점 만점) */
 export interface SeoAnalysisResult {
   totalScore: number
-  grade: string                    // 기존 호환: 문자열 등급
-  gradeInfo: SeoGradeInfo          // 신규: 등급 상세
+  grade: string                    // 등급 라벨 (예: 'Lv.16 파워')
+  gradeInfo: SeoGradeInfo          // 등급 상세 (16단계)
   categories: SeoCategory[]
   strengths: string[]
   improvements: string[]
@@ -91,27 +101,46 @@ export interface ReadabilityResult {
   details: string[]
 }
 
-// ===== 등급 체계 =====
+// ===== 등급 체계 (16단계 - 블로그 지수와 동일 임계값) =====
 
-const SEO_GRADE_TABLE: GradeTableEntry[] = [
-  { minScore: 90, info: { grade: 'S',  label: '최적화 완료',     color: 'green',  description: '네이버 SEO에 완벽히 최적화된 콘텐츠입니다' } },
-  { minScore: 80, info: { grade: 'A+', label: '우수',           color: 'green',  description: '매우 높은 수준의 SEO 최적화 상태입니다' } },
-  { minScore: 70, info: { grade: 'A',  label: '양호',           color: 'blue',   description: '전반적으로 잘 최적화되어 있으며 소폭 개선 여지가 있습니다' } },
-  { minScore: 60, info: { grade: 'B+', label: '보통 상위',       color: 'blue',   description: '기본적인 SEO는 갖추었으나 개선하면 더 좋아집니다' } },
-  { minScore: 50, info: { grade: 'B',  label: '보통',           color: 'yellow', description: '일부 SEO 요소가 부족합니다' } },
-  { minScore: 40, info: { grade: 'C',  label: '개선 필요',       color: 'orange', description: '여러 SEO 요소에서 개선이 필요합니다' } },
-  { minScore: 0,  info: { grade: 'D',  label: '심각한 개선 필요', color: 'red',    description: 'SEO 최적화가 거의 되어 있지 않습니다' } },
+const SEO_GRADE_TABLE: SeoGradeEntry[] = [
+  { minScore: 95, info: { tier: 16, category: '파워', grade: 'Lv.16 파워', label: 'Lv.16 파워', shortLabel: '파워', color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', description: '네이버 SEO에 완벽히 최적화된 파워 콘텐츠입니다', nextTierScore: null } },
+  { minScore: 89, info: { tier: 15, category: '최적화+', grade: 'Lv.15 최적화4+', label: 'Lv.15 최적화4+', shortLabel: '최적화4+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', description: '최상위 SEO 수준입니다. 파워 등급까지 한 걸음입니다', nextTierScore: 95 } },
+  { minScore: 82, info: { tier: 14, category: '최적화+', grade: 'Lv.14 최적화3+', label: 'Lv.14 최적화3+', shortLabel: '최적화3+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', description: '매우 높은 SEO 최적화 수준입니다', nextTierScore: 89 } },
+  { minScore: 76, info: { tier: 13, category: '최적화+', grade: 'Lv.13 최적화2+', label: 'Lv.13 최적화2+', shortLabel: '최적화2+', color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', description: '경쟁 키워드에서도 우수한 검색 노출이 기대됩니다', nextTierScore: 82 } },
+  { minScore: 70, info: { tier: 12, category: '최적화+', grade: 'Lv.12 최적화1+', label: 'Lv.12 최적화1+', shortLabel: '최적화1+', color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', description: 'SEO 최적화가 우수합니다. 고급 키워드 전략을 시도하세요', nextTierScore: 76 } },
+  { minScore: 64, info: { tier: 11, category: '최적화', grade: 'Lv.11 최적화3', label: 'Lv.11 최적화3', shortLabel: '최적화3', color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', description: '안정적인 SEO 최적화 상태입니다. 최적화+ 등급에 도전하세요', nextTierScore: 70 } },
+  { minScore: 57, info: { tier: 10, category: '최적화', grade: 'Lv.10 최적화2', label: 'Lv.10 최적화2', shortLabel: '최적화2', color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', description: '양호한 SEO 상태입니다. 콘텐츠 깊이를 더 높여보세요', nextTierScore: 64 } },
+  { minScore: 51, info: { tier: 9, category: '최적화', grade: 'Lv.9 최적화1', label: 'Lv.9 최적화1', shortLabel: '최적화1', color: 'lime', badgeColor: 'bg-lime-100 text-lime-700 border-lime-300', description: '기본 SEO가 갖춰져 있습니다. 경쟁 키워드도 도전해보세요', nextTierScore: 57 } },
+  { minScore: 45, info: { tier: 8, category: '준최적화', grade: 'Lv.8 준최적화7', label: 'Lv.8 준최적화7', shortLabel: '준최적화7', color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', description: 'SEO 기본 요소를 보강하면 검색 노출이 향상됩니다', nextTierScore: 51 } },
+  { minScore: 38, info: { tier: 7, category: '준최적화', grade: 'Lv.7 준최적화6', label: 'Lv.7 준최적화6', shortLabel: '준최적화6', color: 'blue', badgeColor: 'bg-blue-100 text-blue-700 border-blue-300', description: 'SEO 개선 여지가 많습니다. 주요 항목부터 보완하세요', nextTierScore: 45 } },
+  { minScore: 32, info: { tier: 6, category: '준최적화', grade: 'Lv.6 준최적화5', label: 'Lv.6 준최적화5', shortLabel: '준최적화5', color: 'sky', badgeColor: 'bg-sky-100 text-sky-700 border-sky-300', description: '콘텐츠 구조와 키워드 배치를 개선하세요', nextTierScore: 38 } },
+  { minScore: 26, info: { tier: 5, category: '준최적화', grade: 'Lv.5 준최적화4', label: 'Lv.5 준최적화4', shortLabel: '준최적화4', color: 'sky', badgeColor: 'bg-sky-100 text-sky-700 border-sky-300', description: '키워드 전략과 콘텐츠 길이부터 개선이 필요합니다', nextTierScore: 32 } },
+  { minScore: 20, info: { tier: 4, category: '준최적화', grade: 'Lv.4 준최적화3', label: 'Lv.4 준최적화3', shortLabel: '준최적화3', color: 'indigo', badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-300', description: 'SEO 기본기를 갖추는 단계입니다. 제목과 소제목부터 최적화하세요', nextTierScore: 26 } },
+  { minScore: 13, info: { tier: 3, category: '준최적화', grade: 'Lv.3 준최적화2', label: 'Lv.3 준최적화2', shortLabel: '준최적화2', color: 'indigo', badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-300', description: '기본적인 SEO 최적화를 시작해보세요', nextTierScore: 20 } },
+  { minScore: 7,  info: { tier: 2, category: '준최적화', grade: 'Lv.2 준최적화1', label: 'Lv.2 준최적화1', shortLabel: '준최적화1', color: 'violet', badgeColor: 'bg-violet-100 text-violet-700 border-violet-300', description: '콘텐츠 길이와 키워드 포함부터 시작하세요', nextTierScore: 13 } },
+  { minScore: 0,  info: { tier: 1, category: '일반', grade: 'Lv.1 일반', label: 'Lv.1 일반', shortLabel: '일반', color: 'slate', badgeColor: 'bg-slate-100 text-slate-700 border-slate-300', description: 'SEO 최적화가 거의 되어 있지 않습니다', nextTierScore: 7 } },
 ]
 
-/** 점수로 등급 정보 조회 */
+/** 점수로 등급 정보 조회 (내부용) */
 function calculateGrade(score: number): SeoGradeInfo {
-  return determineGrade(score, SEO_GRADE_TABLE) as SeoGradeInfo
+  for (const entry of SEO_GRADE_TABLE) {
+    if (score >= entry.minScore) {
+      return entry.info
+    }
+  }
+  return SEO_GRADE_TABLE[SEO_GRADE_TABLE.length - 1].info
+}
+
+/** 점수로 등급 정보 조회 (외부 export용) */
+export function getGradeByScore(score: number): SeoGradeInfo {
+  return calculateGrade(score)
 }
 
 /** 등급 문자열로 등급 상세 조회 */
 export function getGradeInfo(grade: string): SeoGradeInfo {
   const found = SEO_GRADE_TABLE.find(e => e.info.grade === grade)
-  return (found?.info || SEO_GRADE_TABLE[SEO_GRADE_TABLE.length - 1].info) as SeoGradeInfo
+  return found?.info || SEO_GRADE_TABLE[SEO_GRADE_TABLE.length - 1].info
 }
 
 // ===== 개별 분석 함수 =====

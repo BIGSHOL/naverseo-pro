@@ -13,12 +13,19 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { cn } from '@/lib/utils'
-import { analyzeSeo } from '@/lib/seo/engine'
+import { analyzeSeo, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl } from '@/lib/utils/text'
+import dynamic from 'next/dynamic'
+
+// TipTap 에디터는 클라이언트 전용 (SSR 방지)
+const TiptapEditor = dynamic(
+  () => import('@/components/content/TiptapEditor').then(mod => ({ default: mod.TiptapEditor })),
+  { ssr: false, loading: () => <div className="h-[300px] animate-pulse rounded-lg border bg-muted" /> }
+)
 
 interface SeoCategory {
   id: string
@@ -69,18 +76,43 @@ function getCategoryScoreColor(score: number, max: number) {
   return 'text-red-600'
 }
 
-function getOverallScoreBg(score: number) {
+/** 점수 기반 프로그레스 바 색상 (카테고리 항목용) */
+function getScoreBarBg(score: number) {
   if (score >= 80) return 'bg-green-500'
   if (score >= 60) return 'bg-yellow-500'
   if (score >= 40) return 'bg-orange-500'
   return 'bg-red-500'
 }
 
-function getGradeLabel(score: number) {
-  if (score >= 80) return { label: '우수', icon: CheckCircle, color: 'text-green-600', tooltip: 'SEO 최적화가 매우 잘 되어 있습니다' }
-  if (score >= 60) return { label: '양호', icon: CheckCircle, color: 'text-green-600', tooltip: 'SEO 기본 요소가 잘 갖춰져 있습니다' }
-  if (score >= 40) return { label: '보통', icon: AlertTriangle, color: 'text-yellow-600', tooltip: '일부 SEO 요소의 개선이 필요합니다' }
-  return { label: '개선 필요', icon: XCircle, color: 'text-red-600', tooltip: 'SEO 핵심 요소의 보완이 필요합니다' }
+/** 16단계 등급 색상 → 원형 스코어 배경 */
+function getScoreCircleBg(color: string) {
+  const map: Record<string, string> = {
+    amber: 'bg-amber-500', emerald: 'bg-emerald-500', teal: 'bg-teal-500',
+    green: 'bg-green-500', lime: 'bg-lime-600', blue: 'bg-blue-500',
+    sky: 'bg-sky-500', indigo: 'bg-indigo-500', violet: 'bg-violet-500', slate: 'bg-slate-500',
+  }
+  return map[color] || 'bg-slate-500'
+}
+
+/** 16단계 등급 색상 → 텍스트 색상 */
+function getGradeTextColor(color: string) {
+  const map: Record<string, string> = {
+    amber: 'text-amber-700', emerald: 'text-emerald-700', teal: 'text-teal-700',
+    green: 'text-green-700', lime: 'text-lime-700', blue: 'text-blue-700',
+    sky: 'text-sky-700', indigo: 'text-indigo-700', violet: 'text-violet-700', slate: 'text-slate-700',
+  }
+  return map[color] || 'text-slate-700'
+}
+
+/** 카테고리별 아이콘 */
+function getGradeCategoryIcon(category: string) {
+  switch (category) {
+    case '파워': return Star
+    case '최적화+': return CheckCircle
+    case '최적화': return CheckCircle
+    case '준최적화': return AlertTriangle
+    default: return XCircle
+  }
 }
 
 function getCharCountClass(len: number) {
@@ -121,7 +153,8 @@ export default function SeoCheckPage() {
   const [error, setError] = useState('')
   const [planGate, setPlanGate] = useState<string | null>(null)
   const [result, setResult] = useState<SeoResult | null>(null)
-  const [showUrlInput, setShowUrlInput] = useState(false)
+  // 입력 모드: 'url' (기본) vs 'manual' (직접 입력)
+  const [inputMode, setInputMode] = useState<'url' | 'manual'>('url')
   const [blogUrl, setBlogUrl] = useState('')
   const [fetchingUrl, setFetchingUrl] = useState(false)
   const [fetchSource, setFetchSource] = useState('')
@@ -133,6 +166,8 @@ export default function SeoCheckPage() {
     formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number }
   } | null>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
+  // URL fetch 후 콘텐츠 미리보기 접기/펼치기
+  const [showContentPreview, setShowContentPreview] = useState(false)
 
   // 프로그레스 UI
   const [progressStep, setProgressStep] = useState<ProgressStep | null>(null)
@@ -156,8 +191,10 @@ export default function SeoCheckPage() {
     const storedTitle = sessionStorage.getItem('naverseo-workflow:content-title')
     const storedKeyword = sessionStorage.getItem('naverseo-workflow:content-keyword')
 
+    // sessionStorage에서 콘텐츠가 있으면 직접 입력 모드로 전환
     if (storedContent) {
       setContent(storedContent)
+      setInputMode('manual')
       sessionStorage.removeItem('naverseo-workflow:content-body')
     }
     if (storedTitle) {
@@ -209,7 +246,6 @@ export default function SeoCheckPage() {
         // 이미지가 있으면 갤러리 자동 표시
         if (sd.imageUrls?.length > 0) setShowImageGallery(true)
       }
-      setShowUrlInput(false)
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
@@ -461,7 +497,8 @@ export default function SeoCheckPage() {
     }
   }
 
-  const grade = result ? getGradeLabel(result.totalScore) : null
+  const gradeInfo: SeoGradeInfo | null = result ? getGradeByScore(result.totalScore) : null
+  const GradeIcon = gradeInfo ? getGradeCategoryIcon(gradeInfo.category) : null
   const ai = result?.aiAnalysis
 
   return (
@@ -479,218 +516,266 @@ export default function SeoCheckPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-lg">
-              <span>콘텐츠 입력</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs sm:h-8 sm:text-sm"
-                    onClick={() => setShowUrlInput(!showUrlInput)}
-                  >
-                    <Link2 className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
-                    URL로 가져오기
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>네이버 블로그 URL에서 제목과 본문을 자동으로 가져옵니다</p></TooltipContent>
-              </Tooltip>
+              <span>{inputMode === 'url' ? '블로그 URL 분석' : '직접 입력 분석'}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={() => {
+                  setInputMode(inputMode === 'url' ? 'manual' : 'url')
+                  setError('')
+                }}
+              >
+                {inputMode === 'url' ? '직접 입력으로 전환' : 'URL 분석으로 전환'}
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {showUrlInput && (
-              <div className="mb-4 rounded-md border border-dashed p-4 space-y-3">
-                <Label>네이버 블로그 URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://blog.naver.com/blogid/123456789"
-                    value={blogUrl}
-                    onChange={(e) => setBlogUrl(e.target.value)}
-                    disabled={fetchingUrl}
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleFetchBlog}
-                    disabled={fetchingUrl || !blogUrl.trim()}
-                  >
-                    {fetchingUrl ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      '가져오기'
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  네이버 블로그 글 URL을 입력하면 제목과 본문을 자동으로 가져옵니다
-                </p>
-              </div>
-            )}
-
-            {fetchSource && (
-              <div className="mb-4 space-y-2">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
-                    <ExternalLink className="h-3 w-3" />
-                    URL에서 가져옴
-                  </Badge>
-                  <a
-                    href={ensureUrl(fetchSource)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
-                  >
-                    {fetchSource}
-                  </a>
-                </div>
-                {scrapedStats && (
-                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="rounded bg-muted px-2 py-0.5">{scrapedStats.charCount.toLocaleString()}자</span>
-                    <span className="rounded bg-muted px-2 py-0.5">이미지 {scrapedStats.imageCount}개</span>
-                    {scrapedStats.videoCount > 0 && <span className="rounded bg-muted px-2 py-0.5">동영상 {scrapedStats.videoCount}개</span>}
-                    <span className="rounded bg-muted px-2 py-0.5">댓글 {scrapedStats.commentCount ?? '?'}개</span>
-                    <span className="rounded bg-muted px-2 py-0.5">공감 {scrapedStats.sympathyCount ?? '?'}개</span>
-                    {scrapedStats.readCount != null && <span className="rounded bg-muted px-2 py-0.5">조회 {scrapedStats.readCount.toLocaleString()}회</span>}
-                  </div>
-                )}
-              </div>
-            )}
-
             <form onSubmit={handleAnalyze} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="keyword">타겟 키워드</Label>
-                  <Input
-                    id="keyword"
-                    placeholder="예: 다이어트 식단"
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="title">글 제목</Label>
-                  <Input
-                    id="title"
-                    placeholder="블로그 글 제목을 입력하세요"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-              </div>
+              {/* === URL 모드 === */}
+              {inputMode === 'url' && (
+                <>
+                  {/* URL 입력 */}
+                  <div className="space-y-2">
+                    <Label>네이버 블로그 URL</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://blog.naver.com/blogid/123456789"
+                        value={blogUrl}
+                        onChange={(e) => setBlogUrl(e.target.value)}
+                        disabled={fetchingUrl || loading}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleFetchBlog()
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleFetchBlog}
+                        disabled={fetchingUrl || !blogUrl.trim() || loading}
+                      >
+                        {fetchingUrl ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          '가져오기'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="content">본문 *</Label>
-                  <span className={cn('text-xs font-medium', getCharCountClass(content.length))}>
-                    {content.length.toLocaleString()}자
-                    {content.length > 0 && content.length < 1500 && ' (최소 1,500자 권장)'}
-                    {content.length >= 1500 && content.length <= 3000 && ' (적정)'}
-                    {content.length > 3000 && ' (길 수 있음)'}
-                  </span>
-                </div>
-                <textarea
-                  id="content"
-                  className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="분석할 블로그 글 내용을 붙여넣기 하세요..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
+                  {/* 키워드 입력 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="keyword">타겟 키워드 (선택)</Label>
+                    <Input
+                      id="keyword"
+                      placeholder="예: 다이어트 식단"
+                      value={keyword}
+                      onChange={(e) => setKeyword(e.target.value)}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">키워드를 입력하면 키워드 밀도, 배치 등 더 정밀한 분석이 가능합니다</p>
+                  </div>
 
-              {/* URL에서 가져온 추가 정보: 태그, 서식, 이미지 */}
-              {scrapedStats && (
-                <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-                  {/* 태그 */}
-                  {scrapedStats.tags.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">태그 ({scrapedStats.tags.length}개)</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {scrapedStats.tags.map((tag, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs font-normal">
-                            #{tag}
+                  {/* URL fetch 완료 후 결과 요약 */}
+                  {fetchSource && content && (
+                    <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+                      {/* 출처 + 기본 정보 */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
+                            <ExternalLink className="h-3 w-3" />
+                            분석 대상
                           </Badge>
-                        ))}
+                          <a
+                            href={ensureUrl(fetchSource)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-0 truncate text-xs text-muted-foreground hover:underline"
+                          >
+                            {fetchSource}
+                          </a>
+                        </div>
+                        {title && (
+                          <p className="text-sm font-medium">{title}</p>
+                        )}
+                        {scrapedStats && (
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            <span className="rounded bg-muted px-2 py-0.5">{scrapedStats.charCount.toLocaleString()}자</span>
+                            <span className="rounded bg-muted px-2 py-0.5">이미지 {scrapedStats.imageCount}개</span>
+                            {scrapedStats.videoCount > 0 && <span className="rounded bg-muted px-2 py-0.5">동영상 {scrapedStats.videoCount}개</span>}
+                            <span className="rounded bg-muted px-2 py-0.5">댓글 {scrapedStats.commentCount ?? '?'}개</span>
+                            <span className="rounded bg-muted px-2 py-0.5">공감 {scrapedStats.sympathyCount ?? '?'}개</span>
+                            {scrapedStats.readCount != null && <span className="rounded bg-muted px-2 py-0.5">조회 {scrapedStats.readCount.toLocaleString()}회</span>}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
 
-                  {/* 서식 사용 현황 */}
-                  {scrapedStats.formatting && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        서식 사용 ({scrapedStats.formatting.count}/6종)
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { key: 'hasBold', label: '볼드', icon: Bold },
-                          { key: 'hasHeading', label: '소제목', icon: Heading },
-                          { key: 'hasFontSize', label: '글자크기', icon: Type },
-                          { key: 'hasColor', label: '글자색', icon: Palette },
-                          { key: 'hasHighlight', label: '형광펜', icon: Highlighter },
-                          { key: 'hasUnderline', label: '밑줄', icon: Underline },
-                        ].map(({ key, label, icon: Icon }) => {
-                          const used = scrapedStats.formatting?.[key as keyof typeof scrapedStats.formatting] as boolean
-                          return (
-                            <span
-                              key={key}
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs',
-                                used
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                  : 'bg-muted text-muted-foreground line-through'
-                              )}
-                            >
-                              <Icon className="h-3 w-3" />
-                              {label}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      {/* 태그 */}
+                      {scrapedStats?.tags && scrapedStats.tags.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">태그 ({scrapedStats.tags.length}개)</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {scrapedStats.tags.map((tag, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs font-normal">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                  {/* 이미지 갤러리 토글 */}
-                  {scrapedStats.imageUrls.length > 0 && (
-                    <div className="space-y-2">
+                      {/* 서식 사용 현황 */}
+                      {scrapedStats?.formatting && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            서식 사용 ({scrapedStats.formatting.count}/6종)
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { key: 'hasBold', label: '볼드', icon: Bold },
+                              { key: 'hasHeading', label: '소제목', icon: Heading },
+                              { key: 'hasFontSize', label: '글자크기', icon: Type },
+                              { key: 'hasColor', label: '글자색', icon: Palette },
+                              { key: 'hasHighlight', label: '형광펜', icon: Highlighter },
+                              { key: 'hasUnderline', label: '밑줄', icon: Underline },
+                            ].map(({ key, label, icon: Icon }) => {
+                              const used = scrapedStats.formatting?.[key as keyof typeof scrapedStats.formatting] as boolean
+                              return (
+                                <span
+                                  key={key}
+                                  className={cn(
+                                    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs',
+                                    used
+                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                      : 'bg-muted text-muted-foreground line-through'
+                                  )}
+                                >
+                                  <Icon className="h-3 w-3" />
+                                  {label}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 이미지 갤러리 토글 */}
+                      {scrapedStats?.imageUrls && scrapedStats.imageUrls.length > 0 && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setShowImageGallery(!showImageGallery)}
+                          >
+                            <Image className="h-3.5 w-3.5" />
+                            이미지 {scrapedStats.imageUrls.length}개
+                            <span className="text-primary">{showImageGallery ? '접기' : '펼치기'}</span>
+                          </button>
+                          {showImageGallery && (
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                              {scrapedStats.imageUrls.map((url, i) => (
+                                <a
+                                  key={i}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={url}
+                                    alt={`이미지 ${i + 1}`}
+                                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <span className="absolute bottom-0 right-0 bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                                    {i + 1}
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 본문 미리보기 토글 */}
                       <button
                         type="button"
                         className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => setShowImageGallery(!showImageGallery)}
+                        onClick={() => setShowContentPreview(!showContentPreview)}
                       >
-                        <Image className="h-3.5 w-3.5" />
-                        이미지 {scrapedStats.imageUrls.length}개
-                        <span className="text-primary">{showImageGallery ? '접기' : '펼치기'}</span>
+                        <Type className="h-3.5 w-3.5" />
+                        본문 미리보기
+                        <span className="text-primary">{showContentPreview ? '접기' : '펼치기'}</span>
                       </button>
-                      {showImageGallery && (
-                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-                          {scrapedStats.imageUrls.map((url, i) => (
-                            <a
-                              key={i}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={url}
-                                alt={`이미지 ${i + 1}`}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                              />
-                              <span className="absolute bottom-0 right-0 bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
-                                {i + 1}
-                              </span>
-                            </a>
-                          ))}
+                      {showContentPreview && (
+                        <div className="max-h-[200px] overflow-y-auto rounded border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap">
+                          {content.slice(0, 2000)}{content.length > 2000 && '...'}
                         </div>
                       )}
                     </div>
                   )}
-                </div>
+                </>
+              )}
+
+              {/* === 직접 입력 모드 === */}
+              {inputMode === 'manual' && (
+                <>
+                  <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-400">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>서식 에디터로 볼드, 소제목, 색상 등을 적용하면 SEO 분석에 반영됩니다. 단, 태그/댓글/공감 등 블로그 메타 정보는 URL 분석에서만 확인 가능합니다.</span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="keyword">타겟 키워드</Label>
+                      <Input
+                        id="keyword"
+                        placeholder="예: 다이어트 식단"
+                        value={keyword}
+                        onChange={(e) => setKeyword(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="title">글 제목</Label>
+                      <Input
+                        id="title"
+                        placeholder="블로그 글 제목을 입력하세요"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>본문 *</Label>
+                      <span className={cn('text-xs font-medium', getCharCountClass(content.length))}>
+                        {content.length.toLocaleString()}자
+                        {content.length > 0 && content.length < 1500 && ' (최소 1,500자 권장)'}
+                        {content.length >= 1500 && content.length <= 3000 && ' (적정)'}
+                        {content.length > 3000 && ' (길 수 있음)'}
+                      </span>
+                    </div>
+                    <TiptapEditor
+                      markdown={content}
+                      onMarkdownChange={setContent}
+                      placeholder="서식을 적용하며 블로그 글을 작성하거나 붙여넣기 하세요..."
+                      className="min-h-[300px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      서식(볼드, 소제목, 색상 등)을 적용하면 SEO 분석에 반영됩니다. 작성 후 네이버 블로그에 서식 유지 복사 가능합니다.
+                    </p>
+                  </div>
+                </>
               )}
 
               {error && (
@@ -789,7 +874,7 @@ export default function SeoCheckPage() {
       </div>
 
       {/* AI 심층 분석 결과 */}
-      {result && grade && (
+      {result && gradeInfo && GradeIcon && (
         <>
           {/* 총점 카드 */}
           <Card>
@@ -798,7 +883,7 @@ export default function SeoCheckPage() {
                 <div className="flex items-center gap-4">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className={`flex h-20 w-20 items-center justify-center rounded-full cursor-help ${getOverallScoreBg(result.totalScore)}`}>
+                      <div className={cn('flex h-20 w-20 items-center justify-center rounded-full cursor-help', getScoreCircleBg(gradeInfo.color))}>
                         <span className="text-2xl font-bold text-white">{result.totalScore}</span>
                       </div>
                     </TooltipTrigger>
@@ -807,23 +892,29 @@ export default function SeoCheckPage() {
                   <div>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className={`flex items-center gap-1 text-lg font-bold cursor-help ${grade.color}`}>
-                          <grade.icon className="h-5 w-5" />
-                          {grade.label}
+                        <div className="flex items-center gap-2 cursor-help">
+                          <Badge className={cn('gap-1 text-sm font-bold border', gradeInfo.badgeColor)}>
+                            <GradeIcon className="h-4 w-4" />
+                            {gradeInfo.label}
+                          </Badge>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent><p>{grade.tooltip}</p></TooltipContent>
+                      <TooltipContent><p>{gradeInfo.description}</p></TooltipContent>
                     </Tooltip>
-                    <div className="flex items-center gap-2">
+                    <div className="mt-1 flex items-center gap-2">
                       <p className="text-sm text-muted-foreground">AI 심층 분석 결과</p>
                       {result.isDemo && (
                         <Badge variant="outline" className="text-xs">데모</Badge>
                       )}
                     </div>
+                    {gradeInfo.nextTierScore && (
+                      <p className={cn('mt-0.5 text-xs', getGradeTextColor(gradeInfo.color))}>
+                        다음 등급까지 {gradeInfo.nextTierScore - result.totalScore}점
+                      </p>
+                    )}
                     {result.isDemo && result.demoReason && (
                       <p className="text-xs text-amber-600">{result.demoReason}</p>
                     )}
-                    {/* AI 점수 보정 표시 */}
                     {ai && ai.scoreAdjustment !== 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {ai.scoreAdjustment > 0 ? '+' : ''}{ai.scoreAdjustment}점 보정 ({ai.adjustmentReason})
@@ -1066,7 +1157,7 @@ export default function SeoCheckPage() {
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted">
                     <div
-                      className={`h-2 rounded-full transition-all ${getOverallScoreBg(cat.score * (100 / cat.maxScore))}`}
+                      className={`h-2 rounded-full transition-all ${getScoreBarBg(cat.score * (100 / cat.maxScore))}`}
                       style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
                     />
                   </div>

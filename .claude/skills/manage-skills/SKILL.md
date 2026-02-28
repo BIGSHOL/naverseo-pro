@@ -31,11 +31,11 @@ argument-hint: "[선택사항: 특정 스킬 이름 또는 집중할 영역]"
 | 스킬 | 설명 | 커버 파일 패턴 |
 |------|------|---------------|
 | `verify-api-routes` | API Route 에러 처리/입력 검증/데모 폴백/한국어 메시지 검증 | `src/app/api/**/*.ts`, `src/lib/ai/*.ts`, `src/lib/ai/prompts/*.ts`, `src/lib/naver/*.ts`, `src/lib/lemonsqueezy/*.ts`, `src/app/api/webhooks/**/*.ts`, `src/app/api/profile/**/*.ts` |
-| `verify-dashboard-pages` | 대시보드/인증 페이지 클라이언트 선언/한국어 UI/shadcn-ui/로딩 상태 검증 | `src/app/(dashboard)/**/*.tsx`, `src/app/(auth)/**/*.tsx`, `src/components/layout/*.tsx` |
-| `verify-landing-pages` | 랜딩 페이지 한국어 마케팅 텍스트/가격 일관성/shadcn-ui/아이콘 통일 검증 | `src/components/landing/*.tsx`, `src/app/page.tsx` |
+| `verify-dashboard-pages` | 대시보드/인증 페이지 클라이언트 선언/한국어 UI/shadcn-ui/로딩 상태 검증 | `src/app/(dashboard)/**/*.tsx`, `src/app/(auth)/**/*.tsx`, `src/components/layout/*.tsx`, `src/lib/navigation.ts` |
+| `verify-landing-pages` | 랜딩 페이지 한국어 마케팅 텍스트/가격 일관성/shadcn-ui/아이콘 통일 검증 | `src/components/landing/*.tsx`, `src/components/faq/*.tsx`, `src/app/page.tsx` |
 | `verify-plan-limits` | 통합 크레딧 시스템 일관 적용 검증 | `src/app/api/**/*.ts`, `src/lib/credit-check.ts`, `src/types/database.ts`, `src/app/api/credits/route.ts`, `src/app/(dashboard)/credits/page.tsx` |
 | `verify-shared-utils` | 공유 유틸리티 중복 코드/import 경로/미사용 export 검증 | `src/components/keywords/*.tsx`, `src/lib/utils.ts`, `src/lib/utils/*.ts`, `src/app/(dashboard)/**/*.tsx` |
-| `verify-seo-engine` | SEO 점수 체계 및 등급 판정 엔진/API/UI 일관성 검증 | `src/lib/seo/engine.ts`, `src/lib/content/engine.ts`, `src/lib/blog-index/**/*.ts`, `src/components/seo/*.tsx` |
+| `verify-seo-engine` | SEO 점수 체계 및 등급 판정 엔진/API/UI 일관성 검증 | `src/lib/seo/engine.ts`, `src/lib/seo/index.ts`, `src/lib/content/engine.ts`, `src/lib/blog-index/**/*.ts`, `src/lib/naver/post-meta-extractor.ts`, `src/components/seo/*.tsx`, `src/app/api/report/route.ts` |
 | `verify-security` | 봇 차단/Rate Limiting/robots.txt/보안 헤더 3레이어 일관성 검증 | `src/middleware.ts`, `public/robots.txt`, `next.config.mjs`, `src/lib/supabase/middleware.ts` |
 | `verify-ai-provider` | AI 제공자 라우팅/Free 플랜 Gemini 강제/키워드 Gemini 고정 검증 | `src/lib/ai/gemini.ts`, `src/app/api/ai/**/*.ts`, `src/lib/seo/ai-analyzer.ts`, `src/lib/blog-index/ai-analyzer.ts` |
 | `verify-admin-system` | 관리자 인증/시스템 설정/사용자 관리 API/관리자 UI 검증 | `src/app/api/admin/**/*.ts`, `src/lib/admin-check.ts`, `src/app/(dashboard)/admin/**/*.tsx` |

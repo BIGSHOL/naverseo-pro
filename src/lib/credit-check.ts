@@ -37,7 +37,8 @@ export interface CreditCheckResult {
 /**
  * 크레딧 잔액 확인 + Free 플랜 기능 게이트
  * - Admin: 항상 허용
- * - Free: keyword_research, content_generation, seo_check만 허용
+ * - Free: keyword_research, seo_check, blog_index, post_check만 허용
+ * - Lite: Free + content_generation, seo_report, image_generation
  * - Starter+: 모든 기능 허용 (잔액 확인만)
  * - lazy 월간 리셋 포함
  */

@@ -544,7 +544,7 @@ async function analyzeCompetitorImages(
     const visionResult = await analyzeImagesWithGemini(allImageUrls, prompt, { maxImages: 10, thinkingBudget: 0 })
 
     try {
-      const parsed = JSON.parse(visionResult)
+      const parsed = parseGeminiJson<{ imageTypes?: string[]; dominantType?: string; recommendation?: string }>(visionResult)
       return {
         totalImages: allImageUrls.length,
         imageTypes: parsed.imageTypes || [],

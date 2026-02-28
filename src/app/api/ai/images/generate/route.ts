@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 
+export const maxDuration = 60
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 interface ImageMarker {
@@ -144,103 +146,108 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
         }
 
-        // 스킵된 마커 알림
-        for (const s of skipped) {
-          send({ type: 'skipped', index: s.index, description: s.description, reason: s.reason })
-        }
-
-        let successCount = 0
-        let failCount = 0
-        const results: Array<{ index: number; url: string; description: string }> = []
-
-        for (let i = 0; i < generatable.length; i++) {
-          const marker = generatable[i]
-          send({
-            type: 'progress',
-            current: i + 1,
-            total: generatable.length,
-            message: `이미지 생성 중... (${i + 1}/${generatable.length})`,
-          })
-
-          try {
-            // Gemini 이미지 생성 호출
-            const imageData = await generateImageWithGemini(
-              apiKey,
-              keyword,
-              marker.description
-            )
-
-            if (!imageData) {
-              send({ type: 'error_partial', index: marker.index, reason: '이미지 생성 실패 (빈 응답)' })
-              failCount++
-              continue
-            }
-
-            // Supabase Storage 업로드
-            const timestamp = Date.now()
-            const fileName = `${user.id}/${contentId || 'temp'}_${marker.index}_${timestamp}.png`
-
-            // base64 → Buffer
-            const buffer = Buffer.from(imageData.base64, 'base64')
-
-            const { error: uploadError } = await supabase.storage
-              .from('ai-images')
-              .upload(fileName, buffer, {
-                contentType: imageData.mimeType || 'image/png',
-                upsert: true,
-              })
-
-            if (uploadError) {
-              console.error(`[ImageGen] 업로드 실패 (${marker.index}):`, uploadError.message)
-              send({ type: 'error_partial', index: marker.index, reason: `업로드 실패: ${uploadError.message}` })
-              failCount++
-              continue
-            }
-
-            // 공개 URL 획득
-            const { data: urlData } = supabase.storage
-              .from('ai-images')
-              .getPublicUrl(fileName)
-
-            const publicUrl = urlData?.publicUrl
-            if (!publicUrl) {
-              send({ type: 'error_partial', index: marker.index, reason: 'URL 생성 실패' })
-              failCount++
-              continue
-            }
-
-            results.push({ index: marker.index, url: publicUrl, description: marker.description })
-            send({ type: 'image', index: marker.index, url: publicUrl, description: marker.description })
-            successCount++
-          } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error)
-            console.error(`[ImageGen] 마커 ${marker.index} 오류:`, msg)
-            send({ type: 'error_partial', index: marker.index, reason: msg })
-            failCount++
+        try {
+          // 스킵된 마커 알림
+          for (const s of skipped) {
+            send({ type: 'skipped', index: s.index, description: s.description, reason: s.reason })
           }
-        }
 
-        // 성공한 만큼만 크레딧 차감
-        if (successCount > 0) {
-          await deductCredits(supabase, user.id, 'image_generation', {
-            keyword,
-            contentId,
+          let successCount = 0
+          let failCount = 0
+          const results: Array<{ index: number; url: string; description: string }> = []
+
+          for (let i = 0; i < generatable.length; i++) {
+            const marker = generatable[i]
+            send({
+              type: 'progress',
+              current: i + 1,
+              total: generatable.length,
+              message: `이미지 생성 중... (${i + 1}/${generatable.length})`,
+            })
+
+            try {
+              // Gemini 이미지 생성 호출
+              const imageData = await generateImageWithGemini(
+                apiKey,
+                keyword,
+                marker.description
+              )
+
+              if (!imageData) {
+                send({ type: 'error_partial', index: marker.index, reason: '이미지 생성 실패 (빈 응답)' })
+                failCount++
+                continue
+              }
+
+              // Supabase Storage 업로드
+              const timestamp = Date.now()
+              const fileName = `${user.id}/${contentId || 'temp'}_${marker.index}_${timestamp}.png`
+
+              // base64 → Buffer
+              const buffer = Buffer.from(imageData.base64, 'base64')
+
+              const { error: uploadError } = await supabase.storage
+                .from('ai-images')
+                .upload(fileName, buffer, {
+                  contentType: imageData.mimeType || 'image/png',
+                  upsert: true,
+                })
+
+              if (uploadError) {
+                console.error(`[ImageGen] 업로드 실패 (${marker.index}):`, uploadError.message)
+                send({ type: 'error_partial', index: marker.index, reason: `업로드 실패: ${uploadError.message}` })
+                failCount++
+                continue
+              }
+
+              // 공개 URL 획득
+              const { data: urlData } = supabase.storage
+                .from('ai-images')
+                .getPublicUrl(fileName)
+
+              const publicUrl = urlData?.publicUrl
+              if (!publicUrl) {
+                send({ type: 'error_partial', index: marker.index, reason: 'URL 생성 실패' })
+                failCount++
+                continue
+              }
+
+              results.push({ index: marker.index, url: publicUrl, description: marker.description })
+              send({ type: 'image', index: marker.index, url: publicUrl, description: marker.description })
+              successCount++
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : String(error)
+              console.error(`[ImageGen] 마커 ${marker.index} 오류:`, msg)
+              send({ type: 'error_partial', index: marker.index, reason: msg })
+              failCount++
+            }
+          }
+
+          // 성공한 만큼만 크레딧 차감
+          if (successCount > 0) {
+            await deductCredits(supabase, user.id, 'image_generation', {
+              keyword,
+              contentId,
+              generated: successCount,
+              failed: failCount,
+              skippedCount: skipped.length,
+            }, successCount)
+          }
+
+          send({
+            type: 'result',
             generated: successCount,
             failed: failCount,
             skippedCount: skipped.length,
-          }, successCount)
+            totalCredits: successCount,
+            images: results,
+          })
+        } catch (error) {
+          console.error('[ImageGen] 스트리밍 오류:', error)
+          send({ type: 'error', error: '이미지 생성 중 오류가 발생했습니다.' })
+        } finally {
+          controller.close()
         }
-
-        send({
-          type: 'result',
-          generated: successCount,
-          failed: failCount,
-          skippedCount: skipped.length,
-          totalCredits: successCount,
-          images: results,
-        })
-
-        controller.close()
       },
     })
 

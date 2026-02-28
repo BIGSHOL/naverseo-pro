@@ -11,7 +11,7 @@
  * Gemini 2.5 Flash: 향상된 추론 능력 + 코드/분석 성능 개선
  */
 
-import { callGemini, parseGeminiJson, SEO_DEEP_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callAI, parseGeminiJson, hasAiApiKey, SEO_DEEP_ANALYSIS_PROMPT, type AiProvider } from '@/lib/ai/gemini'
 import { calculateScoreAdjustment } from '@/lib/utils/scoring'
 
 // ===== 타입 정의 =====
@@ -78,19 +78,20 @@ export interface ScrapedMeta {
  * @param keyword - 타겟 키워드
  * @param title - 글 제목
  * @param content - 글 본문
- * @param provider - AI 제공자
  * @param scrapedMeta - 스크래핑 메타 (URL 가져오기 시 추가 컨텍스트)
+ * @param provider - AI 제공자 (기본값: gemini)
  * @returns AI 분석 결과 (실패 시 null)
  */
 export async function analyzeWithAi(
   keyword: string,
   title: string,
   content: string,
-  scrapedMeta?: ScrapedMeta
+  scrapedMeta?: ScrapedMeta,
+  provider: AiProvider = 'gemini'
 ): Promise<AiSeoAnalysis | null> {
-  // Gemini API 키가 없으면 스킵 (분석은 항상 Gemini 사용 — 비용 최적화)
-  if (!process.env.GEMINI_API_KEY?.trim()) {
-    console.log('[SEO AI] GEMINI_API_KEY 미설정, AI 분석 스킵')
+  // AI API 키 확인
+  if (!hasAiApiKey(provider)) {
+    console.log(`[SEO AI] ${provider} API 키 미설정, AI 분석 스킵`)
     return null
   }
 
@@ -163,7 +164,7 @@ ${truncatedContent}
 
     console.log(`[SEO AI] 분석 요청 (${truncatedContent.length}자)`)
 
-    const response = await callGemini(SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true, thinkingBudget: 0 })
+    const response = await callAI(provider, SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true, thinkingBudget: 0 })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정 (1~10)

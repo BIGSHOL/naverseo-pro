@@ -15,6 +15,8 @@ import {
   BarChart3,
   Search,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -82,6 +84,8 @@ const SECTION_COLORS: Record<string, string> = {
   'VIEW탭': '#22c55e',
 }
 
+const PAGE_SIZE = 10
+
 // ─── 트렌드 배지 컴포넌트 ───
 
 function TrendBadge({ current, previous, unit = '', invertColor = false }: {
@@ -106,6 +110,29 @@ function TrendBadge({ current, previous, unit = '', invertColor = false }: {
   )
 }
 
+// ─── 페이지네이션 컴포넌트 ───
+
+function Pagination({ page, totalPages, onPageChange }: {
+  page: number; totalPages: number; onPageChange: (p: number) => void
+}) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-between pt-3 print:hidden">
+      <p className="text-xs text-muted-foreground">{page} / {totalPages} 페이지</p>
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+          disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+          disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── 차트 커스텀 Tooltip 스타일 ───
 
 const tooltipStyle = {
@@ -123,6 +150,9 @@ export default function ReportPage() {
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
+  const [keywordsPage, setKeywordsPage] = useState(1)
+  const [contentsPage, setContentsPage] = useState(1)
+  const [trackingPage, setTrackingPage] = useState(1)
 
   useEffect(() => {
     async function loadReport() {
@@ -313,11 +343,11 @@ export default function ReportPage() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                  <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
                     {seoPerformance.gradeDistribution.map((g, i) => (
                       <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
-                        {g.grade} ({g.count})
+                        {g.grade} {g.label} ({g.count})
                       </div>
                     ))}
                   </div>
@@ -474,204 +504,222 @@ export default function ReportPage() {
 
         {/* ═══ Section 5: 상세 데이터 (Accordion) ═══ */}
         <Accordion type="multiple" defaultValue={[]} className="space-y-2">
-          {/* 최근 키워드 검색 */}
-          {data.keywords.length > 0 && (
-            <AccordionItem value="keywords" className="rounded-lg border px-4 print:border print:shadow-none">
-              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
-                최근 키워드 검색 ({data.keywords.length}건)
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="pb-2 font-medium">#</th>
-                        <th className="pb-2 font-medium">시드 키워드</th>
-                        <th className="pb-2 font-medium">조회일</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.keywords.map((kw, i) => (
-                        <tr key={kw.id} className="border-b last:border-0">
-                          <td className="py-2 text-muted-foreground">{i + 1}</td>
-                          <td className="py-2 font-medium">{kw.seed_keyword}</td>
-                          <td className="py-2 text-muted-foreground">
-                            {new Date(kw.created_at).toLocaleDateString('ko-KR')}
-                          </td>
+          {/* 키워드 검색 */}
+          {data.keywords.length > 0 && (() => {
+            const kwTotalPages = Math.ceil(data.keywords.length / PAGE_SIZE)
+            const kwSlice = data.keywords.slice((keywordsPage - 1) * PAGE_SIZE, keywordsPage * PAGE_SIZE)
+            const kwOffset = (keywordsPage - 1) * PAGE_SIZE
+            return (
+              <AccordionItem value="keywords" className="rounded-lg border px-4 print:border print:shadow-none">
+                <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                  키워드 검색 ({data.keywords.length}건)
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium">#</th>
+                          <th className="pb-2 font-medium">시드 키워드</th>
+                          <th className="pb-2 font-medium">조회일</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          )}
+                      </thead>
+                      <tbody>
+                        {kwSlice.map((kw, i) => (
+                          <tr key={kw.id} className="border-b last:border-0">
+                            <td className="py-2 text-muted-foreground">{kwOffset + i + 1}</td>
+                            <td className="py-2 font-medium">{kw.seed_keyword}</td>
+                            <td className="py-2 text-muted-foreground">
+                              {new Date(kw.created_at).toLocaleDateString('ko-KR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination page={keywordsPage} totalPages={kwTotalPages} onPageChange={setKeywordsPage} />
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })()}
 
           {/* 생성된 콘텐츠 */}
-          {data.contents.length > 0 && (
-            <AccordionItem value="contents" className="rounded-lg border px-4 print:border print:shadow-none">
-              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
-                생성된 콘텐츠 ({data.contents.length}건)
-              </AccordionTrigger>
-              <AccordionContent>
-                {/* 모바일 */}
-                <div className="space-y-3 md:hidden">
-                  {data.contents.map((c, i) => (
-                    <div key={c.id} className="rounded-lg border p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-sm line-clamp-2 flex-1">
-                          <span className="text-muted-foreground mr-1">{i + 1}.</span>
-                          {c.title}
-                        </p>
-                        {c.seo_score !== null ? (
-                          <span className={`text-sm font-bold shrink-0 ${
-                            c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
-                            {c.seo_score}점
-                          </span>
-                        ) : <span className="text-muted-foreground shrink-0">-</span>}
+          {data.contents.length > 0 && (() => {
+            const ctTotalPages = Math.ceil(data.contents.length / PAGE_SIZE)
+            const ctSlice = data.contents.slice((contentsPage - 1) * PAGE_SIZE, contentsPage * PAGE_SIZE)
+            const ctOffset = (contentsPage - 1) * PAGE_SIZE
+            return (
+              <AccordionItem value="contents" className="rounded-lg border px-4 print:border print:shadow-none">
+                <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                  생성된 콘텐츠 ({data.contents.length}건)
+                </AccordionTrigger>
+                <AccordionContent>
+                  {/* 모바일 */}
+                  <div className="space-y-3 md:hidden">
+                    {ctSlice.map((c, i) => (
+                      <div key={c.id} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-sm line-clamp-2 flex-1">
+                            <span className="text-muted-foreground mr-1">{ctOffset + i + 1}.</span>
+                            {c.title}
+                          </p>
+                          {c.seo_score !== null ? (
+                            <span className={`text-sm font-bold shrink-0 ${
+                              c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              {c.seo_score}점
+                            </span>
+                          ) : <span className="text-muted-foreground shrink-0">-</span>}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
+                          <Badge variant="outline" className="text-[10px] max-w-[120px] truncate">{c.target_keyword}</Badge>
+                          <Badge variant="secondary" className="text-[10px] shrink-0">
+                            {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                          </Badge>
+                          <span className="shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
-                        <Badge variant="outline" className="text-[10px] max-w-[120px] truncate">{c.target_keyword}</Badge>
-                        <Badge variant="secondary" className="text-[10px] shrink-0">
-                          {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
-                        </Badge>
-                        <span className="shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* 데스크탑 */}
-                <div className="overflow-x-auto hidden md:block">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="pb-2 font-medium">#</th>
-                        <th className="pb-2 font-medium">제목</th>
-                        <th className="pb-2 font-medium">키워드</th>
-                        <th className="pb-2 font-medium">상태</th>
-                        <th className="pb-2 font-medium">SEO</th>
-                        <th className="pb-2 font-medium">생성일</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.contents.map((c, i) => (
-                        <tr key={c.id} className="border-b last:border-0">
-                          <td className="py-2 text-muted-foreground">{i + 1}</td>
-                          <td className="max-w-[200px] truncate py-2 font-medium">{c.title}</td>
-                          <td className="py-2">{c.target_keyword}</td>
-                          <td className="py-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
-                            </Badge>
-                          </td>
-                          <td className="py-2">
-                            {c.seo_score !== null ? (
-                              <span className={`font-medium ${
-                                c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-                              }`}>
-                                {c.seo_score}점
-                              </span>
-                            ) : '-'}
-                          </td>
-                          <td className="py-2 text-muted-foreground">
-                            {new Date(c.created_at).toLocaleDateString('ko-KR')}
-                          </td>
+                    ))}
+                  </div>
+                  {/* 데스크탑 */}
+                  <div className="overflow-x-auto hidden md:block">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium">#</th>
+                          <th className="pb-2 font-medium">제목</th>
+                          <th className="pb-2 font-medium">키워드</th>
+                          <th className="pb-2 font-medium">상태</th>
+                          <th className="pb-2 font-medium">SEO</th>
+                          <th className="pb-2 font-medium">생성일</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          )}
+                      </thead>
+                      <tbody>
+                        {ctSlice.map((c, i) => (
+                          <tr key={c.id} className="border-b last:border-0">
+                            <td className="py-2 text-muted-foreground">{ctOffset + i + 1}</td>
+                            <td className="max-w-[200px] truncate py-2 font-medium">{c.title}</td>
+                            <td className="py-2">{c.target_keyword}</td>
+                            <td className="py-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                              </Badge>
+                            </td>
+                            <td className="py-2">
+                              {c.seo_score !== null ? (
+                                <span className={`font-medium ${
+                                  c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {c.seo_score}점
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="py-2 text-muted-foreground">
+                              {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination page={contentsPage} totalPages={ctTotalPages} onPageChange={setContentsPage} />
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })()}
 
           {/* 순위 트래킹 */}
-          {data.tracking.length > 0 && (
-            <AccordionItem value="tracking" className="rounded-lg border px-4 print:border print:shadow-none">
-              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
-                순위 트래킹 현황 ({data.tracking.length}건)
-              </AccordionTrigger>
-              <AccordionContent>
-                {/* 모바일 */}
-                <div className="space-y-3 md:hidden">
-                  {data.tracking.map((t, i) => (
-                    <div key={`${t.keyword}-${t.blog_url}-${i}`} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-sm min-w-0 truncate">
-                          <span className="text-muted-foreground mr-1">{i + 1}.</span>
-                          {t.keyword}
-                        </span>
-                        {t.rank_position !== null ? (
-                          <span className={`text-sm font-bold shrink-0 ${
-                            t.rank_position <= 5 ? 'text-green-600' : t.rank_position <= 10 ? 'text-blue-600' : ''
-                          }`}>
-                            {t.rank_position}위
+          {data.tracking.length > 0 && (() => {
+            const trTotalPages = Math.ceil(data.tracking.length / PAGE_SIZE)
+            const trSlice = data.tracking.slice((trackingPage - 1) * PAGE_SIZE, trackingPage * PAGE_SIZE)
+            const trOffset = (trackingPage - 1) * PAGE_SIZE
+            return (
+              <AccordionItem value="tracking" className="rounded-lg border px-4 print:border print:shadow-none">
+                <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                  순위 트래킹 현황 ({data.tracking.length}건)
+                </AccordionTrigger>
+                <AccordionContent>
+                  {/* 모바일 */}
+                  <div className="space-y-3 md:hidden">
+                    {trSlice.map((t, i) => (
+                      <div key={`${t.keyword}-${t.blog_url}-${trOffset + i}`} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-sm min-w-0 truncate">
+                            <span className="text-muted-foreground mr-1">{trOffset + i + 1}.</span>
+                            {t.keyword}
                           </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground shrink-0">100+</span>
-                        )}
+                          {t.rank_position !== null ? (
+                            <span className={`text-sm font-bold shrink-0 ${
+                              t.rank_position <= 5 ? 'text-green-600' : t.rank_position <= 10 ? 'text-blue-600' : ''
+                            }`}>
+                              {t.rank_position}위
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground shrink-0">100+</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground min-w-0">
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                          </Badge>
+                          <span className="truncate min-w-0">{t.blog_url}</span>
+                          <span className="shrink-0">{new Date(t.checked_at).toLocaleDateString('ko-KR')}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground min-w-0">
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                          {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
-                        </Badge>
-                        <span className="truncate min-w-0">{t.blog_url}</span>
-                        <span className="shrink-0">{new Date(t.checked_at).toLocaleDateString('ko-KR')}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* 데스크탑 */}
-                <div className="overflow-x-auto hidden md:block">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="pb-2 font-medium">#</th>
-                        <th className="pb-2 font-medium">키워드</th>
-                        <th className="pb-2 font-medium">블로그</th>
-                        <th className="pb-2 font-medium">섹션</th>
-                        <th className="pb-2 font-medium">순위</th>
-                        <th className="pb-2 font-medium">확인일</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.tracking.map((t, i) => (
-                        <tr key={`${t.keyword}-${t.blog_url}-${i}`} className="border-b last:border-0">
-                          <td className="py-2 text-muted-foreground">{i + 1}</td>
-                          <td className="py-2 font-medium">{t.keyword}</td>
-                          <td className="max-w-[200px] truncate py-2 text-muted-foreground">{t.blog_url}</td>
-                          <td className="py-2">
-                            <Badge variant="outline" className="text-xs">
-                              {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
-                            </Badge>
-                          </td>
-                          <td className="py-2">
-                            {t.rank_position !== null ? (
-                              <span className={
-                                t.rank_position <= 5
-                                  ? 'font-bold text-green-600'
-                                  : t.rank_position <= 10
-                                    ? 'font-bold text-blue-600'
-                                    : 'font-medium'
-                              }>
-                                {t.rank_position}위
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">100+</span>
-                            )}
-                          </td>
-                          <td className="py-2 text-muted-foreground">
-                            {new Date(t.checked_at).toLocaleDateString('ko-KR')}
-                          </td>
+                    ))}
+                  </div>
+                  {/* 데스크탑 */}
+                  <div className="overflow-x-auto hidden md:block">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium">#</th>
+                          <th className="pb-2 font-medium">키워드</th>
+                          <th className="pb-2 font-medium">블로그</th>
+                          <th className="pb-2 font-medium">섹션</th>
+                          <th className="pb-2 font-medium">순위</th>
+                          <th className="pb-2 font-medium">확인일</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          )}
+                      </thead>
+                      <tbody>
+                        {trSlice.map((t, i) => (
+                          <tr key={`${t.keyword}-${t.blog_url}-${trOffset + i}`} className="border-b last:border-0">
+                            <td className="py-2 text-muted-foreground">{trOffset + i + 1}</td>
+                            <td className="py-2 font-medium">{t.keyword}</td>
+                            <td className="max-w-[200px] truncate py-2 text-muted-foreground">{t.blog_url}</td>
+                            <td className="py-2">
+                              <Badge variant="outline" className="text-xs">
+                                {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                              </Badge>
+                            </td>
+                            <td className="py-2">
+                              {t.rank_position !== null ? (
+                                <span className={
+                                  t.rank_position <= 5
+                                    ? 'font-bold text-green-600'
+                                    : t.rank_position <= 10
+                                      ? 'font-bold text-blue-600'
+                                      : 'font-medium'
+                                }>
+                                  {t.rank_position}위
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">100+</span>
+                              )}
+                            </td>
+                            <td className="py-2 text-muted-foreground">
+                              {new Date(t.checked_at).toLocaleDateString('ko-KR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination page={trackingPage} totalPages={trTotalPages} onPageChange={setTrackingPage} />
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })()}
         </Accordion>
 
         {/* 프린트 푸터 */}
