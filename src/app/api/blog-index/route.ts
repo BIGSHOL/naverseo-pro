@@ -242,6 +242,17 @@ export async function POST(request: NextRequest) {
 
         // 방문자 API 실패 시 프로필 페이지의 dayVisitorCount + DB 히스토리 평균으로 보완
         if ((!visitorData || !visitorData.isAvailable) && blogProfileData?.dayVisitorCount) {
+          // "오늘 방문자" 시간대 보정: 분석 시점의 경과 비율로 하루치 추정
+          // 예) 오전 10시에 100명 → 100 / (10/24) ≈ 240명 (하루 추정)
+          const nowKST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }))
+          const hourKST = nowKST.getHours() + nowKST.getMinutes() / 60
+          const elapsedRatio = hourKST / 24
+
+          // 이른 시간(6시 이전)에는 데이터가 너무 적어 추정 불가 → null 처리
+          const estimatedDailyVisitors = elapsedRatio >= 0.25 // 6시 이후
+            ? Math.round(blogProfileData.dayVisitorCount / elapsedRatio)
+            : null
+
           // DB에서 과거 방문자 기록 조회 (같은 블로그, 서로 다른 날짜)
           let historyAvg: number | null = null
           let historyDays = 0
@@ -268,9 +279,11 @@ export async function POST(request: NextRequest) {
                 }
               }
 
-              // 오늘 날짜는 현재 값으로 대체
-              const todayKey = new Date().toISOString().substring(0, 10)
-              dailyMap.set(todayKey, blogProfileData.dayVisitorCount)
+              // 오늘 날짜: 보정된 추정치 사용 (6시 이전이면 오늘 데이터 제외)
+              if (estimatedDailyVisitors !== null) {
+                const todayKey = new Date().toISOString().substring(0, 10)
+                dailyMap.set(todayKey, estimatedDailyVisitors)
+              }
 
               if (dailyMap.size >= 2) {
                 // 2일 이상 누적되면 히스토리 평균 사용
@@ -293,15 +306,19 @@ export async function POST(request: NextRequest) {
               historyDays,
             }
             console.log(`[BlogIndex] 방문자 데이터 (히스토리 ${historyDays}일 평균): ${historyAvg}명`)
-          } else {
-            // 히스토리 부족 → 오늘 방문자만
+          } else if (estimatedDailyVisitors !== null) {
+            // 히스토리 부족 + 6시 이후 → 시간 보정된 추정치 사용
             visitorData = {
               dailyVisitors: [blogProfileData.dayVisitorCount],
-              avgDailyVisitors: blogProfileData.dayVisitorCount,
+              avgDailyVisitors: estimatedDailyVisitors,
               isAvailable: true,
               source: 'today',
             }
-            console.log(`[BlogIndex] 방문자 데이터 (오늘만): ${blogProfileData.dayVisitorCount}명`)
+            console.log(`[BlogIndex] 방문자 데이터 (오늘 ${blogProfileData.dayVisitorCount}명 → 추정 ${estimatedDailyVisitors}명, ${hourKST.toFixed(1)}시 기준)`)
+          } else {
+            // 6시 이전 + 히스토리 없음 → 데이터 불충분, 중립 점수로 처리
+            console.log(`[BlogIndex] 방문자 데이터 미사용 (새벽 ${hourKST.toFixed(1)}시, 오늘 ${blogProfileData.dayVisitorCount}명 - 추정 불가)`)
+            // visitorData를 설정하지 않으면 popularity.ts에서 중립 점수(2/8) 적용
           }
         } else if (visitorData?.isAvailable) {
           visitorData.source = 'api'
