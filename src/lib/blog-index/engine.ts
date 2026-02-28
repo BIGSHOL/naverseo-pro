@@ -160,7 +160,7 @@ export function analyzeBlogIndex(
 
   // 4대 분석 축 (어뷰징 감점 각 축에 통합됨)
   const { category: contentQuality, topicKeywords } = analyzeContentQuality(posts, scrapedData, blogName, blogId, topPostsScrapedData)
-  const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts)
+  const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts, scrapedData)
   const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
   const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays, scrapedData)
 

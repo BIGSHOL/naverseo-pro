@@ -4,7 +4,7 @@
  * v10: 범위 기반 빈도 + 스팸/외부링크 감점 통합 + items 배열
  *
  * 가점: 규칙성(7) + 빈도(6) + 최근 활동성(5) + 누적 포스팅(4) + 운영 기간(3) = 25
- * 감점: 스팸 키워드(-3) + 외부 링크 과다(-3) = -6
+ * 감점: 스팸 키워드(-3) + 외부 링크 과다(-3) + 기계적 일괄 발행(-2) = -8
  * 최종: clamp(가점 + 감점, 0, 25)
  */
 
@@ -14,12 +14,20 @@ import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
 /** 네이버가 저품질로 분류하는 스팸성 키워드 (abuse.ts에서 이동) */
 const SPAM_KEYWORDS = [
+  // 금융/대출
   '대출', '대환대출', '신용대출', '무직자대출', '소액대출',
+  // 도박
   '도박', '카지노', '바카라', '슬롯', '사설토토', '먹튀',
+  // 성인/건강기능식품
   '비아그라', '시알리스', '정력',
+  // 불법 콘텐츠
   '불법다운', '무료다시보기', '토렌트',
+  // 소액결제/현금화
   '정보이용료', '소액결제현금화', '캐싱',
+  // 위조품
   '가품', '레플리카', '짝퉁',
+  // 고관여 스팸 필터 대상
+  '다이어트약', '주식리딩방', '선물옵션', '코인시그널',
 ]
 
 /** 광고성/단축 URL 도메인 패턴 (abuse.ts에서 이동) */
@@ -264,6 +272,29 @@ export function analyzeTrust(
         score += extPenalty
         items.push({ label: '외부 링크', points: extPenalty })
       }
+    }
+  }
+
+  // === [감점] 기계적 일괄 발행 (0 ~ -2) ===
+  // 같은 날짜에 3개 이상 발행하는 날이 많으면 기계적 패턴
+  if (dates.length >= 5) {
+    const dateCountMap: Record<string, number> = {}
+    for (const d of dates) {
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+      dateCountMap[key] = (dateCountMap[key] || 0) + 1
+    }
+    const bulkDays = Object.values(dateCountMap).filter(c => c >= 3).length
+    const totalDays = Object.keys(dateCountMap).length
+    const bulkRate = totalDays > 0 ? bulkDays / totalDays : 0
+
+    if (bulkRate >= 0.4) {
+      score -= 2
+      details.push(`기계적 일괄 발행: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-2)`)
+      items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -2 })
+    } else if (bulkRate >= 0.2) {
+      score -= 1
+      details.push(`일괄 발행 주의: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-1)`)
+      items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -1 })
     }
   }
 

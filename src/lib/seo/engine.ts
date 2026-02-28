@@ -20,6 +20,20 @@ import { detectStuffingPatterns } from '@/lib/utils/text'
 
 // ===== 타입 정의 =====
 
+/** URL 스크래핑 시 전달되는 메타 데이터 (SEO 엔진용) */
+export interface SeoScrapedMeta {
+  tags?: string[]
+  formatting?: {
+    hasBold: boolean
+    hasHeading: boolean
+    hasFontSize: boolean
+    hasColor: boolean
+    hasHighlight: boolean
+    hasUnderline: boolean
+    count: number
+  }
+}
+
 /** SEO 분석 카테고리 */
 export interface SeoCategory {
   id: string                                // 고유 ID (snake_case)
@@ -341,7 +355,8 @@ function analyzeContentLength(content: string): { category: SeoCategory; strengt
 
 /** 7. 멀티미디어 (7점) */
 function analyzeMultimedia(content: string): { category: SeoCategory; strength?: string; improvement?: string; imageCount: number } {
-  const imageMatches = content.match(/\[이미지[:\s]/g) || []
+  // [이미지: 설명] (직접 작성) 및 [이미지] (URL 스크래핑 시 위치 마커) 모두 감지
+  const imageMatches = content.match(/\[이미지[\]:\s]/g) || []
   const imageCount = imageMatches.length
 
   let score = 0
@@ -375,9 +390,10 @@ function analyzeMultimedia(content: string): { category: SeoCategory; strength?:
 }
 
 /** 8. 가독성 요소 (8점) */
-function analyzeReadabilityElements(content: string): { category: SeoCategory; strength?: string; improvement?: string } {
+function analyzeReadabilityElements(content: string, scrapedMeta?: SeoScrapedMeta): { category: SeoCategory; strength?: string; improvement?: string } {
   let score = 0
-  const hasBold = content.includes('**')
+  // 마크다운 서식 또는 스크래핑된 서식 데이터 활용
+  const hasBold = content.includes('**') || (scrapedMeta?.formatting?.hasBold ?? false)
   const hasList = (content.match(/^[-•]\s/gm) || []).length > 0
   const hasNumberedList = (content.match(/^\d+\.\s/gm) || []).length > 0
   const paragraphs = content.split('\n\n').filter(p => p.trim()).length
@@ -453,13 +469,18 @@ function analyzeRelatedKeywords(content: string, additionalKeywords?: string[]):
 }
 
 /** 10. 태그 & CTA (7점) */
-function analyzeTagsAndCta(content: string): { category: SeoCategory; strength?: string; improvement?: string } {
+function analyzeTagsAndCta(content: string, scrapedMeta?: SeoScrapedMeta): { category: SeoCategory; strength?: string; improvement?: string } {
   let score = 0
   const hasHashtags = content.includes('#')
   const hasCta = /댓글|공감|구독|팔로우|즐겨찾기|공유|좋아요/i.test(content)
 
-  if (hasHashtags) {
-    const tagCount = (content.match(/#[가-힣a-zA-Z0-9_]+/g) || []).length
+  // 본문 내 해시태그 또는 스크래핑된 태그 활용
+  const contentTagCount = (content.match(/#[가-힣a-zA-Z0-9_]+/g) || []).length
+  const scrapedTagCount = scrapedMeta?.tags?.length ?? 0
+  const tagCount = Math.max(contentTagCount, scrapedTagCount)
+  const hasTags = hasHashtags || scrapedTagCount > 0
+
+  if (hasTags) {
     if (tagCount >= 5) score += 4
     else if (tagCount >= 3) score += 3
     else score += 1
@@ -470,7 +491,7 @@ function analyzeTagsAndCta(content: string): { category: SeoCategory; strength?:
   }
 
   const improvements: string[] = []
-  if (!hasHashtags) improvements.push('관련 태그(#)를 5~10개 추가하세요')
+  if (!hasTags) improvements.push('관련 태그(#)를 5~10개 추가하세요')
   if (!hasCta) improvements.push('마무리에 댓글/공감 유도 문구를 추가하세요')
 
   return {
@@ -479,7 +500,7 @@ function analyzeTagsAndCta(content: string): { category: SeoCategory; strength?:
       name: '태그 & CTA',
       score,
       maxScore: 7,
-      details: `태그(${hasHashtags ? 'O' : 'X'}), CTA(${hasCta ? 'O' : 'X'})`,
+      details: `태그(${hasTags ? `${tagCount}개` : 'X'}), CTA(${hasCta ? 'O' : 'X'})`,
       priority: score < 4 ? 'medium' : 'low',
     },
     strength: hasCta ? '독자 참여 유도 문구 포함' : undefined,
@@ -657,13 +678,14 @@ export function analyzeSeo(
   keyword: string,
   title: string,
   content: string,
-  additionalKeywords?: string[]
+  additionalKeywords?: string[],
+  scrapedMeta?: SeoScrapedMeta,
 ): SeoAnalysisResult {
   const categories: SeoCategory[] = []
   const strengths: string[] = []
   const improvements: string[] = []
 
-  // 13개 항목 분석 실행
+  // 13개 항목 분석 실행 (스크래핑 데이터 있으면 태그/서식 정보 활용)
   const results = [
     analyzeTitleKeyword(keyword, title),
     analyzeTitleLength(title),
@@ -672,9 +694,9 @@ export function analyzeSeo(
     analyzeKeywordDistribution(keyword, content),
     analyzeContentLength(content),
     analyzeMultimedia(content),
-    analyzeReadabilityElements(content),
+    analyzeReadabilityElements(content, scrapedMeta),
     analyzeRelatedKeywords(content, additionalKeywords),
-    analyzeTagsAndCta(content),
+    analyzeTagsAndCta(content, scrapedMeta),
     analyzeInternalLinks(content),
     analyzeMetaDescription(keyword, title, content),
     analyzeMobileOptimization(content),
@@ -687,8 +709,16 @@ export function analyzeSeo(
     if (result.improvement) improvements.push(result.improvement)
   }
 
-  // 총점 계산
-  const totalScore = categories.reduce((sum, c) => sum + c.score, 0)
+  // 총점 계산 (기본 13항목)
+  const baseScore = categories.reduce((sum, c) => sum + c.score, 0)
+
+  // 광고성 키워드 감점 적용
+  const adCheck = detectAdKeywords(content, scrapedMeta?.tags)
+  const totalScore = Math.max(0, baseScore + adCheck.penalty)
+  if (adCheck.warning) {
+    improvements.unshift(adCheck.warning)
+  }
+
   const gradeInfo = calculateGrade(totalScore)
 
   // 상세 정보 수집
@@ -719,6 +749,74 @@ export function analyzeSeo(
   }
 }
 
+// ===== 광고성 키워드 감지 =====
+
+/** 광고성/제휴 키워드 (블로그 지수 모듈과 동일 기준) */
+const AD_KEYWORDS = [
+  '제휴마케팅', '제휴링크', '쿠팡파트너스', '파트너스활동', '일정액의수수료',
+  '소정의원고료', '원고료를제공', '업체로부터제공', '무상으로제공', '협찬',
+  '광고포함', '유료광고', '#광고', '#협찬', '#제공',
+]
+
+/** 상업적/홍보성 키워드 (네이버 D.I.A. 감점 대상) */
+const COMMERCIAL_KEYWORDS = [
+  '최저가', '구매링크', '바로가기', '무료체험', '당첨자발표',
+  '할인코드', '쿠폰코드', '프로모션코드', '제휴할인',
+  '원고료', '소정의대가', '경제적대가',
+]
+
+/**
+ * 광고성 키워드 감지
+ * - 감점: 광고 키워드 3개 이상 → -3점, 5개 이상 → -5점
+ * - 상업적 키워드 2개 이상 추가 감점 -2점
+ */
+function detectAdKeywords(content: string, tags?: string[]): { penalty: number; warning?: string; details: string[] } {
+  const normalizedContent = content.replace(/\s/g, '').toLowerCase()
+  const normalizedTags = (tags || []).join(' ').replace(/\s/g, '').toLowerCase()
+
+  const foundAd: string[] = []
+  const foundCommercial: string[] = []
+
+  for (const kw of AD_KEYWORDS) {
+    const normalized = kw.replace(/\s/g, '').toLowerCase()
+    if (normalizedContent.includes(normalized) || normalizedTags.includes(normalized)) {
+      foundAd.push(kw)
+    }
+  }
+
+  for (const kw of COMMERCIAL_KEYWORDS) {
+    const normalized = kw.replace(/\s/g, '').toLowerCase()
+    if (normalizedContent.includes(normalized)) {
+      foundCommercial.push(kw)
+    }
+  }
+
+  let penalty = 0
+  const details: string[] = []
+
+  if (foundAd.length >= 5) {
+    penalty -= 5
+    details.push(`광고성 키워드 ${foundAd.length}개 감지 (-5)`)
+  } else if (foundAd.length >= 3) {
+    penalty -= 3
+    details.push(`광고성 키워드 ${foundAd.length}개 감지 (-3)`)
+  } else if (foundAd.length >= 1) {
+    details.push(`광고성 키워드 ${foundAd.length}개 감지 (경고)`)
+  }
+
+  if (foundCommercial.length >= 2) {
+    penalty -= 2
+    details.push(`상업적 키워드 ${foundCommercial.length}개 감지 (-2)`)
+  }
+
+  const allFound = [...foundAd, ...foundCommercial]
+  const warning = allFound.length > 0
+    ? `광고성/상업적 키워드 감지: ${allFound.slice(0, 5).join(', ')}${allFound.length > 5 ? ` 외 ${allFound.length - 5}개` : ''} — 네이버 D.I.A. 알고리즘이 검색 노출을 제한할 수 있습니다`
+    : undefined
+
+  return { penalty, warning, details }
+}
+
 // ===== 가독성 분석 =====
 
 /**
@@ -740,7 +838,7 @@ export function analyzeReadability(content: string): ReadabilityResult {
   const boldCount = (content.match(/\*\*[^*]+\*\*/g) || []).length
   const listCount = (content.match(/^[-•]\s|^\d+\.\s/gm) || []).length
   const headingCount = (content.match(/^#{1,3}\s/gm) || []).length
-  const imageCount = (content.match(/\[이미지[:\s]/g) || []).length
+  const imageCount = (content.match(/\[이미지[\]:\s]/g) || []).length
 
   // 가독성 점수 계산
   let score = 0

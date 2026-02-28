@@ -26,6 +26,7 @@ export type {
   SeoCategory,
   SeoGradeInfo,
   SeoAnalysisDetails,
+  SeoScrapedMeta,
   ReadabilityResult,
 } from './engine'
 

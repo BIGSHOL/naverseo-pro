@@ -225,4 +225,11 @@ body:has(.mockup-root) {
   .flex-1.overflow-hidden {
     overflow: visible !important;
   }
+
+  /* 아코디언 프린트 시 강제 표시 */
+  [data-state="closed"] > [role="region"] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
 }

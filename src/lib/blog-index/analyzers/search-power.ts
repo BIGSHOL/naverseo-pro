@@ -4,7 +4,7 @@
  * v10: items 배열 추가 + 제목 특수문자 남용 감점 통합
  *
  * 가점: 검색 순위(7) + 노출률(5) + 제목 키워드 최적화(5) + TOP10 지배력(4) + 경쟁 키워드 가치(4) = 25
- * 감점: 제목 특수문자 남용(-2)
+ * 감점: 제목 특수문자 남용(-2) + 상업적 키워드 남용(-2) + 제목 키워드 반복(-2) = -6
  * 최종: clamp(가점 + 감점, 0, 25)
  */
 
@@ -175,6 +175,65 @@ export function analyzeSearchPower(
       score -= 1
       details.push(`제목 특수문자 다소 많음: ${Math.round(specialCharRate * 100)}% (-1)`)
       items.push({ label: `제목 특수문자 (${Math.round(specialCharRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // === [감점] 상업적/홍보성 키워드 남용 (0 ~ -2) ===
+  if (posts && posts.length >= 3) {
+    const COMMERCIAL_KEYWORDS = [
+      '최저가', '할인', '구매링크', '바로가기', '무료체험', '당첨', '이벤트',
+      '특가', '세일', '프로모션', '쿠폰', '적립금', '무료배송',
+      '클릭', '사이트방문', '더보기', '링크확인',
+    ]
+    let postsWithExcessCommercial = 0
+    for (const p of posts) {
+      const text = (stripHtml(p.title) + ' ' + stripHtml(p.description)).replace(/\s/g, '').toLowerCase()
+      let hitCount = 0
+      for (const kw of COMMERCIAL_KEYWORDS) {
+        const regex = new RegExp(kw, 'gi')
+        const matches = text.match(regex)
+        if (matches) hitCount += matches.length
+      }
+      if (hitCount >= 3) postsWithExcessCommercial++
+    }
+    const commercialRate = postsWithExcessCommercial / posts.length
+
+    if (commercialRate >= 0.5) {
+      score -= 2
+      details.push(`상업적 키워드 남용: ${Math.round(commercialRate * 100)}%가 홍보성 키워드 과다 (-2)`)
+      items.push({ label: `상업적 키워드 (${Math.round(commercialRate * 100)}%)`, points: -2 })
+    } else if (commercialRate >= 0.25) {
+      score -= 1
+      details.push(`상업적 키워드 주의: ${Math.round(commercialRate * 100)}%가 홍보성 키워드 포함 (-1)`)
+      items.push({ label: `상업적 키워드 (${Math.round(commercialRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // === [감점] 제목 키워드 반복 스터핑 (0 ~ -2) ===
+  // 동일 키워드가 제목의 대부분을 차지하는 패턴
+  if (posts && posts.length >= 3) {
+    let stuffedTitles = 0
+    for (const p of posts) {
+      const title = stripHtml(p.title)
+      const words = extractKoreanKeywords(title)
+      if (words.length >= 3) {
+        // 같은 단어가 제목에 2회 이상 등장하면 스터핑
+        const freq: Record<string, number> = {}
+        words.forEach(w => { freq[w] = (freq[w] || 0) + 1 })
+        const repeated = Object.values(freq).filter(c => c >= 2).length
+        if (repeated >= 2) stuffedTitles++
+      }
+    }
+    const stuffRate = stuffedTitles / posts.length
+
+    if (stuffRate >= 0.4) {
+      score -= 2
+      details.push(`제목 키워드 반복: ${Math.round(stuffRate * 100)}%가 동일 키워드 반복 사용 (-2)`)
+      items.push({ label: `제목 키워드 반복 (${Math.round(stuffRate * 100)}%)`, points: -2 })
+    } else if (stuffRate >= 0.2) {
+      score -= 1
+      details.push(`제목 키워드 반복 주의: ${Math.round(stuffRate * 100)}% (-1)`)
+      items.push({ label: `제목 키워드 반복 (${Math.round(stuffRate * 100)}%)`, points: -1 })
     }
   }
 

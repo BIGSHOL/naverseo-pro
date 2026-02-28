@@ -4,46 +4,118 @@ import { useEffect, useState, useRef } from 'react'
 import {
   FileDown,
   RefreshCw,
-  Search,
   FileText,
-  TrendingUp,
+  Award,
+  Target,
+  Coins,
+  Lightbulb,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
   BarChart3,
+  Search,
+  TrendingUp,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell,
+} from 'recharts'
 import { PLANS, type Plan } from '@/types/database'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+
+// ─── 타입 ───
 
 interface ReportData {
   profile: {
     plan: Plan
     email: string
-    keywords_used_this_month: number
-    content_generated_this_month: number
+    credits_balance: number
+    credits_monthly_quota: number
   }
-  keywords: Array<{
-    id: string
-    seed_keyword: string
-    created_at: string
-  }>
-  contents: Array<{
-    id: string
-    target_keyword: string
-    title: string
-    status: string
-    seo_score: number | null
-    created_at: string
-  }>
-  tracking: Array<{
-    keyword: string
-    blog_url: string
-    rank_position: number | null
-    section: string | null
-    checked_at: string
-  }>
   generatedAt: string
+
+  summary: {
+    thisMonth: { contentCount: number; avgSeoScore: number | null; top10Count: number; creditsUsed: number }
+    lastMonth: { contentCount: number; avgSeoScore: number | null; top10Count: number; creditsUsed: number }
+  }
+
+  seoPerformance: {
+    gradeDistribution: Array<{ grade: string; label: string; color: string; count: number }>
+    weeklyAvg: Array<{ week: string; avg: number; count: number }>
+  }
+
+  rankingPerformance: {
+    distribution: Array<{ range: string; count: number }>
+    sectionDistribution: Array<{ section: string; count: number }>
+  }
+
+  insights: string[]
+
+  keywords: Array<{ id: string; seed_keyword: string; created_at: string }>
+  contents: Array<{ id: string; target_keyword: string; title: string; status: string; seo_score: number | null; created_at: string }>
+  tracking: Array<{ keyword: string; blog_url: string; rank_position: number | null; section: string | null; checked_at: string }>
 }
+
+// ─── 상수 ───
+
+const RANK_COLORS: Record<string, string> = {
+  'TOP 5': '#22c55e',
+  'TOP 6-10': '#3b82f6',
+  '11-20위': '#eab308',
+  '21-50위': '#f97316',
+  '100+': '#ef4444',
+}
+
+const SECTION_COLORS: Record<string, string> = {
+  '블로그탭': '#3b82f6',
+  '스마트블록': '#8b5cf6',
+  'VIEW탭': '#22c55e',
+}
+
+// ─── 트렌드 배지 컴포넌트 ───
+
+function TrendBadge({ current, previous, unit = '', invertColor = false }: {
+  current: number; previous: number; unit?: string; invertColor?: boolean
+}) {
+  if (previous === 0 && current === 0) return null
+  const diff = current - previous
+  if (diff === 0) return (
+    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground whitespace-nowrap">
+      <Minus className="h-3 w-3" /> 변동없음
+    </span>
+  )
+  const isUp = diff > 0
+  const colorClass = invertColor
+    ? (isUp ? 'text-red-500' : 'text-green-600')
+    : (isUp ? 'text-green-600' : 'text-red-500')
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs whitespace-nowrap ${colorClass}`}>
+      {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+      {isUp ? '+' : ''}{diff}{unit} vs 지난달
+    </span>
+  )
+}
+
+// ─── 차트 커스텀 Tooltip 스타일 ───
+
+const tooltipStyle = {
+  backgroundColor: 'hsl(var(--background))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '8px',
+  fontSize: '12px',
+}
+
+// ─── 메인 컴포넌트 ───
 
 export default function ReportPage() {
   const [data, setData] = useState<ReportData | null>(null)
@@ -75,10 +147,6 @@ export default function ReportPage() {
     }
     loadReport()
   }, [])
-
-  const handlePrint = () => {
-    window.print()
-  }
 
   if (loading) {
     return (
@@ -113,333 +181,500 @@ export default function ReportPage() {
     )
   }
 
+  const { summary, seoPerformance, rankingPerformance, insights } = data
   const planInfo = PLANS[data.profile.plan]
-  const avgSeoScore =
-    data.contents.filter((c) => c.seo_score !== null).length > 0
-      ? Math.round(
-          data.contents
-            .filter((c) => c.seo_score !== null)
-            .reduce((sum, c) => sum + (c.seo_score || 0), 0) /
-            data.contents.filter((c) => c.seo_score !== null).length
-        )
-      : null
-  const rankedCount = data.tracking.filter((t) => t.rank_position !== null).length
-  const top10Count = data.tracking.filter(
-    (t) => t.rank_position !== null && t.rank_position <= 10
-  ).length
 
   return (
     <div className="space-y-6">
       {/* 헤더 (프린트 시 숨김) */}
-      <div className="flex items-center justify-between print:hidden">
-        <div>
+      <div className="flex items-center justify-between gap-4 print:hidden">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">SEO 리포트</h1>
-          <p className="mt-1 text-muted-foreground">
-            전체 SEO 활동 요약 리포트를 확인하고 PDF로 저장하세요
+          <p className="mt-1 text-sm text-muted-foreground truncate">
+            SEO 성과를 한눈에 파악하고 전략적 인사이트를 확인하세요
           </p>
         </div>
-        <Button onClick={handlePrint} className="gap-2">
+        <Button onClick={() => window.print()} className="gap-2 shrink-0">
           <FileDown className="h-4 w-4" />
-          PDF 저장
+          <span className="hidden sm:inline">PDF 저장</span>
+          <span className="sm:hidden">PDF</span>
         </Button>
       </div>
 
       {/* 리포트 본문 */}
       <div ref={reportRef} className="space-y-6 print:space-y-4">
-        {/* 리포트 헤더 (프린트용) */}
+        {/* 프린트 헤더 */}
         <div className="hidden print:block">
-          <h1 className="text-2xl font-bold">NaverSEO Pro - SEO 리포트</h1>
+          <h1 className="text-2xl font-bold">NaverSEO Pro - SEO 전략 리포트</h1>
           <p className="text-sm text-muted-foreground">
-            생성일: {new Date(data.generatedAt).toLocaleDateString('ko-KR')} · {data.profile.email}
+            생성일: {new Date(data.generatedAt).toLocaleDateString('ko-KR')} · {data.profile.email} · {planInfo.name}
           </p>
           <hr className="mt-2" />
         </div>
 
-        {/* 요약 통계 */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4">
-          <Card className="print:border print:shadow-none">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-blue-600" />
-                <p className="text-sm text-muted-foreground">키워드 검색</p>
-              </div>
-              <p className="mt-1 text-2xl font-bold">{data.keywords.length}건</p>
-            </CardContent>
-          </Card>
+        {/* ═══ Section 1: Executive Summary ═══ */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 print:grid-cols-4">
+          {/* 콘텐츠 생성 */}
           <Card className="print:border print:shadow-none">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-purple-600" />
-                <p className="text-sm text-muted-foreground">생성 콘텐츠</p>
+                <p className="text-sm text-muted-foreground">콘텐츠 생성</p>
               </div>
-              <p className="mt-1 text-2xl font-bold">{data.contents.length}편</p>
+              <p className="mt-1 text-2xl font-bold">{summary.thisMonth.contentCount}편</p>
+              <TrendBadge
+                current={summary.thisMonth.contentCount}
+                previous={summary.lastMonth.contentCount}
+                unit="편"
+              />
             </CardContent>
           </Card>
+
+          {/* 평균 SEO 점수 */}
           <Card className="print:border print:shadow-none">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-green-600" />
+                <Award className="h-4 w-4 text-green-600" />
                 <p className="text-sm text-muted-foreground">평균 SEO 점수</p>
               </div>
               <p className="mt-1 text-2xl font-bold">
-                {avgSeoScore !== null ? `${avgSeoScore}점` : '-'}
+                {summary.thisMonth.avgSeoScore !== null ? `${summary.thisMonth.avgSeoScore}점` : '-'}
               </p>
+              {summary.thisMonth.avgSeoScore !== null && summary.lastMonth.avgSeoScore !== null && (
+                <TrendBadge
+                  current={summary.thisMonth.avgSeoScore}
+                  previous={summary.lastMonth.avgSeoScore}
+                  unit="점"
+                />
+              )}
             </CardContent>
           </Card>
+
+          {/* TOP10 키워드 */}
           <Card className="print:border print:shadow-none">
             <CardContent className="p-4">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-orange-600" />
-                <p className="text-sm text-muted-foreground">순위 진입</p>
+                <Target className="h-4 w-4 text-blue-600" />
+                <p className="text-sm text-muted-foreground">TOP10 키워드</p>
               </div>
-              <p className="mt-1 text-2xl font-bold">
-                {rankedCount}개
-                {top10Count > 0 && (
-                  <span className="ml-1 text-sm font-normal text-green-600">
-                    (TOP10: {top10Count})
-                  </span>
-                )}
-              </p>
+              <p className="mt-1 text-2xl font-bold">{summary.thisMonth.top10Count}개</p>
+              <TrendBadge
+                current={summary.thisMonth.top10Count}
+                previous={summary.lastMonth.top10Count}
+                unit="개"
+              />
+            </CardContent>
+          </Card>
+
+          {/* 크레딧 사용 */}
+          <Card className="print:border print:shadow-none">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-orange-600" />
+                <p className="text-sm text-muted-foreground">크레딧 사용</p>
+              </div>
+              <p className="mt-1 text-2xl font-bold">{summary.thisMonth.creditsUsed}</p>
+              <TrendBadge
+                current={summary.thisMonth.creditsUsed}
+                previous={summary.lastMonth.creditsUsed}
+                invertColor
+              />
             </CardContent>
           </Card>
         </div>
 
-        {/* 계정 정보 */}
+        {/* ═══ Section 2: SEO 성과 ═══ */}
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 print:grid-cols-2">
+          {/* SEO 등급 분포 (도넛) */}
+          <Card className="print:border print:shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">SEO 등급 분포</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {seoPerformance.gradeDistribution.length > 0 ? (
+                <div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={seoPerformance.gradeDistribution}
+                        cx="50%" cy="50%"
+                        outerRadius={75} innerRadius={38}
+                        dataKey="count"
+                        label={false}
+                      >
+                        {seoPerformance.gradeDistribution.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(value: any, _: any, props: any) =>
+                          [`${value}편`, props?.payload?.label || '']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                    {seoPerformance.gradeDistribution.map((g, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
+                        {g.grade} ({g.count})
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-[200px] flex-col items-center justify-center text-center">
+                  <BarChart3 className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">콘텐츠를 생성하면 등급 분포를 확인할 수 있습니다</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 주간 평균 SEO 점수 (AreaChart) */}
+          <Card className="print:border print:shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">주간 평균 SEO 점수 (8주)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {seoPerformance.weeklyAvg.some(w => w.count > 0) ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={seoPerformance.weeklyAvg} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="seoGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="week" fontSize={11} tickLine={false} />
+                    <YAxis domain={[0, 100]} fontSize={11} tickLine={false} width={35} />
+                    <RechartsTooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(value: any, _: any, props: any) =>
+                        [`${value}점 (${props?.payload?.count || 0}편)`, '평균']}
+                    />
+                    <Area type="monotone" dataKey="avg" stroke="#3b82f6" fill="url(#seoGrad)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[220px] flex-col items-center justify-center text-center">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">콘텐츠를 생성하면 점수 추이를 확인할 수 있습니다</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ═══ Section 3: 순위 성과 ═══ */}
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 print:grid-cols-2 print:break-before-page">
+          {/* 순위 분포 (가로 BarChart) */}
+          <Card className="print:border print:shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">순위 분포</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rankingPerformance.distribution.some(d => d.count > 0) ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={rankingPerformance.distribution} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" fontSize={11} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="range" width={65} fontSize={11} tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(value: any) => [`${value}개`, '키워드']}
+                    />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {rankingPerformance.distribution.map((entry, i) => (
+                        <Cell key={i} fill={RANK_COLORS[entry.range] || '#94a3b8'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[220px] flex-col items-center justify-center text-center">
+                  <Search className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">순위 트래킹을 설정하면 분포를 확인할 수 있습니다</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 섹션 분포 (도넛) */}
+          <Card className="print:border print:shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">검색 섹션 분포</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rankingPerformance.sectionDistribution.length > 0 ? (
+                <div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={rankingPerformance.sectionDistribution}
+                        cx="50%" cy="50%"
+                        outerRadius={75} innerRadius={38}
+                        dataKey="count"
+                        label={false}
+                      >
+                        {rankingPerformance.sectionDistribution.map((entry, i) => (
+                          <Cell key={i} fill={SECTION_COLORS[entry.section] || '#94a3b8'} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(value: any) => [`${value}개`, '키워드']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                    {rankingPerformance.sectionDistribution.map((s, i) => {
+                      const total = rankingPerformance.sectionDistribution.reduce((sum, e) => sum + e.count, 0)
+                      const pct = total > 0 ? ((s.count / total) * 100).toFixed(0) : '0'
+                      return (
+                        <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: SECTION_COLORS[s.section] || '#94a3b8' }} />
+                          {s.section} {pct}%
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-[200px] flex-col items-center justify-center text-center">
+                  <Target className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">순위 트래킹을 설정하면 섹션별 노출을 확인할 수 있습니다</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ═══ Section 4: 전략적 인사이트 ═══ */}
         <Card className="print:border print:shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">계정 정보</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              전략적 인사이트
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 text-sm sm:grid-cols-3">
-              <div>
-                <span className="text-muted-foreground">이메일:</span>{' '}
-                <span className="font-medium">{data.profile.email}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">플랜:</span>{' '}
-                <Badge variant="outline">{planInfo.name}</Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">이번 달 사용량:</span>{' '}
-                <span className="font-medium">
-                  키워드 {data.profile.keywords_used_this_month}회, 콘텐츠{' '}
-                  {data.profile.content_generated_this_month}편
+          <CardContent className="space-y-2">
+            {insights.map((insight, i) => (
+              <div key={i} className="flex items-start gap-3 rounded-lg bg-muted/50 p-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  {i + 1}
                 </span>
+                <p className="text-sm leading-relaxed">{insight}</p>
               </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
 
-        {/* 최근 키워드 검색 */}
-        {data.keywords.length > 0 && (
-          <Card className="print:border print:shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">최근 키워드 검색</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">#</th>
-                      <th className="pb-2 font-medium">시드 키워드</th>
-                      <th className="pb-2 font-medium">조회일</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.keywords.map((kw, i) => (
-                      <tr key={kw.id} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground">{i + 1}</td>
-                        <td className="py-2 font-medium">{kw.seed_keyword}</td>
-                        <td className="py-2 text-muted-foreground">
-                          {new Date(kw.created_at).toLocaleDateString('ko-KR')}
-                        </td>
+        {/* ═══ Section 5: 상세 데이터 (Accordion) ═══ */}
+        <Accordion type="multiple" defaultValue={[]} className="space-y-2">
+          {/* 최근 키워드 검색 */}
+          {data.keywords.length > 0 && (
+            <AccordionItem value="keywords" className="rounded-lg border px-4 print:border print:shadow-none">
+              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                최근 키워드 검색 ({data.keywords.length}건)
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">#</th>
+                        <th className="pb-2 font-medium">시드 키워드</th>
+                        <th className="pb-2 font-medium">조회일</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </thead>
+                    <tbody>
+                      {data.keywords.map((kw, i) => (
+                        <tr key={kw.id} className="border-b last:border-0">
+                          <td className="py-2 text-muted-foreground">{i + 1}</td>
+                          <td className="py-2 font-medium">{kw.seed_keyword}</td>
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(kw.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {/* 생성된 콘텐츠 */}
-        {data.contents.length > 0 && (
-          <Card className="print:border print:shadow-none print:break-before-page">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">생성된 콘텐츠</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* 모바일: 카드 리스트 */}
-              <div className="space-y-3 md:hidden">
-                {data.contents.map((c, i) => (
-                  <div key={c.id} className="rounded-lg border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium text-sm line-clamp-2 flex-1">
-                        <span className="text-muted-foreground mr-1">{i + 1}.</span>
-                        {c.title}
-                      </p>
-                      {c.seo_score !== null ? (
-                        <span className={`text-sm font-bold shrink-0 ${
-                          c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {c.seo_score}점
-                        </span>
-                      ) : <span className="text-muted-foreground shrink-0">-</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="text-[10px]">{c.target_keyword}</Badge>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
-                      </Badge>
-                      <span>{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* 데스크탑: 테이블 */}
-              <div className="overflow-x-auto hidden md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">#</th>
-                      <th className="pb-2 font-medium">제목</th>
-                      <th className="pb-2 font-medium">키워드</th>
-                      <th className="pb-2 font-medium">상태</th>
-                      <th className="pb-2 font-medium">SEO</th>
-                      <th className="pb-2 font-medium">생성일</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.contents.map((c, i) => (
-                      <tr key={c.id} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground">{i + 1}</td>
-                        <td className="max-w-[200px] truncate py-2 font-medium">
+          {/* 생성된 콘텐츠 */}
+          {data.contents.length > 0 && (
+            <AccordionItem value="contents" className="rounded-lg border px-4 print:border print:shadow-none">
+              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                생성된 콘텐츠 ({data.contents.length}건)
+              </AccordionTrigger>
+              <AccordionContent>
+                {/* 모바일 */}
+                <div className="space-y-3 md:hidden">
+                  {data.contents.map((c, i) => (
+                    <div key={c.id} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-sm line-clamp-2 flex-1">
+                          <span className="text-muted-foreground mr-1">{i + 1}.</span>
                           {c.title}
-                        </td>
-                        <td className="py-2">{c.target_keyword}</td>
-                        <td className="py-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {c.status === 'draft'
-                              ? '초안'
-                              : c.status === 'published'
-                                ? '발행'
-                                : '보관'}
-                          </Badge>
-                        </td>
-                        <td className="py-2">
-                          {c.seo_score !== null ? (
-                            <span className={`font-medium ${
-                              c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
-                            }`}>
-                              {c.seo_score}점
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="py-2 text-muted-foreground">
-                          {new Date(c.created_at).toLocaleDateString('ko-KR')}
-                        </td>
+                        </p>
+                        {c.seo_score !== null ? (
+                          <span className={`text-sm font-bold shrink-0 ${
+                            c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {c.seo_score}점
+                          </span>
+                        ) : <span className="text-muted-foreground shrink-0">-</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
+                        <Badge variant="outline" className="text-[10px] max-w-[120px] truncate">{c.target_keyword}</Badge>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                        </Badge>
+                        <span className="shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* 데스크탑 */}
+                <div className="overflow-x-auto hidden md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">#</th>
+                        <th className="pb-2 font-medium">제목</th>
+                        <th className="pb-2 font-medium">키워드</th>
+                        <th className="pb-2 font-medium">상태</th>
+                        <th className="pb-2 font-medium">SEO</th>
+                        <th className="pb-2 font-medium">생성일</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </thead>
+                    <tbody>
+                      {data.contents.map((c, i) => (
+                        <tr key={c.id} className="border-b last:border-0">
+                          <td className="py-2 text-muted-foreground">{i + 1}</td>
+                          <td className="max-w-[200px] truncate py-2 font-medium">{c.title}</td>
+                          <td className="py-2">{c.target_keyword}</td>
+                          <td className="py-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                            </Badge>
+                          </td>
+                          <td className="py-2">
+                            {c.seo_score !== null ? (
+                              <span className={`font-medium ${
+                                c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>
+                                {c.seo_score}점
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {/* 순위 트래킹 */}
-        {data.tracking.length > 0 && (
-          <Card className="print:border print:shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">순위 트래킹 현황</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* 모바일: 카드 리스트 */}
-              <div className="space-y-3 md:hidden">
-                {data.tracking.map((t, i) => (
-                  <div key={`${t.keyword}-${t.blog_url}-${i}`} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-sm">
-                        <span className="text-muted-foreground mr-1">{i + 1}.</span>
-                        {t.keyword}
-                      </span>
-                      {t.rank_position !== null ? (
-                        <span className={`text-sm font-bold shrink-0 ${
-                          t.rank_position <= 5 ? 'text-green-600' : t.rank_position <= 10 ? 'text-blue-600' : ''
-                        }`}>
-                          {t.rank_position}위
+          {/* 순위 트래킹 */}
+          {data.tracking.length > 0 && (
+            <AccordionItem value="tracking" className="rounded-lg border px-4 print:border print:shadow-none">
+              <AccordionTrigger className="text-sm font-medium print:pointer-events-none">
+                순위 트래킹 현황 ({data.tracking.length}건)
+              </AccordionTrigger>
+              <AccordionContent>
+                {/* 모바일 */}
+                <div className="space-y-3 md:hidden">
+                  {data.tracking.map((t, i) => (
+                    <div key={`${t.keyword}-${t.blog_url}-${i}`} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm min-w-0 truncate">
+                          <span className="text-muted-foreground mr-1">{i + 1}.</span>
+                          {t.keyword}
                         </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground shrink-0">100+</span>
-                      )}
+                        {t.rank_position !== null ? (
+                          <span className={`text-sm font-bold shrink-0 ${
+                            t.rank_position <= 5 ? 'text-green-600' : t.rank_position <= 10 ? 'text-blue-600' : ''
+                          }`}>
+                            {t.rank_position}위
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground shrink-0">100+</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground min-w-0">
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                        </Badge>
+                        <span className="truncate min-w-0">{t.blog_url}</span>
+                        <span className="shrink-0">{new Date(t.checked_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="text-[10px]">
-                        {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
-                      </Badge>
-                      <span className="truncate">{t.blog_url}</span>
-                      <span className="shrink-0">{new Date(t.checked_at).toLocaleDateString('ko-KR')}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* 데스크탑: 테이블 */}
-              <div className="overflow-x-auto hidden md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">#</th>
-                      <th className="pb-2 font-medium">키워드</th>
-                      <th className="pb-2 font-medium">블로그</th>
-                      <th className="pb-2 font-medium">섹션</th>
-                      <th className="pb-2 font-medium">순위</th>
-                      <th className="pb-2 font-medium">확인일</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.tracking.map((t, i) => (
-                      <tr key={`${t.keyword}-${t.blog_url}-${i}`} className="border-b last:border-0">
-                        <td className="py-2 text-muted-foreground">{i + 1}</td>
-                        <td className="py-2 font-medium">{t.keyword}</td>
-                        <td className="max-w-[200px] truncate py-2 text-muted-foreground">
-                          {t.blog_url}
-                        </td>
-                        <td className="py-2">
-                          <Badge variant="outline" className="text-xs">
-                            {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
-                          </Badge>
-                        </td>
-                        <td className="py-2">
-                          {t.rank_position !== null ? (
-                            <span
-                              className={
+                  ))}
+                </div>
+                {/* 데스크탑 */}
+                <div className="overflow-x-auto hidden md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">#</th>
+                        <th className="pb-2 font-medium">키워드</th>
+                        <th className="pb-2 font-medium">블로그</th>
+                        <th className="pb-2 font-medium">섹션</th>
+                        <th className="pb-2 font-medium">순위</th>
+                        <th className="pb-2 font-medium">확인일</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.tracking.map((t, i) => (
+                        <tr key={`${t.keyword}-${t.blog_url}-${i}`} className="border-b last:border-0">
+                          <td className="py-2 text-muted-foreground">{i + 1}</td>
+                          <td className="py-2 font-medium">{t.keyword}</td>
+                          <td className="max-w-[200px] truncate py-2 text-muted-foreground">{t.blog_url}</td>
+                          <td className="py-2">
+                            <Badge variant="outline" className="text-xs">
+                              {t.section === 'blog' ? '블로그탭' : t.section === 'smartblock' ? '스마트블록' : t.section === 'view' ? 'VIEW탭' : t.section || '-'}
+                            </Badge>
+                          </td>
+                          <td className="py-2">
+                            {t.rank_position !== null ? (
+                              <span className={
                                 t.rank_position <= 5
                                   ? 'font-bold text-green-600'
                                   : t.rank_position <= 10
                                     ? 'font-bold text-blue-600'
                                     : 'font-medium'
-                              }
-                            >
-                              {t.rank_position}위
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">100+</span>
-                          )}
-                        </td>
-                        <td className="py-2 text-muted-foreground">
-                          {new Date(t.checked_at).toLocaleDateString('ko-KR')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                              }>
+                                {t.rank_position}위
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">100+</span>
+                            )}
+                          </td>
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(t.checked_at).toLocaleDateString('ko-KR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+        </Accordion>
 
-        {/* 리포트 푸터 (프린트용) */}
+        {/* 프린트 푸터 */}
         <div className="hidden text-center text-xs text-muted-foreground print:block">
           <hr className="mb-2" />
           NaverSEO Pro · {new Date(data.generatedAt).toLocaleDateString('ko-KR')}{' '}

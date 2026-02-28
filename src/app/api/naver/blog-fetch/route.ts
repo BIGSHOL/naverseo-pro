@@ -240,8 +240,8 @@ export async function POST(request: NextRequest) {
       }
     } = {
       title: extracted.title,
-      // [이미지 N개 포함] 마커 제거 (정확한 이미지 수는 scrapedData에 별도 포함)
-      content: extracted.content.replace(/\n*\[이미지\s*\d+개\s*포함\]\s*$/, '').trim(),
+      // 이미지는 본문 내 위치별 [이미지] 마커로 포함됨 (SEO 엔진이 위치 감지 가능)
+      content: extracted.content.trim(),
       source: `https://blog.naver.com/${parsed.blogId}/${parsed.postNo}`,
       isDemo: false,
     }

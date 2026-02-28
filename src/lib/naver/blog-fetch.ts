@@ -95,14 +95,8 @@ export function extractContent(html: string): string {
   const scopedHtml = scopeToMainContent(html)
   const paragraphs = extractSeTextParagraphs(scopedHtml)
   if (paragraphs.length > 0) {
-    // 이미지 개수도 함께 반환 (htmlToPlainText에서 중복 처리되지 않도록 raw HTML 반환)
-    const imgCount = (scopedHtml.match(/<img[^>]*class=["'][^"']*se-image-resource[^"']*["'][^>]*>/gi) || []).length
-      || (scopedHtml.match(/<img[^>]*src=["'][^"']*postfiles[^"']*["'][^>]*>/gi) || []).length
-    let result = paragraphs.join('\n\n')
-    if (imgCount > 0) {
-      result += `\n\n<p>[이미지 ${imgCount}개 포함]</p>`
-    }
-    return result
+    // 이미지는 extractSeTextParagraphs에서 위치별 [이미지] 마커로 삽입됨
+    return paragraphs.join('\n\n')
   }
 
   // 전략 2: Smart Editor ONE (se-main-container) - 전체 블록 추출
@@ -150,12 +144,21 @@ function extractSeTextParagraphs(html: string): string[] {
   let m
   let prevEnd = 0
   while ((m = paragraphRegex.exec(html)) !== null) {
-    // 이전 문단과 현재 문단 사이의 HTML에서 소제목 클래스(se-l-heading_N) 감지
+    // 이전 문단과 현재 문단 사이의 HTML에서 소제목/이미지 감지
     const betweenHtml = html.substring(prevEnd, m.index)
     const headingMatch = betweenHtml.match(/se-l-heading_(\d+)/)
     const headingPrefix = headingMatch
       ? (headingMatch[1] === '1' ? '## ' : '### ')
       : ''
+
+    // 문단 사이 이미지 모듈 감지 → 위치에 [이미지] 마커 삽입
+    const imgModules = betweenHtml.match(/se-module\s+se-module-image/g)
+      || betweenHtml.match(/<img[^>]*class=["'][^"']*se-image-resource/gi)
+    if (imgModules) {
+      for (let i = 0; i < imgModules.length; i++) {
+        results.push('[이미지]')
+      }
+    }
 
     // 링크를 Markdown으로 변환한 후 나머지 태그 제거
     const text = m[1]
@@ -169,6 +172,18 @@ function extractSeTextParagraphs(html: string): string[] {
       results.push(headingPrefix + text)
     }
     prevEnd = m.index + m[0].length
+  }
+
+  // 마지막 문단 이후의 이미지도 감지
+  if (prevEnd > 0 && prevEnd < html.length) {
+    const afterLastHtml = html.substring(prevEnd)
+    const trailingImgs = afterLastHtml.match(/se-module\s+se-module-image/g)
+      || afterLastHtml.match(/<img[^>]*class=["'][^"']*se-image-resource/gi)
+    if (trailingImgs) {
+      for (let i = 0; i < trailingImgs.length; i++) {
+        results.push('[이미지]')
+      }
+    }
   }
 
   // 추가 SE 컴포넌트: 인용문(se-quote), 캡션(se-caption), 링크 요약(se-oglink-summary)
@@ -200,6 +215,15 @@ function extractSeTextParagraphs(html: string): string[] {
       const headingPrefix = headingMatch
         ? (headingMatch[1] === '1' ? '## ' : '### ')
         : ''
+
+      // 문단 사이 이미지 모듈 감지
+      const imgModules = betweenHtml.match(/se-module\s+se-module-image/g)
+        || betweenHtml.match(/<img[^>]*class=["'][^"']*se-image-resource/gi)
+      if (imgModules) {
+        for (let i = 0; i < imgModules.length; i++) {
+          results.push('[이미지]')
+        }
+      }
 
       const text = m[1]
         .replace(/<br\s*\/?>/gi, '\n')
@@ -300,11 +324,9 @@ function findContentEndIndex(html: string): number {
  * - 이미지 개수 표시
  */
 export function htmlToPlainText(html: string): string {
-  // 이미지 개수 세기
-  const imgMatches = html.match(/<img[^>]*>/gi)
-  const imgCount = imgMatches ? imgMatches.length : 0
-
   let text = html
+    // 이미지 태그를 위치별 [이미지] 마커로 변환 (단순 개수가 아닌 위치 보존)
+    .replace(/<img[^>]*>/gi, '\n[이미지]\n')
     // Smart Editor ONE 소제목 전처리: se-l-heading_N 클래스 → 표준 <h2>/<h3> 태그로 변환
     // (전략 2-5에서 raw HTML이 전달될 때 필요)
     .replace(/<[^>]*class=["'][^"']*se-l-heading_(\d+)[^"']*["'][^>]*>[\s\S]{0,500}?<p[^>]*class=["'][^"']*se-text-paragraph[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi,
@@ -356,11 +378,6 @@ export function htmlToPlainText(html: string): string {
     .map(line => line.trim())
     .join('\n')
     .trim()
-
-  // 이미지 포함 표시
-  if (imgCount > 0) {
-    text += `\n\n[이미지 ${imgCount}개 포함]`
-  }
 
   return text
 }

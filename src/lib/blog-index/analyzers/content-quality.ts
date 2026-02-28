@@ -4,7 +4,7 @@
  * v10: 범위 기반 점수 + 어뷰징 감점 통합
  *
  * 가점: 콘텐츠 깊이(7) + 이미지 활용(5) + 주제 집중도(4) + 구조/서식(3) + 내부 링크(3) + 품질 일관성(3) = 25
- * 감점: 제목 유사도(-3) + 콘텐츠 중복(-3) + 짧은 글 비율(-2) = -8
+ * 감점: 제목 유사도(-3) + 콘텐츠 중복(-3) + 짧은 글 비율(-2) + 이미지 도배(-2) = -10
  * 최종: clamp(가점 + 감점, 0, 25)
  */
 
@@ -419,6 +419,26 @@ export function analyzeContentQuality(
       score -= 1
       details.push(`짧은 글 비율 주의: ${Math.round(shortRate * 100)}%가 300자 미만 (-1)`)
       items.push({ label: `짧은 글 비율 (${Math.round(shortRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // === [감점] 이미지 도배 (0 ~ -2) — 이미지 과다 + 텍스트 부족 ===
+  if (scrapedData && scrapedData.size >= 3) {
+    const scrapedPosts = Array.from(scrapedData.values())
+    // 이미지 대비 텍스트가 극단적으로 적은 포스트 비율
+    const imageSpamPosts = scrapedPosts.filter(p =>
+      p.imageCount >= 10 && p.charCount < 500
+    ).length
+    const imageSpamRate = imageSpamPosts / scrapedPosts.length
+
+    if (imageSpamRate >= 0.5) {
+      score -= 2
+      details.push(`이미지 도배 의심: ${Math.round(imageSpamRate * 100)}%가 이미지 10장↑ + 텍스트 500자↓ (-2)`)
+      items.push({ label: `이미지 도배 (${Math.round(imageSpamRate * 100)}%)`, points: -2 })
+    } else if (imageSpamRate >= 0.25) {
+      score -= 1
+      details.push(`이미지 과다 주의: ${Math.round(imageSpamRate * 100)}%가 이미지 10장↑ + 텍스트 500자↓ (-1)`)
+      items.push({ label: `이미지 도배 (${Math.round(imageSpamRate * 100)}%)`, points: -1 })
     }
   }
 

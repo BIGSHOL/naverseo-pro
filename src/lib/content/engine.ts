@@ -530,10 +530,10 @@ function getToneGuide(tone: string): string {
 /** 콘텐츠 길이별 가이드 */
 function getLengthGuide(length: 'short' | 'medium' | 'long'): string {
   switch (length) {
-    case 'short': return '본문 800~1,200자. 핵심만 간결하게. 모바일 최적화.'
-    case 'medium': return '본문 1,800~2,000자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
-    case 'long': return '본문 2,500~3,000자. 심도 있는 전문 콘텐츠. 과도하게 길면 이탈률 증가 주의.'
-    default: return '본문 1,800~2,000자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
+    case 'short': return '본문 1,200~1,500자. 핵심만 간결하게. 모바일 최적화.'
+    case 'medium': return '본문 2,000~2,500자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
+    case 'long': return '본문 3,500~4,000자. 심도 있는 전문 콘텐츠. 과도하게 길면 이탈률 증가 주의.'
+    default: return '본문 2,000~2,500자. **네이버 검색 알고리즘 최적 길이** (상위 노출에 가장 유리한 범위).'
   }
 }
 
@@ -660,6 +660,21 @@ ${lengthGuide}
   ○ "학원을 고를 때 입지와 커리큘럼을 꼼꼼히 비교했어요"
   ○ 키워드를 주어·목적어·부사구 등 문장 성분으로 자연스럽게 활용
 
+### 네이버 감점 유발 표현 회피 (중요!)
+아래 표현은 네이버 알고리즘이 저품질·광고성으로 분류하여 검색 노출을 제한합니다:
+- **낚시성 제목**: 충격, 경악, 대박, 필독, 클릭, 놀라운, 미쳤, 헐, 실화, ㄷㄷ
+- **과도한 광고**: 최저가, 할인, 세일, 특가, 지금바로, 서두르세요, 한정수량, 마감임박, 품절임박
+- **과장 표현**: 100% 보장, 무조건, 반드시 성공, 완벽한, 최고중의최고, 확실히 보장
+- **클릭 유도**: 여기 클릭, 사이트 방문하기, 더 보기, 바로가기, 구매링크
+- **키워드 밀도 초과**: 특정 키워드가 전체 글의 5% 이상이면 스팸 처리
+
+✅ 동의어 대체 전략:
+- "할인/세일" → "합리적 가격", "가성비 좋은"
+- "최저가" → "가격 비교 후 선택한"
+- "지금 바로" → "관심 있으시다면"
+- "무조건 추천" → "개인적으로 만족한"
+- "완벽한" → "꼼꼼하게 준비된"
+
 ### 콘텐츠 품질 (D.I.A. 최적화)
 - 독창적이고 경험 기반의 내용 작성 (단순 정보 나열 금지)
 - 구체적 수치, 날짜, 가격 등 정확한 정보 포함
@@ -778,6 +793,8 @@ ${fewShotExamples}
 □ 태그: #키워드 형태 7~10개
 □ 문장 길이: 평균 40자 이내 (모바일 가독성)
 □ 도입부 첫 문장: 50~120자, 키워드 포함 (메타 설명용)
+□ 감점 키워드 미사용: 낚시성(충격/대박/필독/클릭), 과도한 광고(최저가/특가/한정/마감임박), 과장(100%보장/무조건/완벽) 표현 없음
+□ 키워드 밀도: 핵심 키워드가 전체 글의 5% 이하 (초과 시 스팸 처리)
 ⚠️ 미충족 항목이 있으면 콘텐츠를 수정한 뒤 JSON을 출력하세요.
 
 ## 응답 형식 (JSON)
@@ -939,7 +956,7 @@ export function generateOutline(request: ContentGenerationRequest): ContentOutli
   }
 
   const targetLength = request.targetLength || 'medium'
-  const estimatedLength = targetLength === 'short' ? 1200 : targetLength === 'long' ? 3500 : 2200
+  const estimatedLength = targetLength === 'short' ? 1500 : targetLength === 'long' ? 4000 : 2500
 
   const keywordPlacements = [
     '제목 (앞쪽 배치)',
@@ -1941,7 +1958,7 @@ export interface AutoOptimizeResult {
 /**
  * AI 생성 콘텐츠를 로컬에서 자동 최적화
  * - 추가 API 호출 없이 analyzeSeo() 로컬 채점 기반
- * - score < maxScore * 0.6 인 카테고리만 수정
+ * - score < maxScore * 0.85 인 카테고리만 수정 (적극적 최적화)
  */
 export function autoOptimizeContent(
   keyword: string,
@@ -1999,7 +2016,7 @@ export function autoOptimizeContent(
   // --- Fixer 1: 내부 링크 (max 10pts) ---
   const contentBeforeLinks = optContent
   const linkCat = catMap.get('internal_links')
-  if (linkCat && linkCat.score < linkCat.maxScore * 0.6) {
+  if (linkCat && linkCat.score < linkCat.maxScore * 0.85) {
     const internalLinkPattern = /\[([^\]]+)\]\((\.[^)]*|#[^)]*|\/[^)]*)\)/g
     const existingCount = (optContent.match(internalLinkPattern) || []).length
 
@@ -2044,7 +2061,7 @@ export function autoOptimizeContent(
   // --- Fixer 2: 제목 키워드 위치 (max 8pts) ---
   const titleBeforeKw = optTitle
   const titleKwCat = catMap.get('title_keyword')
-  if (titleKwCat && titleKwCat.score < titleKwCat.maxScore * 0.6) {
+  if (titleKwCat && titleKwCat.score < titleKwCat.maxScore * 0.85) {
     const kwIndex = optTitle.indexOf(keyword)
     if (kwIndex > 15) {
       // 키워드가 제목 뒤쪽에 있을 때: 앞으로 이동
@@ -2076,7 +2093,7 @@ export function autoOptimizeContent(
   // --- Fixer 3: 멀티미디어 (max 7pts) ---
   const contentBeforeMedia = optContent
   const mmCat = catMap.get('multimedia')
-  if (mmCat && mmCat.score < mmCat.maxScore * 0.6) {
+  if (mmCat && mmCat.score < mmCat.maxScore * 0.85) {
     const imgPattern = /\[이미지[:\s]/g
     const existingImages = (optContent.match(imgPattern) || []).length
 
@@ -2113,7 +2130,7 @@ export function autoOptimizeContent(
   // --- Fixer 4: 태그 & CTA (max 7pts) ---
   const contentBeforeCta = optContent
   const ctaCat = catMap.get('tags_cta')
-  if (ctaCat && ctaCat.score < ctaCat.maxScore * 0.6) {
+  if (ctaCat && ctaCat.score < ctaCat.maxScore * 0.85) {
     // CTA 확인
     const ctaKeywords = /댓글|공감|구독|팔로우|좋아요|응원/
     if (!ctaKeywords.test(optContent)) {
@@ -2141,7 +2158,7 @@ export function autoOptimizeContent(
   // --- Fixer 5: 제목 길이 (max 7pts) ---
   const titleBeforeLen = optTitle
   const titleLenCat = catMap.get('title_length')
-  if (titleLenCat && titleLenCat.score < titleLenCat.maxScore * 0.6) {
+  if (titleLenCat && titleLenCat.score < titleLenCat.maxScore * 0.85) {
     if (optTitle.length > 40) {
       // 40자 근처 단어 경계에서 절단
       const cut = optTitle.substring(0, 40)

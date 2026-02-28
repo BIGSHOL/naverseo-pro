@@ -119,12 +119,18 @@ export function extractTags(html: string): string[] {
             .replace(/<style[\s\S]*?<\/style>/gi, '')
             .replace(/<script[\s\S]*?<\/script>/gi, '')
             .replace(/<[^>]+>/g, ' ')
+            // HTML 엔티티 디코딩 (&#x3D; → =, &#39; → ' 등이 #x3D 같은 오탐 방지)
+            .replace(/&#x[0-9a-fA-F]+;?/g, ' ')
+            .replace(/&#\d+;?/g, ' ')
+            .replace(/&[a-z]+;/gi, ' ')
         const hashtagRegex = /#([가-힣a-zA-Z0-9_]{2,20})/g
         let hashMatch: RegExpExecArray | null
         while ((hashMatch = hashtagRegex.exec(bodyText)) !== null) {
             const tag = hashMatch[1]
             // hex 색상코드 필터 (3~8자리 hex)
             if (/^[0-9a-fA-F]{3,8}$/.test(tag)) continue
+            // HTML 엔티티 잔여물 필터 (x3D, x27 등)
+            if (/^x[0-9a-fA-F]{1,4}$/i.test(tag)) continue
             // CSS/HTML 예약어 필터
             if (/^(ct|px|em|rem|vh|vw|nafullscreen|postlist_block|important)$/i.test(tag)) continue
             tags.add(tag)

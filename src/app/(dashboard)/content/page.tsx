@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { CREDIT_COSTS } from '@/types/database'
 import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
@@ -468,11 +469,29 @@ export default function ContentPage() {
   const [improveMessage, setImproveMessage] = useState('')
   const [animatingPatch, setAnimatingPatch] = useState('')
   const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
+  const [improveDetails, setImproveDetails] = useState<string[]>([])
+  const [improveDisabledReason, setImproveDisabledReason] = useState('')
   const editorRef = useRef<Editor | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
 
   // Self-Healing 패치 애니메이션용
   const selfHealPatchesRef = useRef<{ rawTitle: string; rawContent: string; patches: Array<{ find: string; replace: string; label: string }> } | null>(null)
+
+  // 약점 개선 가능 여부 체크 (디바운스 1초)
+  useEffect(() => {
+    if (!editContent.trim() || !keyword.trim()) {
+      setImproveDisabledReason('')
+      return
+    }
+    const timer = setTimeout(() => {
+      try {
+        const seoResult = analyzeSeo(keyword.trim(), editTitle, editContent)
+        const weakCount = seoResult.categories.filter(cat => (cat.score / cat.maxScore) < 0.8).length
+        setImproveDisabledReason(weakCount === 0 ? '모든 SEO 항목이 양호합니다 (80% 이상)' : '')
+      } catch { /* ignore */ }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [editContent, editTitle, keyword])
 
   // AI 이미지 생성
   const [generatingImages, setGeneratingImages] = useState(false)
@@ -728,11 +747,15 @@ export default function ContentPage() {
                   setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
 
-                // 스트리밍 콘텐츠 auto-scroll (하단 따라가기)
+                // 스트리밍 콘텐츠 auto-scroll (내부 + 외부 스크롤 동시)
                 if (autoScrollRef.current) {
                   setTimeout(() => {
                     const el = streamingContentRef.current
-                    if (el) el.scrollTop = el.scrollHeight
+                    if (el) {
+                      el.scrollTop = el.scrollHeight
+                      // 외부 페이지 스크롤도 스트리밍 영역 하단이 보이도록
+                      el.scrollIntoView({ behavior: 'instant', block: 'end' })
+                    }
                   }, 0)
                 }
 
@@ -952,6 +975,7 @@ export default function ContentPage() {
     if (improving || !editContent.trim() || !keyword.trim()) return
     setImproving(true)
     setImproveMessage('')
+    setImproveDetails([])
 
     try {
       // 현재 콘텐츠의 SEO 분석 실행
@@ -972,6 +996,7 @@ export default function ContentPage() {
 
       if (weakCategories.length === 0) {
         setImproveMessage('모든 항목이 양호합니다!')
+        setImproveDisabledReason('모든 SEO 항목이 양호합니다 (80% 이상)')
         setTimeout(() => setImproveMessage(''), 3000)
         return
       }
@@ -1095,6 +1120,11 @@ export default function ContentPage() {
               setAnimatingPatch('')
               cancelAnimationRef.current = null
 
+              // 개선 내역 저장 (어떤 항목이 개선되었는지)
+              if (applied > 0) {
+                setImproveDetails(weakCategories.map(c => c.name))
+              }
+
               const messages: string[] = []
               if (applied > 0) messages.push(`${applied}개 수정 적용 완료!`)
               if (skipped > 0) messages.push(`${skipped}개 건너뜀`)
@@ -1125,6 +1155,11 @@ export default function ContentPage() {
         }
         if (data.title) setEditTitle(data.title)
         if (appliedCount > 0) setEditContent(updatedContent)
+
+        // 개선 내역 저장
+        if (appliedCount > 0) {
+          setImproveDetails(weakCategories.map(c => c.name))
+        }
 
         const messages: string[] = []
         if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용 완료!`)
@@ -2438,10 +2473,13 @@ export default function ContentPage() {
                         const next = !autoScroll
                         setAutoScroll(next)
                         autoScrollRef.current = next
-                        // 다시 켜면 즉시 하단으로 이동
+                        // 다시 켜면 즉시 하단으로 이동 (내부 + 외부)
                         if (next) {
                           const el = streamingContentRef.current
-                          if (el) el.scrollTop = el.scrollHeight
+                          if (el) {
+                            el.scrollTop = el.scrollHeight
+                            el.scrollIntoView({ behavior: 'instant', block: 'end' })
+                          }
                         }
                       }}
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -2921,7 +2959,7 @@ export default function ContentPage() {
                                 <Button
                                   variant="outline"
                                   onClick={handleImprove}
-                                  disabled={improving || generatingImages || !!animatingPatch || !editContent.trim() || !keyword.trim()}
+                                  disabled={improving || generatingImages || !!animatingPatch || !editContent.trim() || !keyword.trim() || !!improveDisabledReason}
                                   className="gap-1.5"
                                 >
                                   {improving ? (
@@ -2932,8 +2970,10 @@ export default function ContentPage() {
                                 </Button>
                               </span>
                             </TooltipTrigger>
-                            {generatingImages && (
-                              <TooltipContent>다른 AI 작업이 진행 중입니다</TooltipContent>
+                            {(generatingImages || !!improveDisabledReason) && (
+                              <TooltipContent>
+                                {generatingImages ? '다른 AI 작업이 진행 중입니다' : improveDisabledReason}
+                              </TooltipContent>
                             )}
                           </Tooltip>
                         </TooltipProvider>
@@ -2984,6 +3024,24 @@ export default function ContentPage() {
                           </span>
                         )}
                       </div>
+
+                      {/* AI 약점 개선 완료 내역 */}
+                      {improveDetails.length > 0 && !improving && !animatingPatch && (
+                        <div className="rounded-lg border border-green-200 bg-green-50/50 p-3 dark:border-green-800 dark:bg-green-950/20">
+                          <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                            <CheckCircle className="h-4 w-4" />
+                            AI 약점 개선 완료 ({improveDetails.length}개 항목)
+                          </div>
+                          <ul className="mt-2 space-y-1 text-xs text-green-600 dark:text-green-500">
+                            {improveDetails.map((detail, i) => (
+                              <li key={i} className="flex items-center gap-1.5">
+                                <Check className="h-3 w-3 flex-shrink-0" />
+                                {detail}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                       {/* 수동 개선 가이드 (약점 개선 후 표시) */}
                       {guidanceItems.length > 0 && (
@@ -3055,7 +3113,7 @@ export default function ContentPage() {
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 mb-3">
                 <AlertCircle className="mr-1 inline h-3 w-3" />
-                다시 생성 시 5 크레딧이 소모됩니다
+                다시 생성 시 {CREDIT_COSTS.content_generation} 크레딧이 소모됩니다
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Button

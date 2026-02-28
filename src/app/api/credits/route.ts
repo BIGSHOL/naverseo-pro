@@ -18,14 +18,30 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const days = Math.min(90, Math.max(1, Number(searchParams.get('days') || '30')))
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '50')))
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '15')))
+    const offset = Math.max(0, Number(searchParams.get('offset') || '0'))
+    const featureFilter = searchParams.get('feature') || '' // 기능별 필터
 
     const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
-    // 병렬: 프로필 + 사용 내역 + 기능별 집계
+    // 사용 내역 쿼리 빌더 (필터 적용)
+    const buildLogsQuery = (countOnly = false) => {
+      let q = supabase
+        .from('credit_usage_log')
+        .select(countOnly ? '*' : 'feature, credits_spent, credits_before, credits_after, metadata, created_at', countOnly ? { count: 'exact', head: true } : undefined)
+        .eq('user_id', user.id)
+        .gte('created_at', sinceDate)
+      if (featureFilter) q = q.eq('feature', featureFilter)
+      if (!countOnly) q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
+      return q
+    }
+
+    // 병렬: 프로필 + 사용 내역(페이지네이션) + 총 개수 + 기능별 집계 + 일별 사용량
     const [
       { data: profile },
       { data: usageLogs },
+      { count: totalCount },
+      { data: allLogs },
       { data: dailyUsage },
     ] = await Promise.all([
       supabase
@@ -33,14 +49,16 @@ export async function GET(request: NextRequest) {
         .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, created_at')
         .eq('id', user.id)
         .single(),
-      // 최근 사용 내역
+      // 페이지네이션된 사용 내역
+      buildLogsQuery(false),
+      // 총 개수 (페이지네이션용)
+      buildLogsQuery(true),
+      // 기능별 집계용 전체 로그 (필터 무관, 기간 내)
       supabase
         .from('credit_usage_log')
-        .select('feature, credits_spent, credits_before, credits_after, metadata, created_at')
+        .select('feature, credits_spent')
         .eq('user_id', user.id)
-        .gte('created_at', sinceDate)
-        .order('created_at', { ascending: false })
-        .limit(limit),
+        .gte('created_at', sinceDate),
       // 일별 사용량 (최근 7일)
       supabase
         .from('credit_usage_log')
@@ -49,9 +67,9 @@ export async function GET(request: NextRequest) {
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     ])
 
-    // 기능별 집계 계산
+    // 기능별 집계 계산 (필터 무관 전체 로그 기반)
     const featureSummary: Record<string, { count: number; totalSpent: number }> = {}
-    for (const log of (usageLogs || [])) {
+    for (const log of (allLogs || [])) {
       if (!featureSummary[log.feature]) {
         featureSummary[log.feature] = { count: 0, totalSpent: 0 }
       }
@@ -86,6 +104,12 @@ export async function GET(request: NextRequest) {
       featureSummary,
       dailyStats,
       logs: usageLogs || [],
+      pagination: {
+        total: totalCount ?? 0,
+        limit,
+        offset,
+        hasMore: offset + limit < (totalCount ?? 0),
+      },
     })
   } catch (error) {
     console.error('[Credits API] 오류:', error)

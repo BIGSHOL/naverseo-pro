@@ -69,9 +69,13 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          // Step 1: SEO 엔진 분석
+          // Step 1: SEO 엔진 분석 (스크래핑 데이터 있으면 태그/서식 정보 전달)
           send({ type: 'progress', step: 1, total: 4, label: 'SEO 엔진 분석 중...' })
-          const engineResult = analyzeSeo(keyword || '', title || '', content)
+          const seoScrapedMeta = scrapedMeta ? {
+            tags: scrapedMeta.tags,
+            formatting: scrapedMeta.formatting,
+          } : undefined
+          const engineResult = analyzeSeo(keyword || '', title || '', content, undefined, seoScrapedMeta)
 
           // Step 2: 가독성 분석
           send({ type: 'progress', step: 2, total: 4, label: '가독성 분석 중...' })

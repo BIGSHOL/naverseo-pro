@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Coins, TrendingDown, Clock, Zap, Ticket, CheckCircle2 } from 'lucide-react'
+import { Coins, TrendingDown, Clock, Zap, Ticket, CheckCircle2, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -14,6 +14,7 @@ import { CREDIT_COSTS, CREDIT_FEATURE_LABELS, PLANS, type CreditFeature, type Pl
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface CreditsData {
   balance: number
@@ -30,7 +31,15 @@ interface CreditsData {
     credits_after: number
     created_at: string
   }[]
+  pagination: {
+    total: number
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
 }
+
+const PAGE_SIZE = 15
 
 const FEATURE_COLORS: Record<string, string> = {
   keyword_research: '#3b82f6',
@@ -52,11 +61,18 @@ export default function CreditsPage() {
   const [promoLoading, setPromoLoading] = useState(false)
   const [promoError, setPromoError] = useState('')
   const [promoSuccess, setPromoSuccess] = useState('')
+  const [featureFilter, setFeatureFilter] = useState('all')
+  const [page, setPage] = useState(0)
 
-  const loadCredits = async () => {
+  const loadCredits = async (currentPage = page, filter = featureFilter) => {
     try {
       setError('')
-      const res = await fetch('/api/credits')
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(currentPage * PAGE_SIZE),
+      })
+      if (filter && filter !== 'all') params.set('feature', filter)
+      const res = await fetch(`/api/credits?${params}`)
       if (!res.ok) throw new Error('로드 실패')
       setData(await res.json())
     } catch {
@@ -64,6 +80,17 @@ export default function CreditsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFilterChange = (value: string) => {
+    setFeatureFilter(value)
+    setPage(0)
+    loadCredits(0, value)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+    loadCredits(newPage)
   }
 
   useEffect(() => {
@@ -417,17 +444,37 @@ export default function CreditsPage() {
       {/* 최근 사용 내역 */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">최근 사용 내역</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">최근 사용 내역</CardTitle>
+            <div className="flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select value={featureFilter} onValueChange={handleFilterChange}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder="전체 기능" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 기능</SelectItem>
+                  {(Object.entries(CREDIT_FEATURE_LABELS) as [CreditFeature, string][]).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {data.logs.length === 0 ? (
             <div className="flex h-32 flex-col items-center justify-center text-center">
-              <p className="text-sm text-muted-foreground">사용 내역이 없습니다</p>
-              <Link href="/keywords">
-                <Button variant="link" size="sm" className="mt-1 text-xs">
-                  키워드 검색 시작하기
-                </Button>
-              </Link>
+              <p className="text-sm text-muted-foreground">
+                {featureFilter !== 'all' ? '해당 기능의 사용 내역이 없습니다' : '사용 내역이 없습니다'}
+              </p>
+              {featureFilter === 'all' && (
+                <Link href="/keywords">
+                  <Button variant="link" size="sm" className="mt-1 text-xs">
+                    키워드 검색 시작하기
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-1">
@@ -465,6 +512,38 @@ export default function CreditsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* 페이지네이션 */}
+          {data.pagination.total > PAGE_SIZE && (
+            <div className="mt-4 flex items-center justify-between border-t pt-3">
+              <p className="text-xs text-muted-foreground">
+                총 {data.pagination.total}건 중 {page * PAGE_SIZE + 1}~{Math.min((page + 1) * PAGE_SIZE, data.pagination.total)}건
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={page === 0}
+                  onClick={() => handlePageChange(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-2 text-xs text-muted-foreground">
+                  {page + 1} / {Math.ceil(data.pagination.total / PAGE_SIZE)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!data.pagination.hasMore}
+                  onClick={() => handlePageChange(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

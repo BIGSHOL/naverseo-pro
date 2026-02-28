@@ -6,17 +6,27 @@
  *
  * 댓글 참여(8) + 공감 참여(6) + 이웃/구독자(6) + 체류 시간(5) = 25점
  * 방문자 수 → 0점 (조회용으로만 표시)
+ * 감점: 체류시간 저하 패턴(-2) + 광고성 콘텐츠 과다(-2) = -4
  *
  * 데이터 수집 실패 시 중립 점수: 댓글(2) + 공감(1) + 이웃(0) + 체류(0) = 3/25
  */
 
 import type { VisitorData, EngagementData, AnalysisCategory, BlogProfileData, PostDetail, ScoreItem } from '../types'
+import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
+
+/** 광고성/제휴 키워드 패턴 */
+const AD_KEYWORDS = [
+  '제휴마케팅', '제휴링크', '쿠팡파트너스', '파트너스활동', '일정액의수수료',
+  '소정의원고료', '원고료를제공', '업체로부터제공', '무상으로제공', '협찬',
+  '광고포함', '유료광고', 'AD', '#광고', '#협찬', '#제공',
+]
 
 export function analyzePopularity(
   visitorData?: VisitorData | null,
   engagementData?: EngagementData | null,
   blogProfileData?: BlogProfileData | null,
   recentPosts?: PostDetail[] | null,
+  scrapedData?: Map<string, ScrapedPostData> | null,
 ): AnalysisCategory {
   const maxScore = 25
   const details: string[] = []
@@ -149,7 +159,61 @@ export function analyzePopularity(
   }
   score += dwellPts
 
+  // === [감점] 체류시간 저하 패턴 (0 ~ -2) ===
+  // 줄바꿈 없는 벽 텍스트 → 독자 이탈 유발
+  if (scrapedData && scrapedData.size >= 3) {
+    const scrapedPosts = Array.from(scrapedData.values())
+    // 1000자 이상인데 줄바꿈이 극히 적은 포스트 (평균 문단 300자 이상)
+    const wallTextPosts = scrapedPosts.filter(p => {
+      if (p.charCount < 1000) return false
+      // 이미지가 줄바꿈 역할을 하므로 (이미지 + 1)로 문단 수 추정
+      const estimatedParagraphs = Math.max(1, (p.imageCount || 0) + 1)
+      const charsPerParagraph = p.charCount / estimatedParagraphs
+      return charsPerParagraph >= 500 && p.imageCount <= 1
+    }).length
+    const wallTextRate = wallTextPosts / scrapedPosts.length
+
+    if (wallTextRate >= 0.5) {
+      score -= 2
+      details.push(`벽 텍스트 패턴: ${Math.round(wallTextRate * 100)}%가 줄바꿈/이미지 없이 장문 (-2)`)
+      items.push({ label: `벽 텍스트 (${Math.round(wallTextRate * 100)}%)`, points: -2 })
+    } else if (wallTextRate >= 0.25) {
+      score -= 1
+      details.push(`벽 텍스트 주의: ${Math.round(wallTextRate * 100)}%가 줄바꿈/이미지 없이 장문 (-1)`)
+      items.push({ label: `벽 텍스트 (${Math.round(wallTextRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // === [감점] 광고성/홍보성 콘텐츠 과다 (0 ~ -2) ===
+  if (scrapedData && scrapedData.size >= 3) {
+    const scrapedPosts = Array.from(scrapedData.values())
+    let adPostCount = 0
+    for (const p of scrapedPosts) {
+      // 메타 태그에서 광고 키워드 감지
+      const tags = (p.meta?.tags || []).join(' ').replace(/\s/g, '').toLowerCase()
+      const hasAdTag = AD_KEYWORDS.some(kw => tags.includes(kw.replace(/\s/g, '').toLowerCase()))
+      // 외부 링크 3개 이상이면서 광고 태그도 있으면 광고성
+      const hasExcessiveExtLinks = (p.meta?.linkAnalysis?.externalCount || 0) >= 3
+      if (hasAdTag || (hasExcessiveExtLinks && (p.meta?.linkAnalysis?.externalCount || 0) >= 5)) {
+        adPostCount++
+      }
+    }
+    const adRate = adPostCount / scrapedPosts.length
+
+    if (adRate >= 0.6) {
+      score -= 2
+      details.push(`광고성 콘텐츠 과다: ${Math.round(adRate * 100)}%가 광고/협찬 (-2)`)
+      items.push({ label: `광고성 콘텐츠 (${Math.round(adRate * 100)}%)`, points: -2 })
+    } else if (adRate >= 0.3) {
+      score -= 1
+      details.push(`광고성 콘텐츠 주의: ${Math.round(adRate * 100)}%가 광고/협찬 (-1)`)
+      items.push({ label: `광고성 콘텐츠 (${Math.round(adRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // 최종 clamp
+  score = Math.max(0, Math.min(maxScore, score))
   const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
-  return { name: '방문자 활동', score: Math.min(maxScore, score), maxScore, grade, details, items }
+  return { name: '방문자 활동', score, maxScore, grade, details, items }
 }

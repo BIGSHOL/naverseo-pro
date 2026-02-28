@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { CREDIT_COSTS } from '@/types/database'
 import dynamic from 'next/dynamic'
 import {
   Activity,
@@ -937,33 +938,33 @@ export default function BlogIndexPage() {
                   </div>
                 )}
                 <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
-                  <p className="font-medium">{pendingCache ? '새로 측정 시 크레딧 3개가 소모됩니다' : '크레딧 3개가 소모됩니다'}</p>
+                  <p className="font-medium">{pendingCache ? `새로 측정 시 크레딧 ${CREDIT_COSTS.blog_index}개가 소모됩니다` : `크레딧 ${CREDIT_COSTS.blog_index}개가 소모됩니다`}</p>
                   <p className="mt-0.5 text-xs opacity-70">네이버 API 호출 + AI 분석이 포함됩니다</p>
                 </div>
-                <DialogFooter className="gap-2 sm:gap-0">
+                <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
                   {pendingCache ? (
                     <>
-                      <Button variant="outline" onClick={loadPendingCache}>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={loadPendingCache}>
                         <Database className="mr-2 h-4 w-4" />이전 데이터 보기
                       </Button>
-                      <Button onClick={doMeasure} disabled={loading || refreshing}>
+                      <Button className="w-full sm:w-auto" onClick={doMeasure} disabled={loading || refreshing}>
                         {(loading || refreshing) ? (
                           <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
                         ) : (
-                          <><Activity className="mr-2 h-4 w-4" />새로 측정 (3크레딧)</>
+                          <><Activity className="mr-2 h-4 w-4" />새로 측정 ({CREDIT_COSTS.blog_index}크레딧)</>
                         )}
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button variant="outline" onClick={() => setShowCreditConfirm(false)}>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowCreditConfirm(false)}>
                         취소
                       </Button>
-                      <Button onClick={doMeasure} disabled={loading || refreshing}>
+                      <Button className="w-full sm:w-auto" onClick={doMeasure} disabled={loading || refreshing}>
                         {(loading || refreshing) ? (
                           <><Loader2 className="mr-2 h-4 w-4 animate-spin" />측정 중...</>
                         ) : (
-                          <><Activity className="mr-2 h-4 w-4" />{result ? '갱신하기 (3크레딧)' : '측정하기 (3크레딧)'}</>
+                          <><Activity className="mr-2 h-4 w-4" />{result ? `갱신하기 (${CREDIT_COSTS.blog_index}크레딧)` : `측정하기 (${CREDIT_COSTS.blog_index}크레딧)`}</>
                         )}
                       </Button>
                     </>
@@ -1796,68 +1797,6 @@ export default function BlogIndexPage() {
               </Card>
             )}
 
-            {/* ===== 축별 분석 상세 ===== */}
-            {(() => {
-              const scale20 = (c: AnalysisCategory): AnalysisCategory => ({
-                ...c, score: Math.round(c.score * 20 / 25), maxScore: 20,
-              })
-              const searchBonusCatDetail: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
-                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
-                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
-              } : null
-              const is5 = axisMode === '5axis' && searchBonusCatDetail
-              const detailCats = is5
-                ? [...result.categories, searchBonusCatDetail!].map(scale20)
-                : result.categories
-              return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-4 w-4" />
-                  축별 분석 상세 <span className="text-xs font-normal text-muted-foreground">({axisMode === '5axis' ? '5대축' : '4대축'})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {detailCats.map((cat) => (
-                    <div key={cat.name} className="rounded-lg border p-3">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        {getCategoryIcon(cat.name)}
-                        <h3 className="text-sm font-medium">{cat.name}</h3>
-                        <Badge className={`ml-auto text-[10px] ${getGradeColor(cat.grade)}`}>{cat.score}/{cat.maxScore}</Badge>
-                      </div>
-                      <ul className="space-y-0.5">
-                        {cat.details.map((detail, i) => {
-                          const scoreMatch = detail.match(/\(([+-]\d+)\)\s*$/)
-                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : null
-                          const pointText = pointNum !== null ? (pointNum > 0 ? `+${pointNum}` : `${pointNum}`) : null
-                          const detailText = scoreMatch ? detail.replace(/\s*\([+-]\d+\)\s*$/, '') : detail
-                          return (
-                            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${pointNum !== null && pointNum < 0 ? 'bg-red-400' : 'bg-muted-foreground/50'}`} />
-                              <span className="flex-1">{detailText}</span>
-                              {pointText && (
-                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                  pointNum! < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                  pointNum! >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                  pointNum! >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                  pointNum! >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                  'bg-muted text-muted-foreground'
-                                }`}>
-                                  {pointText}
-                                </span>
-                              )}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-              )
-            })()}
 
             {/* ===== 3행: 포스팅 지수 (개별 포스트 품질 테이블) ===== */}
             {result.recentPosts && result.recentPosts.length > 0 && (
