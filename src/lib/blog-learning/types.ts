@@ -50,6 +50,11 @@ export interface AnalyzedPostPattern {
 
   writing_tone: WritingTone | null
 
+  /** 이미지 배치 패턴 (H2 직후 / 도입부 / 마무리 등) */
+  image_positions: ImagePosition[]
+  /** 이미지 유형 분포 (제품사진 / 인포그래픽 / 일러스트 등) */
+  image_types: string[]
+
   quality_score: number
   quality_tier: string
 
@@ -57,6 +62,9 @@ export interface AnalyzedPostPattern {
 }
 
 export type WritingTone = 'formal' | 'casual' | 'review' | 'informational'
+
+/** 이미지 위치 정보 */
+export type ImagePosition = 'intro' | 'after_heading' | 'mid_content' | 'before_conclusion' | 'conclusion'
 
 /** 집계된 키워드 패턴 */
 export interface AggregatedPattern {
@@ -85,6 +93,11 @@ export interface AggregatedPattern {
   optimal_char_range: { min: number; max: number }
   optimal_image_range: { min: number; max: number }
   optimal_heading_range: { min: number; max: number }
+
+  /** 이미지 배치 패턴 빈도 (intro=60%, after_heading=80% 등) */
+  image_position_rates: Record<string, number>
+  /** 이미지 유형 빈도 Top5 */
+  top_image_types: Array<{ type: string; rate: number }>
 }
 
 /** 프롬프트 주입용 데이터 */

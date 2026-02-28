@@ -25,7 +25,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Bot, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, Link2, Save, Shield, ShieldOff, User } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ArrowLeft, Bot, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, Image as ImageIcon, Link2, Loader2, Save, Shield, ShieldOff, Trash2, User } from 'lucide-react'
 import { CREDIT_FEATURE_LABELS, type CreditFeature } from '@/types/database'
 
 interface UserProfile {
@@ -698,115 +700,132 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         </Card>
       </div>
 
-      {/* 크레딧 사용 내역 */}
-      <CreditUsageCard logs={data.creditLogs} />
+      {/* 탭: 활동 / 크레딧 / 이미지 */}
+      <Tabs defaultValue="activity" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="activity">최근 활동</TabsTrigger>
+          <TabsTrigger value="credits">크레딧 내역</TabsTrigger>
+          <TabsTrigger value="images" className="gap-1">
+            <ImageIcon className="h-3.5 w-3.5" /> 이미지
+          </TabsTrigger>
+        </TabsList>
 
-      {/* 최근 활동 */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>최근 키워드 검색</span>
-              <span className="text-sm font-normal text-muted-foreground">{totalKeywords}건</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {recentKeywords.map((kw) => (
-                <div key={kw.id} className="flex items-center justify-between rounded-lg border p-2">
-                  <span className="text-sm">{kw.seed_keyword}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(kw.created_at).toLocaleDateString('ko-KR')}
-                  </span>
+        <TabsContent value="activity" className="space-y-6 mt-4">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>최근 키워드 검색</span>
+                  <span className="text-sm font-normal text-muted-foreground">{totalKeywords}건</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentKeywords.map((kw) => (
+                    <div key={kw.id} className="flex items-center justify-between rounded-lg border p-2">
+                      <span className="text-sm">{kw.seed_keyword}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(kw.created_at).toLocaleDateString('ko-KR')}
+                      </span>
+                    </div>
+                  ))}
+                  {recentKeywords.length === 0 && (
+                    <p className="py-4 text-center text-sm text-muted-foreground">검색 기록이 없습니다</p>
+                  )}
                 </div>
-              ))}
-              {recentKeywords.length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">검색 기록이 없습니다</p>
-              )}
-            </div>
-            {kwTotalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={kwPage <= 1}
-                  onClick={() => { setKwPage(kwPage - 1); loadUser(kwPage - 1, ctPage) }}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  {kwPage} / {kwTotalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={kwPage >= kwTotalPages}
-                  onClick={() => { setKwPage(kwPage + 1); loadUser(kwPage + 1, ctPage) }}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                {kwTotalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={kwPage <= 1}
+                      onClick={() => { setKwPage(kwPage - 1); loadUser(kwPage - 1, ctPage) }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {kwPage} / {kwTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={kwPage >= kwTotalPages}
+                      onClick={() => { setKwPage(kwPage + 1); loadUser(kwPage + 1, ctPage) }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>최근 콘텐츠 생성</span>
-              <span className="text-sm font-normal text-muted-foreground">{totalContent}건</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {recentContent.map((ct) => (
-                <div key={ct.id} className="rounded-lg border p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{ct.title}</span>
-                    <Badge className={STATUS_COLORS[ct.status] || 'bg-gray-100 text-gray-700'}>
-                      {STATUS_LABELS[ct.status] || ct.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>키워드: {ct.target_keyword}</span>
-                    <span>SEO: {ct.seo_score ?? '-'}</span>
-                  </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span>최근 콘텐츠 생성</span>
+                  <span className="text-sm font-normal text-muted-foreground">{totalContent}건</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentContent.map((ct) => (
+                    <div key={ct.id} className="rounded-lg border p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">{ct.title}</span>
+                        <Badge className={STATUS_COLORS[ct.status] || 'bg-gray-100 text-gray-700'}>
+                          {STATUS_LABELS[ct.status] || ct.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>키워드: {ct.target_keyword}</span>
+                        <span>SEO: {ct.seo_score ?? '-'}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {recentContent.length === 0 && (
+                    <p className="py-4 text-center text-sm text-muted-foreground">생성된 콘텐츠가 없습니다</p>
+                  )}
                 </div>
-              ))}
-              {recentContent.length === 0 && (
-                <p className="py-4 text-center text-sm text-muted-foreground">생성된 콘텐츠가 없습니다</p>
-              )}
-            </div>
-            {ctTotalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={ctPage <= 1}
-                  onClick={() => { setCtPage(ctPage - 1); loadUser(kwPage, ctPage - 1) }}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  {ctPage} / {ctTotalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={ctPage >= ctTotalPages}
-                  onClick={() => { setCtPage(ctPage + 1); loadUser(kwPage, ctPage + 1) }}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                {ctTotalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={ctPage <= 1}
+                      onClick={() => { setCtPage(ctPage - 1); loadUser(kwPage, ctPage - 1) }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {ctPage} / {ctTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={ctPage >= ctTotalPages}
+                      onClick={() => { setCtPage(ctPage + 1); loadUser(kwPage, ctPage + 1) }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="credits" className="mt-4">
+          <CreditUsageCard logs={data.creditLogs} />
+        </TabsContent>
+
+        <TabsContent value="images" className="mt-4">
+          <UserImagesCard userId={id} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -919,6 +938,251 @@ function CreditUsageCard({ logs }: { logs: CreditLog[] }) {
         <p className="mt-3 text-xs text-muted-foreground text-center">
           총 {logs.length}건 · 누적 {logs.reduce((s, l) => s + l.credits_spent, 0)} 크레딧 소모
         </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface UserImage {
+  name: string
+  url: string
+  size: number
+  createdAt: string
+}
+
+/** 사용자 AI 생성 이미지 갤러리 */
+function UserImagesCard({ userId }: { userId: string }) {
+  const [images, setImages] = useState<UserImage[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  async function loadImages(p = 1) {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/images?page=${p}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setImages(data.images || [])
+      setPage(data.page)
+      setTotalPages(data.totalPages)
+      setTotalCount(data.totalCount)
+      setSelected(new Set())
+    } catch {
+      // 조회 실패 무시
+    } finally {
+      setLoading(false)
+      setLoaded(true)
+    }
+  }
+
+  useEffect(() => {
+    loadImages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  function toggleSelect(name: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === images.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(images.map(img => img.name)))
+    }
+  }
+
+  async function handleDelete() {
+    if (selected.size === 0) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/images`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileNames: Array.from(selected) }),
+      })
+      if (res.ok) {
+        loadImages(page)
+      }
+    } catch {
+      // 삭제 실패 무시
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // 날짜별 그룹핑
+  function groupByDate(imgs: UserImage[]) {
+    const groups = new Map<string, UserImage[]>()
+    for (const img of imgs) {
+      const dateKey = img.createdAt
+        ? new Date(img.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+        : '날짜 미상'
+      const list = groups.get(dateKey) || []
+      list.push(img)
+      groups.set(dateKey, list)
+    }
+    return groups
+  }
+
+  function formatSize(bytes: number) {
+    if (!bytes) return '-'
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  const grouped = groupByDate(images)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-lg">
+          <span className="flex items-center gap-2">
+            <ImageIcon className="h-5 w-5" />
+            AI 생성 이미지
+            {loaded && <span className="text-sm font-normal text-muted-foreground">({totalCount}장)</span>}
+          </span>
+          {images.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7"
+                onClick={toggleSelectAll}
+              >
+                {selected.size === images.length ? '선택 해제' : '전체 선택'}
+              </Button>
+              {selected.size > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="text-xs h-7 gap-1" disabled={deleting}>
+                      <Trash2 className="h-3 w-3" />
+                      {selected.size}장 삭제
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>이미지 삭제</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        선택한 {selected.size}장의 이미지를 영구 삭제합니다. 콘텐츠에서 참조 중인 이미지도 삭제되어 깨질 수 있습니다.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>취소</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        삭제
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading && !loaded ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : images.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">생성된 이미지가 없습니다</p>
+        ) : (
+          <div className="space-y-6">
+            {Array.from(grouped.entries()).map(([dateKey, imgs]) => (
+              <div key={dateKey}>
+                <h4 className="text-sm font-medium text-muted-foreground mb-3">{dateKey}</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {imgs.map((img) => (
+                    <div
+                      key={img.name}
+                      className={`group relative rounded-lg border overflow-hidden cursor-pointer transition-all ${
+                        selected.has(img.name) ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'
+                      }`}
+                    >
+                      {/* 체크박스 */}
+                      <div className="absolute top-2 left-2 z-10">
+                        <Checkbox
+                          checked={selected.has(img.name)}
+                          onCheckedChange={() => toggleSelect(img.name)}
+                          className="bg-white/80 backdrop-blur-sm"
+                        />
+                      </div>
+                      {/* 이미지 */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.url}
+                        alt={img.name}
+                        className="w-full aspect-square object-cover"
+                        loading="lazy"
+                        onClick={() => setPreviewUrl(img.url)}
+                      />
+                      {/* 파일 크기 */}
+                      <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] px-2 py-1 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                        {formatSize(img.size)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* 페이지네이션 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={page <= 1 || loading}
+                  onClick={() => loadImages(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => loadImages(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 이미지 미리보기 모달 */}
+        {previewUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-pointer"
+            onClick={() => setPreviewUrl(null)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="미리보기"
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )

@@ -106,6 +106,16 @@ body:has(.mockup-root) {
   min-height: 80px;
 }
 
+/* AI 생성 이미지 크기 제한 (본문 너비에 맞게) */
+.tiptap img:not([alt^="이미지"]) {
+  max-width: 680px;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 12px auto;
+  display: block;
+}
+
 /* 선택된 노드 하이라이트 */
 .tiptap .ProseMirror-selectednode {
   outline: 2px solid hsl(var(--primary));

@@ -58,6 +58,25 @@ const REAL_PHOTO_PATTERNS = [
   /before\s*(and|&)\s*after/i,
 ]
 
+/**
+ * 텍스트/글자가 필수인 이미지 유형 판별
+ * AI 이미지 모델은 한글 텍스트를 정확히 렌더링할 수 없으므로 사전 차단
+ */
+const TEXT_HEAVY_PATTERNS = [
+  /인포그래픽/, /로드맵/, /타임라인/, /플로우\s*차트/, /순서도/,
+  /마인드\s*맵/, /조직도/, /계통도/, /분류\s*(표|도)/,
+  /비교\s*(표|차트)/, /장단점\s*(표|비교)/, /체크\s*리스트/,
+  /단계\s*(표|도|별)/, /과정\s*(표|도)/, /절차\s*(표|도)/,
+  /일정\s*(표|계획)/, /시간\s*(표|계획)/, /커리큘럼/,
+  /가격\s*(표|비교)/, /견적/, /요금\s*(표|비교)/,
+  /성분\s*(표|비교)/, /영양\s*(표|성분|정보)/,
+  /스펙\s*(표|비교)/, /사양\s*(표|비교)/,
+]
+
+function isTextHeavyImage(description: string): boolean {
+  return TEXT_HEAVY_PATTERNS.some(pattern => pattern.test(description))
+}
+
 function isRealPhotoRequired(description: string): boolean {
   return REAL_PHOTO_PATTERNS.some(pattern => pattern.test(description))
 }
@@ -91,7 +110,7 @@ export async function POST(request: NextRequest) {
     // 최대 10장 제한 (Vercel 60초 타임아웃 고려)
     const safeMarkers = markers.slice(0, 10)
 
-    // 실사 이미지 필터링 (서버 안전장치)
+    // 실사 이미지 + 텍스트 필수 이미지 사전 차단 (서버 안전장치)
     const generatable: ImageMarker[] = []
     const skipped: Array<{ index: number; description: string; reason: string }> = []
 
@@ -101,6 +120,12 @@ export async function POST(request: NextRequest) {
           index: marker.index,
           description: marker.description,
           reason: '실제 사진이 필요한 이미지 (AI 생성 불가)',
+        })
+      } else if (isTextHeavyImage(marker.description)) {
+        skipped.push({
+          index: marker.index,
+          description: marker.description,
+          reason: '텍스트/글자가 필요한 이미지 (AI가 글자를 정확히 생성할 수 없음)',
         })
       } else {
         generatable.push(marker)
@@ -138,6 +163,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 학습 데이터에서 이미지 패턴 조회 (실패해도 진행)
+    let imagePatternHint: string | null = null
+    try {
+      const { getImagePatternPrompt } = await import('@/lib/blog-learning/prompt-injector')
+      const { detectContentType, detectDomainCategory } = await import('@/lib/content/engine')
+      const category = detectContentType(keyword)
+      const domain = detectDomainCategory(keyword)
+      imagePatternHint = await getImagePatternPrompt(keyword, category, domain)
+    } catch {
+      // 학습 데이터 조회 실패 시 무시 (기본 프롬프트로 진행)
+    }
+
     // NDJSON 스트리밍 응답
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
@@ -147,6 +184,11 @@ export async function POST(request: NextRequest) {
         }
 
         try {
+          // 학습 데이터 사용 알림
+          if (imagePatternHint) {
+            send({ type: 'learning', message: '학습 데이터 기반 이미지 최적화 적용' })
+          }
+
           // 스킵된 마커 알림
           for (const s of skipped) {
             send({ type: 'skipped', index: s.index, description: s.description, reason: s.reason })
@@ -166,11 +208,12 @@ export async function POST(request: NextRequest) {
             })
 
             try {
-              // Gemini 이미지 생성 호출
+              // Gemini 이미지 생성 호출 (학습 데이터 힌트 포함)
               const imageData = await generateImageWithGemini(
                 apiKey,
                 keyword,
-                marker.description
+                marker.description,
+                imagePatternHint
               )
 
               if (!imageData) {
@@ -282,22 +325,40 @@ export async function POST(request: NextRequest) {
 async function generateImageWithGemini(
   apiKey: string,
   keyword: string,
-  description: string
+  description: string,
+  patternHint: string | null = null
 ): Promise<{ base64: string; mimeType: string } | null> {
   const url = `${GEMINI_API_BASE}/gemini-2.5-flash-image:generateContent?key=${apiKey}`
 
-  const prompt = [
-    '한국 네이버 블로그 포스트에 사용할 이미지를 생성하세요.',
-    `블로그 주제: "${keyword}"`,
-    `이미지 설명: ${description}`,
-    '스타일: 깔끔하고 전문적인 블로그 삽화, 텍스트/워터마크 없이, 밝은 톤',
-  ].join('\n')
+  const promptParts = [
+    `Generate a blog illustration image about: ${description}`,
+  ]
+
+  // 학습 데이터 기반 힌트 주입
+  if (patternHint) {
+    promptParts.push('', 'Visual reference hints:', patternHint)
+  }
+
+  promptParts.push(
+    '',
+    'ABSOLUTE REQUIREMENTS:',
+    '- Clean, professional, bright-toned blog illustration',
+    '- NEVER use a plain white, solid white, or blank white background. Use colorful, gradient, textured, or contextual scene backgrounds instead',
+    '- Use rich, vivid backgrounds that complement the subject (e.g., soft gradients, blurred environments, natural settings, abstract patterns)',
+    '- ZERO TEXT in the image. No letters, words, numbers, characters, labels, captions, watermarks, logos, signs, or any written content whatsoever',
+    '- No text in any language (Korean, English, Chinese, Japanese, or any other)',
+    '- No UI elements, buttons, menus, or interface components',
+    '- Pure visual content only: objects, scenes, shapes, colors, illustrations, photographs',
+    '- If text would normally appear (signs, labels, screens), make those areas blank, blurred, or filled with abstract patterns',
+  )
+
+  const prompt = promptParts.join('\n')
 
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      temperature: 0.7,
+      responseModalities: ['IMAGE'],
+      temperature: 0.2,
     },
   }
 

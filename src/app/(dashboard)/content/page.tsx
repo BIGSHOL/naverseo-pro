@@ -8,7 +8,7 @@ import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
   Pencil, Save, Link2, MessageSquareQuote, Sparkles, ImagePlus,
-  Search, Trash2, ChevronsDown, Pause, PanelLeftClose, PanelLeftOpen,
+  Search, Trash2, ChevronsDown, Pause, PanelLeftClose, PanelLeftOpen, AlertTriangle,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -476,26 +476,22 @@ export default function ContentPage() {
   const [improveDetails, setImproveDetails] = useState<string[]>([])
   const [improveDisabledReason, setImproveDisabledReason] = useState('')
   const editorRef = useRef<Editor | null>(null)
+  const historyEditorRef = useRef<Editor | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
 
   // Self-Healing 패치 애니메이션용
   const selfHealPatchesRef = useRef<{ rawTitle: string; rawContent: string; patches: Array<{ find: string; replace: string; label: string }> } | null>(null)
 
-  // 약점 개선 가능 여부 체크 (디바운스 1초)
-  useEffect(() => {
-    if (!editContent.trim() || !keyword.trim()) {
-      setImproveDisabledReason('')
-      return
-    }
-    const timer = setTimeout(() => {
-      try {
-        const seoResult = analyzeSeo(keyword.trim(), editTitle, editContent)
-        const weakCount = seoResult.categories.filter(cat => (cat.score / cat.maxScore) < 0.8).length
-        setImproveDisabledReason(weakCount === 0 ? '모든 SEO 항목이 양호합니다 (80% 이상)' : '')
-      } catch { /* ignore */ }
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [editContent, editTitle, keyword])
+  // AI 검토/수정 시각화 상태
+  const [healAnimState, setHealAnimState] = useState<{
+    phase: 'reviewing' | 'fixing' | 'done'
+    current: number
+    total: number
+    label: string
+    fixPhase: 'find' | 'replace'
+    scoreBefore: number
+    scoreAfter: number
+  } | null>(null)
 
   // AI 이미지 생성
   const [generatingImages, setGeneratingImages] = useState(false)
@@ -789,32 +785,39 @@ export default function ContentPage() {
                 selfHealPatchesRef.current = null
 
                 if (healData && healData.patches.length > 0 && !showRawMarkdown) {
-                  // Self-Healing 애니메이션: 원본 콘텐츠 먼저 표시 → 패치 sweep 적용
+                  // Self-Healing 3단계 애니메이션: 검토 → 수정 → 완료
+                  const scoreBefore = event.scoreBefore ?? 0
+                  const scoreAfter = event.scoreAfter ?? event.seoScore ?? 0
+
                   // 원본(최적화 전) 콘텐츠/제목을 에디터에 로드
                   setEditTitle(healData.rawTitle)
                   setEditContent(healData.rawContent)
                   setResult(event)
 
+                  // 패치 분류
+                  const contentPatches = healData.patches.filter(p => p.label !== '제목 키워드 최적화' && p.label !== '제목 길이 조정')
+                  const titlePatch = healData.patches.find(p => p.label === '제목 키워드 최적화' || p.label === '제목 길이 조정')
+                  const totalPatches = contentPatches.length + (titlePatch ? 1 : 0)
+
+                  // Phase 1: "검토 중"
+                  setHealAnimState({ phase: 'reviewing', current: 0, total: totalPatches, label: '', fixPhase: 'find', scoreBefore, scoreAfter })
+                  setAnimatingPatch('AI 검토 중...')
+
                   // 에디터 렌더링 대기 후 애니메이션 시작
                   setTimeout(() => {
                     contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
-                    // 콘텐츠 패치와 제목 패치 분리
-                    const contentPatches = healData.patches.filter(p => p.label !== '제목 키워드 최적화' && p.label !== '제목 길이 조정')
-                    const titlePatch = healData.patches.find(p => p.label === '제목 키워드 최적화' || p.label === '제목 길이 조정')
-
                     if (contentPatches.length > 0 && editorRef.current) {
-                      setAnimatingPatch('SEO 자동 최적화 중...')
                       let currentContent = healData.rawContent
 
                       cancelAnimationRef.current = animatePatchesSequential(
                         editorRef.current,
                         contentPatches,
                         {
-                          initialDelay: 800,
-                          findDuration: 700,
-                          replaceDuration: 1200,
-                          interPatchDelay: 500,
+                          initialDelay: 1500,
+                          findDuration: 900,
+                          replaceDuration: 1400,
+                          interPatchDelay: 600,
                           onApplyPatch: (patch) => {
                             return new Promise((resolve) => {
                               if (!currentContent.includes(patch.find)) {
@@ -830,6 +833,15 @@ export default function ContentPage() {
                           },
                           onProgress: (current, total, phase) => {
                             const patchLabel = contentPatches[current - 1]?.label || ''
+                            // Phase 2: 각 패치의 find/replace 단계
+                            setHealAnimState(prev => prev ? {
+                              ...prev,
+                              phase: 'fixing',
+                              current,
+                              total: totalPatches,
+                              label: patchLabel,
+                              fixPhase: phase as 'find' | 'replace',
+                            } : null)
                             if (phase === 'find') {
                               setAnimatingPatch(`${patchLabel} 수정 중... (${current}/${total})`)
                             } else {
@@ -837,21 +849,23 @@ export default function ContentPage() {
                             }
                           },
                           onComplete: () => {
-                            // 제목 패치 적용
-                            if (titlePatch) {
-                              setEditTitle(event.title)
-                            }
-                            // 최종 콘텐츠로 확정
+                            if (titlePatch) setEditTitle(event.title)
                             setEditContent(event.content)
                             setAnimatingPatch('')
                             cancelAnimationRef.current = null
+
+                            // Phase 3: "완료"
+                            setHealAnimState(prev => prev ? { ...prev, phase: 'done', current: totalPatches, label: '' } : null)
+                            setTimeout(() => setHealAnimState(null), 4000)
                           },
                         }
                       )
                     } else {
-                      // 콘텐츠 패치가 없으면 (제목만 변경) 즉시 적용
+                      // 콘텐츠 패치 없음 (제목만 변경)
                       if (titlePatch) setEditTitle(event.title)
                       setEditContent(event.content)
+                      setHealAnimState(prev => prev ? { ...prev, phase: 'done', current: totalPatches, label: '' } : null)
+                      setTimeout(() => setHealAnimState(null), 4000)
                     }
                   }, 600)
                 } else {
@@ -922,6 +936,7 @@ export default function ContentPage() {
     selfHealPatchesRef.current = null
     cancelAnimationRef.current?.()
     setAnimatingPatch('')
+    setHealAnimState(null)
     setAutoScroll(true)
     autoScrollRef.current = true
     await generateContent()
@@ -1004,16 +1019,16 @@ export default function ContentPage() {
     }
   }
 
-  // AI 약점 개선 (Patch 방식)
+  // AI 약점 개선 (Patch 방식) — active context 사용 (생성 탭 + 내 콘텐츠 편집 모두 지원)
   const handleImprove = async () => {
-    if (improving || !editContent.trim() || !keyword.trim()) return
+    if (improving || !activeContent.trim() || !activeKeyword.trim()) return
     setImproving(true)
     setImproveMessage('')
     setImproveDetails([])
 
     try {
       // 현재 콘텐츠의 SEO 분석 실행
-      const seoResult = analyzeSeo(keyword.trim(), editTitle, editContent)
+      const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
 
       // 약한 항목 추출 (점수 비율 기준 상위 5개)
       const weakCategories = [...seoResult.categories]
@@ -1039,9 +1054,9 @@ export default function ContentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          keyword: keyword.trim(),
-          title: editTitle,
-          content: editContent,
+          keyword: activeKeyword.trim(),
+          title: activeTitle,
+          content: activeContent,
           weakCategories,
         }),
       })
@@ -1110,17 +1125,17 @@ export default function ContentPage() {
       // 적용 가능한 패치 필터링
       const validPatches = (data.patches && Array.isArray(data.patches))
         ? data.patches.filter((p: { find: string; replace: string }) =>
-            typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0 && editContent.includes(p.find)
+            typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0 && activeContent.includes(p.find)
           )
         : []
 
       // 편집기 탭 + 에디터 있으면 → 순차 애니메이션 (패치 하나씩 적용)
-      if (validPatches.length > 0 && editorRef.current && !showRawMarkdown) {
+      if (validPatches.length > 0 && activeEditorRef.current && !activeShowRawMarkdown) {
         cancelAnimationRef.current?.()
-        let currentContent = editContent
+        let currentContent = activeContent
 
         cancelAnimationRef.current = animatePatchesSequential(
-          editorRef.current,
+          activeEditorRef.current,
           validPatches,
           {
             initialDelay: 300,
@@ -1134,7 +1149,7 @@ export default function ContentPage() {
                   return
                 }
                 currentContent = currentContent.replace(patch.find, patch.replace)
-                setEditContent(currentContent)
+                setActiveContent(currentContent)
                 // React 리렌더 + TipTap 동기화 대기
                 requestAnimationFrame(() => {
                   setTimeout(() => resolve(true), 150)
@@ -1152,9 +1167,9 @@ export default function ContentPage() {
               // append (태그/CTA 등 끝에 추가)
               if (data.append) {
                 currentContent = currentContent.trimEnd() + '\n\n' + data.append
-                setEditContent(currentContent)
+                setActiveContent(currentContent)
               }
-              if (data.title) setEditTitle(data.title)
+              if (data.title) setActiveTitle(data.title)
 
               setAnimatingPatch('')
               cancelAnimationRef.current = null
@@ -1175,7 +1190,7 @@ export default function ContentPage() {
         )
       } else {
         // 폴백: 마크다운 탭이거나 에디터 없으면 일괄 적용 (기존 방식)
-        let updatedContent = editContent
+        let updatedContent = activeContent
         let appliedCount = 0
         let skippedCount = 0
 
@@ -1192,8 +1207,8 @@ export default function ContentPage() {
           updatedContent = updatedContent.trimEnd() + '\n\n' + data.append
           appliedCount++
         }
-        if (data.title) setEditTitle(data.title)
-        if (appliedCount > 0) setEditContent(updatedContent)
+        if (data.title) setActiveTitle(data.title)
+        if (appliedCount > 0) setActiveContent(updatedContent)
 
         // 개선 내역 저장
         if (appliedCount > 0) {
@@ -1220,9 +1235,9 @@ export default function ContentPage() {
 
   // ── AI 이미지 생성 ──
 
-  /** AI 이미지 생성 버튼 클릭 → 마커 추출 → 확인 다이얼로그 */
+  /** AI 이미지 생성 버튼 클릭 → 마커 추출 → 확인 다이얼로그 (active context 사용) */
   const handleImageGenClick = () => {
-    const markers = extractImageMarkers(editContent)
+    const markers = extractImageMarkers(activeContent)
     if (markers.length === 0) {
       toast({ title: '이미지 마커 없음', description: '본문에 [이미지: 설명] 마커가 없습니다.', variant: 'destructive' })
       return
@@ -1248,8 +1263,8 @@ export default function ContentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contentId: result?.contentId || null,
-          keyword: keyword.trim(),
+          contentId: activeContentId,
+          keyword: activeKeyword.trim(),
           markers: generatableMarkers.map(m => ({ index: m.index, description: m.description })),
         }),
       })
@@ -1268,10 +1283,10 @@ export default function ContentPage() {
 
       const decoder = new TextDecoder()
       let buffer = ''
-      let updatedContent = editContent
+      let updatedContent = activeContent
       let replacedCount = 0
 
-      console.log('[ImageGen] 시작 — editContent 마커 수:', (editContent.match(/\[이미지[:\s]+[^\]]+\]/g) || []).length)
+      console.log('[ImageGen] 시작 — activeContent 마커 수:', (activeContent.match(/\[이미지[:\s]+[^\]]+\]/g) || []).length)
 
       while (true) {
         const { done, value } = await reader.read()
@@ -1301,7 +1316,7 @@ export default function ContentPage() {
                   ''
                 )
                 const before = updatedContent
-                updatedContent = updatedContent.replace(markerRegex, `![${event.description}](${event.url})`)
+                updatedContent = updatedContent.replace(markerRegex, `<img src="${event.url}" alt="${event.description}" style="max-width:680px;width:100%;height:auto;border-radius:8px;margin:12px auto;display:block;" />`)
                 if (before !== updatedContent) {
                   replacedCount++
                   console.log(`[ImageGen] 마커 교체 성공 #${event.index}: "${markerInfo.description}" → 이미지 URL`)
@@ -1315,19 +1330,46 @@ export default function ContentPage() {
               console.warn(`[ImageGen] 부분 실패 #${event.index}:`, event.reason)
             } else if (event.type === 'result') {
               console.log(`[ImageGen] 완료 — 생성: ${event.generated}, 실패: ${event.failed}, 교체: ${replacedCount}`)
+              let finalContent = ''
               if (replacedCount > 0) {
-                setEditContent(updatedContent)
+                finalContent = updatedContent
+                setActiveContent(updatedContent)
                 toast({ title: '이미지 배치 완료', description: `${replacedCount}장의 이미지가 본문에 삽입되었습니다.` })
               } else if (event.generated > 0) {
                 // 이미지는 생성되었지만 마커 교체 실패 — 강제 배치 시도
                 console.warn('[ImageGen] 마커 교체 0건 — 이미지 URL을 본문 하단에 추가합니다')
                 let appendMarkdown = '\n\n---\n\n### AI 생성 이미지\n\n'
                 for (const img of (event.images || [])) {
-                  appendMarkdown += `![${img.description}](${img.url})\n\n`
+                  appendMarkdown += `<img src="${img.url}" alt="${img.description}" style="max-width:680px;width:100%;height:auto;border-radius:8px;margin:12px auto;display:block;" />\n\n`
                 }
-                setEditContent(editContent + appendMarkdown)
+                finalContent = activeContent + appendMarkdown
+                setActiveContent(finalContent)
                 toast({ title: '이미지 생성 완료', description: `마커 교체 실패로 본문 하단에 이미지를 추가했습니다.` })
               }
+
+              // 이미지 삽입 후 자동저장
+              if (finalContent && activeContentId) {
+                try {
+                  const saveRes = await fetch('/api/content/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      contentId: activeContentId,
+                      title: activeTitle,
+                      content: finalContent,
+                    }),
+                  })
+                  if (saveRes.ok) {
+                    console.log('[ImageGen] 자동저장 완료')
+                    toast({ title: '자동 저장 완료', description: '이미지가 포함된 콘텐츠가 저장되었습니다.' })
+                  } else {
+                    console.warn('[ImageGen] 자동저장 실패:', await saveRes.text())
+                  }
+                } catch (saveErr) {
+                  console.warn('[ImageGen] 자동저장 오류:', saveErr)
+                }
+              }
+
               const msgs: string[] = []
               if (event.generated > 0) msgs.push(`${event.generated}장 생성 완료`)
               if (event.failed > 0) msgs.push(`${event.failed}장 실패`)
@@ -1365,6 +1407,34 @@ export default function ContentPage() {
 
   // 내역 관련 함수
   const selectedContent = historyContents.find(c => c.id === selectedContentId)
+
+  // Active editing context — 생성 탭 vs 내 콘텐츠 편집 모드 자동 감지
+  const isHistoryEditing = pageTab === 'history' && historyEditMode && !!selectedContent
+  const activeKeyword = isHistoryEditing ? selectedContent!.target_keyword : keyword
+  const activeTitle = isHistoryEditing ? historyEditTitle : editTitle
+  const activeContent = isHistoryEditing ? historyEditContent : editContent
+  const setActiveContent = isHistoryEditing ? setHistoryEditContent : setEditContent
+  const setActiveTitle = isHistoryEditing ? setHistoryEditTitle : setEditTitle
+  const activeContentId = isHistoryEditing ? selectedContentId : (result?.contentId || null)
+  const activeEditorRef = isHistoryEditing ? historyEditorRef : editorRef
+  const activeShowRawMarkdown = isHistoryEditing ? showHistoryRawMarkdown : showRawMarkdown
+
+  // 약점 개선 가능 여부 체크 (디바운스 1초) — active context 사용
+  useEffect(() => {
+    if (!activeContent.trim() || !activeKeyword.trim()) {
+      setImproveDisabledReason('')
+      return
+    }
+    const timer = setTimeout(() => {
+      try {
+        const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
+        const weakCount = seoResult.categories.filter(cat => (cat.score / cat.maxScore) < 0.8).length
+        setImproveDisabledReason(weakCount === 0 ? '모든 SEO 항목이 양호합니다 (80% 이상)' : '')
+      } catch { /* ignore */ }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [activeContent, activeTitle, activeKeyword])
+
   const filteredHistory = historyContents.filter(c => {
     if (historyFilter !== 'all' && c.status !== historyFilter) return false
     if (historySearch.trim()) {
@@ -1610,6 +1680,32 @@ export default function ContentPage() {
                             <Button size="sm" variant="outline" onClick={() => setHistoryEditMode(false)}>
                               취소
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleImprove}
+                              disabled={improving || generatingImages || !!animatingPatch || !historyEditContent.trim()}
+                              className="gap-1"
+                            >
+                              {improving ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" />개선 중</>
+                              ) : (
+                                <><Sparkles className="h-3 w-3" />AI 약점 개선</>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleImageGenClick}
+                              disabled={generatingImages || improving || !!animatingPatch || !historyEditContent.trim()}
+                              className="gap-1"
+                            >
+                              {generatingImages ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" />생성 중</>
+                              ) : (
+                                <><ImagePlus className="h-3 w-3" />AI 이미지</>
+                              )}
+                            </Button>
                             <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 ml-auto">
                               <button
                                 className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
@@ -1697,6 +1793,7 @@ export default function ContentPage() {
                                     <TiptapEditor
                                       markdown={historyEditContent}
                                       onMarkdownChange={setHistoryEditContent}
+                                      onEditorReady={(editor) => { historyEditorRef.current = editor }}
                                       placeholder="글을 작성하세요..."
                                       maxHeight={500}
                                     />
@@ -2929,6 +3026,82 @@ export default function ContentPage() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* AI 검토/수정 시각화 카드 */}
+          {healAnimState && (
+            <div className={`rounded-lg border p-4 transition-all duration-500 ${
+              healAnimState.phase === 'reviewing'
+                ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 dark:border-amber-700'
+                : healAnimState.phase === 'fixing'
+                  ? healAnimState.fixPhase === 'find'
+                    ? 'border-red-300 bg-gradient-to-r from-red-50 to-amber-50 dark:from-red-950/30 dark:to-amber-950/30 dark:border-red-700'
+                    : 'border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 dark:border-green-700'
+                  : 'border-green-400 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 dark:border-green-600'
+            }`}>
+              {/* 진행 바 */}
+              <div className="mb-3 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ease-out ${
+                    healAnimState.phase === 'done' ? 'bg-green-500' : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${healAnimState.total > 0 ? (healAnimState.current / healAnimState.total) * 100 : 0}%` }}
+                />
+              </div>
+
+              <div className="flex items-start gap-3">
+                {/* 아이콘 */}
+                <div className={`mt-0.5 flex-shrink-0 rounded-full p-2 ${
+                  healAnimState.phase === 'reviewing'
+                    ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
+                    : healAnimState.phase === 'fixing' && healAnimState.fixPhase === 'find'
+                      ? 'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400'
+                      : 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400'
+                }`}>
+                  {healAnimState.phase === 'reviewing' ? (
+                    <Search className="h-4 w-4 animate-pulse" />
+                  ) : healAnimState.phase === 'fixing' && healAnimState.fixPhase === 'find' ? (
+                    <AlertTriangle className="h-4 w-4" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4" />
+                  )}
+                </div>
+
+                {/* 메시지 */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${
+                    healAnimState.phase === 'reviewing'
+                      ? 'text-amber-800 dark:text-amber-300'
+                      : healAnimState.phase === 'fixing' && healAnimState.fixPhase === 'find'
+                        ? 'text-red-800 dark:text-red-300'
+                        : 'text-green-800 dark:text-green-300'
+                  }`}>
+                    {healAnimState.phase === 'reviewing' && 'AI가 생성된 글을 검토하고 있습니다...'}
+                    {healAnimState.phase === 'fixing' && healAnimState.fixPhase === 'find' && (
+                      <>약점 발견: {healAnimState.label}</>
+                    )}
+                    {healAnimState.phase === 'fixing' && healAnimState.fixPhase === 'replace' && (
+                      <>수정 완료: {healAnimState.label}</>
+                    )}
+                    {healAnimState.phase === 'done' && (
+                      <>모든 약점 수정 완료!{healAnimState.scoreBefore > 0 && ` SEO ${healAnimState.scoreBefore} → ${healAnimState.scoreAfter}점`}</>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {healAnimState.phase === 'reviewing' && `${healAnimState.total}건의 SEO 약점을 분석하고 있습니다`}
+                    {healAnimState.phase === 'fixing' && `${healAnimState.current}/${healAnimState.total} 수정 중`}
+                    {healAnimState.phase === 'done' && '추가 개선이 필요하면 AI 약점 개선 버튼을 이용하세요'}
+                  </p>
+                </div>
+
+                {/* 카운터 */}
+                {healAnimState.phase !== 'done' && (
+                  <span className="flex-shrink-0 text-xs font-mono text-muted-foreground">
+                    {healAnimState.current}/{healAnimState.total}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
 
           {/* 생성된 콘텐츠 */}

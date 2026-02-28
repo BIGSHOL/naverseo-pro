@@ -72,6 +72,10 @@ async function aggregateForKeyword(
   // 톤 분포
   const toneDistribution = calculateToneDistribution(posts)
 
+  // 이미지 배치/유형 패턴 집계
+  const imagePositionRates = calculateImagePositionRates(posts)
+  const topImageTypes = calculateTopImageTypes(posts)
+
   await supabase
     .from('keyword_patterns')
     .upsert({
@@ -91,6 +95,8 @@ async function aggregateForKeyword(
       optimal_char_range: optimalCharRange,
       optimal_image_range: optimalImageRange,
       optimal_heading_range: optimalHeadingRange,
+      image_position_rates: imagePositionRates,
+      top_image_types: topImageTypes,
       last_updated_at: new Date().toISOString(),
     }, {
       onConflict: 'keyword,keyword_category,domain_category',
@@ -122,6 +128,8 @@ async function aggregateForCategory(
   const optimalImageRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.image_count as number))
   const optimalHeadingRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.heading_count as number))
   const toneDistribution = calculateToneDistribution(posts)
+  const imagePositionRates = calculateImagePositionRates(posts)
+  const topImageTypes = calculateTopImageTypes(posts)
 
   await supabase
     .from('keyword_patterns')
@@ -142,6 +150,8 @@ async function aggregateForCategory(
       optimal_char_range: optimalCharRange,
       optimal_image_range: optimalImageRange,
       optimal_heading_range: optimalHeadingRange,
+      image_position_rates: imagePositionRates,
+      top_image_types: topImageTypes,
       last_updated_at: new Date().toISOString(),
     }, {
       onConflict: 'keyword,keyword_category,domain_category',
@@ -173,6 +183,8 @@ async function aggregateForDomain(
   const optimalImageRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.image_count as number))
   const optimalHeadingRange = calculatePercentileRange(posts.map((p: Record<string, unknown>) => p.heading_count as number))
   const toneDistribution = calculateToneDistribution(posts)
+  const imagePositionRates = calculateImagePositionRates(posts)
+  const topImageTypes = calculateTopImageTypes(posts)
 
   await supabase
     .from('keyword_patterns')
@@ -193,6 +205,8 @@ async function aggregateForDomain(
       optimal_char_range: optimalCharRange,
       optimal_image_range: optimalImageRange,
       optimal_heading_range: optimalHeadingRange,
+      image_position_rates: imagePositionRates,
+      top_image_types: topImageTypes,
       last_updated_at: new Date().toISOString(),
     }, {
       onConflict: 'keyword,keyword_category,domain_category',
@@ -287,4 +301,57 @@ function avg(posts: any[], field: string, isBoolean = false): number {
 
   return Math.round((sum / posts.length) * 100) / 100
 }
+/**
+ * 이미지 배치 위치 빈도 집계
+ * 각 위치가 전체 포스트 중 몇 %에서 나타나는지
+ */
+function calculateImagePositionRates(posts: any[]): Record<string, number> {
+  const postsWithImages = posts.filter((p: any) => {
+    const positions = p.image_positions as string[] | null
+    return positions && positions.length > 0
+  })
+  if (postsWithImages.length === 0) return {}
+
+  const positionCounts: Record<string, number> = {}
+  for (const post of postsWithImages) {
+    const positions = post.image_positions as string[]
+    for (const pos of positions) {
+      positionCounts[pos] = (positionCounts[pos] || 0) + 1
+    }
+  }
+
+  const rates: Record<string, number> = {}
+  for (const [pos, count] of Object.entries(positionCounts)) {
+    rates[pos] = Math.round((count / postsWithImages.length) * 100) / 100
+  }
+  return rates
+}
+
+/**
+ * 이미지 유형 빈도 Top5 집계
+ */
+function calculateTopImageTypes(posts: any[]): Array<{ type: string; rate: number }> {
+  const postsWithTypes = posts.filter((p: any) => {
+    const types = p.image_types as string[] | null
+    return types && types.length > 0
+  })
+  if (postsWithTypes.length === 0) return []
+
+  const typeCounts: Record<string, number> = {}
+  for (const post of postsWithTypes) {
+    const types = post.image_types as string[]
+    for (const t of types) {
+      typeCounts[t] = (typeCounts[t] || 0) + 1
+    }
+  }
+
+  return Object.entries(typeCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([type, count]) => ({
+      type,
+      rate: Math.round((count / postsWithTypes.length) * 100) / 100,
+    }))
+}
+
 /* eslint-enable @typescript-eslint/no-explicit-any */

@@ -10,7 +10,7 @@ import type { NaverBlogSearchItem } from '@/lib/naver/blog-search'
 import { scorePost } from '@/lib/blog-index/scoring'
 import { detectContentType, detectDomainCategory, type ContentType } from '@/lib/content/engine'
 import { stripHtml, countImageMarkers } from '@/lib/utils/text'
-import type { AnalyzedPostPattern, CollectionSource, WritingTone } from './types'
+import type { AnalyzedPostPattern, CollectionSource, ImagePosition, WritingTone } from './types'
 
 /**
  * 스크래핑된 포스트 데이터 → 구조 패턴 (풀 데이터)
@@ -37,6 +37,8 @@ export function extractPatternFromScrapedData(
   const hasBoldEmphasis = rawHtml ? /<(?:b|strong)[\s>]/i.test(rawHtml) : false
   const hasNumberedItems = rawHtml ? detectNumberedItems(rawHtml) : false
   const writingTone = rawHtml ? detectWritingTone(rawHtml) : null
+  const imagePositions = rawHtml ? extractImagePositions(rawHtml) : []
+  const imageTypes = rawHtml ? extractImageTypes(rawHtml) : []
 
   // 메타 데이터
   const meta = scrapedData.meta
@@ -88,6 +90,8 @@ export function extractPatternFromScrapedData(
     has_bold_emphasis: hasBoldEmphasis,
     has_numbered_items: hasNumberedItems,
     writing_tone: writingTone,
+    image_positions: imagePositions,
+    image_types: imageTypes,
     quality_score: quality.score,
     quality_tier: quality.category,
     collected_from: source,
@@ -154,6 +158,8 @@ export function extractPatternFromSearchItem(
     has_bold_emphasis: /<(?:b|strong)[\s>]/i.test(searchItem.description),
     has_numbered_items: hasConcreteData,
     writing_tone: null,
+    image_positions: [],
+    image_types: [],
     quality_score: quality.score,
     quality_tier: quality.category,
     collected_from: source,
@@ -192,6 +198,110 @@ function detectNumberedItems(html: string): boolean {
   return /<ol[\s>]/i.test(html) ||
     /[①②③④⑤]/.test(html) ||
     /\b[1-9]\.\s/.test(stripHtml(html).substring(0, 3000))
+}
+
+/**
+ * 이미지 배치 위치 추출
+ *
+ * HTML에서 이미지 태그의 위치를 분석하여
+ * 도입부/H2직후/중간/마무리 등 배치 패턴을 추출
+ */
+function extractImagePositions(html: string): ImagePosition[] {
+  const positions: ImagePosition[] = []
+  const totalLen = html.length
+  if (totalLen < 200) return positions
+
+  // 이미지 태그/SmartEditor 이미지 위치 찾기
+  const imgRegex = /<img[\s][^>]*>|class="[^"]*se-image[^"]*"/gi
+  let match: RegExpExecArray | null
+  const imgIndices: number[] = []
+
+  while ((match = imgRegex.exec(html)) !== null) {
+    imgIndices.push(match.index)
+  }
+
+  if (imgIndices.length === 0) return positions
+
+  // H2/H3 태그 위치
+  const headingRegex = /<h[23][^>]*>/gi
+  const headingIndices: number[] = []
+  while ((match = headingRegex.exec(html)) !== null) {
+    headingIndices.push(match.index)
+  }
+
+  const positionSet = new Set<ImagePosition>()
+
+  for (const idx of imgIndices) {
+    const relativePos = idx / totalLen
+
+    // 도입부 (상위 15%)
+    if (relativePos < 0.15) {
+      positionSet.add('intro')
+    }
+    // 마무리 (하위 15%)
+    else if (relativePos > 0.85) {
+      positionSet.add('conclusion')
+    }
+    // 마무리 직전 (70~85%)
+    else if (relativePos > 0.7) {
+      positionSet.add('before_conclusion')
+    }
+    // 중간부
+    else {
+      positionSet.add('mid_content')
+    }
+
+    // H2/H3 직후 여부 (heading 뒤 500자 이내에 이미지)
+    for (const hIdx of headingIndices) {
+      if (idx > hIdx && idx - hIdx < 500) {
+        positionSet.add('after_heading')
+        break
+      }
+    }
+  }
+
+  return Array.from(positionSet)
+}
+
+/**
+ * 이미지 유형 추정 (휴리스틱)
+ *
+ * img 태그의 alt/src/class 속성과 주변 텍스트를 분석하여
+ * 제품사진/인포그래픽/음식/풍경 등 유형을 추정
+ */
+function extractImageTypes(html: string): string[] {
+  const types = new Set<string>()
+
+  // alt 속성 + 주변 텍스트에서 유형 추정
+  const imgWithAlt = html.matchAll(/<img[^>]*alt="([^"]*)"[^>]*>/gi)
+  const altTexts: string[] = []
+  for (const m of imgWithAlt) {
+    if (m[1]) altTexts.push(m[1])
+  }
+
+  const combined = altTexts.join(' ') + ' ' + html.substring(0, 5000)
+
+  // 유형별 패턴 매칭
+  const typePatterns: Array<[string, RegExp]> = [
+    ['제품사진', /제품|상품|패키지|구성품|박스|언박싱/],
+    ['음식사진', /음식|맛집|메뉴|요리|레시피|맛있|먹방/],
+    ['인포그래픽', /infographic|인포그래픽|차트|그래프|도표|통계/i],
+    ['비교표', /비교|vs|대결|장단점|스펙/],
+    ['과정사진', /과정|단계|순서|만들기|조립|설치/],
+    ['풍경사진', /풍경|전망|야경|뷰|경치|자연|바다|산|하늘/],
+    ['인테리어', /인테리어|리모델링|꾸미기|데코|가구|수납/],
+    ['일러스트', /일러스트|illustration|그림|아이콘|벡터/i],
+    ['스크린샷', /스크린샷|캡처|화면|앱|사이트|웹/],
+  ]
+
+  for (const [typeName, pattern] of typePatterns) {
+    if (pattern.test(combined)) {
+      types.add(typeName)
+    }
+  }
+
+  // 최대 5개 유형
+  return Array.from(types).slice(0, 5)
 }
 
 /**

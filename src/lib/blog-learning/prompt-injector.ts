@@ -200,6 +200,119 @@ function formatPatternText(
   return text
 }
 
+/**
+ * 이미지 생성 프롬프트 강화용 패턴 조회
+ *
+ * keyword_patterns에서 이미지 배치/유형 패턴을 조회하여
+ * AI 이미지 생성 프롬프트에 주입할 텍스트 생성
+ */
+export async function getImagePatternPrompt(
+  keyword: string,
+  category: ContentType,
+  domain: DomainCategory | null = null
+): Promise<string | null> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const supabase = createAdminClient()
+
+    // 1차: 정확한 키워드 매치
+    const { data: exactMatch } = await supabase
+      .from('keyword_patterns')
+      .select('image_position_rates, top_image_types, avg_image_count, optimal_image_range, sample_count')
+      .eq('keyword', keyword)
+      .eq('keyword_category', category)
+      .single()
+
+    if (exactMatch && (exactMatch.sample_count as number) >= 3) {
+      return formatImagePatternPrompt(exactMatch, keyword)
+    }
+
+    // 2차: 카테고리 매치
+    const { data: categoryMatch } = await supabase
+      .from('keyword_patterns')
+      .select('image_position_rates, top_image_types, avg_image_count, optimal_image_range, sample_count')
+      .is('keyword', null)
+      .eq('keyword_category', category)
+      .single()
+
+    if (categoryMatch && (categoryMatch.sample_count as number) >= 5) {
+      return formatImagePatternPrompt(categoryMatch, null)
+    }
+
+    // 3차: 도메인 매치
+    if (domain) {
+      const { data: domainMatch } = await supabase
+        .from('keyword_patterns')
+        .select('image_position_rates, top_image_types, avg_image_count, optimal_image_range, sample_count')
+        .is('keyword', null)
+        .eq('domain_category', domain)
+        .single()
+
+      if (domainMatch && (domainMatch.sample_count as number) >= 5) {
+        return formatImagePatternPrompt(domainMatch, null)
+      }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 이미지 패턴 → 프롬프트 텍스트
+ */
+function formatImagePatternPrompt(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pattern: any,
+  keyword: string | null
+): string | null {
+  const parts: string[] = []
+
+  // 이미지 유형 패턴
+  const types = pattern.top_image_types as Array<{ type: string; rate: number }> | null
+  if (types && types.length > 0) {
+    const typeList = types
+      .filter(t => t.rate >= 0.2)
+      .map(t => `${t.type}(${Math.round(t.rate * 100)}%)`)
+      .join(', ')
+    if (typeList) {
+      parts.push(`이 키워드의 상위 블로그에서 자주 사용하는 이미지 유형: ${typeList}`)
+    }
+  }
+
+  // 이미지 배치 패턴
+  const positions = pattern.image_position_rates as Record<string, number> | null
+  if (positions && Object.keys(positions).length > 0) {
+    const posLabels: Record<string, string> = {
+      intro: '도입부',
+      after_heading: '소제목 직후',
+      mid_content: '본문 중간',
+      before_conclusion: '마무리 직전',
+      conclusion: '마무리',
+    }
+    const posInfo = Object.entries(positions)
+      .filter(([, rate]) => rate >= 0.3)
+      .sort(([, a], [, b]) => b - a)
+      .map(([pos, rate]) => `${posLabels[pos] || pos}(${Math.round(rate * 100)}%)`)
+      .join(', ')
+    if (posInfo) {
+      parts.push(`이미지 배치 패턴: ${posInfo}`)
+    }
+  }
+
+  // 이미지 수 참고
+  const imgRange = pattern.optimal_image_range as { min: number; max: number } | null
+  if (imgRange && imgRange.min > 0 && imgRange.max > 0) {
+    parts.push(`상위 블로그 이미지 수: ${imgRange.min}~${imgRange.max}개`)
+  }
+
+  if (parts.length === 0) return null
+
+  const scope = keyword ? `"${keyword}" 키워드` : '해당 카테고리'
+  return `[${scope} 상위 블로그 이미지 패턴 (${pattern.sample_count}개 분석)]\n${parts.join('\n')}`
+}
+
 // ===== 헬퍼 =====
 
 function formatNum(n: number): string {
