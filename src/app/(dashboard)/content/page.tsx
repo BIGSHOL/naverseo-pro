@@ -102,6 +102,9 @@ interface ContentResult {
   optimizations?: string[]
   scoreBefore?: number
   scoreAfter?: number
+  notice?: string
+  unknownKeyword?: boolean
+  validation?: { score: number; warnings: string[]; errors: string[]; isValid: boolean }
 }
 
 /** 스트리밍 중 부분 JSON에서 title/content 필드를 추출 */
@@ -715,6 +718,7 @@ export default function ContentPage() {
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
+        let resultReceived = false
 
         while (true) {
           const { done, value } = await reader.read()
@@ -734,6 +738,9 @@ export default function ContentPage() {
             if (!line.trim()) continue
             try {
               const event = JSON.parse(line)
+              if (event.type !== 'stream') {
+                console.log('[Content NDJSON]', event.type, event.type === 'result' ? '✓ result received' : '')
+              }
 
               if (event.type === 'progress') {
                 setProgress({
@@ -749,19 +756,12 @@ export default function ContentPage() {
                 const accumulated = streamingTextRef.current
                 setStreamingText(accumulated)
 
-                // 첫 chunk 시 스크롤
-                if (isFirst) {
-                  setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-                }
-
-                // 스트리밍 콘텐츠 auto-scroll (내부 + 외부 스크롤 동시)
+                // 스트리밍 콘텐츠 auto-scroll (내부 컨테이너만 — 외부 스크롤은 건드리지 않음)
                 if (autoScrollRef.current) {
                   setTimeout(() => {
                     const el = streamingContentRef.current
                     if (el) {
                       el.scrollTop = el.scrollHeight
-                      // 외부 페이지 스크롤도 스트리밍 영역 하단이 보이도록
-                      el.scrollIntoView({ behavior: 'instant', block: 'end' })
                     }
                   }, 0)
                 }
@@ -776,6 +776,7 @@ export default function ContentPage() {
                   patches: event.patches || [],
                 }
               } else if (event.type === 'result') {
+                resultReceived = true
                 setStreamingText('')
                 streamingTextRef.current = ''
 
@@ -864,6 +865,25 @@ export default function ContentPage() {
           }
 
           if (done) break
+        }
+
+        // 폴백: 스트리밍은 됐는데 result 이벤트를 못 받은 경우 (타임아웃/네트워크 중단 등)
+        if (!resultReceived && streamingTextRef.current) {
+          console.warn('[Content] result 이벤트 미수신 — 스트리밍 텍스트로 폴백 복구')
+          const parsed = extractFromStreamJson(streamingTextRef.current)
+          if (parsed.title && parsed.content) {
+            const fallbackResult: ContentResult = {
+              title: parsed.title,
+              content: parsed.content,
+              tags: [],
+              isDemo: false,
+              notice: '서버 응답이 불완전하여 스트리밍 데이터로 복구되었습니다. 내용을 확인해주세요.',
+            }
+            setStreamingText('')
+            streamingTextRef.current = ''
+            setResult(fallbackResult)
+            setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+          }
         }
       } else {
         // 일반 JSON 응답 (데모/에러)
@@ -2492,12 +2512,11 @@ export default function ContentPage() {
                         const next = !autoScroll
                         setAutoScroll(next)
                         autoScrollRef.current = next
-                        // 다시 켜면 즉시 하단으로 이동 (내부 + 외부)
+                        // 다시 켜면 즉시 하단으로 이동 (내부 컨테이너만)
                         if (next) {
                           const el = streamingContentRef.current
                           if (el) {
                             el.scrollTop = el.scrollHeight
-                            el.scrollIntoView({ behavior: 'instant', block: 'end' })
                           }
                         }
                       }}
@@ -2549,11 +2568,19 @@ export default function ContentPage() {
       {/* 생성 결과 */}
       {result && (
         <>
+          {/* 폴백 복구 알림 */}
+          {result.notice && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {result.notice}
+            </div>
+          )}
+
           {/* 저장 확인 + SEO 점수 배너 */}
           <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4">
             <div className="flex flex-wrap items-center gap-2 text-green-800">
               <CheckCircle className="h-5 w-5 shrink-0" />
-              <span className="text-sm font-medium">콘텐츠가 자동 저장되었습니다</span>
+              <span className="text-sm font-medium">{result.contentId ? '콘텐츠가 자동 저장되었습니다' : '콘텐츠가 생성되었습니다'}</span>
               {result.contentTypeName && (
                 <Badge variant="secondary" className="text-xs">
                   {result.contentTypeName}
