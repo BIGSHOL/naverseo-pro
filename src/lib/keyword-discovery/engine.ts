@@ -308,14 +308,19 @@ function scoreAndCategorize(
   return results.slice(0, MAX_RESULTS)
 }
 
+export type ProgressCallback = (step: number, totalSteps: number, message: string) => void
+
 /**
  * 키워드 발굴 엔진 메인 함수
  */
-export async function discoverKeywords(topic: string): Promise<DiscoveryResult> {
+export async function discoverKeywords(topic: string, onProgress?: ProgressCallback): Promise<DiscoveryResult> {
+  const totalSteps = 3
+
   // Phase 0: 자동 시드 생성 (AI와 무관하게 넓은 키워드 보장)
   const autoSeeds = generateAutoSeeds(topic)
 
   // Phase 1: AI 시드 키워드 생성
+  onProgress?.(1, totalSteps, 'AI 시드 키워드 생성 중...')
   const aiResult = await generateSeedKeywords(topic)
 
   // Phase 1.5: AI + 자동 시드 합치기 (중복 제거, AI 우선)
@@ -330,8 +335,10 @@ export async function discoverKeywords(topic: string): Promise<DiscoveryResult> 
   }
 
   const seedCount = mergedSeeds.length
+  onProgress?.(1, totalSteps, `시드 키워드 ${seedCount}개 생성 완료`)
 
   // Phase 2: 네이버 API 확장
+  onProgress?.(2, totalSteps, '네이버 연관 키워드 확장 중...')
   const { allKeywords, seedKeywordSet } = await expandWithNaverApi(mergedSeeds)
 
   // Phase 2.5: 폴백 확장 (결과가 너무 적으면 개별 단어로 재시도)
@@ -340,9 +347,12 @@ export async function discoverKeywords(topic: string): Promise<DiscoveryResult> 
   }
 
   const naverExpandedCount = allKeywords.length
+  onProgress?.(2, totalSteps, `${naverExpandedCount}개 키워드 확장 완료`)
 
   // Phase 3: 관련성 필터 + 경쟁도 추정 + 스코어링 + 카테고리 분류
+  onProgress?.(3, totalSteps, '블루오션 키워드 선별 중...')
   const opportunities = scoreAndCategorize(allKeywords, seedKeywordSet, mergedSeeds, topic)
+  onProgress?.(3, totalSteps, `${opportunities.length}개 블루오션 키워드 발견`)
 
   return {
     topic,

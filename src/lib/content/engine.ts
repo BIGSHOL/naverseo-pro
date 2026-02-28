@@ -766,6 +766,20 @@ ${isSpecificBiz ? `
 - "React vs Vue 비교" → 각 프레임워크의 성능·생태계·학습곡선을 구체적으로 비교
 - "김치찌개 끓이는 법" → 재료 리스트 + 단계별 조리법 (온도·시간 포함)
 ${fewShotExamples}
+## 최종 자가 점검 (반드시 모든 항목 충족 후 JSON 출력)
+□ 제목: 키워드("${request.keyword}")가 앞쪽 15자 이내, 전체 20~40자
+□ 소제목: ## (H2) 최소 3개
+□ 키워드: 최소 5회 자연스럽게 포함 (도입·중반·마무리 각 1회 이상)
+□ 이미지: [이미지: 설명] 최소 3개 (섹션마다 분산)
+□ 내부 링크: [관련 글: 제목](./placeholder) 최소 3개 (본문 중간에 분산)
+□ 서식: **볼드** 3개 이상, 리스트(-) 또는 번호목록(1.) 1개 이상
+□ 문단: 8개 이상 (빈 줄로 구분), 각 2~4문장
+□ CTA: 마무리에 댓글·공감·구독 유도 문구
+□ 태그: #키워드 형태 7~10개
+□ 문장 길이: 평균 40자 이내 (모바일 가독성)
+□ 도입부 첫 문장: 50~120자, 키워드 포함 (메타 설명용)
+⚠️ 미충족 항목이 있으면 콘텐츠를 수정한 뒤 JSON을 출력하세요.
+
 ## 응답 형식 (JSON)
 반드시 유효한 JSON 형식으로만 응답하세요. 마크다운 코드블록 없이 순수 JSON만 출력합니다.
 {
@@ -1900,6 +1914,269 @@ export function postProcessContent(
     seoAnalysis,
     readabilityAnalysis,
     isDemo: false,
+  }
+}
+
+// ===== SEO 자동 최적화 (로컬, API 비용 0) =====
+
+/** 자동 최적화 패치 */
+export interface AutoOptimizePatch {
+  find: string
+  replace: string
+  label: string               // 한국어 설명 (예: "내부 링크 삽입")
+}
+
+/** 자동 최적화 결과 */
+export interface AutoOptimizeResult {
+  title: string
+  content: string
+  tags: string[]
+  metaDescription: string
+  optimizations: string[]     // 수행된 최적화 목록 (한국어)
+  patches: AutoOptimizePatch[] // 시각 효과용 패치 (find→replace)
+  scoreBefore: number
+  scoreAfter: number
+}
+
+/**
+ * AI 생성 콘텐츠를 로컬에서 자동 최적화
+ * - 추가 API 호출 없이 analyzeSeo() 로컬 채점 기반
+ * - score < maxScore * 0.6 인 카테고리만 수정
+ */
+export function autoOptimizeContent(
+  keyword: string,
+  title: string,
+  content: string,
+  tags: string[],
+  relatedKeywords: string[],
+  metaDescription?: string
+): AutoOptimizeResult {
+  const optimizations: string[] = []
+  const patches: AutoOptimizePatch[] = []
+
+  // 콘텐츠가 너무 짧으면 최적화 생략
+  if (content.length < 200) {
+    const before = analyzeSeo(keyword, title, content, relatedKeywords)
+    return {
+      title, content, tags, metaDescription: metaDescription || '',
+      optimizations, patches, scoreBefore: before.totalScore, scoreAfter: before.totalScore,
+    }
+  }
+
+  // 수정 전 점수 측정
+  const beforeResult = analyzeSeo(keyword, title, content, relatedKeywords)
+  const scoreBefore = beforeResult.totalScore
+  const catMap = new Map(beforeResult.categories.map(c => [c.id, c]))
+
+  let optTitle = title
+  let optContent = content
+  let optTags = [...tags]
+
+  // 패치 캡처 헬퍼: Fixer 전후 content diff를 패치로 변환
+  // 삽입/치환 지점을 찾아 (주변 context)→(주변 context + 새 텍스트)로 기록
+  function captureContentPatch(before: string, after: string, label: string) {
+    if (before === after) return
+    // 단순 비교: 앞에서부터 일치하는 부분과 뒤에서부터 일치하는 부분을 찾아 diff 추출
+    let start = 0
+    while (start < before.length && start < after.length && before[start] === after[start]) start++
+    let endB = before.length - 1
+    let endA = after.length - 1
+    while (endB > start && endA > start && before[endB] === after[endA]) { endB--; endA-- }
+
+    // context: diff 주변 30자씩 포함하여 find 유니크하게 만듦
+    const ctxStart = Math.max(0, start - 30)
+    const ctxEnd = Math.min(before.length, endB + 31)
+    const findText = before.substring(ctxStart, ctxEnd)
+    const replaceText = after.substring(ctxStart, ctxStart + (start - ctxStart)) +
+      after.substring(start, endA + 1) +
+      after.substring(endA + 1, endA + 1 + (ctxEnd - endB - 1))
+
+    if (findText && findText !== replaceText) {
+      patches.push({ find: findText, replace: replaceText, label })
+    }
+  }
+
+  // --- Fixer 1: 내부 링크 (max 10pts) ---
+  const contentBeforeLinks = optContent
+  const linkCat = catMap.get('internal_links')
+  if (linkCat && linkCat.score < linkCat.maxScore * 0.6) {
+    const internalLinkPattern = /\[([^\]]+)\]\((\.[^)]*|#[^)]*|\/[^)]*)\)/g
+    const existingCount = (optContent.match(internalLinkPattern) || []).length
+
+    if (existingCount < 3) {
+      const needed = 3 - existingCount
+      const h2Sections = optContent.split(/^(## .+)$/m)
+      const linkTemplates = [
+        `\n\n[관련 글: ${keyword} 핵심 정리](./related-post-1)\n`,
+        `\n\n[관련 글: ${keyword} 활용 가이드](./related-post-2)\n`,
+        `\n\n[관련 글: ${keyword} 자주 묻는 질문](./related-post-3)\n`,
+      ]
+
+      if (h2Sections.length >= 5) {
+        // H2 섹션이 충분할 때: 초반/중반/후반에 분산 삽입
+        const sectionIndices = [2, Math.floor(h2Sections.length / 2), h2Sections.length - 2]
+        let inserted = 0
+        for (const idx of sectionIndices) {
+          if (inserted >= needed) break
+          if (idx >= 0 && idx < h2Sections.length && !h2Sections[idx].startsWith('## ')) {
+            h2Sections[idx] = h2Sections[idx] + linkTemplates[inserted]
+            inserted++
+          }
+        }
+        optContent = h2Sections.join('')
+      } else {
+        // H2 섹션 부족: 본문 끝에서 2번째 단락 앞에 삽입
+        const paragraphs = optContent.split('\n\n')
+        if (paragraphs.length >= 3) {
+          const insertIdx = Math.max(1, paragraphs.length - 2)
+          const linksToInsert = linkTemplates.slice(0, needed).join('\n')
+          paragraphs.splice(insertIdx, 0, linksToInsert)
+          optContent = paragraphs.join('\n\n')
+        } else {
+          optContent += '\n' + linkTemplates.slice(0, needed).join('\n')
+        }
+      }
+      optimizations.push(`내부 링크 ${needed}개 추가 (+${linkCat.maxScore - linkCat.score}점 예상)`)
+    }
+  }
+  captureContentPatch(contentBeforeLinks, optContent, '내부 링크 삽입')
+
+  // --- Fixer 2: 제목 키워드 위치 (max 8pts) ---
+  const titleBeforeKw = optTitle
+  const titleKwCat = catMap.get('title_keyword')
+  if (titleKwCat && titleKwCat.score < titleKwCat.maxScore * 0.6) {
+    const kwIndex = optTitle.indexOf(keyword)
+    if (kwIndex > 15) {
+      // 키워드가 제목 뒤쪽에 있을 때: 앞으로 이동
+      const withoutKw = optTitle.replace(keyword, '').replace(/\s{2,}/g, ' ').replace(/^[\s\-,·|]+|[\s\-,·|]+$/g, '')
+      const newTitle = `${keyword} ${withoutKw}`.trim()
+      if (newTitle.length >= 15 && newTitle.length <= 45) {
+        optTitle = newTitle
+        optimizations.push(`제목 키워드 앞쪽 배치`)
+      }
+    } else if (kwIndex === -1) {
+      // 키워드가 제목에 없을 때: 앞에 추가
+      const newTitle = `${keyword} - ${optTitle}`
+      if (newTitle.length <= 45) {
+        optTitle = newTitle
+        optimizations.push(`제목에 키워드 추가`)
+      } else {
+        // 길이 초과 시 원본 줄여서 맞춤
+        const maxOrigLen = 43 - keyword.length
+        const trimmed = optTitle.substring(0, maxOrigLen).replace(/\s\S*$/, '')
+        optTitle = `${keyword} ${trimmed}`
+        optimizations.push(`제목에 키워드 추가`)
+      }
+    }
+  }
+  if (optTitle !== titleBeforeKw) {
+    patches.push({ find: titleBeforeKw, replace: optTitle, label: '제목 키워드 최적화' })
+  }
+
+  // --- Fixer 3: 멀티미디어 (max 7pts) ---
+  const contentBeforeMedia = optContent
+  const mmCat = catMap.get('multimedia')
+  if (mmCat && mmCat.score < mmCat.maxScore * 0.6) {
+    const imgPattern = /\[이미지[:\s]/g
+    const existingImages = (optContent.match(imgPattern) || []).length
+
+    if (existingImages < 3) {
+      const needed = 3 - existingImages
+      // H2 섹션 제목 추출
+      const h2Matches = [...optContent.matchAll(/^## (.+)$/gm)]
+      let inserted = 0
+
+      for (const match of h2Matches) {
+        if (inserted >= needed) break
+        const heading = match[1].trim()
+        const insertPos = (match.index || 0) + match[0].length
+        // 해당 H2 직후에 이미지가 없는 경우에만 삽입
+        const afterSection = optContent.substring(insertPos, insertPos + 200)
+        if (!afterSection.includes('[이미지')) {
+          const marker = `\n\n[이미지: ${heading} 관련 이미지]\n`
+          // 첫 번째 줄바꿈 뒤에 삽입 (H2 바로 다음 줄)
+          const nextNewline = optContent.indexOf('\n', insertPos)
+          if (nextNewline !== -1) {
+            optContent = optContent.slice(0, nextNewline) + marker + optContent.slice(nextNewline)
+            inserted++
+          }
+        }
+      }
+
+      if (inserted > 0) {
+        optimizations.push(`이미지 마커 ${inserted}개 추가`)
+      }
+    }
+  }
+  captureContentPatch(contentBeforeMedia, optContent, '이미지 마커 삽입')
+
+  // --- Fixer 4: 태그 & CTA (max 7pts) ---
+  const contentBeforeCta = optContent
+  const ctaCat = catMap.get('tags_cta')
+  if (ctaCat && ctaCat.score < ctaCat.maxScore * 0.6) {
+    // CTA 확인
+    const ctaKeywords = /댓글|공감|구독|팔로우|좋아요|응원/
+    if (!ctaKeywords.test(optContent)) {
+      // 태그 블록 직전 또는 마지막 단락 앞에 CTA 삽입
+      const tagLineIdx = optContent.lastIndexOf('\n#')
+      const ctaText = '\n\n---\n\n**이 글이 도움이 되셨다면** 공감과 댓글로 응원해주세요! 더 유용한 정보로 찾아뵙겠습니다 :)\n'
+
+      if (tagLineIdx > 0) {
+        optContent = optContent.slice(0, tagLineIdx) + ctaText + optContent.slice(tagLineIdx)
+      } else {
+        optContent += ctaText
+      }
+      optimizations.push(`CTA(행동 유도) 문구 추가`)
+    }
+
+    // 태그 보충
+    if (optTags.length < 7) {
+      const autoTags = generateAutoTags(keyword, optContent)
+      optTags = Array.from(new Set([...optTags, ...autoTags])).slice(0, 10)
+      optimizations.push(`태그 ${optTags.length}개로 보충`)
+    }
+  }
+  captureContentPatch(contentBeforeCta, optContent, 'CTA 문구 추가')
+
+  // --- Fixer 5: 제목 길이 (max 7pts) ---
+  const titleBeforeLen = optTitle
+  const titleLenCat = catMap.get('title_length')
+  if (titleLenCat && titleLenCat.score < titleLenCat.maxScore * 0.6) {
+    if (optTitle.length > 40) {
+      // 40자 근처 단어 경계에서 절단
+      const cut = optTitle.substring(0, 40)
+      const lastSpace = cut.lastIndexOf(' ')
+      optTitle = lastSpace > 20 ? cut.substring(0, lastSpace) : cut
+      optimizations.push(`제목 길이 조정 (${optTitle.length}자)`)
+    } else if (optTitle.length < 20) {
+      const suffixes = ['완벽 가이드', '총정리', '핵심 정리', '알아보기']
+      for (const suffix of suffixes) {
+        const candidate = `${optTitle} ${suffix}`
+        if (candidate.length >= 20 && candidate.length <= 40) {
+          optTitle = candidate
+          optimizations.push(`제목 길이 보충 (${optTitle.length}자)`)
+          break
+        }
+      }
+    }
+  }
+  if (optTitle !== titleBeforeLen) {
+    patches.push({ find: titleBeforeLen, replace: optTitle, label: '제목 길이 조정' })
+  }
+
+  // 수정 후 점수 측정
+  const afterResult = analyzeSeo(keyword, optTitle, optContent, relatedKeywords)
+  const scoreAfter = afterResult.totalScore
+
+  return {
+    title: optTitle,
+    content: optContent,
+    tags: optTags,
+    metaDescription: metaDescription || generateMetaDescription(keyword, optContent),
+    optimizations,
+    patches,
+    scoreBefore,
+    scoreAfter,
   }
 }
 

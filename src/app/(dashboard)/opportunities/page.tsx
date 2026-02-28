@@ -58,6 +58,7 @@ export default function OpportunitiesPage() {
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<OpportunityResult | null>(null)
+  const [progress, setProgress] = useState<{ step: number; totalSteps: number; message: string } | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -73,6 +74,7 @@ export default function OpportunitiesPage() {
     setLoading(true)
     setError('')
     setPlanGateMessage('')
+    setProgress({ step: 0, totalSteps: 3, message: '분석 준비 중...' })
 
     try {
       // URL 감지: blog.naver.com 포함 여부
@@ -84,9 +86,9 @@ export default function OpportunitiesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
 
       if (!res.ok) {
+        const data = await res.json()
         if (data.planGate) {
           setPlanGateMessage(data.error)
         } else {
@@ -95,11 +97,45 @@ export default function OpportunitiesPage() {
         return
       }
 
-      setResult(data)
+      const contentType = res.headers.get('Content-Type') || ''
+
+      if (contentType.includes('ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop()!
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'progress') {
+                setProgress(event)
+              } else if (event.type === 'result') {
+                setResult(event)
+              } else if (event.type === 'error') {
+                setError(event.error || '키워드 발굴 분석에 실패했습니다.')
+              }
+            } catch { /* JSON 파싱 실패 무시 */ }
+          }
+        }
+      } else {
+        // 폴백: 일반 JSON 응답
+        const data = await res.json()
+        setResult(data)
+      }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      setProgress(null)
     }
   }
 
@@ -157,11 +193,11 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Lightbulb className="h-6 w-6 text-yellow-500" />
+        <h1 className="text-xl font-bold flex items-center gap-2 sm:text-2xl">
+          <Lightbulb className="h-5 w-5 text-yellow-500 sm:h-6 sm:w-6" />
           키워드 발굴
         </h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
           주제를 입력하면 AI가 경쟁이 낮고 검색량이 충분한 블루오션 키워드를 찾아드립니다
         </p>
       </div>
@@ -172,19 +208,19 @@ export default function OpportunitiesPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="주제 또는 블로그 URL을 입력하세요 (예: 캠핑, blog.naver.com/example)"
+                placeholder="주제 또는 블로그 URL (예: 캠핑)"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 disabled={loading}
-                className="flex-1"
+                className="flex-1 min-w-0"
               />
-              <Button type="submit" disabled={loading || !topic.trim()}>
+              <Button type="submit" disabled={loading || !topic.trim()} className="shrink-0">
                 {loading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
                 ) : (
-                  <Search className="mr-2 h-4 w-4" />
+                  <Search className="h-4 w-4 sm:mr-2" />
                 )}
-                {loading ? '분석 중...' : '블루오션 키워드 찾기'}
+                <span className="hidden sm:inline">{loading ? '분석 중...' : '블루오션 키워드 찾기'}</span>
               </Button>
             </div>
 
@@ -247,17 +283,32 @@ export default function OpportunitiesPage() {
         </CardContent>
       </Card>
 
-      {/* 로딩 */}
+      {/* 프로그레스 */}
       {loading && (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              AI 시드 키워드 생성 → 네이버 연관 키워드 확장 중...
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              AI 전략 키워드 + 네이버 실제 데이터 조합 (약 10~20초)
-            </p>
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="w-full max-w-md space-y-3">
+                <p className="text-center text-sm font-medium">
+                  {progress?.message || 'AI 키워드 발굴 중...'}
+                </p>
+                {progress && (
+                  <>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                        style={{ width: `${Math.round((progress.step / progress.totalSteps) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>단계 {progress.step}/{progress.totalSteps}</span>
+                      <span>AI + 네이버 데이터 조합</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -368,8 +419,8 @@ export default function OpportunitiesPage() {
           {/* 기회 키워드 테이블 */}
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-lg">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="text-base sm:text-lg">
                   블루오션 키워드 ({result.opportunities.length}개)
                 </CardTitle>
                 {/* 모바일 정렬 버튼 */}

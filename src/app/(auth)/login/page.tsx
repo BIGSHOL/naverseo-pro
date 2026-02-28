@@ -81,8 +81,8 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">로그인</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-xl sm:text-2xl">로그인</CardTitle>
+        <CardDescription className="text-xs sm:text-sm">
           계정에 로그인하여 SEO 도구를 사용하세요
         </CardDescription>
       </CardHeader>

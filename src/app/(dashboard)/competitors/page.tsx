@@ -320,22 +320,22 @@ export default function CompetitorsPage() {
           {difficulty && (
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${getDifficultyInfo(difficulty.level).bg}`}>
-                    <Shield className={`h-6 w-6 ${getDifficultyInfo(difficulty.level).color}`} />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${getDifficultyInfo(difficulty.level).bg}`}>
+                    <Shield className={`h-5 w-5 sm:h-6 sm:w-6 ${getDifficultyInfo(difficulty.level).color}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <h3 className="font-semibold">경쟁 진입 난이도</h3>
-                      <Badge className={`${getDifficultyInfo(difficulty.level).bg} ${getDifficultyInfo(difficulty.level).color} border-0`}>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3">
+                      <h3 className="text-sm font-semibold sm:text-base">경쟁 진입 난이도</h3>
+                      <Badge className={`text-[10px] sm:text-xs ${getDifficultyInfo(difficulty.level).bg} ${getDifficultyInfo(difficulty.level).color} border-0`}>
                         {getDifficultyInfo(difficulty.level).label}
                       </Badge>
-                      <span className="text-sm text-muted-foreground ml-auto">{difficulty.score}점 / 100</span>
+                      <span className="text-xs text-muted-foreground ml-auto sm:text-sm">{difficulty.score}점 / 100</span>
                     </div>
 
                     {/* 4차원 프로그레스바 */}
                     {difficulty.breakdown && (
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-3">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:gap-x-6 mb-3">
                         {([
                           ['경쟁 치열도', difficulty.breakdown.competition],
                           ['콘텐츠 품질 장벽', difficulty.breakdown.quality],
@@ -373,16 +373,16 @@ export default function CompetitorsPage() {
           )}
 
           {/* 요약 통계 */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                    <Users className="h-5 w-5 text-blue-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-100">
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">분석 대상</p>
-                    <p className="text-xl font-bold">{competitors.length}개</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">분석 대상</p>
+                    <p className="text-lg font-bold sm:text-xl">{competitors.length}개</p>
                     {cq && <p className="text-xs text-muted-foreground">{cq.scrapedCount}개 심층</p>}
                   </div>
                 </div>
@@ -390,13 +390,13 @@ export default function CompetitorsPage() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
-                    <FileText className="h-5 w-5 text-indigo-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-indigo-100">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">본문 깊이</p>
-                    <p className="text-xl font-bold">{cq ? `${cq.medianCharCount.toLocaleString()}자` : '-'}</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">본문 깊이</p>
+                    <p className="text-lg font-bold sm:text-xl">{cq ? `${cq.medianCharCount.toLocaleString()}자` : '-'}</p>
                     <p className="text-xs text-muted-foreground">중앙값</p>
                   </div>
                 </div>
@@ -404,26 +404,26 @@ export default function CompetitorsPage() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-                    <ImageIcon className="h-5 w-5 text-green-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-green-100">
+                    <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">평균 이미지</p>
-                    <p className="text-xl font-bold">{cq ? `${cq.avgImageCount}장` : '-'}</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">평균 이미지</p>
+                    <p className="text-lg font-bold sm:text-xl">{cq ? `${cq.avgImageCount}장` : '-'}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-100">
-                    <Heart className="h-5 w-5 text-pink-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-pink-100">
+                    <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">평균 반응</p>
-                    <p className="text-xl font-bold">
+                    <p className="text-xs text-muted-foreground sm:text-sm">평균 반응</p>
+                    <p className="text-lg font-bold sm:text-xl">
                       {cq && (cq.avgCommentCount !== null || cq.avgSympathyCount !== null)
                         ? `${Math.round((cq.avgCommentCount ?? 0) + (cq.avgSympathyCount ?? 0))}개`
                         : '-'
@@ -436,26 +436,26 @@ export default function CompetitorsPage() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
-                    <Clock className="h-5 w-5 text-purple-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-purple-100">
+                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">평균 작성시기</p>
-                    <p className="text-xl font-bold">{formatDaysAgo(patterns.dateStats.avgDaysAgo)}</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">평균 작성시기</p>
+                    <p className="text-lg font-bold sm:text-xl">{formatDaysAgo(patterns.dateStats.avgDaysAgo)}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                    <BarChart3 className="h-5 w-5 text-orange-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-orange-100">
+                    <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">블로그 다양성</p>
-                    <p className="text-xl font-bold">{patterns.blogDiversity.diversityRate}%</p>
+                    <p className="text-xs text-muted-foreground sm:text-sm">블로그 다양성</p>
+                    <p className="text-lg font-bold sm:text-xl">{patterns.blogDiversity.diversityRate}%</p>
                   </div>
                 </div>
               </CardContent>
@@ -900,8 +900,8 @@ export default function CompetitorsPage() {
           </Card>
 
           {/* 워크플로우 액션 */}
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-4">
-            <div className="flex-1">
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:p-4">
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">분석이 완료되었습니다</p>
               <p className="text-xs text-muted-foreground">분석 데이터가 자동으로 적용되어 최적화된 블로그 글을 바로 생성합니다</p>
             </div>

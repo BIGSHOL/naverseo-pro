@@ -19,15 +19,17 @@ export function HeroSection() {
             블로그 글 1편 작성 시간: 3시간 → 10분
           </Badge>
 
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="text-[28px] font-bold tracking-tight sm:text-5xl lg:text-6xl">
             블로그 1편에 3시간?
             <br />
             <span className="text-primary">AI로 10분이면 끝납니다</span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            키워드 발굴부터 SEO 최적화 글 작성, 점수 분석, 순위 추적까지.
+          <p className="mx-auto mt-6 max-w-2xl text-base text-muted-foreground sm:text-xl">
+            키워드 발굴부터 SEO 최적화 글 작성,{' '}
             <br className="hidden sm:block" />
+            점수 분석, 순위 추적까지.
+            <br />
             월 <span className="font-semibold text-foreground">$5</span>부터 SEO 전문가를 고용하세요.
           </p>
 
@@ -79,7 +81,7 @@ export function HeroSection() {
             </div>
             <div className="flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4 text-primary" />
-              <span>SEO <span className="font-semibold text-foreground">10개 항목</span> 정밀 분석</span>
+              <span>SEO <span className="font-semibold text-foreground">13개 항목</span> 정밀 분석</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Search className="h-4 w-4 text-primary" />

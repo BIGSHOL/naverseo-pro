@@ -25,7 +25,7 @@ const coreFeatures = [
     icon: BarChart3,
     title: 'SEO 점수 분석',
     description:
-      '제목, 키워드 밀도, 본문 길이, 소제목 구조 등 10가지 항목을 100점 만점으로 분석. 어디를 고치면 상위 노출되는지 바로 알 수 있습니다.',
+      '제목, 키워드 밀도, 본문 길이, 소제목 구조 등 13가지 항목을 100점 만점으로 분석. 어디를 고치면 상위 노출되는지 바로 알 수 있습니다.',
     color: 'bg-primary/10 text-primary',
     saving: 'SEO 컨설팅 비용 절감',
     detail: '전문 컨설팅 수준의 진단을 무제한으로',
@@ -88,13 +88,14 @@ export function FeaturesSection() {
           <Badge variant="secondary" className="mb-4 px-4 py-1.5">
             10가지 핵심 기능
           </Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            SEO 전문가가 하는 일,
-            <br className="sm:hidden" />
-            <span className="text-primary"> AI가 대신합니다</span>
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
+            SEO 전문가가 하는 일,{' '}
+            <span className="text-primary">AI가 대신합니다</span>
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            대행사 월 50~200만원 수준의 SEO 업무를, 월 $5부터 직접 수행하세요.
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+            대행사 월 50~200만원 수준의 SEO 업무를,{' '}
+            <br className="hidden sm:block" />
+            월 $5부터 직접 수행하세요.
           </p>
         </div>
 
@@ -105,7 +106,7 @@ export function FeaturesSection() {
               key={feature.title}
               className="group transition-all duration-200 hover:shadow-lg"
             >
-              <CardContent className="p-8">
+              <CardContent className="p-5 sm:p-8">
                 <div className="flex items-start justify-between">
                   <div
                     className={`mb-5 inline-flex rounded-lg p-3 ${feature.color}`}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useCallback } from 'react'
 import {
@@ -97,6 +97,10 @@ interface ContentResult {
   contentId?: string
   seoScore?: number
   enrichment?: EnrichmentData
+  autoOptimized?: boolean
+  optimizations?: string[]
+  scoreBefore?: number
+  scoreAfter?: number
 }
 
 /** 스트리밍 중 부분 JSON에서 title/content 필드를 추출 */
@@ -467,6 +471,9 @@ export default function ContentPage() {
   const editorRef = useRef<Editor | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
 
+  // Self-Healing 패치 애니메이션용
+  const selfHealPatchesRef = useRef<{ rawTitle: string; rawContent: string; patches: Array<{ find: string; replace: string; label: string }> } | null>(null)
+
   // AI 이미지 생성
   const [generatingImages, setGeneratingImages] = useState(false)
   const [imageGenMessage, setImageGenMessage] = useState('')
@@ -731,11 +738,91 @@ export default function ContentPage() {
 
                 // 스트리밍 중에는 SEO 분석 안 함 (렉 방지)
                 // editTitle/editContent는 result 이벤트 후 설정됨
+              } else if (event.type === 'selfHealPatches') {
+                // Self-Healing 패치 저장 (result 수신 시 애니메이션 실행)
+                selfHealPatchesRef.current = {
+                  rawTitle: event.rawTitle,
+                  rawContent: event.rawContent,
+                  patches: event.patches || [],
+                }
               } else if (event.type === 'result') {
                 setStreamingText('')
                 streamingTextRef.current = ''
-                setResult(event)
-                setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+
+                const healData = selfHealPatchesRef.current
+                selfHealPatchesRef.current = null
+
+                if (healData && healData.patches.length > 0 && !showRawMarkdown) {
+                  // Self-Healing 애니메이션: 원본 콘텐츠 먼저 표시 → 패치 sweep 적용
+                  // 원본(최적화 전) 콘텐츠/제목을 에디터에 로드
+                  setEditTitle(healData.rawTitle)
+                  setEditContent(healData.rawContent)
+                  setResult(event)
+
+                  // 에디터 렌더링 대기 후 애니메이션 시작
+                  setTimeout(() => {
+                    resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+                    // 콘텐츠 패치와 제목 패치 분리
+                    const contentPatches = healData.patches.filter(p => p.label !== '제목 키워드 최적화' && p.label !== '제목 길이 조정')
+                    const titlePatch = healData.patches.find(p => p.label === '제목 키워드 최적화' || p.label === '제목 길이 조정')
+
+                    if (contentPatches.length > 0 && editorRef.current) {
+                      setAnimatingPatch('SEO 자동 최적화 중...')
+                      let currentContent = healData.rawContent
+
+                      cancelAnimationRef.current = animatePatchesSequential(
+                        editorRef.current,
+                        contentPatches,
+                        {
+                          initialDelay: 800,
+                          findDuration: 700,
+                          replaceDuration: 1200,
+                          interPatchDelay: 500,
+                          onApplyPatch: (patch) => {
+                            return new Promise((resolve) => {
+                              if (!currentContent.includes(patch.find)) {
+                                resolve(false)
+                                return
+                              }
+                              currentContent = currentContent.replace(patch.find, patch.replace)
+                              setEditContent(currentContent)
+                              requestAnimationFrame(() => {
+                                setTimeout(() => resolve(true), 150)
+                              })
+                            })
+                          },
+                          onProgress: (current, total, phase) => {
+                            const patchLabel = contentPatches[current - 1]?.label || ''
+                            if (phase === 'find') {
+                              setAnimatingPatch(`${patchLabel} 수정 중... (${current}/${total})`)
+                            } else {
+                              setAnimatingPatch(`${patchLabel} 적용 완료 (${current}/${total})`)
+                            }
+                          },
+                          onComplete: () => {
+                            // 제목 패치 적용
+                            if (titlePatch) {
+                              setEditTitle(event.title)
+                            }
+                            // 최종 콘텐츠로 확정
+                            setEditContent(event.content)
+                            setAnimatingPatch('')
+                            cancelAnimationRef.current = null
+                          },
+                        }
+                      )
+                    } else {
+                      // 콘텐츠 패치가 없으면 (제목만 변경) 즉시 적용
+                      if (titlePatch) setEditTitle(event.title)
+                      setEditContent(event.content)
+                    }
+                  }, 600)
+                } else {
+                  // Self-Healing 패치 없음 → 기존 방식
+                  setResult(event)
+                  setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                }
               } else if (event.type === 'error') {
                 setStreamingText('')
                 streamingTextRef.current = ''
@@ -775,6 +862,9 @@ export default function ContentPage() {
     setResult(null)
     setStreamingText('')
     streamingTextRef.current = ''
+    selfHealPatchesRef.current = null
+    cancelAnimationRef.current?.()
+    setAnimatingPatch('')
     setAutoScroll(true)
     autoScrollRef.current = true
     await generateContent()
@@ -804,13 +894,17 @@ export default function ContentPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // result 도착 시 편집 상태 초기화
+  // result 도착 시 편집 상태 초기화 (Self-Healing 애니메이션 중에는 건너뜀)
   useEffect(() => {
     if (result) {
-      setEditTitle(result.title)
-      setEditContent(result.content)
+      // 애니메이션 진행 중이면 title/content 덮어쓰기 방지 (애니메이션 완료 시 직접 설정)
+      if (!animatingPatch) {
+        setEditTitle(result.title)
+        setEditContent(result.content)
+      }
       setEditTags(result.tags || [])
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result])
 
   const handleSave = async () => {
@@ -2295,7 +2389,9 @@ export default function ContentPage() {
                     {progress.step === 1 && '네이버 데이터 수집'}
                     {progress.step === 2 && '검색 데이터 분석'}
                     {progress.step === 3 && 'AI 콘텐츠 생성'}
-                    {progress.step === 4 && 'SEO 분석 및 저장'}
+                    {progress.step === 4 && 'SEO 자동 최적화'}
+                    {progress.step === 5 && '품질 검증'}
+                    {progress.step === 6 && '저장'}
                   </span>
                   {progress.current !== undefined && progress.total !== undefined && (
                     <span>{progress.current}/{progress.total}</span>
@@ -2317,7 +2413,12 @@ export default function ContentPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 text-blue-700">
                   <Sparkles className="h-4 w-4 animate-pulse" />
-                  <span className="text-sm font-medium">AI가 글을 작성하고 있습니다...</span>
+                  <span className="text-sm font-medium">
+                    AI가 글을 작성하고 있습니다...
+                    {parsed.content && (
+                      <span className="ml-2 text-blue-500/70">({parsed.content.length.toLocaleString()}자)</span>
+                    )}
+                  </span>
                 </div>
                 {parsed.title && (
                   <h3 className="text-lg font-bold mt-2">{parsed.title}</h3>
@@ -2406,7 +2507,31 @@ export default function ContentPage() {
                   SEO {result.seoScore}점
                 </Badge>
               )}
+              {result.autoOptimized && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  자동 최적화됨
+                  {result.scoreBefore !== undefined && result.scoreAfter !== undefined && result.scoreAfter > result.scoreBefore && (
+                    <span className="ml-1">({result.scoreBefore} → {result.scoreAfter}점)</span>
+                  )}
+                </Badge>
+              )}
             </div>
+            {result.optimizations && result.optimizations.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-green-700 hover:text-green-900 font-medium">
+                  자동 최적화 내역 ({result.optimizations.length}건)
+                </summary>
+                <ul className="mt-1.5 space-y-0.5 text-green-700/80">
+                  {result.optimizations.map((opt, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      <CheckCircle className="h-3 w-3 shrink-0" />
+                      {opt}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -2498,7 +2623,7 @@ export default function ContentPage() {
           {result.seoAnalysis && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {/* SEO 분석 요약 */}
-              <Card>
+              <Card className="order-1">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2536,9 +2661,74 @@ export default function ContentPage() {
                 </CardContent>
               </Card>
 
+              {/* SEO 상세 분석 (토글) - 모바일: SEO 바로 아래, 데스크탑: 전체 카드 아래 */}
+              {showSeoDetail && result.seoAnalysis && (
+                <Card className="order-2 sm:order-last col-span-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">SEO 분석 상세 ({result.seoAnalysis.categories.length}개 항목)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 세부 항목 */}
+                    <div className="space-y-2">
+                      {result.seoAnalysis.categories.map((cat) => {
+                        const pct = Math.round((cat.score / cat.maxScore) * 100)
+                        return (
+                          <div key={cat.name} className="flex items-center gap-3">
+                            <span className="w-24 shrink-0 text-sm">{cat.name}</span>
+                            <div className="flex-1">
+                              <div className="h-2 rounded-full bg-muted">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-12 text-right text-sm text-muted-foreground">
+                              {cat.score}/{cat.maxScore}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* 강점/개선점 */}
+                    <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                      {result.seoAnalysis.strengths.length > 0 && (
+                        <div>
+                          <p className="font-medium text-green-700 mb-1">강점</p>
+                          <ul className="space-y-0.5 text-muted-foreground">
+                            {result.seoAnalysis.strengths.map((s, i) => (
+                              <li key={i} className="flex items-start gap-1.5">
+                                <CheckCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-500" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {result.seoAnalysis.improvements.length > 0 && (
+                        <div>
+                          <p className="font-medium text-amber-700 mb-1">개선 필요</p>
+                          <ul className="space-y-0.5 text-muted-foreground">
+                            {result.seoAnalysis.improvements.map((s, i) => (
+                              <li key={i} className="flex items-start gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* 가독성 분석 */}
               {result.readabilityAnalysis && (
-                <Card>
+                <Card className="order-3 sm:order-2">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -2574,70 +2764,9 @@ export default function ContentPage() {
               )}
 
               {/* DIA 품질 분석 */}
-              <DiaScoreCard keyword={keyword} title={result.title} content={result.content} />
-
-              {/* SEO 상세 분석 (토글) - grid 안에 col-span-full */}
-              {showSeoDetail && result.seoAnalysis && (
-                <Card className="col-span-full">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">SEO 분석 상세 (10개 항목)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* 세부 항목 */}
-                    <div className="space-y-2">
-                      {result.seoAnalysis.categories.map((cat) => {
-                        const pct = Math.round((cat.score / cat.maxScore) * 100)
-                        return (
-                          <div key={cat.name} className="flex items-center gap-3">
-                            <span className="w-24 shrink-0 text-sm">{cat.name}</span>
-                            <div className="flex-1">
-                              <div className="h-2 rounded-full bg-muted">
-                                <div
-                                  className={`h-full rounded-full ${getContentScoreBgColor(pct)}`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                            <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
-                              {cat.score}/{cat.maxScore}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* 강점 / 개선점 */}
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {result.seoAnalysis.strengths.length > 0 && (
-                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                          <p className="mb-2 text-xs font-medium text-green-700">강점</p>
-                          <ul className="space-y-1">
-                            {result.seoAnalysis.strengths.map((s, i) => (
-                              <li key={i} className="flex items-start gap-1.5 text-xs text-green-700">
-                                <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                                <InlineMarkdown>{s}</InlineMarkdown>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {result.seoAnalysis.improvements.length > 0 && (
-                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                          <p className="mb-2 text-xs font-medium text-yellow-700">개선점</p>
-                          <ul className="space-y-1">
-                            {result.seoAnalysis.improvements.map((s, i) => (
-                              <li key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
-                                <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                                <InlineMarkdown>{s}</InlineMarkdown>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <div className="order-4 sm:order-3">
+                <DiaScoreCard keyword={keyword} title={result.title} content={result.content} />
+              </div>
             </div>
           )}
 
@@ -3049,7 +3178,16 @@ export default function ContentPage() {
 
 // DIA 점수 카드 (콘텐츠 생성 결과에 표시)
 function DiaScoreCard({ keyword, title, content }: { keyword: string; title: string; content: string }) {
-  const dia = analyzeDia(keyword.trim(), title, content)
+  const dia = useMemo(() => {
+    if (!keyword.trim() || !content || content.length < 50) return null
+    try {
+      return analyzeDia(keyword.trim(), title, content)
+    } catch {
+      return null
+    }
+  }, [keyword, title, content])
+
+  if (!dia) return null
 
   const gradeColor = (() => {
     switch (dia.grade) {

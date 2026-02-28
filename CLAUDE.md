@@ -249,13 +249,17 @@ Query:
 |------|--------|----------|
 | 키워드 리서치 | 1 | ~30회 |
 | 키워드 발굴 | 3 | Starter+ |
-| AI 콘텐츠 생성 | 5 | Lite+ |
+| AI 콘텐츠 생성 | 7 | Lite+ |
 | SEO 점수 체크 | 2 | ~15회 |
-| 상위노출 분석 | 3 | Starter+ |
-| 블로그 지수 | 3 | ~10회 |
+| 상위노출 분석 | 5 | Starter+ |
+| 블로그 지수 | 5 | ~6회 |
 | 순위 트래킹 (1키워드) | 1 | Starter+ |
-| SEO 리포트 | 2 | Lite+ |
+| SEO 리포트 | 1 | Lite+ |
 | 콘텐츠 개선 | 3 | Starter+ |
+| 키워드 대량조회 | 3 | Starter+ |
+| 검색 누락 조회 | 2 | ~15회 |
+| 인스타그램 변환 | 2 | Starter+ |
+| AI 이미지 생성 | 1 | Starter+ |
 
 ### 플랜별 기능 게이트
 - Free (4기능): keyword_research, seo_check, blog_index, post_check

@@ -7,6 +7,7 @@ import {
   detectDomainCategory,
   generateDemoContent,
   postProcessContent,
+  autoOptimizeContent,
   analyzeSeo,
   validateContentStructure,
   type ContentGenerationRequest,
@@ -549,13 +550,13 @@ export async function POST(request: NextRequest) {
           let enrichmentsDone = 0
           const TOTAL_ENRICHMENTS = 5
 
-          send({ type: 'progress', step: 1, totalSteps: 4, message: '네이버 데이터 수집 중...', current: 0, total: TOTAL_ENRICHMENTS })
+          send({ type: 'progress', step: 1, totalSteps: 6, message: '네이버 데이터 수집 중...', current: 0, total: TOTAL_ENRICHMENTS })
 
           const wrapEnrichment = <T>(promise: Promise<T>): Promise<T> => {
             return promise.finally(() => {
               enrichmentsDone++
               send({
-                type: 'progress', step: 1, totalSteps: 4,
+                type: 'progress', step: 1, totalSteps: 6,
                 message: `네이버 데이터 수집 중... (${enrichmentsDone}/${TOTAL_ENRICHMENTS})`,
                 current: enrichmentsDone, total: TOTAL_ENRICHMENTS,
               })
@@ -599,7 +600,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Step 2/4: 검색 데이터 분석 (SERP 기반 키워드/콘텐츠 유형 교정)
-          send({ type: 'progress', step: 2, totalSteps: 4, message: '검색 데이터 분석 중...' })
+          send({ type: 'progress', step: 2, totalSteps: 6, message: '검색 데이터 분석 중...' })
 
           let serpKeywordMeaning: string | null = null
           let serpInferredCategory = ''
@@ -760,7 +761,7 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
           const hasEnrichment = Object.keys(enrichment).length > 0
 
           // Step 3/4: AI 콘텐츠 생성
-          send({ type: 'progress', step: 3, totalSteps: 4, message: 'AI 콘텐츠 생성 중...' })
+          send({ type: 'progress', step: 3, totalSteps: 6, message: 'AI 콘텐츠 생성 중...' })
 
           try {
             const onDelta = (delta: string) => send({ type: 'stream', delta })
@@ -768,8 +769,8 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048 }, onDelta)
               : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true }, onDelta)
 
-            // Step 4/4: SEO 분석 + 저장
-            send({ type: 'progress', step: 4, totalSteps: 4, message: 'SEO 분석 및 저장 중...' })
+            // Step 4/6: SEO 분석 + 후처리
+            send({ type: 'progress', step: 4, totalSteps: 6, message: 'SEO 자동 최적화 중...' })
 
             const parsed = parseGeminiJson<{
               title: string
@@ -779,25 +780,75 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
             }>(response)
 
             const processedResult = postProcessContent(contentRequest, parsed)
-            const validation = validateContentStructure(
+
+            // 로컬 자동 최적화 (API 비용 0)
+            const optimizeResult = autoOptimizeContent(
+              trimmedKeyword,
+              processedResult.title,
               processedResult.content,
+              processedResult.tags || parsed.tags,
+              contentRequest.additionalKeywords || [],
+              processedResult.metaDescription || parsed.metaDescription
+            )
+
+            // Self-Healing 패치 전송 (프론트엔드 sweep 애니메이션용)
+            // 원본(최적화 전) 콘텐츠 + 패치를 보내서 "AI가 스스로 수정하는" 효과 표현
+            if (optimizeResult.patches.length > 0) {
+              send({
+                type: 'selfHealPatches',
+                rawTitle: processedResult.title,
+                rawContent: processedResult.content,
+                patches: optimizeResult.patches,
+              })
+            }
+
+            // 최적화 항목별 서브 프로그레스 전송
+            if (optimizeResult.optimizations.length > 0) {
+              for (let i = 0; i < optimizeResult.optimizations.length; i++) {
+                send({
+                  type: 'progress', step: 4, totalSteps: 6,
+                  message: `SEO 자동 최적화 중... ${optimizeResult.optimizations[i]}`,
+                  current: i + 1,
+                  total: optimizeResult.optimizations.length,
+                })
+              }
+            }
+
+            // Step 5/6: 품질 검증
+            const scoreDiff = optimizeResult.scoreAfter - optimizeResult.scoreBefore
+            send({
+              type: 'progress', step: 5, totalSteps: 6,
+              message: scoreDiff > 0
+                ? `품질 검증 완료 (SEO 점수: ${optimizeResult.scoreBefore} → ${optimizeResult.scoreAfter}, +${scoreDiff}점 자동 개선)`
+                : `품질 검증 완료 (SEO 점수: ${optimizeResult.scoreAfter}점)`,
+            })
+
+            const validation = validateContentStructure(
+              optimizeResult.content,
               contentRequest.contentType || detectContentType(trimmedKeyword),
               trimmedKeyword
             )
 
-            if (isUnknownKeyword && !processedResult.content.includes('정보 부족')) {
+            if (isUnknownKeyword && !optimizeResult.content.includes('정보 부족')) {
               validation.warnings.push('이 키워드는 네이버 검색 데이터가 없습니다. AI가 생성한 내용의 정확성을 직접 확인해주세요.')
               validation.score = Math.max(0, validation.score - 20)
             }
 
-            const saved = await saveGeneratedContent(trimmedKeyword, processedResult.title, processedResult.content, contentRequest.additionalKeywords)
+            // Step 6/6: 저장
+            send({ type: 'progress', step: 6, totalSteps: 6, message: '저장 중...' })
+
+            const saved = await saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords)
 
             send({
               type: 'result',
               ...processedResult,
+              title: optimizeResult.title,
+              content: optimizeResult.content,
+              tags: optimizeResult.tags,
+              metaDescription: optimizeResult.metaDescription,
               isDemo: false,
               contentId: saved?.id,
-              seoScore: saved?.seoScore,
+              seoScore: optimizeResult.scoreAfter,
               enrichment: hasEnrichment ? enrichment : undefined,
               unknownKeyword: isUnknownKeyword || undefined,
               validation: {
@@ -806,6 +857,10 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
                 errors: validation.errors,
                 isValid: validation.isValid,
               },
+              autoOptimized: optimizeResult.optimizations.length > 0,
+              optimizations: optimizeResult.optimizations,
+              scoreBefore: optimizeResult.scoreBefore,
+              scoreAfter: optimizeResult.scoreAfter,
             })
           } catch (aiError) {
             const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)

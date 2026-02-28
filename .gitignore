@@ -38,8 +38,11 @@ next-env.d.ts
 # vercel (duplicate removed)
 .vercel
 
-# claude code
-.claude/
+# claude code (스킬/에이전트는 추적, 나머지 제외)
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/settings.json
 
 # misc files
 nul

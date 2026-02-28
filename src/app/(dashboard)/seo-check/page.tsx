@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, X } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, Check } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { cn } from '@/lib/utils'
+import { analyzeSeo } from '@/lib/seo/engine'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -19,6 +21,7 @@ import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl } from '@/lib/utils/text'
 
 interface SeoCategory {
+  id: string
   name: string
   score: number
   maxScore: number
@@ -51,6 +54,12 @@ interface SeoResult {
   isDemo: boolean
   demoReason?: string
   aiAnalysis?: AiAnalysis | null
+}
+
+interface ProgressStep {
+  step: number
+  total: number
+  label: string
 }
 
 function getCategoryScoreColor(score: number, max: number) {
@@ -96,6 +105,13 @@ function getAxisBg(score: number) {
   return 'bg-red-500'
 }
 
+const PROGRESS_STEPS = [
+  'SEO 엔진 분석 중...',
+  '가독성 분석 중...',
+  'AI 심층 분석 중...',
+  '점수 보정 중...',
+]
+
 export default function SeoCheckPage() {
   const searchParams = useSearchParams()
   const [keyword, setKeyword] = useState('')
@@ -103,6 +119,7 @@ export default function SeoCheckPage() {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [planGate, setPlanGate] = useState<string | null>(null)
   const [result, setResult] = useState<SeoResult | null>(null)
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [blogUrl, setBlogUrl] = useState('')
@@ -116,6 +133,14 @@ export default function SeoCheckPage() {
     formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number }
   } | null>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
+
+  // 프로그레스 UI
+  const [progressStep, setProgressStep] = useState<ProgressStep | null>(null)
+
+  // AI 약점 개선
+  const [improving, setImproving] = useState(false)
+  const [improveMessage, setImproveMessage] = useState('')
+  const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
 
   // 실시간 분석 패널 표시 여부
   const showLivePanel = content.trim().length >= 50 && keyword.trim().length > 0
@@ -198,6 +223,10 @@ export default function SeoCheckPage() {
 
     setLoading(true)
     setError('')
+    setPlanGate(null)
+    setProgressStep(null)
+    setGuidanceItems([])
+    setImproveMessage('')
 
     try {
       const res = await fetch('/api/ai/seo-check', {
@@ -207,7 +236,6 @@ export default function SeoCheckPage() {
           keyword: keyword.trim(),
           title: title.trim(),
           content: content.trim(),
-          // URL에서 가져온 스크래핑 메타를 AI 분석에 전달
           ...(scrapedStats && {
             scrapedMeta: {
               charCount: scrapedStats.charCount,
@@ -223,21 +251,59 @@ export default function SeoCheckPage() {
         }),
       })
 
-      // 응답이 JSON이 아닐 수 있음 (서버 에러, 타임아웃 등)
-      let data
-      try {
-        data = await res.json()
-      } catch {
-        setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
-        return
-      }
+      const contentType = res.headers.get('Content-Type') || ''
 
-      if (!res.ok) {
-        setError(data.error || 'SEO 분석에 실패했습니다.')
-        return
-      }
+      // NDJSON 스트리밍 응답 처리
+      if (contentType.includes('application/x-ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
 
-      setResult(data)
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'progress') {
+                setProgressStep({ step: event.step, total: event.total, label: event.label })
+              } else if (event.type === 'result') {
+                setResult(event as SeoResult)
+              } else if (event.type === 'error') {
+                setError(event.error || 'SEO 분석에 실패했습니다.')
+              }
+            } catch {
+              // 파싱 실패 무시
+            }
+          }
+        }
+      } else {
+        // JSON 폴백 (에러 응답 등)
+        let data
+        try {
+          data = await res.json()
+        } catch {
+          setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
+          return
+        }
+
+        if (!res.ok) {
+          if (data.planGate) {
+            setPlanGate(data.error)
+          } else {
+            setError(data.error || 'SEO 분석에 실패했습니다.')
+          }
+          return
+        }
+
+        setResult(data)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('abort') || msg.includes('timeout')) {
@@ -247,6 +313,151 @@ export default function SeoCheckPage() {
       }
     } finally {
       setLoading(false)
+      setProgressStep(null)
+    }
+  }
+
+  const handleImprove = async () => {
+    if (improving || !content.trim() || !keyword.trim()) return
+    setImproving(true)
+    setImproveMessage('')
+    setGuidanceItems([])
+
+    try {
+      // 클라이언트에서 SEO 분석 실행 → 약한 항목 추출
+      const seoResult = analyzeSeo(keyword.trim(), title, content)
+      const weakCategories = [...seoResult.categories]
+        .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+        .filter(cat => (cat.score / cat.maxScore) < 0.8)
+        .slice(0, 5)
+        .map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          score: cat.score,
+          maxScore: cat.maxScore,
+          details: cat.details,
+        }))
+
+      if (weakCategories.length === 0) {
+        setImproveMessage('모든 항목이 양호합니다! 개선할 약점이 없습니다.')
+        setTimeout(() => setImproveMessage(''), 3000)
+        return
+      }
+
+      setImproveMessage(`${weakCategories.length}개 약점 분석 중...`)
+
+      const res = await fetch('/api/ai/content/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          title: title.trim(),
+          content: content.trim(),
+          weakCategories,
+        }),
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any
+
+      const ct = res.headers.get('Content-Type') || ''
+      if (ct.includes('application/x-ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buf += decoder.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'stream') {
+                setImproveMessage('AI가 개선안을 작성 중...')
+              } else if (event.type === 'result') {
+                data = event
+              } else if (event.type === 'error') {
+                if (event.planGate) {
+                  setPlanGate(event.error)
+                } else {
+                  setImproveMessage(event.error || 'AI 개선에 실패했습니다.')
+                }
+                return
+              }
+            } catch {
+              // 파싱 실패 무시
+            }
+          }
+        }
+      } else {
+        data = await res.json()
+        if (!res.ok) {
+          if (data.planGate) {
+            setPlanGate(data.error)
+          } else {
+            setImproveMessage(data.error || 'AI 개선에 실패했습니다.')
+          }
+          return
+        }
+      }
+
+      if (!data) {
+        setImproveMessage('AI 응답을 받지 못했습니다.')
+        return
+      }
+
+      // 가이드 항목 저장
+      if (data.guidance && Array.isArray(data.guidance) && data.guidance.length > 0) {
+        setGuidanceItems(data.guidance)
+      }
+
+      // 패치 일괄 적용
+      const validPatches = (data.patches && Array.isArray(data.patches))
+        ? data.patches.filter((p: { find: string; replace: string }) =>
+            typeof p.find === 'string' && typeof p.replace === 'string' && p.find.length > 0 && content.includes(p.find)
+          )
+        : []
+
+      let updatedContent = content
+      let appliedCount = 0
+      let skippedCount = 0
+
+      for (const patch of validPatches) {
+        if (updatedContent.includes(patch.find)) {
+          updatedContent = updatedContent.replace(patch.find, patch.replace)
+          appliedCount++
+        } else {
+          skippedCount++
+        }
+      }
+
+      if (data.append) {
+        updatedContent = updatedContent.trimEnd() + '\n\n' + data.append
+        appliedCount++
+      }
+      if (data.title) setTitle(data.title)
+      if (appliedCount > 0) setContent(updatedContent)
+
+      const messages: string[] = []
+      if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용!`)
+      if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
+      if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
+      if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
+        setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
+      } else {
+        setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' 다시 분석하여 점수를 확인하세요.' : ''))
+      }
+      setTimeout(() => setImproveMessage(''), 6000)
+    } catch {
+      setImproveMessage('네트워크 오류가 발생했습니다.')
+    } finally {
+      setImproving(false)
     }
   }
 
@@ -488,12 +699,14 @@ export default function SeoCheckPage() {
                 </div>
               )}
 
+              {planGate && <PlanGateAlert message={planGate} />}
+
               <CreditTooltip feature="seo_check">
                 <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      AI 심층 분석 중...
+                      {progressStep ? progressStep.label : 'AI 심층 분석 중...'}
                     </>
                   ) : (
                     <>
@@ -503,6 +716,52 @@ export default function SeoCheckPage() {
                   )}
                 </Button>
               </CreditTooltip>
+
+              {/* 프로그레스 UI */}
+              {loading && progressStep && (
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardContent className="pt-4 pb-4 space-y-3">
+                    {/* 프로그레스 바 */}
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-2 rounded-full bg-primary transition-all duration-500 ease-out"
+                        style={{ width: `${(progressStep.step / progressStep.total) * 100}%` }}
+                      />
+                    </div>
+                    {/* 단계 인디케이터 */}
+                    <div className="grid grid-cols-4 gap-1">
+                      {PROGRESS_STEPS.map((label, idx) => {
+                        const stepNum = idx + 1
+                        const isComplete = progressStep.step > stepNum
+                        const isCurrent = progressStep.step === stepNum
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-all duration-300',
+                              isComplete && 'text-green-600',
+                              isCurrent && 'bg-primary/10 text-primary font-medium',
+                              !isComplete && !isCurrent && 'text-muted-foreground'
+                            )}
+                          >
+                            {isComplete ? (
+                              <Check className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                            ) : isCurrent ? (
+                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                            ) : (
+                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border text-[10px]">
+                                {stepNum}
+                              </span>
+                            )}
+                            <span className="hidden sm:inline truncate">{label.replace(' 중...', '')}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {showLivePanel && (
                 <p className="text-center text-xs text-muted-foreground">
                   실시간 기본 분석은 우측에서 확인하세요. AI 심층 분석은 더 정밀한 결과를 제공합니다.
@@ -575,6 +834,60 @@ export default function SeoCheckPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* AI 약점 개선 버튼 */}
+          {content.trim() && keyword.trim() && (
+            <Card className="border-purple-200 bg-purple-50/30 dark:border-purple-800 dark:bg-purple-950/20">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">AI 약점 자동 개선</p>
+                    <p className="text-xs text-muted-foreground">
+                      SEO 점수가 낮은 항목을 AI가 자동으로 수정합니다
+                    </p>
+                  </div>
+                  <CreditTooltip feature="content_improve">
+                    <Button
+                      variant="outline"
+                      onClick={handleImprove}
+                      disabled={improving || loading}
+                      className="gap-1.5"
+                    >
+                      {improving ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
+                      ) : (
+                        <><Sparkles className="h-4 w-4" />AI 약점 개선</>
+                      )}
+                    </Button>
+                  </CreditTooltip>
+                </div>
+                {improveMessage && (
+                  <p className="mt-2 text-sm text-primary">{improveMessage}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 수동 개선 가이드 카드 */}
+          {guidanceItems.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-4 w-4" />
+                수동 개선이 필요한 항목
+              </h4>
+              <div className="space-y-3">
+                {guidanceItems.map(item => (
+                  <div key={item.id} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">{item.name}</Badge>
+                      <span className="text-xs text-muted-foreground">{item.score}/{item.maxScore}점</span>
+                    </div>
+                    <p className="whitespace-pre-line text-sm text-muted-foreground">{item.guidance}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* AI 4축 심층 분석 */}
           {ai && (

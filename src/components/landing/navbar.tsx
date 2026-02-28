@@ -57,25 +57,27 @@ export function Navbar() {
       {/* 모바일 메뉴 */}
       {mobileMenuOpen && (
         <div className="border-t bg-background md:hidden">
-          <div className="space-y-1 px-4 py-4">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="flex flex-col gap-2 pt-4">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-4">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
               <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full">
+                <Button variant="ghost" size="sm" className="h-8 px-3 text-xs">
                   로그인
                 </Button>
               </Link>
               <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="w-full">무료로 시작하기</Button>
+                <Button size="sm" className="h-8 px-3 text-xs">시작하기</Button>
               </Link>
             </div>
           </div>

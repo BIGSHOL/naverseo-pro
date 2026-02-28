@@ -33,10 +33,10 @@ export function PricingSection() {
           <Badge variant="secondary" className="mb-4 px-4 py-1.5">
             전문 대행사 대비 최대 98% 비용 절감
           </Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
             블로그 글 1편에 <span className="text-primary">커피 한 잔 값</span>
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
             무료로 먼저 체험하고, 효과를 확인한 후 업그레이드하세요
           </p>
         </div>

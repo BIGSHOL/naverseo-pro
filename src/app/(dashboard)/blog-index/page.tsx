@@ -592,6 +592,7 @@ export default function BlogIndexPage() {
   const [aiProgress, setAiProgress] = useState('')
   const [error, setError] = useState('')
   const [result, setResult] = useState<BlogIndexResult | null>(null)
+  const [progress, setProgress] = useState<{ step: number; totalSteps: number; message: string; current?: number; total?: number } | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [historyData, setHistoryData] = useState<BlogIndexHistoryData | null>(null)
   const [chartMode, setChartMode] = useState<'total' | 'category' | 'algorithm'>('total')
@@ -639,6 +640,7 @@ export default function BlogIndexPage() {
     setError('')
     setShowCreditConfirm(false)
     setPendingCache(null)
+    setProgress({ step: 0, totalSteps: 6, message: '측정 준비 중...' })
     try {
       const keywords = testKeywords.split(',').map((k) => k.trim()).filter(Boolean)
       const res = await fetch('/api/blog-index', {
@@ -646,25 +648,69 @@ export default function BlogIndexPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blogUrl: blogUrl.trim(), testKeywords: keywords.length > 0 ? keywords : undefined }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || '블로그 지수 측정에 실패했습니다.'); return }
-      if (data._historySaved === false) {
-        console.warn('[BlogIndex] DB 히스토리 저장 실패 - 다음 측정 시 캐시 없이 재측정됩니다')
+
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || '블로그 지수 측정에 실패했습니다.')
+        return
       }
-      setResult(data)
-      setCachedAt(new Date().toISOString())
-      // 히스토리 조회 (새 측정이 히스토리에 추가됨)
-      fetchHistory(blogUrl.trim())
-      fetchPlan()
-      // 키워드를 비워둔 경우, 자동 추출된 키워드를 입력란에 채워넣기
-      if (keywords.length === 0 && data.keywordResults?.length > 0) {
-        setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+
+      const contentType = res.headers.get('Content-Type') || ''
+
+      if (contentType.includes('ndjson') && res.body) {
+        // NDJSON 스트리밍 응답
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop()!
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const event = JSON.parse(line)
+              if (event.type === 'progress') {
+                setProgress(event)
+              } else if (event.type === 'result') {
+                if (event._historySaved === false) {
+                  console.warn('[BlogIndex] DB 히스토리 저장 실패 - 다음 측정 시 캐시 없이 재측정됩니다')
+                }
+                setResult(event)
+                setCachedAt(new Date().toISOString())
+                fetchHistory(blogUrl.trim())
+                fetchPlan()
+                if (keywords.length === 0 && event.keywordResults?.length > 0) {
+                  setTestKeywords(event.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+                }
+              } else if (event.type === 'error') {
+                setError(event.error || '블로그 지수 측정에 실패했습니다.')
+              }
+            } catch { /* JSON 파싱 실패 무시 */ }
+          }
+        }
+      } else {
+        // 폴백: 일반 JSON 응답 (데모 모드 등)
+        const data = await res.json()
+        setResult(data)
+        setCachedAt(new Date().toISOString())
+        fetchHistory(blogUrl.trim())
+        fetchPlan()
+        if (keywords.length === 0 && data.keywordResults?.length > 0) {
+          setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
+        }
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
       setRefreshing(false)
+      setProgress(null)
     }
   }
 
@@ -980,6 +1026,34 @@ export default function BlogIndexPage() {
           </CardContent>
         </Card>
 
+        {/* ========== 프로그레스 바 ========== */}
+        {(loading || refreshing) && progress && (
+          <Card>
+            <CardContent className="py-8">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="w-full max-w-md space-y-3">
+                  <p className="text-center text-sm font-medium">
+                    {progress.message}
+                  </p>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                      style={{ width: `${progress.current && progress.total ? Math.round((progress.current / progress.total) * 100) : Math.round((progress.step / progress.totalSteps) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>단계 {progress.step}/{progress.totalSteps}</span>
+                    {progress.current != null && progress.total != null && (
+                      <span>{progress.current}/{progress.total} 키워드</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ========== 캐시 상태 + 갱신 버튼 ========== */}
         {result && cachedAt && (() => {
           const cachedDaysAgo = Math.floor((Date.now() - new Date(cachedAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -1228,16 +1302,16 @@ export default function BlogIndexPage() {
                     const myTier = result.level.tier
                     return (
                     <div className="mt-4 pt-3 border-t">
-                      <div className="flex gap-0.5">
+                      <div className="flex gap-0.5 overflow-x-auto pb-1 -mx-1 px-1">
                         {TIER_LABELS.map((label, i) => {
                           const t = i + 1
                           const active = t === myTier
                           const passed = t < myTier
                           const bg = active ? tierBg(t) : passed ? tierBgPassed(t) : 'bg-muted'
                           return (
-                            <div key={t} className="flex-1 text-center">
-                              <div className={`relative h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
-                                <span className={`text-[7px] leading-none ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
+                            <div key={t} className="min-w-[24px] flex-1 text-center">
+                              <div className={`relative h-5 sm:h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
+                                <span className={`text-[8px] sm:text-[7px] leading-none whitespace-nowrap ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
                                   {label}
                                 </span>
                                 {active && (
@@ -1261,27 +1335,27 @@ export default function BlogIndexPage() {
             {historyData && historyData.history?.length > 0 && historyData.stats && (
               <Card>
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                       <TrendingUp className="h-4 w-4 text-purple-500" />
                       지수 변동 추이
                     </CardTitle>
-                    <div className="flex gap-1 rounded-lg bg-muted p-0.5">
+                    <div className="flex gap-0.5 sm:gap-1 rounded-lg bg-muted p-0.5 self-start sm:self-auto">
                       <button
                         onClick={() => setChartMode('total')}
-                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'total' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] sm:px-2.5 sm:py-1 sm:text-[11px] font-medium transition-colors ${chartMode === 'total' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         총점 추이
                       </button>
                       <button
                         onClick={() => setChartMode('category')}
-                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'category' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] sm:px-2.5 sm:py-1 sm:text-[11px] font-medium transition-colors ${chartMode === 'category' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         카테고리별
                       </button>
                       <button
                         onClick={() => setChartMode('algorithm')}
-                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${chartMode === 'algorithm' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] sm:px-2.5 sm:py-1 sm:text-[11px] font-medium transition-colors ${chartMode === 'algorithm' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                       >
                         D.I.A./C-Rank
                       </button>
@@ -1329,11 +1403,11 @@ export default function BlogIndexPage() {
                         <div className="mt-1.5 h-1.5 rounded-full bg-muted">
                           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${algo.score}%` }} />
                         </div>
-                        <p className="mt-2 text-[10px] text-muted-foreground">{algo.summary}</p>
+                        <p className="mt-2 text-[10px] text-muted-foreground line-clamp-2">{algo.summary}</p>
                         <div className="mt-2 space-y-0.5">
                           {algo.factors.map((f) => (
                             <div key={f.name} className="flex items-center justify-between text-[9px]">
-                              <span className="text-muted-foreground">{f.name} ({Math.round(f.weight * 100)}%)</span>
+                              <span className="text-muted-foreground truncate">{f.name} ({Math.round(f.weight * 100)}%)</span>
                               <span className="font-medium">{f.score ?? 0}/{25} → {(f.contribution ?? 0).toFixed(1)}점</span>
                             </div>
                           ))}
@@ -1722,6 +1796,69 @@ export default function BlogIndexPage() {
               </Card>
             )}
 
+            {/* ===== 축별 분석 상세 ===== */}
+            {(() => {
+              const scale20 = (c: AnalysisCategory): AnalysisCategory => ({
+                ...c, score: Math.round(c.score * 20 / 25), maxScore: 20,
+              })
+              const searchBonusCatDetail: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
+                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
+                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
+              } : null
+              const is5 = axisMode === '5axis' && searchBonusCatDetail
+              const detailCats = is5
+                ? [...result.categories, searchBonusCatDetail!].map(scale20)
+                : result.categories
+              return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Shield className="h-4 w-4" />
+                  축별 분석 상세 <span className="text-xs font-normal text-muted-foreground">({axisMode === '5axis' ? '5대축' : '4대축'})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {detailCats.map((cat) => (
+                    <div key={cat.name} className="rounded-lg border p-3">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        {getCategoryIcon(cat.name)}
+                        <h3 className="text-sm font-medium">{cat.name}</h3>
+                        <Badge className={`ml-auto text-[10px] ${getGradeColor(cat.grade)}`}>{cat.score}/{cat.maxScore}</Badge>
+                      </div>
+                      <ul className="space-y-0.5">
+                        {cat.details.map((detail, i) => {
+                          const scoreMatch = detail.match(/\(([+-]\d+)\)\s*$/)
+                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : null
+                          const pointText = pointNum !== null ? (pointNum > 0 ? `+${pointNum}` : `${pointNum}`) : null
+                          const detailText = scoreMatch ? detail.replace(/\s*\([+-]\d+\)\s*$/, '') : detail
+                          return (
+                            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${pointNum !== null && pointNum < 0 ? 'bg-red-400' : 'bg-muted-foreground/50'}`} />
+                              <span className="flex-1">{detailText}</span>
+                              {pointText && (
+                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                  pointNum! < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                  pointNum! >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                  pointNum! >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                  pointNum! >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                  'bg-muted text-muted-foreground'
+                                }`}>
+                                  {pointText}
+                                </span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+              )
+            })()}
+
             {/* ===== 3행: 포스팅 지수 (개별 포스트 품질 테이블) ===== */}
             {result.recentPosts && result.recentPosts.length > 0 && (
               <Card>
@@ -1855,79 +1992,16 @@ export default function BlogIndexPage() {
               </Card>
             )}
 
-            {/* ===== 축별 분석 상세 ===== */}
-            {(() => {
-              const scale20 = (c: AnalysisCategory): AnalysisCategory => ({
-                ...c, score: Math.round(c.score * 20 / 25), maxScore: 20,
-              })
-              const searchBonusCatDetail: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
-                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
-                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
-              } : null
-              const is5 = axisMode === '5axis' && searchBonusCatDetail
-              const detailCats = is5
-                ? [...result.categories, searchBonusCatDetail!].map(scale20)
-                : result.categories
-              return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-4 w-4" />
-                  축별 분석 상세 <span className="text-xs font-normal text-muted-foreground">({axisMode === '5axis' ? '5대축' : '4대축'})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {detailCats.map((cat) => (
-                    <div key={cat.name} className="rounded-lg border p-3">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        {getCategoryIcon(cat.name)}
-                        <h3 className="text-sm font-medium">{cat.name}</h3>
-                        <Badge className={`ml-auto text-[10px] ${getGradeColor(cat.grade)}`}>{cat.score}/{cat.maxScore}</Badge>
-                      </div>
-                      <ul className="space-y-0.5">
-                        {cat.details.map((detail, i) => {
-                          const scoreMatch = detail.match(/\(([+-]\d+)\)\s*$/)
-                          const pointNum = scoreMatch ? parseInt(scoreMatch[1]) : null
-                          const pointText = pointNum !== null ? (pointNum > 0 ? `+${pointNum}` : `${pointNum}`) : null
-                          const detailText = scoreMatch ? detail.replace(/\s*\([+-]\d+\)\s*$/, '') : detail
-                          return (
-                            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${pointNum !== null && pointNum < 0 ? 'bg-red-400' : 'bg-muted-foreground/50'}`} />
-                              <span className="flex-1">{detailText}</span>
-                              {pointText && (
-                                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                  pointNum! < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                  pointNum! >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                  pointNum! >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                  pointNum! >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                  'bg-muted text-muted-foreground'
-                                }`}>
-                                  {pointText}
-                                </span>
-                              )}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-              )
-            })()}
-
             {/* ===== 키워드별 실전 순위 ===== */}
             <Card className="border-primary/20">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                     <Award className="h-4 w-4 text-primary" />
                     키워드 실전 순위
-                    <Badge className="bg-primary/10 text-primary text-[10px]">핵심 분석</Badge>
+                    <Badge className="bg-primary/10 text-primary text-[10px]">핵심</Badge>
                   </CardTitle>
-                  <p className="text-[10px] text-muted-foreground">네이버 블로그 검색 기준 100위 내 순위</p>
+                  <p className="text-[10px] text-muted-foreground">네이버 블로그 검색 100위 내 순위</p>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1942,17 +2016,17 @@ export default function BlogIndexPage() {
                     const exposureRate = total > 0 ? Math.round(((top + mid + low) / total) * 100) : 0
                     return (
                       <>
-                        <div className="rounded-lg bg-green-50 p-2.5 text-center dark:bg-green-950/30">
-                          <p className="text-lg font-bold text-green-600">{top}</p>
-                          <p className="text-[10px] text-green-600/70">상위 노출 (1~10위)</p>
+                        <div className="rounded-lg bg-green-50 p-2 sm:p-2.5 text-center dark:bg-green-950/30">
+                          <p className="text-base font-bold text-green-600 sm:text-lg">{top}</p>
+                          <p className="text-[9px] text-green-600/70 sm:text-[10px]">상위 노출<br className="sm:hidden" /><span className="hidden sm:inline"> </span>(1~10위)</p>
                         </div>
-                        <div className="rounded-lg bg-blue-50 p-2.5 text-center dark:bg-blue-950/30">
-                          <p className="text-lg font-bold text-blue-600">{mid}</p>
-                          <p className="text-[10px] text-blue-600/70">중위 노출 (11~30위)</p>
+                        <div className="rounded-lg bg-blue-50 p-2 sm:p-2.5 text-center dark:bg-blue-950/30">
+                          <p className="text-base font-bold text-blue-600 sm:text-lg">{mid}</p>
+                          <p className="text-[9px] text-blue-600/70 sm:text-[10px]">중위 노출<br className="sm:hidden" /><span className="hidden sm:inline"> </span>(11~30위)</p>
                         </div>
-                        <div className="rounded-lg bg-orange-50 p-2.5 text-center dark:bg-orange-950/30">
-                          <p className="text-lg font-bold text-orange-600">{none + low}</p>
-                          <p className="text-[10px] text-orange-600/70">하위/미노출</p>
+                        <div className="rounded-lg bg-orange-50 p-2 sm:p-2.5 text-center dark:bg-orange-950/30">
+                          <p className="text-base font-bold text-orange-600 sm:text-lg">{none + low}</p>
+                          <p className="text-[9px] text-orange-600/70 sm:text-[10px]">하위/미노출</p>
                         </div>
                         <div className="rounded-lg bg-primary/5 p-2.5 text-center">
                           <p className="text-lg font-bold text-primary">{exposureRate}%</p>

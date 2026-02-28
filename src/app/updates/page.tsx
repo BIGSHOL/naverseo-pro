@@ -18,27 +18,24 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
-  { date: '2026-02-27', type: 'feat', message: 'AI 실시간 타이핑 효과 — 콘텐츠 생성·상위노출 분석·약점 개선에서 AI가 글을 써내려가는 모습을 실시간으로 확인' },
-  { date: '2026-02-27', type: 'feat', message: '상위노출 분석 전체 리뉴얼 — 4차원 난이도 평가 + 품질·반응 기반 경쟁 분석 + 콘텐츠 길이 중립 원칙 적용' },
-  { date: '2026-02-27', type: 'feat', message: 'SEO 점수 체크 — URL에서 통계·태그·서식·이미지 갤러리 표시 + AI 심층 분석에 스크래핑 메타 연동' },
-  { date: '2026-02-27', type: 'feat', message: '상위노출 분석 — 블로그 스크래핑 데이터 활용 강화 + AI 프롬프트 개선' },
-  { date: '2026-02-27', type: 'feat', message: '비용 최적화 — 분석 라우트(SEO/경쟁사/블로그지수) Gemini 고정' },
-  { date: '2026-02-27', type: 'fix', message: 'SEO 점수 체크 — AI 분석 504 타임아웃 수정 (thinkingBudget 최적화)' },
-  { date: '2026-02-27', type: 'feat', message: '블로그 지수 v10 — 4대축/5대축 탭 전환 + 어뷰징 4축 통합 + 범위 기반 점수 + 항목별 ±점수 표시' },
-  { date: '2026-02-27', type: 'feat', message: '블로그 지수 — 16단계 등급 맵 리디자인 + 카테고리 감지 개선 + 벤치마크 정확도 교정' },
-  { date: '2026-02-27', type: 'fix', message: '블로그 지수 — KST 시간 고정 + 스크래핑 데이터 반영 + 방문자 API 갱신' },
-  { date: '2026-02-26', type: 'feat', message: '블로그 지수 v8~v9 — 4축 재구성 + 내부 링크/어뷰징 감지 + 카테고리별 벤치마크 비교' },
+  // 2026-02-28
+  { date: '2026-02-28', type: 'feat', message: 'AI 콘텐츠 자동 최적화 — 생성 후 SEO 약점 자동 수정 + 6단계 실시간 진행 표시' },
+  { date: '2026-02-28', type: 'feat', message: 'AI 약점 개선 시각 효과 — 수정 전/후를 색상 애니메이션으로 비교 확인' },
+  { date: '2026-02-28', type: 'fix', message: '모바일 UI 전면 최적화 — 전 페이지 텍스트 줄바꿈·차트·레이아웃 반응형 개선' },
+  { date: '2026-02-28', type: 'fix', message: '키워드 삭제 시 페이지 멈춤 현상 수정' },
+  // 2026-02-27
+  { date: '2026-02-27', type: 'feat', message: 'AI 실시간 타이핑 효과 — 콘텐츠 생성·경쟁 분석에서 AI가 글을 써내려가는 모습을 실시간 확인' },
+  { date: '2026-02-27', type: 'feat', message: '상위노출 분석 전면 리뉴얼 — 4차원 난이도 평가 + 이미지·품질 기반 경쟁 분석' },
+  { date: '2026-02-27', type: 'feat', message: 'SEO 점수 체크 강화 — URL 분석 시 통계·태그·서식·이미지 갤러리 + AI 심층 분석' },
+  { date: '2026-02-27', type: 'feat', message: '블로그 지수 대규모 업데이트 — 16단계 등급 체계 + 4대축/5대축 전환 + 어뷰징 감지 + 카테고리 벤치마크' },
+  // 2026-02-26
   { date: '2026-02-26', type: 'feat', message: '키워드 검색 — 상위 5개 검색결과 타입 표시 (블로그/카페/외부/포스트/지식인)' },
-  { date: '2026-02-26', type: 'feat', message: '상위노출 분석 — 이미지 포함 여부 분석 추가' },
-  { date: '2026-02-25', type: 'feat', message: '블로그 지수 v6 — 16등급 체계 + 카테고리별 추이 차트' },
-  { date: '2026-02-25', type: 'feat', message: '블로그 지수 v5 — 5축 균등 배분 + 검색 보너스 분리' },
-  { date: '2026-02-25', type: 'feat', message: '검색 누락 조회, 포화지수, 키워드 대량조회, 인스타그램 변환 추가' },
-  { date: '2026-02-25', type: 'feat', message: '상호명 키워드 콘텐츠 구조 개선 + 콘텐츠 방향 입력 추가' },
-  { date: '2026-02-25', type: 'fix', message: 'AI 콘텐츠 정확도 개선 (자동 교정 + 키워드 의미 추출)' },
-  { date: '2026-02-25', type: 'feat', message: '리치텍스트 에디터 교체 + HTML 클립보드 복사' },
-  { date: '2026-02-25', type: 'feat', message: 'AI 약점 개선 정밀도 향상 + 마크다운 서식 렌더링 적용' },
-  { date: '2026-02-24', type: 'feat', message: '소셜 로그인 (Google + Kakao) + 해외 결제 지원' },
-  { date: '2026-02-24', type: 'feat', message: '프로필 이미지 표시 + 연동 계정 관리' },
+  // 2026-02-25
+  { date: '2026-02-25', type: 'feat', message: '검색 누락 조회·포화지수·키워드 대량조회·인스타그램 변환 추가' },
+  { date: '2026-02-25', type: 'feat', message: '리치텍스트 에디터 — 서식 편집 + 네이버 블로그에 서식 유지 붙여넣기' },
+  { date: '2026-02-25', type: 'feat', message: 'AI 콘텐츠 품질 향상 — 키워드 의미 추출 + 약점 개선 정밀도 + 콘텐츠 방향 입력' },
+  // 2026-02-24
+  { date: '2026-02-24', type: 'feat', message: '소셜 로그인 (Google + Kakao) + 프로필 이미지 + 해외 결제 지원' },
 ]
 
 const TYPE_CONFIG: Record<UpdateType, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive'; color: string }> = {

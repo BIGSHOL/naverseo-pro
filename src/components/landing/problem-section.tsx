@@ -37,10 +37,10 @@ export function ProblemSection() {
     <section className="py-20 bg-muted/30">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
             블로그 운영자의 공통된 고민
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
             매달 수십 시간의 작업 시간과 수백만 원의 비용이 소모되고 있습니다
           </p>
         </div>
@@ -48,11 +48,11 @@ export function ProblemSection() {
         <div className="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {problems.map((problem) => (
             <Card key={problem.title} className="border-none bg-background shadow-md">
-              <CardContent className="pt-8 pb-8 text-center">
-                <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-                  <problem.icon className="h-7 w-7 text-destructive" />
+              <CardContent className="pt-6 pb-6 sm:pt-8 sm:pb-8 text-center">
+                <div className="mx-auto mb-4 sm:mb-6 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-destructive/10">
+                  <problem.icon className="h-6 w-6 sm:h-7 sm:w-7 text-destructive" />
                 </div>
-                <h3 className="text-base font-semibold">{problem.title}</h3>
+                <h3 className="text-sm sm:text-base font-semibold">{problem.title}</h3>
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                   {problem.description}
                 </p>

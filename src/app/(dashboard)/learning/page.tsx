@@ -201,15 +201,15 @@ export default function LearningPage() {
       </div>
 
       {/* 요약 카드 4개 */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">분석된 포스트</p>
-                <p className="text-3xl font-bold">{stats.totalPosts.toLocaleString()}</p>
+          <CardContent className="p-4 sm:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs sm:text-sm text-muted-foreground">분석된 포스트</p>
+                <p className="text-2xl sm:text-3xl font-bold">{stats.totalPosts.toLocaleString()}</p>
               </div>
-              <div className="rounded-lg bg-blue-100 p-2.5 dark:bg-blue-900/30">
+              <div className="shrink-0 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
                 <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
@@ -217,13 +217,13 @@ export default function LearningPage() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">학습된 키워드</p>
-                <p className="text-3xl font-bold">{stats.uniqueKeywords.toLocaleString()}</p>
+          <CardContent className="p-4 sm:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs sm:text-sm text-muted-foreground">학습된 키워드</p>
+                <p className="text-2xl sm:text-3xl font-bold">{stats.uniqueKeywords.toLocaleString()}</p>
               </div>
-              <div className="rounded-lg bg-purple-100 p-2.5 dark:bg-purple-900/30">
+              <div className="shrink-0 rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
                 <Tag className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
@@ -231,13 +231,13 @@ export default function LearningPage() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">집계 패턴</p>
-                <p className="text-3xl font-bold">{stats.patternCount}</p>
+          <CardContent className="p-4 sm:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs sm:text-sm text-muted-foreground">집계 패턴</p>
+                <p className="text-2xl sm:text-3xl font-bold">{stats.patternCount}</p>
               </div>
-              <div className="rounded-lg bg-green-100 p-2.5 dark:bg-green-900/30">
+              <div className="shrink-0 rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
                 <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
             </div>
@@ -245,15 +245,15 @@ export default function LearningPage() {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
+          <CardContent className="p-4 sm:pt-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                        평균 품질 점수
-                        <Info className="h-3.5 w-3.5" />
+                      <p className="flex items-center gap-1 truncate text-xs sm:text-sm text-muted-foreground">
+                        평균 품질
+                        <Info className="h-3 w-3 shrink-0" />
                       </p>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -261,12 +261,12 @@ export default function LearningPage() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <p className={`text-3xl font-bold ${qualityColor(stats.avgQualityScore)}`}>
+                <p className={`text-2xl sm:text-3xl font-bold ${qualityColor(stats.avgQualityScore)}`}>
                   {stats.avgQualityScore}
-                  <span className="text-lg font-normal text-muted-foreground">/12</span>
+                  <span className="text-base sm:text-lg font-normal text-muted-foreground">/12</span>
                 </p>
               </div>
-              <div className="rounded-lg bg-orange-100 p-2.5 dark:bg-orange-900/30">
+              <div className="shrink-0 rounded-lg bg-orange-100 p-2 dark:bg-orange-900/30">
                 <BrainCircuit className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
@@ -320,24 +320,42 @@ export default function LearningPage() {
           </CardHeader>
           <CardContent>
             {categoryChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={categoryChartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    dataKey="value"
-                    label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  >
-                    {categoryChartData.map((_entry, i) => (
-                      <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(value: any) => [`${value}건`, '포스트']} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={75}
+                      innerRadius={38}
+                      dataKey="value"
+                      label={false}
+                    >
+                      {categoryChartData.map((_entry, i) => (
+                        <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(value: any) => [`${value}건`, '포스트']} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* 범례 */}
+                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                  {categoryChartData.map((entry, i) => {
+                    const total = categoryChartData.reduce((s, e) => s + e.value, 0)
+                    const pct = total > 0 ? ((entry.value / total) * 100).toFixed(0) : '0'
+                    return (
+                      <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
+                        />
+                        {entry.name} {pct}%
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             ) : (
               <p className="py-10 text-center text-muted-foreground">아직 데이터가 없습니다</p>
             )}

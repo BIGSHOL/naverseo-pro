@@ -8,6 +8,7 @@ interface SeoCheckResponse {
   totalScore: number
   grade: string
   categories: {
+    id: string
     name: string
     score: number
     maxScore: number
@@ -25,6 +26,7 @@ interface SeoCheckResponse {
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  // --- 스트림 시작 전: 인증 + 크레딧 체크 (실패 시 일반 JSON 응답) ---
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
@@ -57,77 +59,112 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1) 로컬 SEO 엔진 분석 (항상 실행, 13개 항목)
-    const engineResult = analyzeSeo(keyword || '', title || '', content)
+    // --- NDJSON 스트리밍 시작 ---
+    const encoder = new TextEncoder()
 
-    // 가독성 분석
-    const readability = analyzeReadability(content)
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (obj: Record<string, unknown>) => {
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
+        }
 
-    const baseResult = {
-      totalScore: engineResult.totalScore,
-      grade: engineResult.grade,
-      categories: engineResult.categories.map(cat => ({
-        name: cat.name,
-        score: cat.score,
-        maxScore: cat.maxScore,
-        feedback: cat.details,
-      })),
-      improvements: engineResult.improvements,
-      strengths: engineResult.strengths,
-      readabilityAnalysis: readability,
-    }
+        try {
+          // Step 1: SEO 엔진 분석
+          send({ type: 'progress', step: 1, total: 4, label: 'SEO 엔진 분석 중...' })
+          const engineResult = analyzeSeo(keyword || '', title || '', content)
 
-    // 2) AI 심층 분석 (항상 Gemini 사용 — 분석은 Gemini로 충분, 비용 최적화)
-    if (!process.env.GEMINI_API_KEY?.trim()) {
-      const response: SeoCheckResponse = {
-        ...baseResult,
-        isDemo: true,
-        demoReason: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다.',
-        aiAnalysis: generateDemoAiAnalysis(),
-      }
-      return NextResponse.json(response)
-    }
+          // Step 2: 가독성 분석
+          send({ type: 'progress', step: 2, total: 4, label: '가독성 분석 중...' })
+          const readability = analyzeReadability(content)
 
-    // API 키가 있으면 실제 AI 심층 분석 실행 (실패해도 기본 결과 반환)
-    let aiAnalysis: AiSeoAnalysis | null = null
-    let aiFailReason = ''
-    try {
-      aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, scrapedMeta)
-      if (!aiAnalysis) {
-        aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
-      }
-    } catch (aiError) {
-      aiFailReason = aiError instanceof Error ? aiError.message : String(aiError)
-      console.error('[SEO Check] AI 심층 분석 실패 (기본 결과로 대체):', aiError)
-    }
+          const baseResult = {
+            totalScore: engineResult.totalScore,
+            grade: engineResult.grade,
+            categories: engineResult.categories.map(cat => ({
+              id: cat.id,
+              name: cat.name,
+              score: cat.score,
+              maxScore: cat.maxScore,
+              feedback: cat.details,
+            })),
+            improvements: engineResult.improvements,
+            strengths: engineResult.strengths,
+            readabilityAnalysis: readability,
+          }
 
-    // AI 점수 보정 적용 + 등급 재계산
-    let finalScore = baseResult.totalScore
-    let finalGrade = baseResult.grade
-    if (aiAnalysis?.scoreAdjustment) {
-      finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
-      // 보정된 점수로 등급 재계산 (SEO_GRADE_TABLE과 동일 기준)
-      if (finalScore >= 90) finalGrade = 'S'
-      else if (finalScore >= 80) finalGrade = 'A+'
-      else if (finalScore >= 70) finalGrade = 'A'
-      else if (finalScore >= 60) finalGrade = 'B+'
-      else if (finalScore >= 50) finalGrade = 'B'
-      else if (finalScore >= 40) finalGrade = 'C'
-      else finalGrade = 'D'
-    }
+          // Step 3: AI 심층 분석 (가장 오래 걸리는 단계)
+          send({ type: 'progress', step: 3, total: 4, label: 'AI 심층 분석 중...' })
 
-    const response: SeoCheckResponse = {
-      ...baseResult,
-      totalScore: finalScore,
-      grade: finalGrade,
-      isDemo: !aiAnalysis,
-      demoReason: aiAnalysis ? undefined : `AI 분석 실패: ${aiFailReason}`,
-      aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
-    }
+          if (!process.env.GEMINI_API_KEY?.trim()) {
+            send({ type: 'progress', step: 4, total: 4, label: '결과 정리 중...' })
+            const response: SeoCheckResponse = {
+              ...baseResult,
+              isDemo: true,
+              demoReason: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다.',
+              aiAnalysis: generateDemoAiAnalysis(),
+            }
+            send({ type: 'result', ...response })
+            controller.close()
+            return
+          }
 
-    await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
+          let aiAnalysis: AiSeoAnalysis | null = null
+          let aiFailReason = ''
+          try {
+            aiAnalysis = await analyzeWithAi(keyword || '', title || '', content, scrapedMeta)
+            if (!aiAnalysis) {
+              aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
+            }
+          } catch (aiError) {
+            aiFailReason = aiError instanceof Error ? aiError.message : String(aiError)
+            console.error('[SEO Check] AI 심층 분석 실패 (기본 결과로 대체):', aiError)
+          }
 
-    return NextResponse.json(response)
+          // Step 4: 점수 보정 + 등급 재계산 + 크레딧 차감
+          send({ type: 'progress', step: 4, total: 4, label: '점수 보정 중...' })
+
+          let finalScore = baseResult.totalScore
+          let finalGrade = baseResult.grade
+          if (aiAnalysis?.scoreAdjustment) {
+            finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
+            if (finalScore >= 90) finalGrade = 'S'
+            else if (finalScore >= 80) finalGrade = 'A+'
+            else if (finalScore >= 70) finalGrade = 'A'
+            else if (finalScore >= 60) finalGrade = 'B+'
+            else if (finalScore >= 50) finalGrade = 'B'
+            else if (finalScore >= 40) finalGrade = 'C'
+            else finalGrade = 'D'
+          }
+
+          const response: SeoCheckResponse = {
+            ...baseResult,
+            totalScore: finalScore,
+            grade: finalGrade,
+            isDemo: !aiAnalysis,
+            demoReason: aiAnalysis ? undefined : `AI 분석 실패: ${aiFailReason}`,
+            aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
+          }
+
+          await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
+
+          send({ type: 'result', ...response })
+          controller.close()
+        } catch (streamError) {
+          const msg = streamError instanceof Error ? streamError.message : String(streamError)
+          console.error('[SEO Check] 스트림 오류:', msg)
+          send({ type: 'error', error: `SEO 분석 중 오류가 발생했습니다: ${msg}` })
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-cache',
+        'Transfer-Encoding': 'chunked',
+      },
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error('[SEO Check] 오류:', errorMessage)

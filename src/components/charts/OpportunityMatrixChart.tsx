@@ -125,9 +125,9 @@ export default function OpportunityMatrixChart({ opportunities }: Props) {
   }, [fromY])
 
   return (
-    <div className="relative w-full h-[340px]">
+    <div className="relative w-full h-[300px] sm:h-[340px]">
       <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart margin={{ top: 20, right: 24, bottom: 45, left: 48 }}>
+        <ScatterChart margin={{ top: 16, right: 12, bottom: 40, left: 32 }}>
           {/* 4분면 배경 존 */}
           <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={searchMedian} y2={yAxisMax} fill="#10b981" fillOpacity={0.04} stroke="none" />
           <ReferenceArea x1={scoreRange.threshold} x2={scoreRange.max + 2} y1={0} y2={searchMedian} fill="#3b82f6" fillOpacity={0.03} stroke="none" />
@@ -153,8 +153,8 @@ export default function OpportunityMatrixChart({ opportunities }: Props) {
             type="number"
             dataKey="x"
             domain={[scoreRange.min, scoreRange.max]}
-            label={{ value: '기회 점수 →', position: 'insideBottom', offset: -30, style: { fontSize: 12, fontWeight: 600, fill: '#6b7280' } }}
-            tick={{ fontSize: 11, fill: '#6b7280' }}
+            label={{ value: '기회 점수 →', position: 'insideBottom', offset: -25, style: { fontSize: 11, fontWeight: 600, fill: '#6b7280' } }}
+            tick={{ fontSize: 10, fill: '#6b7280' }}
             axisLine={{ stroke: '#d1d5db', strokeWidth: 1.5 }}
             tickLine={false}
           />
@@ -164,11 +164,11 @@ export default function OpportunityMatrixChart({ opportunities }: Props) {
             domain={[0, yAxisMax]}
             ticks={yTicks}
             tickFormatter={formatYTick}
-            label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -26, style: { fontSize: 12, fontWeight: 600, fill: '#6b7280' } }}
-            tick={{ fontSize: 11, fill: '#6b7280' }}
+            label={{ value: '월간 검색량', angle: -90, position: 'insideLeft', offset: -18, style: { fontSize: 11, fontWeight: 600, fill: '#6b7280' } }}
+            tick={{ fontSize: 10, fill: '#6b7280' }}
             axisLine={{ stroke: '#d1d5db', strokeWidth: 1.5 }}
             tickLine={false}
-            width={56}
+            width={44}
           />
           <RechartsTooltip
             cursor={{ strokeDasharray: '3 3', stroke: '#d1d5db' }}

@@ -661,8 +661,8 @@ export default function DashboardPage() {
                   </div>
                   {/* 내용 */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-1.5 sm:gap-2">
+                      <div className="min-w-0 flex-1">
                         {item.type === 'content' && item.body ? (
                           <p
                             className="text-sm font-medium truncate cursor-pointer hover:text-primary hover:underline"
@@ -678,13 +678,13 @@ export default function DashboardPage() {
                         ) : (
                           <p className="text-sm font-medium truncate">{item.title}</p>
                         )}
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[11px] sm:text-xs text-muted-foreground">
                           {item.type === 'keyword' ? '키워드 검색' : '콘텐츠 생성'} · {timeAgo(item.date)}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         {item.seoScore != null && (
-                          <Badge variant="secondary" className={`text-[10px] px-1.5 ${
+                          <Badge variant="secondary" className={`text-[9px] px-1 sm:text-[10px] sm:px-1.5 ${
                             item.seoScore >= 80 ? 'bg-green-100 text-green-700'
                               : item.seoScore >= 60 ? 'bg-amber-100 text-amber-700'
                                 : 'bg-red-100 text-red-700'
@@ -693,13 +693,13 @@ export default function DashboardPage() {
                           </Badge>
                         )}
                         {item.status && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5">
+                          <Badge variant="secondary" className="text-[9px] px-1 sm:text-[10px] sm:px-1.5">
                             {item.status === 'draft' ? '초안' : item.status === 'published' ? '발행' : '보관'}
                           </Badge>
                         )}
                         {item.type === 'content' && item.body ? (
                           <Button
-                            variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-primary"
+                            variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] sm:px-2 sm:text-[11px] text-primary"
                             onClick={() => {
                               sessionStorage.setItem('naverseo-workflow:content-body', item.body!)
                               sessionStorage.setItem('naverseo-workflow:content-title', item.title)
@@ -711,7 +711,7 @@ export default function DashboardPage() {
                           </Button>
                         ) : (
                           <Link href={item.actionHref}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-primary">
+                            <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] sm:px-2 sm:text-[11px] text-primary">
                               {item.actionLabel}
                             </Button>
                           </Link>

@@ -275,20 +275,20 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
     return (
         <Card>
             <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        <BarChart3 className="h-5 w-5 text-primary" />
-                        조회 결과
-                        <Badge variant="secondary" className="ml-1">{results.length}개</Badge>
+                <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="flex items-center gap-1.5 text-base sm:text-lg">
+                        <BarChart3 className="h-4 w-4 text-primary sm:h-5 sm:w-5" />
+                        <span className="whitespace-nowrap">조회 결과</span>
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs">{results.length}개</Badge>
                         {isDemo && (
-                            <Badge variant="outline" className="ml-1 text-amber-600 border-amber-300">
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 sm:text-xs">
                                 데모
                             </Badge>
                         )}
                     </CardTitle>
-                    <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                        <Download className="mr-2 h-4 w-4" />
-                        CSV 내보내기
+                    <Button variant="outline" size="sm" onClick={handleExportCSV} className="shrink-0 h-8 px-2 text-xs sm:px-3">
+                        <Download className="h-3.5 w-3.5 sm:mr-2" />
+                        <span className="hidden sm:inline">CSV 내보내기</span>
                     </Button>
                 </div>
             </CardHeader>

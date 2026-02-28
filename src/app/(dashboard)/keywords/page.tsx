@@ -181,8 +181,8 @@ export default function KeywordsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">키워드 검색</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="text-xl font-bold sm:text-2xl">키워드 검색</h1>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
           네이버 검색량과 경쟁도를 분석하여 최적의 키워드를 찾으세요
         </p>
       </div>

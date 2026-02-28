@@ -197,7 +197,7 @@ export function Header() {
               {hasActionable && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
+          <PopoverContent align="end" className="w-[calc(100vw-2rem)] max-w-80 p-0">
             <div className="border-b px-4 py-3">
               <h3 className="text-sm font-semibold">알림</h3>
             </div>

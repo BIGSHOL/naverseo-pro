@@ -40,10 +40,10 @@ export function ComparisonSection() {
           <Badge variant="secondary" className="mb-4 px-4 py-1.5">
             비용 비교
           </Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
             기존 방식의 실제 비용
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
             동일한 SEO 성과를 달성하는 데 드는 비용을 비교해보세요
           </p>
         </div>
@@ -82,9 +82,9 @@ export function ComparisonSection() {
 
         {/* NaverSEO Pro 카드 */}
         <Card className="mt-8 border-primary shadow-lg">
-          <CardContent className="p-8">
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold">NaverSEO Pro</h3>
+          <CardContent className="p-5 sm:p-8">
+            <div className="text-center mb-6 sm:mb-8">
+              <h3 className="text-xl sm:text-2xl font-bold">NaverSEO Pro</h3>
               <p className="mt-2">
                 <span className="text-4xl font-bold text-primary">월 $5</span>
                 <span className="text-muted-foreground">부터</span>

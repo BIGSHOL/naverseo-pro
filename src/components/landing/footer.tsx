@@ -7,28 +7,28 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
           <Logo size="sm" />
-          <div className="flex gap-6">
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 sm:gap-6">
             <Link
               href="/terms"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground"
             >
               이용약관
             </Link>
             <Link
               href="/privacy"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground"
             >
               개인정보처리방침
             </Link>
             <Link
               href="/updates"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground"
             >
               업데이트 내역
             </Link>
             <a
               href="mailto:soseon203@gmail.com"
-              className="text-sm text-muted-foreground hover:text-foreground"
+              className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground"
             >
               문의하기
             </a>
