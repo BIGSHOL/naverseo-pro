@@ -756,6 +756,11 @@ export default function ContentPage() {
                 const accumulated = streamingTextRef.current
                 setStreamingText(accumulated)
 
+                // 첫 스트림 청크: 외부 스크롤을 스트리밍 영역으로 1회만 이동
+                if (isFirst) {
+                  setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                }
+
                 // 스트리밍 콘텐츠 auto-scroll (내부 컨테이너만 — 외부 스크롤은 건드리지 않음)
                 if (autoScrollRef.current) {
                   setTimeout(() => {
