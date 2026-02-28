@@ -1264,6 +1264,9 @@ export default function ContentPage() {
       const decoder = new TextDecoder()
       let buffer = ''
       let updatedContent = editContent
+      let replacedCount = 0
+
+      console.log('[ImageGen] 시작 — editContent 마커 수:', (editContent.match(/\[이미지[:\s]+[^\]]+\]/g) || []).length)
 
       while (true) {
         const { done, value } = await reader.read()
@@ -1283,7 +1286,7 @@ export default function ContentPage() {
             if (event.type === 'progress') {
               setImageGenMessage(event.message)
             } else if (event.type === 'skipped') {
-              // 서버측 스킵 (안전장치) — 이미 프론트에서 걸러짐
+              console.log('[ImageGen] 스킵:', event.description, event.reason)
             } else if (event.type === 'image') {
               // 마크다운에서 해당 마커를 이미지로 교체
               const markerInfo = imageMarkers.find(m => m.index === event.index)
@@ -1292,12 +1295,34 @@ export default function ContentPage() {
                   `\\[이미지[:\\s]+${escapeRegex(markerInfo.description)}\\]`,
                   ''
                 )
+                const before = updatedContent
                 updatedContent = updatedContent.replace(markerRegex, `![${event.description}](${event.url})`)
+                if (before !== updatedContent) {
+                  replacedCount++
+                  console.log(`[ImageGen] 마커 교체 성공 #${event.index}: "${markerInfo.description}" → 이미지 URL`)
+                } else {
+                  console.warn(`[ImageGen] 마커 교체 실패 #${event.index}: "${markerInfo.description}" 정규식이 본문에서 일치하지 않음`)
+                }
+              } else {
+                console.warn(`[ImageGen] 마커 정보 미발견 — index=${event.index}`)
               }
             } else if (event.type === 'error_partial') {
-              // 부분 실패 — 무시 (최종 결과에서 합산)
+              console.warn(`[ImageGen] 부분 실패 #${event.index}:`, event.reason)
             } else if (event.type === 'result') {
-              setEditContent(updatedContent)
+              console.log(`[ImageGen] 완료 — 생성: ${event.generated}, 실패: ${event.failed}, 교체: ${replacedCount}`)
+              if (replacedCount > 0) {
+                setEditContent(updatedContent)
+                toast({ title: '이미지 배치 완료', description: `${replacedCount}장의 이미지가 본문에 삽입되었습니다.` })
+              } else if (event.generated > 0) {
+                // 이미지는 생성되었지만 마커 교체 실패 — 강제 배치 시도
+                console.warn('[ImageGen] 마커 교체 0건 — 이미지 URL을 본문 하단에 추가합니다')
+                let appendMarkdown = '\n\n---\n\n### AI 생성 이미지\n\n'
+                for (const img of (event.images || [])) {
+                  appendMarkdown += `![${img.description}](${img.url})\n\n`
+                }
+                setEditContent(editContent + appendMarkdown)
+                toast({ title: '이미지 생성 완료', description: `마커 교체 실패로 본문 하단에 이미지를 추가했습니다.` })
+              }
               const msgs: string[] = []
               if (event.generated > 0) msgs.push(`${event.generated}장 생성 완료`)
               if (event.failed > 0) msgs.push(`${event.failed}장 실패`)
@@ -1306,7 +1331,9 @@ export default function ContentPage() {
               setImageGenMessage(msgs.join(', '))
               setTimeout(() => setImageGenMessage(''), 8000)
             }
-          } catch { /* NDJSON 파싱 오류 무시 */ }
+          } catch (e) {
+            console.warn('[ImageGen] NDJSON 파싱 오류:', e)
+          }
         }
 
         if (done) break
@@ -1666,6 +1693,7 @@ export default function ContentPage() {
                                       markdown={historyEditContent}
                                       onMarkdownChange={setHistoryEditContent}
                                       placeholder="글을 작성하세요..."
+                                      maxHeight={500}
                                     />
                                     <p className="text-xs text-muted-foreground">
                                       {historyEditContent.length.toLocaleString()}자
@@ -2976,6 +3004,7 @@ export default function ContentPage() {
                               onMarkdownChange={setEditContent}
                               onEditorReady={(editor) => { editorRef.current = editor }}
                               placeholder="글을 작성하세요..."
+                              maxHeight={500}
                             />
                             <p className="text-xs text-muted-foreground">
                               {editContent.length.toLocaleString()}자

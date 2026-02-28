@@ -12,7 +12,7 @@ import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { Extension } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { markdownToHtml, htmlToMarkdown } from '@/lib/utils/markdown-convert'
 import { createPatchHighlightPlugin } from '@/lib/editor/patch-highlight-plugin'
 import { TiptapToolbar } from './TiptapToolbar'
@@ -77,11 +77,14 @@ interface TiptapEditorProps {
   onEditorReady?: (editor: Editor) => void
   placeholder?: string
   className?: string
+  /** 내부 스크롤 영역의 최대 높이 (px). 설정 시 overflow-y: auto 적용 */
+  maxHeight?: number
 }
 
-export function TiptapEditor({ markdown, onMarkdownChange, onEditorReady, placeholder, className }: TiptapEditorProps) {
+export function TiptapEditor({ markdown, onMarkdownChange, onEditorReady, placeholder, className, maxHeight }: TiptapEditorProps) {
   const isExternalUpdate = useRef(false)
   const lastMarkdown = useRef(markdown)
+  const [expanded, setExpanded] = useState(false)
 
   const editor = useEditor({
     extensions: [
@@ -148,11 +151,37 @@ export function TiptapEditor({ markdown, onMarkdownChange, onEditorReady, placeh
     isExternalUpdate.current = false
   }, [markdown, editor])
 
+  const useInternalScroll = maxHeight && !expanded
+
   return (
     <div className={className}>
       <TiptapToolbar editor={editor} />
-      <div className="rounded-b-lg border border-t-0 bg-background">
-        <EditorContent editor={editor} />
+      <div className="relative rounded-b-lg border border-t-0 bg-background">
+        <div
+          style={useInternalScroll ? { maxHeight: `${maxHeight}px` } : undefined}
+          className={useInternalScroll ? 'overflow-y-auto' : ''}
+        >
+          <EditorContent editor={editor} />
+        </div>
+        {maxHeight && (
+          <button
+            type="button"
+            onClick={() => setExpanded(prev => !prev)}
+            className="flex w-full items-center justify-center gap-1 border-t bg-muted/50 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            {expanded ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                접기
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                펼치기
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )
