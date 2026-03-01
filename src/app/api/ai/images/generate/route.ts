@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
+import sharp from 'sharp'
 
 export const maxDuration = 60
 
@@ -224,15 +225,19 @@ export async function POST(request: NextRequest) {
 
               // Supabase Storage 업로드
               const timestamp = Date.now()
-              const fileName = `${user.id}/${contentId || 'temp'}_${marker.index}_${timestamp}.png`
+              const fileName = `${user.id}/${contentId || 'temp'}_${marker.index}_${timestamp}.webp`
 
-              // base64 → Buffer
-              const buffer = Buffer.from(imageData.base64, 'base64')
+              // base64 → Buffer → sharp 압축 (WebP, 최대 800px, 품질 80)
+              const rawBuffer = Buffer.from(imageData.base64, 'base64')
+              const buffer = await sharp(rawBuffer)
+                .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+                .webp({ quality: 80 })
+                .toBuffer()
 
               const { error: uploadError } = await supabase.storage
                 .from('ai-images')
                 .upload(fileName, buffer, {
-                  contentType: imageData.mimeType || 'image/png',
+                  contentType: 'image/webp',
                   upsert: true,
                 })
 
