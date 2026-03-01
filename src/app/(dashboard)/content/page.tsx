@@ -475,6 +475,7 @@ export default function ContentPage() {
   const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
   const [improveDetails, setImproveDetails] = useState<string[]>([])
   const [improveDisabledReason, setImproveDisabledReason] = useState('')
+  const [improveUsed, setImproveUsed] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const historyEditorRef = useRef<Editor | null>(null)
   const cancelAnimationRef = useRef<(() => void) | null>(null)
@@ -938,6 +939,8 @@ export default function ContentPage() {
     setAnimatingPatch('')
     setHealAnimState(null)
     setAutoScroll(true)
+    setImproveUsed(false)
+    setImproveDisabledReason('')
     autoScrollRef.current = true
     await generateContent()
   }
@@ -1047,6 +1050,7 @@ export default function ContentPage() {
         setImproveMessage('모든 항목이 양호합니다!')
         setImproveDisabledReason('모든 SEO 항목이 양호합니다 (80% 이상)')
         setTimeout(() => setImproveMessage(''), 3000)
+        setImproving(false)
         return
       }
 
@@ -1208,7 +1212,11 @@ export default function ContentPage() {
           appliedCount++
         }
         if (data.title) setActiveTitle(data.title)
-        if (appliedCount > 0) setActiveContent(updatedContent)
+        if (appliedCount > 0) {
+          setActiveContent(updatedContent)
+          setImproveUsed(true)
+          setImproveDisabledReason('이미 AI 약점 개선이 적용되었습니다')
+        }
 
         // 개선 내역 저장
         if (appliedCount > 0) {
@@ -1421,6 +1429,8 @@ export default function ContentPage() {
 
   // 약점 개선 가능 여부 체크 (디바운스 1초) — active context 사용
   useEffect(() => {
+    // 이미 사용한 경우 비활성화 유지
+    if (improveUsed) return
     if (!activeContent.trim() || !activeKeyword.trim()) {
       setImproveDisabledReason('')
       return
@@ -1606,6 +1616,8 @@ export default function ContentPage() {
                       onClick={() => {
                         setSelectedContentId(c.id)
                         setHistoryEditMode(false)
+                        setImproveUsed(false)
+                        setImproveDisabledReason('')
                       }}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -1684,8 +1696,9 @@ export default function ContentPage() {
                               size="sm"
                               variant="outline"
                               onClick={handleImprove}
-                              disabled={improving || generatingImages || !!animatingPatch || !historyEditContent.trim()}
+                              disabled={improving || generatingImages || !!animatingPatch || !historyEditContent.trim() || !!improveDisabledReason}
                               className="gap-1"
+                              title={improveDisabledReason || undefined}
                             >
                               {improving ? (
                                 <><Loader2 className="h-3 w-3 animate-spin" />개선 중</>
