@@ -1104,35 +1104,37 @@ function UserImagesCard({ userId }: { userId: string }) {
             {Array.from(grouped.entries()).map(([dateKey, imgs]) => (
               <div key={dateKey}>
                 <h4 className="text-sm font-medium text-muted-foreground mb-3">{dateKey}</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="flex flex-wrap gap-2">
                   {imgs.map((img) => (
                     <div
                       key={img.name}
-                      className={`group relative rounded-lg border overflow-hidden cursor-pointer transition-all ${
-                        selected.has(img.name) ? 'ring-2 ring-primary border-primary' : 'hover:border-primary/50'
+                      className={`group relative flex flex-col items-center w-[72px] cursor-pointer transition-all rounded-lg p-1 ${
+                        selected.has(img.name) ? 'bg-primary/10 ring-1 ring-primary' : 'hover:bg-muted'
                       }`}
                     >
-                      {/* 체크박스 */}
-                      <div className="absolute top-2 left-2 z-10">
+                      {/* 체크박스: 선택됨이면 항상, 아니면 hover 시 표시 */}
+                      <div className={`absolute -top-1 -left-1 z-10 transition-opacity ${
+                        selected.has(img.name) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
                         <Checkbox
                           checked={selected.has(img.name)}
                           onCheckedChange={() => toggleSelect(img.name)}
-                          className="bg-white/80 backdrop-blur-sm"
+                          className="h-3.5 w-3.5 bg-white/80 backdrop-blur-sm"
                         />
                       </div>
-                      {/* 이미지 */}
+                      {/* 썸네일 */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={img.url}
                         alt={img.name}
-                        className="w-full aspect-square object-cover"
+                        className="w-14 h-14 rounded object-cover border"
                         loading="lazy"
                         onClick={() => setPreviewUrl(img.url)}
                       />
-                      {/* 파일 크기 */}
-                      <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] px-2 py-1 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* 파일 크기 라벨 */}
+                      <span className="mt-0.5 text-[9px] text-muted-foreground truncate w-full text-center">
                         {formatSize(img.size)}
-                      </div>
+                      </span>
                     </div>
                   ))}
                 </div>

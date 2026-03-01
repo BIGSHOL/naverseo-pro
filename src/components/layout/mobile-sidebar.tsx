@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, Lock } from 'lucide-react'
@@ -8,30 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
-import type { Plan, UserRole } from '@/types/database'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
+import { useUserProfile } from '@/contexts/user-profile'
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
-  const [plan, setPlan] = useState<Plan>('free')
-  const [role, setRole] = useState<UserRole>('user')
+  const { plan, role } = useUserProfile()
   const pathname = usePathname()
-
-  useEffect(() => {
-    async function loadProfile() {
-      try {
-        const res = await fetch('/api/dashboard')
-        if (!res.ok) return
-        const data = await res.json()
-        const userRole = (data.profile?.role || 'user') as UserRole
-        setRole(userRole)
-        setPlan(userRole === 'admin' ? 'admin' : (data.profile?.plan || 'free') as Plan)
-      } catch {
-        // 로드 실패 시 기본값 유지
-      }
-    }
-    loadProfile()
-  }, [pathname])
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

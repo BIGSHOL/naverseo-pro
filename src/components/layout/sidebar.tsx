@@ -1,57 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { PLANS, type Plan } from '@/types/database'
-import type { UserRole } from '@/types/database'
+import { PLANS } from '@/types/database'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { Lock } from 'lucide-react'
-import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
+import { useUserProfile } from '@/contexts/user-profile'
 
 export function Sidebar() {
   const pathname = usePathname()
-  const [plan, setPlan] = useState<Plan>('free')
-  const [role, setRole] = useState<UserRole>('user')
-  const [creditsBalance, setCreditsBalance] = useState(0)
-  const [creditsQuota, setCreditsQuota] = useState(30)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [userName, setUserName] = useState('')
-  const [userEmail, setUserEmail] = useState('')
-
-  useEffect(() => {
-    async function load() {
-      try {
-        // 소셜 프로필 이미지 가져오기
-        if (isSupabaseConfigured()) {
-          const supabase = createClient()
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            const meta = user.user_metadata
-            setAvatarUrl(meta?.avatar_url || meta?.picture || null)
-            setUserName(meta?.full_name || meta?.name || '')
-            setUserEmail(user.email || '')
-          }
-        }
-
-        const res = await fetch('/api/dashboard')
-        if (!res.ok) return
-        const data = await res.json()
-        const userRole = (data.profile?.role || 'user') as UserRole
-        setPlan(userRole === 'admin' ? 'admin' : (data.profile?.plan || 'free') as Plan)
-        setRole(userRole)
-        setCreditsBalance(data.profile?.credits_balance ?? 0)
-        setCreditsQuota(data.profile?.credits_monthly_quota ?? 30)
-      } catch {
-        // 로드 실패 시 기본값 유지
-      }
-    }
-    load()
-  }, [pathname])
+  const {
+    plan, role, creditsBalance, creditsQuota,
+    avatarUrl, userName, userEmail, loaded,
+  } = useUserProfile()
 
   const planInfo = PLANS[plan]
   const creditPercent = creditsQuota > 0 ? Math.min(100, (creditsBalance / creditsQuota) * 100) : 0
@@ -143,47 +108,67 @@ export function Sidebar() {
 
         {/* 하단 프로필 + 크레딧 표시 */}
         <div className="border-t p-4">
-          {/* 사용자 프로필 */}
-          {(avatarUrl || userEmail) && (
-            <div className="mb-3 flex items-center gap-2.5">
-              <Avatar className="h-8 w-8">
-                {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
-                <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                  {(userName || userEmail).charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                {userName && <p className="truncate text-xs font-medium">{userName}</p>}
-                <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
+          {/* 로딩 중 스켈레톤 */}
+          {!loaded ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-full bg-muted" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-20 rounded bg-muted" />
+                  <div className="h-2.5 w-32 rounded bg-muted" />
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted p-3 space-y-2">
+                <div className="h-2.5 w-12 rounded bg-background/50" />
+                <div className="h-3.5 w-16 rounded bg-background/50" />
+                <div className="h-1.5 w-full rounded-full bg-background/50" />
               </div>
             </div>
-          )}
-          <div className="rounded-lg bg-muted p-3">
-            <p className="text-xs font-medium text-muted-foreground">현재 플랜</p>
-            <p className="text-sm font-semibold">{planInfo.name}</p>
-            <div className="mt-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>크레딧</span>
-                      <span>{creditsBalance.toLocaleString()}/{creditsQuota.toLocaleString()}</span>
-                    </div>
-                    <div className="mt-1 h-1.5 rounded-full bg-background">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          creditPercent <= 20 ? 'bg-red-500' : creditPercent <= 50 ? 'bg-amber-500' : 'bg-primary'
-                        )}
-                        style={{ width: `${creditPercent}%` }}
-                      />
-                    </div>
+          ) : (
+            <>
+              {/* 사용자 프로필 */}
+              {(avatarUrl || userEmail) && (
+                <div className="mb-3 flex items-center gap-2.5">
+                  <Avatar className="h-8 w-8">
+                    {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
+                    <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                      {(userName || userEmail).charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    {userName && <p className="truncate text-xs font-medium">{userName}</p>}
+                    <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
                   </div>
-                </TooltipTrigger>
-                <TooltipContent><p>이번 달 남은 크레딧입니다</p></TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
+                </div>
+              )}
+              <div className="rounded-lg bg-muted p-3">
+                <p className="text-xs font-medium text-muted-foreground">현재 플랜</p>
+                <p className="text-sm font-semibold">{planInfo.name}</p>
+                <div className="mt-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="cursor-help">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>크레딧</span>
+                          <span>{creditsBalance.toLocaleString()}/{creditsQuota.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 rounded-full bg-background">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              creditPercent <= 20 ? 'bg-red-500' : creditPercent <= 50 ? 'bg-amber-500' : 'bg-primary'
+                            )}
+                            style={{ width: `${creditPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent><p>이번 달 남은 크레딧입니다</p></TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </aside>
