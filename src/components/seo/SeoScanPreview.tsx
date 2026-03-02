@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -155,16 +155,26 @@ export function SeoScanPreview({
   className,
 }: SeoScanPreviewProps) {
   const { lines, counts } = useMemo(() => parseContent(content, keyword), [content, keyword])
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const totalLines = lines.length
   const scanLine = Math.floor((scanPercent / 100) * totalLines)
+
+  // 자동스크롤: 스캔 라인을 따라 부드럽게 스크롤
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || totalLines === 0) return
+    const scrollRatio = scanLine / totalLines
+    const targetTop = scrollRatio * (el.scrollHeight - el.clientHeight)
+    el.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+  }, [scanLine, totalLines])
 
   return (
     <Card className={cn('overflow-hidden border-cyan-500/20 dark:border-cyan-400/10', className)}>
       <CardContent className="p-0">
         {/* 본문 스캔 영역 */}
         <div className="relative">
-          <div className="p-6 select-none">
+          <div ref={scrollRef} className="max-h-[400px] overflow-y-auto p-6 select-none scroll-smooth">
             {/* 제목 */}
             {title && (
               <p

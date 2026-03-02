@@ -140,8 +140,9 @@ function getAxisBg(score: number) {
 }
 
 /** 스캔 애니메이션 설정 */
-const SCAN_MIN_MS = 4000       // 최소 4초 스캔 애니메이션
+const SCAN_MIN_MS = 8000       // 최소 8초 스캔 애니메이션 (사용자가 볼 수 있도록 느리게)
 const SCAN_INTERVAL_MS = 150   // 150ms 간격 업데이트
+const BASE_FETCH_TIMEOUT_MS = 30000  // base API 클라이언트 타임아웃 30초
 const SCAN_TOTAL_STEPS = Math.ceil(SCAN_MIN_MS / SCAN_INTERVAL_MS)
 const SCAN_LABELS = [
   'SEO 엔진 분석 중...',
@@ -314,6 +315,10 @@ export default function SeoCheckPage() {
     })
 
     try {
+      // base API에 클라이언트 타임아웃 적용 (로컬에서 무한 대기 방지)
+      const abortCtrl = new AbortController()
+      const fetchTimeout = setTimeout(() => abortCtrl.abort(), BASE_FETCH_TIMEOUT_MS)
+
       // 스캔 애니메이션 + API 호출 병렬 실행 (둘 다 완료될 때까지 대기)
       const [, res] = await Promise.all([
         scanDone,
@@ -321,7 +326,8 @@ export default function SeoCheckPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
-        }),
+          signal: abortCtrl.signal,
+        }).finally(() => clearTimeout(fetchTimeout)),
       ])
 
       let data

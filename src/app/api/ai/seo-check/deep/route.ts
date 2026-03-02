@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  const fnStart = Date.now()
+
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
@@ -39,9 +41,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // AI 심층 분석 (최대 35초 — 콜드스타트+인증 오버헤드 ~10~15초 고려, 60초 maxDuration 안전 보장)
+    // 동적 AI 타임아웃: 실제 경과 시간 기반으로 maxDuration(60초) 안에 반드시 완료
+    // 콜드스타트가 길어도 자동 보정됨
+    const elapsed = Date.now() - fnStart
+    const SAFETY_BUFFER_MS = 8000  // Vercel 킬 전 8초 여유
+    const AI_TIMEOUT_MS = Math.max(10000, (maxDuration * 1000) - elapsed - SAFETY_BUFFER_MS)
+    console.log(`[SEO Deep] 콜드스타트+인증: ${elapsed}ms, AI 타임아웃: ${AI_TIMEOUT_MS}ms`)
+
     let aiAnalysis: AiSeoAnalysis | null = null
-    const AI_TIMEOUT_MS = 35000
 
     try {
       aiAnalysis = await Promise.race([
@@ -53,7 +60,7 @@ export async function POST(request: NextRequest) {
     } catch (aiError) {
       const msg = aiError instanceof Error ? aiError.message : String(aiError)
       if (msg === 'AI_TIMEOUT') {
-        console.warn('[SEO Deep] AI 분석 타임아웃 (35초)')
+        console.warn(`[SEO Deep] AI 분석 타임아웃 (${Math.round(AI_TIMEOUT_MS / 1000)}초, 총 경과 ${Date.now() - fnStart}ms)`)
       } else {
         console.error('[SEO Deep] AI 심층 분석 실패:', aiError)
       }
