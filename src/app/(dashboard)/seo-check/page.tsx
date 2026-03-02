@@ -139,15 +139,17 @@ function getAxisBg(score: number) {
   return 'bg-red-500'
 }
 
-/** 스캔 애니메이션 설정 */
-const SCAN_MIN_MS = 8000       // 최소 8초 스캔 애니메이션 (사용자가 볼 수 있도록 느리게)
-const SCAN_INTERVAL_MS = 150   // 150ms 간격 업데이트
-const SCAN_TOTAL_STEPS = Math.ceil(SCAN_MIN_MS / SCAN_INTERVAL_MS)
+/** 스캔 애니메이션 설정 — 콘텐츠 길이에 비례 */
+const SCAN_MS_PER_LINE = 120   // 줄당 120ms (AI가 한 줄씩 읽는 느낌)
+const SCAN_MIN_DURATION = 5000 // 최소 5초 (짧은 글이라도 충분히 보여줌)
+const SCAN_MAX_DURATION = 18000 // 최대 18초 (긴 글도 지루하지 않게)
+const SCAN_INTERVAL_MS = 100   // 100ms 간격 업데이트 (부드러운 진행)
 const SCAN_LABELS = [
-  'SEO 엔진 분석 중...',
-  '키워드·구조 분석 중...',
-  '가독성 분석 중...',
-  '결과 정리 중...',
+  '본문 구조 스캔 중...',
+  '키워드 배치 분석 중...',
+  '경험 정보·데이터 탐지 중...',
+  '소제목·가독성 분석 중...',
+  '분석 결과 정리 중...',
 ]
 
 export default function SeoCheckPage() {
@@ -327,17 +329,21 @@ export default function SeoCheckPage() {
       aiAnalysis: null,
     }
 
-    // 스캔 애니메이션 (8초 시각 이펙트 — 분석은 이미 완료됨)
+    // 스캔 애니메이션 — 콘텐츠 줄 수에 비례 (AI가 한 줄씩 읽는 느낌)
+    const lineCount = content.trim().slice(0, 2000).split('\n').length
+    const scanDuration = Math.min(SCAN_MAX_DURATION, Math.max(SCAN_MIN_DURATION, lineCount * SCAN_MS_PER_LINE))
+    const totalSteps = Math.ceil(scanDuration / SCAN_INTERVAL_MS)
+
     let scanTimerRef: ReturnType<typeof setInterval> | null = null
     try {
       await new Promise<void>(resolve => {
         let s = 0
         scanTimerRef = setInterval(() => {
           s++
-          const pct = Math.min(95, 5 + (s / SCAN_TOTAL_STEPS) * 90)
-          const li = Math.min(Math.floor(pct / 25), SCAN_LABELS.length - 1)
-          setProgressStep({ step: li + 1, total: 3, label: SCAN_LABELS[li], percent: Math.round(pct) })
-          if (s >= SCAN_TOTAL_STEPS) {
+          const pct = Math.min(95, 5 + (s / totalSteps) * 90)
+          const labelIdx = Math.min(Math.floor((pct / 100) * SCAN_LABELS.length), SCAN_LABELS.length - 1)
+          setProgressStep({ step: labelIdx + 1, total: SCAN_LABELS.length, label: SCAN_LABELS[labelIdx], percent: Math.round(pct) })
+          if (s >= totalSteps) {
             clearInterval(scanTimerRef!)
             scanTimerRef = null
             resolve()
