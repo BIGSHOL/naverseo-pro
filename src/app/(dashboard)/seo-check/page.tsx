@@ -14,7 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { SeoScanPreview } from '@/components/seo/SeoScanPreview'
 import { cn } from '@/lib/utils'
-import { analyzeSeo, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
+import { analyzeSeo, analyzeReadability, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -142,7 +142,6 @@ function getAxisBg(score: number) {
 /** 스캔 애니메이션 설정 */
 const SCAN_MIN_MS = 8000       // 최소 8초 스캔 애니메이션 (사용자가 볼 수 있도록 느리게)
 const SCAN_INTERVAL_MS = 150   // 150ms 간격 업데이트
-const BASE_FETCH_TIMEOUT_MS = 30000  // base API 클라이언트 타임아웃 30초
 const SCAN_TOTAL_STEPS = Math.ceil(SCAN_MIN_MS / SCAN_INTERVAL_MS)
 const SCAN_LABELS = [
   'SEO 엔진 분석 중...',
@@ -293,70 +292,76 @@ export default function SeoCheckPage() {
       }),
     }
 
-    // === 스캔 애니메이션 + API 호출 동시 실행 ===
-    // 스캔이 최소 4초 동안 완전히 재생된 후에 결과를 보여줌
+    // === 클라이언트 직접 분석 + 스캔 애니메이션 ===
+    // API 의존성 제거: analyzeSeo는 순수 함수이므로 클라이언트에서 즉시 실행
+    // 크레딧 차감과 AI 심층 분석만 API 호출 (백그라운드)
     setProgressStep({ step: 1, total: 3, label: SCAN_LABELS[0], percent: 5 })
 
-    // 스캔 애니메이션 Promise (5% → 95%, 약 4초)
+    // 1단계: 클라이언트 로컬 SEO 분석 (즉시, API 호출 없음)
+    const seoScrapedMeta = scrapedStats ? {
+      tags: scrapedStats.tags,
+      formatting: scrapedStats.formatting,
+    } : undefined
+    const engineResult = analyzeSeo(
+      keyword.trim(),
+      title.trim(),
+      content.trim(),
+      undefined,
+      seoScrapedMeta
+    )
+    const readability = analyzeReadability(content.trim())
+
+    const localResult: SeoResult = {
+      totalScore: engineResult.totalScore,
+      grade: engineResult.grade,
+      categories: engineResult.categories.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        score: cat.score,
+        maxScore: cat.maxScore,
+        feedback: cat.details,
+      })),
+      improvements: engineResult.improvements,
+      strengths: engineResult.strengths,
+      isDemo: false,
+      aiAnalysis: null,
+    }
+
+    // 스캔 애니메이션 (8초 시각 이펙트 — 분석은 이미 완료됨)
     let scanTimerRef: ReturnType<typeof setInterval> | null = null
-    const scanDone = new Promise<void>(resolve => {
-      let s = 0
-      scanTimerRef = setInterval(() => {
-        s++
-        const pct = Math.min(95, 5 + (s / SCAN_TOTAL_STEPS) * 90)
-        const li = Math.min(Math.floor(pct / 25), SCAN_LABELS.length - 1)
-        setProgressStep({ step: li + 1, total: 3, label: SCAN_LABELS[li], percent: Math.round(pct) })
-        if (s >= SCAN_TOTAL_STEPS) {
-          clearInterval(scanTimerRef!)
-          scanTimerRef = null
-          resolve()
-        }
-      }, SCAN_INTERVAL_MS)
-    })
-
     try {
-      // base API에 클라이언트 타임아웃 적용 (로컬에서 무한 대기 방지)
-      const abortCtrl = new AbortController()
-      const fetchTimeout = setTimeout(() => abortCtrl.abort(), BASE_FETCH_TIMEOUT_MS)
-
-      // 스캔 애니메이션 + API 호출 병렬 실행 (둘 다 완료될 때까지 대기)
-      const [, res] = await Promise.all([
-        scanDone,
-        fetch('/api/ai/seo-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-          signal: abortCtrl.signal,
-        }).finally(() => clearTimeout(fetchTimeout)),
-      ])
-
-      let data
-      try {
-        data = await res.json()
-      } catch {
-        setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
-        return
-      }
-
-      if (!res.ok) {
-        if (data.planGate) {
-          setPlanGate(data.error)
-        } else {
-          setError(data.error || 'SEO 분석에 실패했습니다.')
-        }
-        return
-      }
+      await new Promise<void>(resolve => {
+        let s = 0
+        scanTimerRef = setInterval(() => {
+          s++
+          const pct = Math.min(95, 5 + (s / SCAN_TOTAL_STEPS) * 90)
+          const li = Math.min(Math.floor(pct / 25), SCAN_LABELS.length - 1)
+          setProgressStep({ step: li + 1, total: 3, label: SCAN_LABELS[li], percent: Math.round(pct) })
+          if (s >= SCAN_TOTAL_STEPS) {
+            clearInterval(scanTimerRef!)
+            scanTimerRef = null
+            resolve()
+          }
+        }, SCAN_INTERVAL_MS)
+      })
 
       // 스캔 완료 → 100% 잠시 표시 후 결과 전환
       setProgressStep({ step: 3, total: 3, label: '분석 완료!', percent: 100 })
       await new Promise(r => setTimeout(r, 600))
 
-      // 기본 결과 표시
-      setResult(data)
+      // 로컬 분석 결과 즉시 표시
+      setResult(localResult)
       setLoading(false)
       setProgressStep(null)
 
-      // === 2단계: AI 심층 분석 (별도 요청, 최대 35초) ===
+      // 2단계: 크레딧 차감 (백그라운드, 실패해도 결과는 유지)
+      fetch('/api/ai/seo-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      }).catch(() => { /* 크레딧 차감 실패 무시 — 결과는 이미 표시됨 */ })
+
+      // 3단계: AI 심층 분석 (별도 요청)
       setAiLoading(true)
       setAiProgressLabel('AI 심층 분석 시작...')
 
@@ -366,7 +371,7 @@ export default function SeoCheckPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...requestBody,
-            baseScore: data.totalScore,
+            baseScore: localResult.totalScore,
           }),
         })
 
@@ -374,7 +379,6 @@ export default function SeoCheckPage() {
         try {
           aiData = await aiRes.json()
         } catch {
-          // AI 실패해도 기본 결과는 유지
           setAiLoading(false)
           setAiProgressLabel('')
           return
@@ -391,19 +395,13 @@ export default function SeoCheckPage() {
           } : prev)
         }
       } catch {
-        // AI 분석 실패해도 기본 결과 유지 — 에러 표시 안 함
+        // AI 분석 실패해도 기본 결과 유지
       } finally {
         setAiLoading(false)
         setAiProgressLabel('')
       }
-    } catch (err) {
-      if (scanTimerRef) clearInterval(scanTimerRef)
-      const msg = err instanceof Error ? err.message : ''
-      if (msg.includes('abort') || msg.includes('timeout')) {
-        setError('요청 시간이 초과되었습니다. 본문을 줄이거나 다시 시도해주세요.')
-      } else {
-        setError('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.')
-      }
+    } catch {
+      setError('분석 중 오류가 발생했습니다.')
     } finally {
       if (scanTimerRef) clearInterval(scanTimerRef)
       setLoading(false)
