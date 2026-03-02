@@ -31,10 +31,10 @@ interface ParsedLine {
 // ===== 하이라이트 색상 =====
 
 const HIGHLIGHT_COLORS: Record<SegmentType, string> = {
-  keyword: 'bg-cyan-300/50 dark:bg-cyan-600/30 rounded-sm px-0.5',
-  heading: 'bg-violet-300/50 dark:bg-violet-600/30 rounded-sm px-0.5 font-semibold',
-  experience: 'bg-amber-300/50 dark:bg-amber-600/30 rounded-sm px-0.5',
-  data: 'bg-emerald-300/50 dark:bg-emerald-600/30 rounded-sm px-0.5',
+  keyword: 'bg-cyan-200 dark:bg-cyan-700/60 rounded-sm px-0.5 font-medium',
+  heading: 'bg-violet-200 dark:bg-violet-700/60 rounded-sm px-0.5 font-semibold',
+  experience: 'bg-amber-200 dark:bg-amber-700/60 rounded-sm px-0.5',
+  data: 'bg-emerald-200 dark:bg-emerald-700/60 rounded-sm px-0.5 font-medium',
   normal: '',
 }
 
