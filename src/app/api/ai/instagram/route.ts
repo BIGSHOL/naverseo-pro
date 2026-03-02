@@ -8,6 +8,9 @@ import {
   INSTAGRAM_REELS_PROMPT,
 } from '@/lib/ai/prompts/instagram'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 type InstagramMode = 'caption' | 'hashtags' | 'carousel' | 'reels'
 
 function getPromptAndMessage(

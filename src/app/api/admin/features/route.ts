@@ -3,6 +3,9 @@ import { verifyAdmin } from '@/lib/admin-check'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TOGGLEABLE_FEATURES } from '@/lib/features'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 /** 비활성화된 기능 목록 조회 */
 export async function GET() {
   const auth = await verifyAdmin()

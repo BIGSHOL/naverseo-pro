@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 /**
  * 블로그 학습 파이프라인 통계 API
  * GET /api/blog-learning/stats
@@ -9,12 +12,17 @@ import { NextResponse } from 'next/server'
 export async function GET() {
   try {
     const { createClient } = await import('@/lib/supabase/server')
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+
+    const authClient = createClient()
+    const { data: { user } } = await authClient.auth.getUser()
 
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
+
+    // 블로그 학습 데이터는 시스템 공유 데이터이므로 admin client 사용
+    const supabase = createAdminClient()
 
     // 1. 총 분석 포스트 수
     const { count: totalPosts } = await supabase

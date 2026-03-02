@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 /**
  * 검색 히스토리 API
  * - GET: 최근 검색 키워드 조회 (type별)

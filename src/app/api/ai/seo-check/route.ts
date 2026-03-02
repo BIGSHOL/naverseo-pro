@@ -5,6 +5,9 @@ import type { AiSeoAnalysis, ScrapedMeta } from '@/lib/seo/ai-analyzer'
 import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 interface SeoCheckResponse {
   totalScore: number
   grade: string

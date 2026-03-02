@@ -23,6 +23,9 @@ import { detectBlogCategory, BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categ
 import { getCategoryBenchmark } from '@/lib/blog-index/benchmark-provider'
 import { accumulateBenchmarkData } from '@/lib/blog-index/benchmark-accumulator'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {

@@ -5,6 +5,9 @@ import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
 import { extractBlogId } from '@/lib/utils/text'
 import { fetchBlogPosts } from '@/lib/naver/blog-crawler'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {

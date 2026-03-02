@@ -7,6 +7,9 @@ import {
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 export const maxDuration = 60
 
 // === 상위 5개 검색결과 타입 조회 ===

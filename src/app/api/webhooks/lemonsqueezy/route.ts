@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { PLAN_CREDITS, type Plan } from '@/types/database'
 import { variantToPlan } from '@/lib/lemonsqueezy'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // ============================================================
 // LemonSqueezy Webhook 핸들러
 // - 구독 생성/변경/취소/만료/결제 성공/실패 이벤트 처리

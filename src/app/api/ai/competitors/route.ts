@@ -6,6 +6,9 @@ import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
 import type { ScrapedPostData } from '@/lib/naver/blog-scraper'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // === 타입 정의 ===
 
 interface CompetitorItem {

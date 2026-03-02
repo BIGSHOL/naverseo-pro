@@ -3,6 +3,9 @@ import { callGemini, parseGeminiJson, KEYWORD_SYSTEM_PROMPT } from '@/lib/ai/gem
 import { getKeywordStats, calculateKeywordScore, type NaverKeywordResult } from '@/lib/naver/search-ad'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 interface AiRecommendation {
   keyword: string
   intent: string

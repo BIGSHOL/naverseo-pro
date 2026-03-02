@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // 기존 키워드 순위 재확인
 export async function POST(request: NextRequest) {
   try {

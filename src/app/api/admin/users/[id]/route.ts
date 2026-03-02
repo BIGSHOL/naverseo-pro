@@ -3,6 +3,9 @@ import { verifyAdmin } from '@/lib/admin-check'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PLAN_CREDITS, type Plan } from '@/types/database'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

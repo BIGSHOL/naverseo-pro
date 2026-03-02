@@ -3,6 +3,9 @@ import { configureLemonSqueezy, createCheckout, PLAN_VARIANT_MAP, isLemonSqueezy
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, PLAN_CREDITS, type Plan } from '@/types/database'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // LemonSqueezy 체크아웃 세션 생성
 export async function POST(request: NextRequest) {
   try {

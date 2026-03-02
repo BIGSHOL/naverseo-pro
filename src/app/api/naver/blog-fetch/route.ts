@@ -10,6 +10,9 @@ import {
 import { scrapeBlogPost, toMobileUrl } from '@/lib/naver/blog-scraper'
 import { extractPostMetaData, type PostMetaData } from '@/lib/naver/post-meta-extractor'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // === 데모 데이터 ===
 
 function getDemoData() {

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
+export const dynamic = 'force-dynamic'
+
 // 콘텐츠 상태 변경 (draft → published → archived)
 export async function POST(request: NextRequest) {
   try {
