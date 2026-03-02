@@ -271,104 +271,95 @@ export default function SeoCheckPage() {
     setGuidanceItems([])
     setImproveMessage('')
 
+    const requestBody = {
+      keyword: keyword.trim(),
+      title: title.trim(),
+      content: content.trim(),
+      ...(scrapedStats && {
+        scrapedMeta: {
+          charCount: scrapedStats.charCount,
+          imageCount: scrapedStats.imageCount,
+          videoCount: scrapedStats.videoCount,
+          commentCount: scrapedStats.commentCount,
+          sympathyCount: scrapedStats.sympathyCount,
+          tags: scrapedStats.tags,
+          formatting: scrapedStats.formatting,
+        },
+      }),
+    }
+
     try {
+      // === 1단계: 기본 SEO 분석 (빠름, ~3초) ===
+      setProgressStep({ step: 1, total: 3, label: 'SEO 엔진 분석 중...', percent: 15 })
+
       const res = await fetch('/api/ai/seo-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keyword: keyword.trim(),
-          title: title.trim(),
-          content: content.trim(),
-          ...(scrapedStats && {
-            scrapedMeta: {
-              charCount: scrapedStats.charCount,
-              imageCount: scrapedStats.imageCount,
-              videoCount: scrapedStats.videoCount,
-              commentCount: scrapedStats.commentCount,
-              sympathyCount: scrapedStats.sympathyCount,
-              tags: scrapedStats.tags,
-              formatting: scrapedStats.formatting,
-            },
-          }),
-        }),
+        body: JSON.stringify(requestBody),
       })
 
-      const contentType = res.headers.get('Content-Type') || ''
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
+        return
+      }
 
-      // NDJSON 스트리밍 응답 처리
-      if (contentType.includes('application/x-ndjson') && res.body) {
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) {
-            buffer += decoder.decode()
-          } else {
-            buffer += decoder.decode(value, { stream: true })
-          }
-
-          const lines = buffer.split('\n')
-          buffer = done ? '' : (lines.pop() || '')
-
-          for (const line of lines) {
-            if (!line.trim()) continue
-            try {
-              const event = JSON.parse(line)
-              if (event.type === 'progress') {
-                setProgressStep({ step: event.step, total: event.total, label: event.label, percent: event.percent })
-              } else if (event.type === 'result') {
-                setResult(event as SeoResult)
-                // 기본 결과 도착 → 로딩 해제, AI 후속 로딩 시작
-                setLoading(false)
-                setProgressStep(null)
-                setAiLoading(true)
-                setAiProgressLabel('AI 심층 분석 준비 중...')
-              } else if (event.type === 'ai_progress') {
-                setAiProgressLabel(event.label || 'AI 심층 분석 중...')
-              } else if (event.type === 'ai_update') {
-                // AI 분석 후속 도착 → result에 병합
-                setResult(prev => prev ? {
-                  ...prev,
-                  aiAnalysis: event.aiAnalysis,
-                  isDemo: event.isDemo ?? prev.isDemo,
-                  demoReason: event.demoReason ?? prev.demoReason,
-                  ...(event.totalScore != null ? { totalScore: event.totalScore } : {}),
-                  ...(event.grade != null ? { grade: event.grade } : {}),
-                } : prev)
-                setAiLoading(false)
-                setAiProgressLabel('')
-              } else if (event.type === 'error') {
-                setError(event.error || 'SEO 분석에 실패했습니다.')
-              }
-            } catch {
-              // 파싱 실패 무시
-            }
-          }
-
-          if (done) break
+      if (!res.ok) {
+        if (data.planGate) {
+          setPlanGate(data.error)
+        } else {
+          setError(data.error || 'SEO 분석에 실패했습니다.')
         }
-      } else {
-        // JSON 폴백 (에러 응답 등)
-        let data
+        return
+      }
+
+      // 기본 결과 즉시 표시
+      setProgressStep({ step: 3, total: 3, label: '결과 정리 중...', percent: 80 })
+      setResult(data)
+      setLoading(false)
+      setProgressStep(null)
+
+      // === 2단계: AI 심층 분석 (별도 요청, 최대 50초) ===
+      setAiLoading(true)
+      setAiProgressLabel('AI 심층 분석 시작...')
+
+      try {
+        const aiRes = await fetch('/api/ai/seo-check/deep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...requestBody,
+            baseScore: data.totalScore,
+          }),
+        })
+
+        let aiData
         try {
-          data = await res.json()
+          aiData = await aiRes.json()
         } catch {
-          setError(`서버 응답 오류 (${res.status}). 잠시 후 다시 시도해주세요.`)
+          // AI 실패해도 기본 결과는 유지
+          setAiLoading(false)
+          setAiProgressLabel('')
           return
         }
 
-        if (!res.ok) {
-          if (data.planGate) {
-            setPlanGate(data.error)
-          } else {
-            setError(data.error || 'SEO 분석에 실패했습니다.')
-          }
-          return
+        if (aiRes.ok && aiData.aiAnalysis) {
+          setResult(prev => prev ? {
+            ...prev,
+            aiAnalysis: aiData.aiAnalysis,
+            isDemo: aiData.isDemo ?? prev.isDemo,
+            demoReason: aiData.demoReason ?? prev.demoReason,
+            ...(aiData.totalScore != null ? { totalScore: aiData.totalScore } : {}),
+            ...(aiData.grade != null ? { grade: aiData.grade } : {}),
+          } : prev)
         }
-
-        setResult(data)
+      } catch {
+        // AI 분석 실패해도 기본 결과 유지 — 에러 표시 안 함
+      } finally {
+        setAiLoading(false)
+        setAiProgressLabel('')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
@@ -380,8 +371,6 @@ export default function SeoCheckPage() {
     } finally {
       setLoading(false)
       setProgressStep(null)
-      setAiLoading(false)
-      setAiProgressLabel('')
     }
   }
 
