@@ -288,15 +288,31 @@ export default function SeoCheckPage() {
       }),
     }
 
+    // 스캔 진행 애니메이션 (fetch 대기 중 자동 진행)
+    const scanSteps = [
+      { step: 1, total: 3, label: 'SEO 엔진 분석 중...', percent: 15 },
+      { step: 2, total: 3, label: '키워드·구조 분석 중...', percent: 40 },
+      { step: 2, total: 3, label: '가독성 분석 중...', percent: 60 },
+      { step: 3, total: 3, label: '결과 정리 중...', percent: 80 },
+    ]
+    let scanIdx = 0
+    setProgressStep(scanSteps[0])
+    const scanTimer = setInterval(() => {
+      scanIdx++
+      if (scanIdx < scanSteps.length) {
+        setProgressStep(scanSteps[scanIdx])
+      }
+    }, 800)
+
     try {
       // === 1단계: 기본 SEO 분석 (빠름, ~3초) ===
-      setProgressStep({ step: 1, total: 3, label: 'SEO 엔진 분석 중...', percent: 15 })
-
       const res = await fetch('/api/ai/seo-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       })
+
+      clearInterval(scanTimer)
 
       let data
       try {
@@ -316,7 +332,7 @@ export default function SeoCheckPage() {
       }
 
       // 기본 결과 즉시 표시
-      setProgressStep({ step: 3, total: 3, label: '결과 정리 중...', percent: 80 })
+      setProgressStep({ step: 3, total: 3, label: '분석 완료!', percent: 100 })
       setResult(data)
       setLoading(false)
       setProgressStep(null)
@@ -362,6 +378,7 @@ export default function SeoCheckPage() {
         setAiProgressLabel('')
       }
     } catch (err) {
+      clearInterval(scanTimer)
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('abort') || msg.includes('timeout')) {
         setError('요청 시간이 초과되었습니다. 본문을 줄이거나 다시 시도해주세요.')
