@@ -926,7 +926,7 @@ export default function BlogIndexPage() {
 
       {/* 크레딧 소모 / 캐시 선택 팝업 */}
       <Dialog open={showCreditConfirm} onOpenChange={(open) => { setShowCreditConfirm(open); if (!open) setPendingCache(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           {(() => {
             const cacheDaysAgo = pendingCache
               ? Math.floor((Date.now() - new Date(pendingCache.checkedAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -959,7 +959,7 @@ export default function BlogIndexPage() {
                   <p className="font-medium">{pendingCache ? `새로 측정 시 크레딧 ${CREDIT_COSTS.blog_index}개가 소모됩니다` : `크레딧 ${CREDIT_COSTS.blog_index}개가 소모됩니다`}</p>
                   <p className="mt-0.5 text-xs opacity-70">네이버 API 호출 + AI 분석이 포함됩니다</p>
                 </div>
-                <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
+                <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end sm:gap-2">
                   {pendingCache ? (
                     <>
                       <Button variant="outline" className="w-full sm:w-auto" onClick={loadPendingCache}>
