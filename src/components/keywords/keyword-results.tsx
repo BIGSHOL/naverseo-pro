@@ -93,7 +93,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
     const badge = result.type === '블로그' ? (() => {
       const grade = getKeywordGrade(kwScore)
       return (
-        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor} ${grade.color}`}>
+        <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor}`}>
           {grade.label}
         </span>
       )
@@ -162,7 +162,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium truncate">{kw.relKeyword}</span>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} ${grade.color} border-0`}>
+                    <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} border-0`}>
                       {grade.label}
                     </Badge>
                     <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${getScoreColor(kw.score)}`}>
@@ -307,7 +307,7 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
                       </Tooltip>
                     </td>
                     <td className="py-2 px-1 text-center">
-                      <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} ${grade.color} border-0`}>
+                      <Badge className={`text-[10px] px-1.5 py-0 ${grade.bgColor} border-0`}>
                         {grade.label}
                       </Badge>
                     </td>

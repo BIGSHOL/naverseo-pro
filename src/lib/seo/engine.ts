@@ -104,10 +104,10 @@ export interface ReadabilityResult {
 // ===== 등급 체계 (16단계 - 블로그 지수와 동일 임계값) =====
 
 const SEO_GRADE_TABLE: SeoGradeEntry[] = [
-  { minScore: 95, info: { tier: 16, category: '파워', grade: 'Lv.16 파워', label: 'Lv.16 파워', shortLabel: '파워', color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', description: '네이버 SEO에 완벽히 최적화된 파워 콘텐츠입니다', nextTierScore: null } },
-  { minScore: 89, info: { tier: 15, category: '최적화+', grade: 'Lv.15 최적화4+', label: 'Lv.15 최적화4+', shortLabel: '최적화4+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', description: '최상위 SEO 수준입니다. 파워 등급까지 한 걸음입니다', nextTierScore: 95 } },
-  { minScore: 82, info: { tier: 14, category: '최적화+', grade: 'Lv.14 최적화3+', label: 'Lv.14 최적화3+', shortLabel: '최적화3+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', description: '매우 높은 SEO 최적화 수준입니다', nextTierScore: 89 } },
-  { minScore: 76, info: { tier: 13, category: '최적화+', grade: 'Lv.13 최적화2+', label: 'Lv.13 최적화2+', shortLabel: '최적화2+', color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', description: '경쟁 키워드에서도 우수한 검색 노출이 기대됩니다', nextTierScore: 82 } },
+  { minScore: 95, info: { tier: 16, category: '파워', grade: 'Lv.16 파워', label: 'Lv.16 파워', shortLabel: '파워', color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300 border-2 motion-safe:animate-grade-glow font-bold', description: '네이버 SEO에 완벽히 최적화된 파워 콘텐츠입니다', nextTierScore: null } },
+  { minScore: 89, info: { tier: 15, category: '최적화+', grade: 'Lv.15 최적화4+', label: 'Lv.15 최적화4+', shortLabel: '최적화4+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 border-2 motion-safe:animate-grade-pulse-strong font-bold', description: '최상위 SEO 수준입니다. 파워 등급까지 한 걸음입니다', nextTierScore: 95 } },
+  { minScore: 82, info: { tier: 14, category: '최적화+', grade: 'Lv.14 최적화3+', label: 'Lv.14 최적화3+', shortLabel: '최적화3+', color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 motion-safe:animate-grade-pulse-subtle font-semibold', description: '매우 높은 SEO 최적화 수준입니다', nextTierScore: 89 } },
+  { minScore: 76, info: { tier: 13, category: '최적화+', grade: 'Lv.13 최적화2+', label: 'Lv.13 최적화2+', shortLabel: '최적화2+', color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300 shadow-sm font-semibold', description: '경쟁 키워드에서도 우수한 검색 노출이 기대됩니다', nextTierScore: 82 } },
   { minScore: 70, info: { tier: 12, category: '최적화+', grade: 'Lv.12 최적화1+', label: 'Lv.12 최적화1+', shortLabel: '최적화1+', color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', description: 'SEO 최적화가 우수합니다. 고급 키워드 전략을 시도하세요', nextTierScore: 76 } },
   { minScore: 64, info: { tier: 11, category: '최적화', grade: 'Lv.11 최적화3', label: 'Lv.11 최적화3', shortLabel: '최적화3', color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', description: '안정적인 SEO 최적화 상태입니다. 최적화+ 등급에 도전하세요', nextTierScore: 70 } },
   { minScore: 57, info: { tier: 10, category: '최적화', grade: 'Lv.10 최적화2', label: 'Lv.10 최적화2', shortLabel: '최적화2', color: 'green', badgeColor: 'bg-green-100 text-green-700 border-green-300', description: '양호한 SEO 상태입니다. 콘텐츠 깊이를 더 높여보세요', nextTierScore: 64 } },
@@ -215,15 +215,15 @@ function analyzeHeadingStructure(content: string): { category: SeoCategory; stre
   const h3Count = (content.match(/^### /gm) || []).length
 
   let score = 0
+  // v11.1: 기준 강화 - 2개 이상부터 점수 (1개는 0점)
   if (h2Count >= 3 && h3Count >= 2) {
     score = 8
   } else if (h2Count >= 3) {
     score = 6
   } else if (h2Count >= 2) {
-    score = 4
-  } else if (h2Count >= 1) {
-    score = 2
+    score = 4  // 2개부터 점수
   }
+  // h2Count === 1 → 0점 (이전 2점 폐지)
 
   return {
     category: {
@@ -235,11 +235,13 @@ function analyzeHeadingStructure(content: string): { category: SeoCategory; stre
       priority: score < 4 ? 'high' : 'low',
     },
     strength: score >= 6 ? `H2(${h2Count}개) + H3(${h3Count}개) 구조 우수` : undefined,
-    improvement: h2Count < 3
+    improvement: h2Count < 2
       ? h2Count === 0
         ? '소제목(##)을 사용하여 콘텐츠를 구조화하세요'
-        : '소제목(H2)을 3개 이상 사용하세요'
-      : undefined,
+        : '소제목(H2)을 2개 이상 사용하세요 (현재 1개만 있음)'
+      : h2Count >= 2 && h2Count < 3
+        ? '소제목(H2)을 3개 이상 사용하면 더 좋습니다'
+        : undefined,
     h2Count,
     h3Count,
   }
@@ -257,9 +259,12 @@ function analyzeKeywordDensity(keyword: string, content: string): { category: Se
 
   if (density >= 0.5 && density <= 2.5) {
     score = 8
-  } else if (density > 0 && density < 0.5) {
-    score = 4
-    improvement = '키워드 사용 빈도를 조금 더 늘려보세요'
+  } else if (density >= 0.3 && density < 0.5) {
+    score = 5
+    improvement = '키워드 사용 빈도를 조금 더 늘려보세요 (권장: 0.5~2.5%)'
+  } else if (density >= 0.1 && density < 0.3) {
+    score = 2
+    improvement = '키워드가 매우 부족합니다. 본문에 자연스럽게 더 많이 포함하세요'
   } else if (density > 2.5 && density <= 4) {
     score = 5
     improvement = '키워드가 약간 과도합니다. 동의어로 대체하세요'
@@ -268,7 +273,7 @@ function analyzeKeywordDensity(keyword: string, content: string): { category: Se
     improvement = '키워드 스터핑 위험! 자연스러운 표현으로 교체하세요'
   } else {
     score = 0
-    improvement = '본문에 핵심 키워드를 포함하세요'
+    improvement = '본문에 핵심 키워드를 포함하세요 (현재 밀도: 0%)'
   }
 
   // 스터핑 패턴 감지 → 감점 적용
@@ -347,25 +352,34 @@ function analyzeKeywordDistribution(keyword: string, content: string): { categor
   }
 }
 
-/** 6. 콘텐츠 길이 (7점) */
+/** 6. 콘텐츠 길이 (7점) - 블로그 지수와 동일 기준 */
 function analyzeContentLength(content: string): { category: SeoCategory; strength?: string; improvement?: string } {
   const contentLength = content.length
   let score = 0
   let improvement: string | undefined
+  let strength: string | undefined
 
-  if (contentLength >= 2500) {
+  if (contentLength >= 1500 && contentLength <= 2500) {
     score = 7
-  } else if (contentLength >= 1800) {
+    strength = `최적 콘텐츠 분량 (${contentLength.toLocaleString()}자)`
+  } else if (contentLength >= 1000 && contentLength < 1500) {
+    score = 6
+    improvement = '1,500자 이상으로 늘리면 SEO 효과가 더 좋습니다'
+  } else if (contentLength > 2500 && contentLength <= 3000) {
     score = 5
-  } else if (contentLength >= 1200) {
+    improvement = '약간 깁니다. 핵심 내용 위주로 2,500자 이하 권장'
+  } else if (contentLength >= 800 && contentLength < 1000) {
     score = 3
-    improvement = '콘텐츠 분량을 2,000자 이상으로 늘리세요'
-  } else if (contentLength >= 800) {
+    improvement = '콘텐츠가 짧습니다. 최소 1,500자 이상 권장'
+  } else if (contentLength > 3000 && contentLength <= 4000) {
     score = 2
-    improvement = '콘텐츠가 짧습니다 (최소 1,500자 권장)'
-  } else {
+    improvement = '콘텐츠가 깁니다. 핵심 위주로 압축 권장 (최적: 1,500~2,500자)'
+  } else if (contentLength > 4000) {
     score = 1
-    improvement = '콘텐츠가 너무 짧습니다 (2,000자 이상 권장)'
+    improvement = '콘텐츠가 과도하게 깁니다. 사용자 이탈 위험 (권장: 1,500~2,500자)'
+  } else {
+    score = 0
+    improvement = '콘텐츠가 너무 짧습니다. 최소 1,500자 이상 작성하세요'
   }
 
   return {
@@ -374,10 +388,10 @@ function analyzeContentLength(content: string): { category: SeoCategory; strengt
       name: '콘텐츠 길이',
       score,
       maxScore: 7,
-      details: `${contentLength.toLocaleString()}자 (권장: 2,000~3,000자)`,
-      priority: score < 3 ? 'high' : 'low',
+      details: `${contentLength.toLocaleString()}자 (최적: 1,500~2,500자)`,
+      priority: score < 4 ? 'high' : score < 6 ? 'medium' : 'low',
     },
-    strength: score === 7 ? `콘텐츠 분량 우수 (${contentLength.toLocaleString()}자)` : undefined,
+    strength,
     improvement,
   }
 }
@@ -484,16 +498,17 @@ function analyzeRelatedKeywords(content: string, additionalKeywords?: string[]):
     }
   }
 
-  // 관련 키워드 없으면 만점 처리
+  // 관련 키워드 없으면 0점 처리 (무상 점수 폐지)
   return {
     category: {
       id: 'related_keywords',
       name: '관련 키워드',
-      score: 8,
+      score: 0,
       maxScore: 8,
-      details: '관련 키워드 미지정 (기본 만점)',
-      priority: 'low',
+      details: '관련 키워드 미지정 (0점)',
+      priority: 'high',
     },
+    improvement: '추가 키워드를 지정하여 콘텐츠 주제 관련성을 높이세요',
   }
 }
 

@@ -41,21 +41,24 @@ export function analyzeContentQuality(
 
   if (isActualContent) {
     let depthPts = 0
-    if (avgContentLen >= 1500 && avgContentLen <= 3000) {
+    if (avgContentLen >= 1500 && avgContentLen <= 2500) {
       depthPts = 8
       details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 최적 범위) (+8)`)
     } else if (avgContentLen >= 1000 && avgContentLen < 1500) {
+      depthPts = 7
+      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+7)`)
+    } else if (avgContentLen > 2500 && avgContentLen <= 3000) {
       depthPts = 6
-      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+6)`)
-    } else if (avgContentLen > 3000 && avgContentLen <= 5000) {
-      depthPts = 6
-      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 약간 김) (+6)`)
-    } else if (avgContentLen > 5000) {
+      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 약간 김) (+6)`)
+    } else if (avgContentLen >= 800 && avgContentLen < 1000) {
       depthPts = 4
-      details.push(`콘텐츠가 과도하게 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1500~3000자) (+4)`)
-    } else if (avgContentLen >= 500) {
+      details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+4)`)
+    } else if (avgContentLen > 3000 && avgContentLen <= 4000) {
       depthPts = 2
-      details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+2)`)
+      details.push(`콘텐츠가 다소 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 압축 권장) (+2)`)
+    } else if (avgContentLen > 4000) {
+      depthPts = 0
+      details.push(`콘텐츠가 과도하게 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1500~2500자) (+0)`)
     } else {
       depthPts = 1
       details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1500자 이상) (+1)`)
@@ -309,16 +312,20 @@ export function analyzeContentQuality(
     }
   }
 
-  // === [감점] 과도한 콘텐츠 길이 (0 ~ -2) ===
-  // 업계 기준: 최적 1500~3000자, 최대 권장 4000~4500자, 5000+는 스팸/패딩
-  if (isActualContent && avgContentLen >= 5000) {
+  // === [감점] 과도한 콘텐츠 길이 (0 ~ -3) ===
+  // 최적: 1500~2500자, 권장 최대: 3000자
+  if (isActualContent && avgContentLen >= 7000) {
+    score -= 3
+    details.push(`극심한 콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 스팸/패딩 의심 (권장: 1500~2500자) (-3)`)
+    items.push({ label: `스팸 의심 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -3 })
+  } else if (isActualContent && avgContentLen >= 5000) {
     score -= 2
-    details.push(`과도한 콘텐츠 길이: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 스팸/패딩 의심 (권장: 1500~3000자) (-2)`)
-    items.push({ label: `콘텐츠 과다 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -2 })
+    details.push(`심각한 콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 대폭 압축 필요 (-2)`)
+    items.push({ label: `심각한 과다 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -2 })
   } else if (isActualContent && avgContentLen >= 4000) {
     score -= 1
-    details.push(`콘텐츠 다소 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 핵심 위주로 압축 권장 (-1)`)
-    items.push({ label: `콘텐츠 다소 과다`, points: -1 })
+    details.push(`콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 핵심 위주로 압축 권장 (-1)`)
+    items.push({ label: `콘텐츠 과다 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -1 })
   }
 
   // === [감점] 블로그 전체 이미지 과다 (0 ~ -2) ===

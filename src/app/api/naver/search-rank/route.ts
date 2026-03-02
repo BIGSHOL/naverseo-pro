@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'
 import type { SearchRankResult } from '@/types/search-rank'
+import { batchGetCachedScores, setCachedScore, calculateLightweightScore } from '@/lib/seo/post-score-cache'
 
 // API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,71 @@ function classifyByUrl(url: string): { type: string; typeDetail: string; source:
 function parseRank(crOn: string): number | null {
     const match = crOn.match(/r=(\d+)/)
     return match ? parseInt(match[1], 10) : null
+}
+
+// 게시글 SEO 점수 분석 (캐시 우선, 블로그만)
+async function analyzeSeoScores(
+    topResults: Array<{
+        url: string
+        type: string
+        title?: string
+        seoScore?: number
+    }>
+): Promise<void> {
+    try {
+        // Supabase 클라이언트 생성 (admin 권한)
+        const { createClient } = await import('@/lib/supabase/server')
+        const supabase = createClient()
+
+        // 블로그 URL만 필터링
+        const blogUrls = topResults.filter(r => r.type === '블로그').map(r => r.url)
+        if (blogUrls.length === 0) return
+
+        // 1. 캐시 일괄 조회
+        const cachedScores = await batchGetCachedScores(supabase, blogUrls)
+
+        // 2. 캐시 없는 URL만 스크래핑 + 점수 계산
+        const { scrapeBlogPost } = await import('@/lib/naver/blog-scraper')
+
+        for (const result of topResults) {
+            if (result.type !== '블로그') continue
+
+            // 캐시 확인
+            const cached = cachedScores.get(result.url)
+            if (cached !== undefined) {
+                result.seoScore = cached
+                continue
+            }
+
+            // 스크래핑 + 점수 계산
+            try {
+                const scraped = await scrapeBlogPost(result.url)
+                if (!scraped) continue
+
+                const score = calculateLightweightScore(
+                    result.title || '',
+                    '',  // ScrapedPostData에 content 필드 없음 — charCount 기반 추정
+                    scraped.imageCount || 0
+                )
+
+                result.seoScore = score
+
+                // 캐시 저장 (백그라운드, 실패해도 무방)
+                setCachedScore(supabase, result.url, score, {
+                    title: result.title,
+                    charCount: scraped.charCount,
+                    imageCount: scraped.imageCount,
+                }).catch(() => {})
+
+                // Rate limit 방지 (100ms 딜레이)
+                await new Promise(resolve => setTimeout(resolve, 100))
+            } catch {
+                // 스크래핑 실패 시 점수 없음 (null 유지)
+            }
+        }
+    } catch (err) {
+        console.error('[Search Rank] SEO 점수 분석 실패:', err)
+    }
 }
 
 // 네이버 모바일 검색 결과 파싱
@@ -193,6 +259,9 @@ async function analyzeSearchResult(keyword: string): Promise<SearchRankResult> {
 
         // 스마트블록 순서: 통합검색이 아닌 블로그 탭이므로 항상 1번째
         const smartBlockOrder = hasSmartBlock ? 1 : null
+
+        // ── 게시글 SEO 점수 분석 (경량, 캐시 우선) ──
+        await analyzeSeoScores(top5)
 
         return {
             keyword,

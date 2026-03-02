@@ -77,11 +77,42 @@ const config: Config = {
   				to: {
   					height: '0'
   				}
+  			},
+  			'grade-glow': {
+  				'0%, 100%': {
+  					opacity: '1',
+  					boxShadow: '0 0 8px rgba(251, 191, 36, 0.4)'
+  				},
+  				'50%': {
+  					opacity: '0.9',
+  					boxShadow: '0 0 16px rgba(251, 191, 36, 0.6)'
+  				}
+  			},
+  			'grade-pulse-strong': {
+  				'0%, 100%': {
+  					opacity: '1',
+  					transform: 'scale(1)'
+  				},
+  				'50%': {
+  					opacity: '0.95',
+  					transform: 'scale(1.02)'
+  				}
+  			},
+  			'grade-pulse-subtle': {
+  				'0%, 100%': {
+  					opacity: '1'
+  				},
+  				'50%': {
+  					opacity: '0.97'
+  				}
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'grade-glow': 'grade-glow 2s ease-in-out infinite',
+  			'grade-pulse-strong': 'grade-pulse-strong 2.5s ease-in-out infinite',
+  			'grade-pulse-subtle': 'grade-pulse-subtle 3s ease-in-out infinite'
   		}
   	}
   },

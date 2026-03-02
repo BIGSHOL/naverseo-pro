@@ -12,6 +12,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl } from '@/lib/utils/text'
+import type { ProgressState } from '@/lib/progress'
+import { createStepProgress, CardProgress } from '@/lib/progress'
 
 // === 타입 ===
 
@@ -158,9 +160,7 @@ export default function CompetitorsPage() {
   const [aiStreamingText, setAiStreamingText] = useState('')
 
   // 프로그레스 상태
-  const [progressStep, setProgressStep] = useState(0)
-  const [progressTotal, setProgressTotal] = useState(0)
-  const [progressMessage, setProgressMessage] = useState('')
+  const [progress, setProgress] = useState<ProgressState>(null)
 
   // 날짜 필터 적용
   const filteredCompetitors = competitors.filter(comp => {
@@ -223,9 +223,7 @@ export default function CompetitorsPage() {
     setDateFilter('all')
     setAiInsights(null)
     setAiError('')
-    setProgressStep(0)
-    setProgressTotal(0)
-    setProgressMessage('')
+    setProgress(null)
 
     try {
       const res = await fetch('/api/ai/competitors', {
@@ -249,9 +247,7 @@ export default function CompetitorsPage() {
       if (contentType.includes('application/x-ndjson') && res.body) {
         await parseNdjsonStream(res, {
           onProgress: (step, total, message) => {
-            setProgressStep(step)
-            setProgressTotal(total)
-            setProgressMessage(message)
+            setProgress(createStepProgress(step, total, message))
           },
           onData: (data) => {
             setCompetitors(data.competitors as CompetitorItem[])
@@ -275,9 +271,7 @@ export default function CompetitorsPage() {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
-      setProgressStep(0)
-      setProgressTotal(0)
-      setProgressMessage('')
+      setProgress(null)
     }
   }
 
@@ -285,9 +279,7 @@ export default function CompetitorsPage() {
     setAiLoading(true)
     setAiError('')
     setAiStreamingText('')
-    setProgressStep(0)
-    setProgressTotal(0)
-    setProgressMessage('')
+    setProgress(null)
 
     try {
       const res = await fetch('/api/ai/competitors', {
@@ -307,9 +299,7 @@ export default function CompetitorsPage() {
       if (contentType.includes('application/x-ndjson') && res.body) {
         await parseNdjsonStream(res, {
           onProgress: (step, total, message) => {
-            setProgressStep(step)
-            setProgressTotal(total)
-            setProgressMessage(message)
+            setProgress(createStepProgress(step, total, message))
           },
           onStream: (delta) => {
             setAiStreamingText(prev => prev + delta)
@@ -333,9 +323,7 @@ export default function CompetitorsPage() {
       setAiError('AI 분석 중 네트워크 오류가 발생했습니다.')
     } finally {
       setAiLoading(false)
-      setProgressStep(0)
-      setProgressTotal(0)
-      setProgressMessage('')
+      setProgress(null)
     }
   }
 
@@ -372,54 +360,15 @@ export default function CompetitorsPage() {
 
       {/* 로딩 - 단계별 프로그레스 */}
       {loading && (
-        <Card>
-          <CardContent className="py-8">
-            <div className="space-y-4">
-              {progressTotal > 0 && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">상위 블로그 분석</span>
-                    <span className="text-xs text-muted-foreground">{progressStep}/{progressTotal}</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full bg-primary transition-all duration-500"
-                      style={{ width: `${(progressStep / progressTotal) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                {['네이버 블로그 검색', '상위 블로그 콘텐츠 수집', '경쟁 패턴 분석'].map((label, i) => {
-                  const step = i + 1
-                  const isCompleted = progressStep > step
-                  const isCurrent = progressStep === step
-                  return (
-                    <div key={step} className={`flex items-center gap-2.5 text-sm ${isCompleted ? 'text-green-600' : isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground/60'}`}>
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : isCurrent ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <Circle className="h-4 w-4" />
-                      )}
-                      <span>{label}</span>
-                      {isCurrent && progressMessage && (
-                        <span className="ml-auto text-xs text-muted-foreground">{progressMessage}</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              {progressTotal === 0 && (
-                <div className="flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">분석 준비 중...</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <CardProgress
+          progress={progress || { step: 0, totalSteps: 3, message: '분석 준비 중...' }}
+          options={{
+            showBar: true,
+            showPercent: true,
+            showDetail: true,
+            size: 'md'
+          }}
+        />
       )}
 
       {/* 결과 */}
@@ -898,46 +847,17 @@ export default function CompetitorsPage() {
               {aiLoading && (
                 <div className="space-y-4">
                   {/* AI 분석 프로그레스 */}
-                  {progressTotal > 0 && !aiStreamingText && (
-                    <div className="space-y-3">
-                      {progressTotal > 0 && (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-purple-700">AI 경쟁 분석</span>
-                            <span className="text-xs text-muted-foreground">{progressStep}/{progressTotal}</span>
-                          </div>
-                          <div className="h-2 w-full rounded-full bg-muted">
-                            <div
-                              className="h-2 rounded-full bg-purple-500 transition-all duration-500"
-                              style={{ width: `${(progressStep / progressTotal) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        {['네이버 블로그 검색', '상위 블로그 콘텐츠 수집', '경쟁 패턴 분석', 'AI 전략 분석', '이미지 전략 분석'].map((label, i) => {
-                          const step = i + 1
-                          const isCompleted = progressStep > step
-                          const isCurrent = progressStep === step
-                          if (step > progressTotal) return null
-                          return (
-                            <div key={step} className={`flex items-center gap-2.5 text-sm ${isCompleted ? 'text-green-600' : isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground/60'}`}>
-                              {isCompleted ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                              ) : isCurrent ? (
-                                <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
-                              ) : (
-                                <Circle className="h-4 w-4" />
-                              )}
-                              <span>{label}</span>
-                              {isCurrent && progressMessage && (
-                                <span className="ml-auto text-xs text-muted-foreground">{progressMessage}</span>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
+                  {progress && !aiStreamingText && (
+                    <CardProgress
+                      progress={progress}
+                      options={{
+                        showBar: true,
+                        showPercent: true,
+                        showDetail: true,
+                        size: 'md',
+                        variant: 'primary'
+                      }}
+                    />
                   )}
 
                   {/* AI 스트리밍 텍스트 */}
@@ -955,7 +875,7 @@ export default function CompetitorsPage() {
                         <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-text-bottom" />
                       </div>
                     </div>
-                  ) : progressTotal === 0 && (
+                  ) : !progress && (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="mr-2 h-5 w-5 animate-spin text-purple-500" />
                       <span className="text-muted-foreground">AI 분석 준비 중...</span>

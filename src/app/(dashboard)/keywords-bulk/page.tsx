@@ -5,9 +5,10 @@ import { BulkKeywordInput } from '@/components/keywords/bulk-keyword-input'
 import { BulkKeywordResults, type BulkKeywordData } from '@/components/keywords/bulk-keyword-results'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ListChecks, Search, TrendingUp, BarChart3, Loader2 } from 'lucide-react'
-import { Progress } from '@/components/ui/progress'
+import { ListChecks, Search, TrendingUp, BarChart3 } from 'lucide-react'
 import type { BlogCategory } from '@/lib/blog-index/categories'
+import type { ProgressState } from '@/lib/progress'
+import { createCountProgress, CardProgress } from '@/lib/progress'
 
 export default function KeywordsBulkPage() {
     const [results, setResults] = useState<BulkKeywordData[]>([])
@@ -15,7 +16,7 @@ export default function KeywordsBulkPage() {
     const [isDemo, setIsDemo] = useState(false)
     const [error, setError] = useState('')
     const [searched, setSearched] = useState(false)
-    const [progress, setProgress] = useState({ current: 0, total: 0, stage: '' })
+    const [progress, setProgress] = useState<ProgressState>(null)
     const [blogCategory, setBlogCategory] = useState<BlogCategory | null>(null)
 
     // 마운트 시 블로그 카테고리 조회
@@ -50,7 +51,7 @@ export default function KeywordsBulkPage() {
 
         try {
             // Stage 1: 기본 검색량 조회
-            setProgress({ current: 0, total: 3, stage: '검색량 조회 중...' })
+            setProgress(createCountProgress(0, 3, '검색량 조회 중...'))
             const bulkRes = await fetch('/api/naver/keywords-bulk', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -67,7 +68,7 @@ export default function KeywordsBulkPage() {
 
             const baseResults: BulkKeywordData[] = bulkData.results || []
             setIsDemo(bulkData.isDemo || false)
-            setProgress({ current: 1, total: 3, stage: '자동완성 확인 중...' })
+            setProgress(createCountProgress(1, 3, '자동완성 확인 중...'))
 
             // Stage 2: 자동완성 조회 (병렬)
             let autocompleteData: Record<string, { included: boolean; suggestions: string[] }> = {}
@@ -84,7 +85,7 @@ export default function KeywordsBulkPage() {
             } catch {
                 // 자동완성 실패해도 계속 진행
             }
-            setProgress({ current: 2, total: 3, stage: '인기글 분석 중...' })
+            setProgress(createCountProgress(2, 3, '인기글 분석 중...'))
 
             // Stage 3: 인기글 순서 + 상위 유형 조회
             let searchRankData: Record<string, BulkKeywordData['searchRank']> = {}
@@ -101,7 +102,7 @@ export default function KeywordsBulkPage() {
             } catch {
                 // 인기글 분석 실패해도 계속 진행
             }
-            setProgress({ current: 3, total: 3, stage: '완료!' })
+            setProgress(createCountProgress(3, 3, '완료!'))
 
             // 데이터 병합
             const mergedResults = baseResults.map((r) => ({
@@ -146,22 +147,15 @@ export default function KeywordsBulkPage() {
 
             {/* 로딩 진행률 */}
             {loading && (
-                <Card>
-                    <CardContent className="py-8">
-                        <div className="flex flex-col items-center gap-4">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <div className="w-full max-w-xs space-y-2">
-                                <Progress
-                                    value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0}
-                                    className="h-2"
-                                />
-                                <p className="text-center text-sm text-muted-foreground">
-                                    {progress.stage} ({progress.current}/{progress.total})
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                <CardProgress
+                    progress={progress}
+                    options={{
+                        showBar: true,
+                        showPercent: true,
+                        showDetail: true,
+                        size: 'md'
+                    }}
+                />
             )}
 
             {/* 요약 통계 */}

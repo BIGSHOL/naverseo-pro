@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
+import type { ProgressState } from '@/lib/progress'
+import { CardProgress, getProgressPercent } from '@/lib/progress'
 
 const DEFAULT_EXAMPLES = ['다이어트 식단', '맛집 추천', '여행 코스', '인테리어 팁']
 
@@ -27,15 +29,6 @@ interface AiRecommendation {
   searchData?: AiSearchData
 }
 
-interface SearchProgress {
-  step: number
-  totalSteps: number
-  message: string
-  keywordCount?: number
-  current?: number
-  total?: number
-}
-
 export default function KeywordsPage() {
   const [keywords, setKeywords] = useState<KeywordData[]>([])
   const [loading, setLoading] = useState(false)
@@ -45,7 +38,7 @@ export default function KeywordsPage() {
   const [spaceNotice, setSpaceNotice] = useState('')
   const [expandedNotice, setExpandedNotice] = useState('')
   const [searchedKeyword, setSearchedKeyword] = useState('')
-  const [progress, setProgress] = useState<SearchProgress | null>(null)
+  const [progress, setProgress] = useState<ProgressState>(null)
 
   // AI 키워드 추천
   const [aiRecommendations, setAiRecommendations] = useState<AiRecommendation[]>([])
@@ -66,7 +59,7 @@ export default function KeywordsPage() {
     setAiRecommendations([])
     setAiError('')
     setKeywords([])
-    setProgress({ step: 0, totalSteps: 3, message: '검색 준비 중...' })
+    setProgress({ step: 0, totalSteps: 3, message: '검색 준비 중...' }) // NDJSON에서 업데이트
 
     try {
       const res = await fetch(`/api/naver/keywords?keyword=${encodeURIComponent(keyword)}`)
@@ -103,7 +96,7 @@ export default function KeywordsPage() {
             try {
               const data = JSON.parse(line)
               if (data.type === 'progress') {
-                setProgress(data as SearchProgress)
+                setProgress(data as ProgressState)
               } else if (data.type === 'result') {
                 setKeywords(data.keywords)
                 setIsDemo(data.isDemo || false)
@@ -176,13 +169,6 @@ export default function KeywordsPage() {
     '경험형': 'bg-orange-100 text-orange-700',
   }
 
-  // 프로그레스 퍼센트 계산
-  const progressPercent = progress
-    ? progress.current && progress.total
-      ? Math.round((progress.current / progress.total) * 100)
-      : Math.round((progress.step / progress.totalSteps) * 100)
-    : 0
-
   return (
     <div className="space-y-6">
       <div>
@@ -197,39 +183,15 @@ export default function KeywordsPage() {
 
       {/* 프로그레스 표시 */}
       {loading && progress && (
-        <Card>
-          <CardContent className="py-8">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <div className="w-full max-w-md space-y-3">
-                <p className="text-center text-sm font-medium">
-                  {progress.message}
-                </p>
-
-                {/* 프로그레스 바 */}
-                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-
-                {/* 단계 + 키워드 수 표시 */}
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>단계 {progress.step}/{progress.totalSteps}</span>
-                  <div className="flex gap-3">
-                    {progress.keywordCount != null && (
-                      <span>{progress.keywordCount.toLocaleString()}개 키워드</span>
-                    )}
-                    {progress.current != null && progress.total != null && (
-                      <span>{progress.current}/{progress.total} 분석</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CardProgress
+          progress={progress}
+          options={{
+            showBar: true,
+            showPercent: true,
+            showDetail: true,
+            size: 'md'
+          }}
+        />
       )}
 
       {/* 에러 메시지 */}

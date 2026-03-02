@@ -57,6 +57,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
 import { ensureUrl } from '@/lib/utils/text'
+import type { ProgressState } from '@/lib/progress'
+import { CardProgress } from '@/lib/progress'
 
 const BlogIndexHistoryChart = dynamic(
   () => import('@/components/charts/blog-index-history-chart').then(m => ({ default: m.BlogIndexHistoryChart })),
@@ -601,7 +603,7 @@ export default function BlogIndexPage() {
   const [aiProgress, setAiProgress] = useState('')
   const [error, setError] = useState('')
   const [result, setResult] = useState<BlogIndexResult | null>(null)
-  const [progress, setProgress] = useState<{ step: number; totalSteps: number; message: string; current?: number; total?: number } | null>(null)
+  const [progress, setProgress] = useState<ProgressState>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [historyData, setHistoryData] = useState<BlogIndexHistoryData | null>(null)
   const [chartMode, setChartMode] = useState<'total' | 'category' | 'algorithm'>('total')
@@ -1047,30 +1049,15 @@ export default function BlogIndexPage() {
 
         {/* ========== 프로그레스 바 ========== */}
         {(loading || refreshing) && progress && (
-          <Card>
-            <CardContent className="py-8">
-              <div className="flex flex-col items-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <div className="w-full max-w-md space-y-3">
-                  <p className="text-center text-sm font-medium">
-                    {progress.message}
-                  </p>
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                      style={{ width: `${progress.current && progress.total ? Math.round((progress.current / progress.total) * 100) : Math.round((progress.step / progress.totalSteps) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>단계 {progress.step}/{progress.totalSteps}</span>
-                    {progress.current != null && progress.total != null && (
-                      <span>{progress.current}/{progress.total} 키워드</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <CardProgress
+            progress={progress}
+            options={{
+              showBar: true,
+              showPercent: true,
+              showDetail: true,
+              size: 'md'
+            }}
+          />
         )}
 
         {/* ========== 캐시 상태 + 갱신 버튼 ========== */}

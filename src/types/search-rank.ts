@@ -13,5 +13,6 @@ export interface SearchRankResult {
         source: string  // 'blog.naver.com', 'cafe.naver.com' 등
         url: string    // 실제 게시물 URL
         title?: string // 게시글 제목
+        seoScore?: number // 게시글 SEO 점수 (0~100, 경량 계산)
     }>
 }

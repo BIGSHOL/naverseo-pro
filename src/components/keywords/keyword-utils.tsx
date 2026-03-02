@@ -135,37 +135,37 @@ export function getSaturationBadge(plAvgDepth: number) {
   )
 }
 
-// ===== 16등급 키워드 등급 체계 =====
-// 점수(0~100)를 4단계 × 4등급 = 16등급으로 분류
+// ===== 16단계 키워드 등급 체계 (SEO/블로그 지수와 통일) =====
+// Lv.1 (최하) ~ Lv.16 (최상)
 
 export interface KeywordGrade {
-  label: string
-  category: '최적' | '준최' | '보통' | '비추'
+  level: number        // 1~16
+  category: '비추' | '보통' | '준최' | '최적'
+  label: string        // 'Lv.16'
+  fullLabel: string    // 'Lv.16 최적'
+  tier: number         // 카테고리 내 세부 등급 (1~4)
   color: string
   bgColor: string
 }
 
 export function getKeywordGrade(score: number): KeywordGrade {
-  // 최적 (62~100): 상위 노출 가능성 높은 추천 키워드
-  if (score >= 85) return { label: '최적1', category: '최적', color: 'text-emerald-700', bgColor: 'bg-emerald-100' }
-  if (score >= 75) return { label: '최적2', category: '최적', color: 'text-emerald-600', bgColor: 'bg-emerald-50' }
-  if (score >= 68) return { label: '최적3', category: '최적', color: 'text-green-600', bgColor: 'bg-green-50' }
-  if (score >= 62) return { label: '최적4', category: '최적', color: 'text-green-500', bgColor: 'bg-green-50' }
-  // 준최적 (45~61): 조건부 추천 키워드
-  if (score >= 57) return { label: '준최1', category: '준최', color: 'text-blue-700', bgColor: 'bg-blue-100' }
-  if (score >= 53) return { label: '준최2', category: '준최', color: 'text-blue-600', bgColor: 'bg-blue-50' }
-  if (score >= 49) return { label: '준최3', category: '준최', color: 'text-blue-500', bgColor: 'bg-blue-50' }
-  if (score >= 45) return { label: '준최4', category: '준최', color: 'text-sky-600', bgColor: 'bg-sky-50' }
-  // 보통 (29~44): 일반 키워드
-  if (score >= 41) return { label: '보통1', category: '보통', color: 'text-yellow-700', bgColor: 'bg-yellow-100' }
-  if (score >= 37) return { label: '보통2', category: '보통', color: 'text-yellow-600', bgColor: 'bg-yellow-50' }
-  if (score >= 33) return { label: '보통3', category: '보통', color: 'text-amber-600', bgColor: 'bg-amber-50' }
-  if (score >= 29) return { label: '보통4', category: '보통', color: 'text-amber-500', bgColor: 'bg-amber-50' }
-  // 비추 (0~28): 비추천 키워드
-  if (score >= 24) return { label: '비추1', category: '비추', color: 'text-orange-600', bgColor: 'bg-orange-50' }
-  if (score >= 18) return { label: '비추2', category: '비추', color: 'text-red-500', bgColor: 'bg-red-50' }
-  if (score >= 11) return { label: '비추3', category: '비추', color: 'text-red-600', bgColor: 'bg-red-100' }
-  return { label: '비추4', category: '비추', color: 'text-red-700', bgColor: 'bg-red-100' }
+  // SEO 엔진 등급 체계 및 색상과 완전 통일 + 상위 등급 애니메이션 효과
+  if (score >= 95) return { level: 16, category: '최적', label: 'Lv.16 파워', fullLabel: 'Lv.16 파워', tier: 1, color: 'text-amber-700', bgColor: 'bg-amber-100 text-amber-700 border-amber-300 border-2 motion-safe:animate-grade-glow font-bold' }
+  if (score >= 89) return { level: 15, category: '최적', label: 'Lv.15 최적화4+', fullLabel: 'Lv.15 최적화4+', tier: 2, color: 'text-emerald-700', bgColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 border-2 motion-safe:animate-grade-pulse-strong font-bold' }
+  if (score >= 82) return { level: 14, category: '최적', label: 'Lv.14 최적화3+', fullLabel: 'Lv.14 최적화3+', tier: 3, color: 'text-emerald-700', bgColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 motion-safe:animate-grade-pulse-subtle font-semibold' }
+  if (score >= 76) return { level: 13, category: '최적', label: 'Lv.13 최적화2+', fullLabel: 'Lv.13 최적화2+', tier: 4, color: 'text-teal-700', bgColor: 'bg-teal-100 text-teal-700 border-teal-300 shadow-sm font-semibold' }
+  if (score >= 70) return { level: 12, category: '최적', label: 'Lv.12 최적화1+', fullLabel: 'Lv.12 최적화1+', tier: 1, color: 'text-teal-700', bgColor: 'bg-teal-100 text-teal-700 border-teal-300' }
+  if (score >= 64) return { level: 11, category: '최적', label: 'Lv.11 최적화3', fullLabel: 'Lv.11 최적화3', tier: 2, color: 'text-green-700', bgColor: 'bg-green-100 text-green-700 border-green-300' }
+  if (score >= 57) return { level: 10, category: '최적', label: 'Lv.10 최적화2', fullLabel: 'Lv.10 최적화2', tier: 3, color: 'text-green-700', bgColor: 'bg-green-100 text-green-700 border-green-300' }
+  if (score >= 51) return { level: 9, category: '최적', label: 'Lv.9 최적화1', fullLabel: 'Lv.9 최적화1', tier: 4, color: 'text-lime-700', bgColor: 'bg-lime-100 text-lime-700 border-lime-300' }
+  if (score >= 45) return { level: 8, category: '준최', label: 'Lv.8 준최적화7', fullLabel: 'Lv.8 준최적화7', tier: 1, color: 'text-blue-700', bgColor: 'bg-blue-100 text-blue-700 border-blue-300' }
+  if (score >= 38) return { level: 7, category: '준최', label: 'Lv.7 준최적화6', fullLabel: 'Lv.7 준최적화6', tier: 2, color: 'text-blue-700', bgColor: 'bg-blue-100 text-blue-700 border-blue-300' }
+  if (score >= 32) return { level: 6, category: '준최', label: 'Lv.6 준최적화5', fullLabel: 'Lv.6 준최적화5', tier: 3, color: 'text-sky-700', bgColor: 'bg-sky-100 text-sky-700 border-sky-300' }
+  if (score >= 26) return { level: 5, category: '준최', label: 'Lv.5 준최적화4', fullLabel: 'Lv.5 준최적화4', tier: 4, color: 'text-sky-700', bgColor: 'bg-sky-100 text-sky-700 border-sky-300' }
+  if (score >= 20) return { level: 4, category: '준최', label: 'Lv.4 준최적화3', fullLabel: 'Lv.4 준최적화3', tier: 1, color: 'text-indigo-700', bgColor: 'bg-indigo-100 text-indigo-700 border-indigo-300' }
+  if (score >= 13) return { level: 3, category: '준최', label: 'Lv.3 준최적화2', fullLabel: 'Lv.3 준최적화2', tier: 2, color: 'text-indigo-700', bgColor: 'bg-indigo-100 text-indigo-700 border-indigo-300' }
+  if (score >= 7) return { level: 2, category: '준최', label: 'Lv.2 준최적화1', fullLabel: 'Lv.2 준최적화1', tier: 3, color: 'text-violet-700', bgColor: 'bg-violet-100 text-violet-700 border-violet-300' }
+  return { level: 1, category: '보통', label: 'Lv.1 일반', fullLabel: 'Lv.1 일반', tier: 4, color: 'text-slate-700', bgColor: 'bg-slate-100 text-slate-700 border-slate-300' }
 }
 
 // ===== 숫자 포맷 =====

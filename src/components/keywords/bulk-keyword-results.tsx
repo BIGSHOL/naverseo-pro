@@ -224,8 +224,15 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
             const topResults = r.searchRank?.topResults || []
             const rankCols: (string | number)[] = []
             for (let i = 0; i < 5; i++) {
-                rankCols.push(topResults[i]?.typeDetail || '-')
-                rankCols.push(topResults[i]?.url || '-')
+                const item = topResults[i]
+                if (!item) {
+                    rankCols.push('-', '-')
+                } else if (item.type === '블로그' && item.seoScore !== undefined) {
+                    const grade = getKeywordGrade(item.seoScore)
+                    rankCols.push(grade.fullLabel, item.url)
+                } else {
+                    rankCols.push(item.type, item.url)
+                }
             }
             return [
                 r.keyword,
@@ -503,15 +510,19 @@ export function BulkKeywordResults({ results, isDemo }: BulkKeywordResultsProps)
                                                                     rel="noopener noreferrer"
                                                                     className="inline-block cursor-pointer hover:opacity-70 transition-opacity"
                                                                 >
-                                                                    {item.type === '블로그' ? (
+                                                                    {item.type === '블로그' && item.seoScore !== undefined ? (
                                                                         (() => {
-                                                                            const grade = getKeywordGrade(row.score)
+                                                                            const grade = getKeywordGrade(item.seoScore)
                                                                             return (
-                                                                                <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor} ${grade.color}`}>
+                                                                                <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold leading-tight ${grade.bgColor}`}>
                                                                                     {grade.label}
                                                                                 </span>
                                                                             )
                                                                         })()
+                                                                    ) : item.type === '블로그' ? (
+                                                                        <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight bg-gray-100 text-gray-500">
+                                                                            분석중
+                                                                        </span>
                                                                     ) : (
                                                                         <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight ${getResultTypeBadgeStyle(item.type)}`}>
                                                                             {item.type}

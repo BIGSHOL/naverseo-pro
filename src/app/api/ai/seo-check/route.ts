@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
         try {
           // Step 1: SEO 엔진 분석 (스크래핑 데이터 있으면 태그/서식 정보 전달)
-          send({ type: 'progress', step: 1, total: 4, label: 'SEO 엔진 분석 중...', percent: 10 })
+          send({ type: 'progress', step: 1, total: 3, label: 'SEO 엔진 분석 중...', percent: 15 })
           const seoScrapedMeta = scrapedMeta ? {
             tags: scrapedMeta.tags,
             formatting: scrapedMeta.formatting,
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
           const engineResult = analyzeSeo(keyword || '', title || '', content, undefined, seoScrapedMeta)
 
           // Step 2: 가독성 분석
-          send({ type: 'progress', step: 2, total: 4, label: '가독성 분석 중...', percent: 20 })
+          send({ type: 'progress', step: 2, total: 3, label: '가독성 분석 중...', percent: 40 })
           const readability = analyzeReadability(content)
 
           const baseResult = {
@@ -100,29 +100,31 @@ export async function POST(request: NextRequest) {
             readabilityAnalysis: readability,
           }
 
-          // Step 3: AI 심층 분석 (가장 오래 걸리는 단계 — heartbeat로 진행감 + 타임아웃 방지)
-          send({ type: 'progress', step: 3, total: 4, label: 'AI 모델 연결 중...', percent: 25 })
+          // Step 3: 기본 결과 즉시 전송 + 크레딧 차감
+          send({ type: 'progress', step: 3, total: 3, label: '결과 정리 중...', percent: 80 })
 
+          await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
+
+          const baseResponse: SeoCheckResponse = {
+            ...baseResult,
+            isDemo: false,
+            aiAnalysis: null,
+          }
+          send({ type: 'result', ...baseResponse })
+
+          // === AI 심층 분석 (후속 업데이트 — 기본 결과와 독립) ===
           const provider = await getUserAiProvider(supabase, user.id)
 
           if (!hasAiApiKey(provider)) {
-            send({ type: 'progress', step: 4, total: 4, label: '결과 정리 중...', percent: 90 })
-            const response: SeoCheckResponse = {
-              ...baseResult,
-              isDemo: true,
-              demoReason: `${provider.toUpperCase()} API 키가 설정되지 않았습니다.`,
-              aiAnalysis: generateDemoAiAnalysis(),
-            }
-            send({ type: 'result', ...response })
+            send({ type: 'ai_update', aiAnalysis: generateDemoAiAnalysis(), isDemo: true, demoReason: `${provider.toUpperCase()} API 키가 설정되지 않았습니다.` })
             controller.close()
             return
           }
 
-          let aiAnalysis: AiSeoAnalysis | null = null
-          let aiFailReason = ''
+          send({ type: 'ai_progress', label: 'AI 심층 분석 시작...' })
 
-          // AI 분석 + heartbeat 병렬 실행 (3초마다 진행 상태 전송 → 타임아웃 방지 + 진행감)
-          const AI_TIMEOUT_MS = 50000 // 50초 (Vercel 60초 제한 내)
+          let aiAnalysis: AiSeoAnalysis | null = null
+          const AI_TIMEOUT_MS = 45000 // 45초 (Vercel 60초 내 완료)
           let aiDone = false
           const subLabels = [
             'AI 심층 분석 중...', '콘텐츠 구조 분석 중...', '키워드 전략 평가 중...',
@@ -132,9 +134,8 @@ export async function POST(request: NextRequest) {
           const heartbeat = setInterval(() => {
             if (aiDone) return
             hbIdx++
-            const percent = Math.min(85, 30 + hbIdx * 7)
             const label = subLabels[Math.min(hbIdx, subLabels.length - 1)]
-            send({ type: 'progress', step: 3, total: 4, label, percent })
+            send({ type: 'ai_progress', label })
           }, 3000)
 
           try {
@@ -144,45 +145,31 @@ export async function POST(request: NextRequest) {
                 setTimeout(() => reject(new Error('AI_TIMEOUT')), AI_TIMEOUT_MS)
               ),
             ])
-            if (!aiAnalysis) {
-              aiFailReason = 'AI 분석이 null을 반환했습니다 (콘텐츠 길이 부족 또는 API 키 문제).'
-            }
           } catch (aiError) {
             const msg = aiError instanceof Error ? aiError.message : String(aiError)
             if (msg === 'AI_TIMEOUT') {
-              aiFailReason = 'AI 분석 시간이 초과되었습니다 (50초). 기본 분석 결과를 표시합니다.'
-              console.warn('[SEO Check] AI 분석 타임아웃 (50초)')
+              console.warn('[SEO Check] AI 분석 타임아웃 (45초)')
             } else {
-              aiFailReason = msg
-              console.error('[SEO Check] AI 심층 분석 실패 (기본 결과로 대체):', aiError)
+              console.error('[SEO Check] AI 심층 분석 실패:', aiError)
             }
           } finally {
             aiDone = true
             clearInterval(heartbeat)
           }
 
-          // Step 4: 점수 보정 + 등급 재계산 + 크레딧 차감
-          send({ type: 'progress', step: 4, total: 4, label: '점수 보정 중...', percent: 90 })
-
-          let finalScore = baseResult.totalScore
-          let finalGrade = baseResult.grade
-          if (aiAnalysis?.scoreAdjustment) {
-            finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
-            finalGrade = getGradeByScore(finalScore).grade
+          // AI 결과 후속 전송 (점수 보정 포함)
+          if (aiAnalysis) {
+            let finalScore = baseResult.totalScore
+            let finalGrade = baseResult.grade
+            if (aiAnalysis.scoreAdjustment) {
+              finalScore = Math.max(0, Math.min(100, finalScore + aiAnalysis.scoreAdjustment))
+              finalGrade = getGradeByScore(finalScore).grade
+            }
+            send({ type: 'ai_update', aiAnalysis, totalScore: finalScore, grade: finalGrade })
+          } else {
+            send({ type: 'ai_update', aiAnalysis: generateDemoAiAnalysis(), isDemo: true, demoReason: 'AI 분석 시간이 초과되었습니다. 기본 분석 결과를 표시합니다.' })
           }
 
-          const response: SeoCheckResponse = {
-            ...baseResult,
-            totalScore: finalScore,
-            grade: finalGrade,
-            isDemo: !aiAnalysis,
-            demoReason: aiAnalysis ? undefined : `AI 분석 실패: ${aiFailReason}`,
-            aiAnalysis: aiAnalysis || generateDemoAiAnalysis(),
-          }
-
-          await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
-
-          send({ type: 'result', ...response })
           controller.close()
         } catch (streamError) {
           const msg = streamError instanceof Error ? streamError.message : String(streamError)

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
+import { SeoScanPreview } from '@/components/seo/SeoScanPreview'
 import { cn } from '@/lib/utils'
 import { analyzeSeo, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
 import Link from 'next/link'
@@ -20,6 +21,13 @@ import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl } from '@/lib/utils/text'
 import dynamic from 'next/dynamic'
+/** NDJSON 스트림 진행 이벤트 (seo-check 전용) */
+interface ScanProgress {
+  step: number
+  total: number
+  label: string
+  percent: number
+}
 
 // TipTap 에디터는 클라이언트 전용 (SSR 방지)
 const TiptapEditor = dynamic(
@@ -61,13 +69,6 @@ interface SeoResult {
   isDemo: boolean
   demoReason?: string
   aiAnalysis?: AiAnalysis | null
-}
-
-interface ProgressStep {
-  step: number
-  total: number
-  label: string
-  percent?: number
 }
 
 function getCategoryScoreColor(score: number, max: number) {
@@ -171,7 +172,11 @@ export default function SeoCheckPage() {
   const [showContentPreview, setShowContentPreview] = useState(false)
 
   // 프로그레스 UI
-  const [progressStep, setProgressStep] = useState<ProgressStep | null>(null)
+  const [progressStep, setProgressStep] = useState<ScanProgress | null>(null)
+
+  // AI 심층 분석 후속 로딩 상태
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiProgressLabel, setAiProgressLabel] = useState('')
 
   // AI 약점 개선
   const [improving, setImproving] = useState(false)
@@ -261,6 +266,8 @@ export default function SeoCheckPage() {
     setError('')
     setPlanGate(null)
     setProgressStep(null)
+    setAiLoading(false)
+    setAiProgressLabel('')
     setGuidanceItems([])
     setImproveMessage('')
 
@@ -313,6 +320,25 @@ export default function SeoCheckPage() {
                 setProgressStep({ step: event.step, total: event.total, label: event.label, percent: event.percent })
               } else if (event.type === 'result') {
                 setResult(event as SeoResult)
+                // 기본 결과 도착 → 로딩 해제, AI 후속 로딩 시작
+                setLoading(false)
+                setProgressStep(null)
+                setAiLoading(true)
+                setAiProgressLabel('AI 심층 분석 준비 중...')
+              } else if (event.type === 'ai_progress') {
+                setAiProgressLabel(event.label || 'AI 심층 분석 중...')
+              } else if (event.type === 'ai_update') {
+                // AI 분석 후속 도착 → result에 병합
+                setResult(prev => prev ? {
+                  ...prev,
+                  aiAnalysis: event.aiAnalysis,
+                  isDemo: event.isDemo ?? prev.isDemo,
+                  demoReason: event.demoReason ?? prev.demoReason,
+                  ...(event.totalScore != null ? { totalScore: event.totalScore } : {}),
+                  ...(event.grade != null ? { grade: event.grade } : {}),
+                } : prev)
+                setAiLoading(false)
+                setAiProgressLabel('')
               } else if (event.type === 'error') {
                 setError(event.error || 'SEO 분석에 실패했습니다.')
               }
@@ -354,6 +380,8 @@ export default function SeoCheckPage() {
     } finally {
       setLoading(false)
       setProgressStep(null)
+      setAiLoading(false)
+      setAiProgressLabel('')
     }
   }
 
@@ -810,56 +838,6 @@ export default function SeoCheckPage() {
                 </Button>
               </CreditTooltip>
 
-              {/* 프로그레스 UI */}
-              {loading && progressStep && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="pt-4 pb-4 space-y-3">
-                    {/* 현재 작업 라벨 + 퍼센트 */}
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-primary">{progressStep.label}</span>
-                      <span className="text-muted-foreground">{progressStep.percent ?? Math.round((progressStep.step / progressStep.total) * 100)}%</span>
-                    </div>
-                    {/* 프로그레스 바 (percent 기반 부드러운 전환) */}
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-2 rounded-full bg-primary transition-all duration-1000 ease-out"
-                        style={{ width: `${progressStep.percent ?? Math.round((progressStep.step / progressStep.total) * 100)}%` }}
-                      />
-                    </div>
-                    {/* 단계 인디케이터 */}
-                    <div className="grid grid-cols-4 gap-1">
-                      {PROGRESS_STEPS.map((label, idx) => {
-                        const stepNum = idx + 1
-                        const isComplete = progressStep.step > stepNum
-                        const isCurrent = progressStep.step === stepNum
-                        return (
-                          <div
-                            key={idx}
-                            className={cn(
-                              'flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-all duration-300',
-                              isComplete && 'text-green-600',
-                              isCurrent && 'bg-primary/10 text-primary font-medium',
-                              !isComplete && !isCurrent && 'text-muted-foreground'
-                            )}
-                          >
-                            {isComplete ? (
-                              <Check className="h-3.5 w-3.5 shrink-0 text-green-500" />
-                            ) : isCurrent ? (
-                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                            ) : (
-                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border text-[10px]">
-                                {stepNum}
-                              </span>
-                            )}
-                            <span className="hidden sm:inline truncate">{label.replace(' 중...', '')}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {showLivePanel && (
                 <p className="text-center text-xs text-muted-foreground">
                   실시간 기본 분석은 우측에서 확인하세요. AI 심층 분석은 더 정밀한 결과를 제공합니다.
@@ -885,6 +863,17 @@ export default function SeoCheckPage() {
           </div>
         )}
       </div>
+
+      {/* SEO 스캐닝 이펙트 — 분석 중 본문 스캔 + 콘텐츠 하이라이팅 */}
+      {loading && content.trim() && (
+        <SeoScanPreview
+          content={content}
+          title={title}
+          keyword={keyword}
+          scanPercent={progressStep?.percent ?? 5}
+          progressLabel={progressStep?.label}
+        />
+      )}
 
       {/* AI 심층 분석 결과 */}
       {result && gradeInfo && GradeIcon && (
@@ -994,6 +983,17 @@ export default function SeoCheckPage() {
           )}
 
           {/* AI 4축 심층 분석 */}
+          {aiLoading && !ai && (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+                  <p className="text-sm font-medium text-muted-foreground">{aiProgressLabel || 'AI 심층 분석 중...'}</p>
+                  <p className="text-xs text-muted-foreground">기본 SEO 분석은 이미 완료되었습니다. AI 심층 분석이 추가로 진행 중입니다.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {ai && (
             <Card>
               <CardHeader>

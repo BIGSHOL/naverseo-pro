@@ -12,6 +12,8 @@ import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatN
 import Link from 'next/link'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import type { ProgressState } from '@/lib/progress'
+import { CardProgress } from '@/lib/progress'
 
 const OpportunityMatrixChart = dynamic(() => import('@/components/charts/OpportunityMatrixChart'), {
   ssr: false,
@@ -58,7 +60,7 @@ export default function OpportunitiesPage() {
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<OpportunityResult | null>(null)
-  const [progress, setProgress] = useState<{ step: number; totalSteps: number; message: string } | null>(null)
+  const [progress, setProgress] = useState<ProgressState>(null)
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
@@ -290,32 +292,15 @@ export default function OpportunitiesPage() {
 
       {/* 프로그레스 */}
       {loading && (
-        <Card>
-          <CardContent className="py-8">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <div className="w-full max-w-md space-y-3">
-                <p className="text-center text-sm font-medium">
-                  {progress?.message || 'AI 키워드 발굴 중...'}
-                </p>
-                {progress && (
-                  <>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                        style={{ width: `${Math.round((progress.step / progress.totalSteps) * 100)}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>단계 {progress.step}/{progress.totalSteps}</span>
-                      <span>AI + 네이버 데이터 조합</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CardProgress
+          progress={progress || { step: 0, totalSteps: 3, message: 'AI 키워드 발굴 중...' }}
+          options={{
+            showBar: true,
+            showPercent: true,
+            showDetail: true,
+            size: 'md'
+          }}
+        />
       )}
 
       {/* 결과 */}

@@ -13,7 +13,8 @@ export function generateDemoPosts(blogId: string): BlogPost[] {
   return Array.from({ length: 15 }, (_, i) => {
     const daysAgo = Math.floor(Math.random() * 60) + i * 3
     const date = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000)
-    const topic = Math.random() > 0.3 ? mainTopic : topics[Math.floor(Math.random() * topics.length)]
+    // v11.1: 주제 일관성 50~60% (현실적 분포)
+    const topic = Math.random() > 0.45 ? mainTopic : topics[Math.floor(Math.random() * topics.length)]
     const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
     const imgCount = Math.floor(Math.random() * 4) + 1
     const imgTags = Array.from({ length: imgCount }, () => '<img src="demo.jpg" />').join(' ')
@@ -82,12 +83,29 @@ export function generateDemoEngagementData(): EngagementData {
   }
 }
 
-/** 데모용 스크래핑 데이터 생성 (댓글/공감 포함, v4 신규) */
+/** 데모용 스크래핑 데이터 생성 (댓글/공감 포함, v11.1 현실적 분포) */
 export function generateDemoScrapedData(posts: BlogPost[]): Map<string, ScrapedPostData> {
   const map = new Map<string, ScrapedPostData>()
-  posts.forEach(p => {
+  posts.forEach((p) => {
+    // 현실적 분포: 60% 최적(1500~2500), 20% 짧음(500~1500), 15% 김(2500~4000), 5% 과다(4000~7000)
+    let charCount: number
+    const rand = Math.random()
+    if (rand < 0.6) {
+      // 최적 범위
+      charCount = Math.floor(Math.random() * 1000) + 1500 // 1500~2500
+    } else if (rand < 0.8) {
+      // 짧음
+      charCount = Math.floor(Math.random() * 1000) + 500 // 500~1500
+    } else if (rand < 0.95) {
+      // 김
+      charCount = Math.floor(Math.random() * 1500) + 2500 // 2500~4000
+    } else {
+      // 과다 (일부 블로거가 하는 장문 포스팅)
+      charCount = Math.floor(Math.random() * 3000) + 4000 // 4000~7000
+    }
+
     map.set(p.link, {
-      charCount: Math.floor(Math.random() * 2000) + 500,
+      charCount,
       imageCount: Math.floor(Math.random() * 5) + 1,
       videoCount: Math.random() > 0.7 ? 1 : 0,
       linkCount: Math.floor(Math.random() * 4),

@@ -22,6 +22,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { TiptapEditor, getEditorHtml } from '@/components/content/TiptapEditor'
 import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import type { ProgressState } from '@/lib/progress'
+import { CardProgress } from '@/lib/progress'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
@@ -75,14 +77,6 @@ interface EnrichmentData {
   serpRefCount?: number
   learningPatternCount?: number
   learningMatchType?: string
-}
-
-interface ContentProgress {
-  step: number
-  totalSteps: number
-  message: string
-  current?: number
-  total?: number
 }
 
 interface ContentResult {
@@ -211,7 +205,7 @@ export default function ContentPage() {
   const [tone, setTone] = useState('친근하고 정보적인')
   const [additionalKeywords, setAdditionalKeywords] = useState('')
   const [loading, setLoading] = useState(false)
-  const [progress, setProgress] = useState<ContentProgress | null>(null)
+  const [progress, setProgress] = useState<ProgressState>(null)
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [result, setResult] = useState<ContentResult | null>(null)
@@ -2584,37 +2578,15 @@ export default function ContentPage() {
 
             {/* 프로그레스 카드 */}
             {loading && progress && (
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="font-medium text-foreground">{progress.message}</span>
-                  <span className="text-muted-foreground">
-                    {progress.step}/{progress.totalSteps}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                    style={{
-                      width: progress.current && progress.total
-                        ? `${(((progress.step - 1) + progress.current / progress.total) / progress.totalSteps) * 100}%`
-                        : `${(progress.step / progress.totalSteps) * 100}%`,
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
-                  <span>
-                    {progress.step === 1 && '네이버 데이터 수집'}
-                    {progress.step === 2 && '검색 데이터 분석'}
-                    {progress.step === 3 && 'AI 콘텐츠 생성'}
-                    {progress.step === 4 && 'SEO 자동 최적화'}
-                    {progress.step === 5 && '품질 검증'}
-                    {progress.step === 6 && '저장'}
-                  </span>
-                  {progress.current !== undefined && progress.total !== undefined && (
-                    <span>{progress.current}/{progress.total}</span>
-                  )}
-                </div>
-              </div>
+              <CardProgress
+                progress={progress}
+                options={{
+                  showBar: true,
+                  showPercent: true,
+                  showDetail: true,
+                  size: 'md'
+                }}
+              />
             )}
           </form>
         </CardContent>
@@ -2624,7 +2596,7 @@ export default function ContentPage() {
       <div ref={resultRef} />
       {loading && streamingText && (() => {
         const parsed = extractFromStreamJson(streamingText)
-        const isOptimizing = (progress?.step ?? 0) >= 4
+        const isOptimizing = (progress && 'step' in progress ? progress.step : 0) >= 4
         const healPatches = selfHealPatchesRef.current?.patches || []
         return (
           <div className="grid gap-4 lg:grid-cols-[1fr,280px]">

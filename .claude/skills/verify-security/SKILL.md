@@ -93,6 +93,10 @@ Grep pattern="X-Frame-Options|X-Content-Type-Options|Referrer-Policy|Permissions
 
 # API 보호 헤더 확인
 Grep pattern="Cache-Control|X-Robots-Tag" path="next.config.mjs" output_mode="content"
+
+# CSP 지시어 분리 확인 (script-src vs script-src-elem)
+Grep pattern="script-src-elem" path="next.config.mjs" output_mode="content"
+Grep pattern="script-src.*'self'" path="next.config.mjs" output_mode="content"
 ```
 
 필수 헤더 체크리스트:
@@ -102,6 +106,7 @@ Grep pattern="Cache-Control|X-Robots-Tag" path="next.config.mjs" output_mode="co
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()` — 권한 차단
 - API: `Cache-Control: no-store` — 캐시 금지
 - API/대시보드: `X-Robots-Tag: noindex, nofollow` — 인덱싱 차단
+- CSP: `script-src`와 `script-src-elem` 분리 (외부 스크립트 태그 허용 시)
 
 **PASS:** 모든 필수 보안 헤더가 올바른 값으로 설정됨
 **FAIL:** 필수 헤더 누락 또는 잘못된 값 (예: X-Frame-Options이 DENY 대신 SAMEORIGIN)
@@ -201,3 +206,4 @@ Grep pattern="matcher" path="src/middleware.ts" output_mode="content" -A 5
 2. **Rate Limiting의 인메모리 저장** — 프로덕션 환경에서 서버리스 함수 간 상태 미공유는 알려진 제한사항이며, 현재 아키텍처에서는 정상
 3. **ALLOWED_SEARCH_BOTS과 BOT_PATTERNS의 중복** — Googlebot은 BOT_PATTERNS의 `/bot/i`에 매칭되지만, ALLOWED_SEARCH_BOTS에서 명시적으로 허용하므로 정상 동작
 4. **robots.txt의 AI 크롤러가 middleware의 BOT_PATTERNS보다 적음** — robots.txt는 주요 AI 크롤러만 명시적으로 차단하고, middleware는 포괄적 패턴(`/bot/i` 등)으로 추가 차단하므로 정상
+5. **script-src와 script-src-elem 분리** — `script-src-elem`은 `<script>` 태그에만 적용되는 CSP Level 3 지시어로, `script-src`와 다른 도메인 목록을 가질 수 있음. 결제 오버레이 등 외부 스크립트 태그 허용 시 `script-src-elem`에만 해당 도메인을 추가하는 것이 정상 (예: LemonSqueezy의 경우 `script-src-elem`에 `https://app.lemonsqueezy.com https://assets.lemonsqueezy.com` 허용)

@@ -18,6 +18,9 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  // 2026-03-03
+  { date: '2026-03-03', type: 'feat', message: 'SEO 점수 체크 실시간 분석 — 기본 분석 즉시 표시 + AI 심층 분석 실시간 후속 업데이트 (타임아웃 해결)' },
+  { date: '2026-03-03', type: 'feat', message: '블로그 지수 차트 개선 — 하루 여러 측정 시 최고 점수만 표시하여 가독성 향상' },
   // 2026-03-02
   { date: '2026-03-02', type: 'feat', message: 'AI 이미지 자동 압축 — WebP 변환으로 이미지 용량 ~90% 절감, 블로그 로딩 속도 향상' },
   { date: '2026-03-02', type: 'fix', message: 'AI 약점 개선 안정화 — 1회 개선 후 자동 비활성화로 중복 수정 방지' },

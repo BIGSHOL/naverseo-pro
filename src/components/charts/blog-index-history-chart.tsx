@@ -199,9 +199,22 @@ function CategoryTooltip({ active, payload }: any) {
 
 export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIndexHistoryChartProps) {
   // 오래된 순으로 정렬
-  const sorted = history.slice().sort(
+  const allSorted = history.slice().sort(
     (a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime()
   )
+
+  // 같은 날에 여러 측정이 있으면 가장 높은 점수만 남김
+  const sorted = (() => {
+    const byDay = new Map<string, HistoryEntry>()
+    for (const entry of allSorted) {
+      const dayKey = new Date(entry.checked_at).toLocaleDateString('ko-KR')
+      const existing = byDay.get(dayKey)
+      if (!existing || entry.total_score > existing.total_score) {
+        byDay.set(dayKey, entry)
+      }
+    }
+    return Array.from(byDay.values())
+  })()
 
   if (mode === 'algorithm') {
     // D.I.A. + C-Rank 추이 차트

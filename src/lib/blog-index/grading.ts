@@ -11,22 +11,22 @@ export function determineLevelInfo(totalScore: number): BlogLevelInfo {
   if (totalScore >= 93) return {
     tier: 16, category: '파워', label: 'Lv.16 파워', shortLabel: '파워',
     description: '최상위 검색 노출력을 가진 파워 블로그입니다. 현재 전략을 유지하세요.',
-    color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300', nextTierScore: null,
+    color: 'amber', badgeColor: 'bg-amber-100 text-amber-700 border-amber-300 border-2 motion-safe:animate-grade-glow font-bold', nextTierScore: null,
   }
   if (totalScore >= 86) return {
     tier: 15, category: '최적화+', label: 'Lv.15 최적화4+', shortLabel: '최적화4+',
     description: '파워 블로그 직전 단계입니다. 꾸준함이 마지막 열쇠입니다.',
-    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', nextTierScore: 93,
+    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 border-2 motion-safe:animate-grade-pulse-strong font-bold', nextTierScore: 93,
   }
   if (totalScore >= 79) return {
     tier: 14, category: '최적화+', label: 'Lv.14 최적화3+', shortLabel: '최적화3+',
     description: '매우 높은 검색 노출력을 갖추고 있습니다. 파워까지 한 걸음 남았습니다.',
-    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300', nextTierScore: 86,
+    color: 'emerald', badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-300 motion-safe:animate-grade-pulse-subtle font-semibold', nextTierScore: 86,
   }
   if (totalScore >= 72) return {
     tier: 13, category: '최적화+', label: 'Lv.13 최적화2+', shortLabel: '최적화2+',
     description: '경쟁 키워드에서도 안정적으로 상위 노출됩니다. 전문성을 더 강화하세요.',
-    color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300', nextTierScore: 79,
+    color: 'teal', badgeColor: 'bg-teal-100 text-teal-700 border-teal-300 shadow-sm font-semibold', nextTierScore: 79,
   }
   if (totalScore >= 66) return {
     tier: 12, category: '최적화+', label: 'Lv.12 최적화1+', shortLabel: '최적화1+',
