@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // AI 심층 분석 (최대 50초 — 안전 마진 10초)
+    // AI 심층 분석 (최대 35초 — 콜드스타트+인증 오버헤드 ~10~15초 고려, 60초 maxDuration 안전 보장)
     let aiAnalysis: AiSeoAnalysis | null = null
-    const AI_TIMEOUT_MS = 50000
+    const AI_TIMEOUT_MS = 35000
 
     try {
       aiAnalysis = await Promise.race([
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     } catch (aiError) {
       const msg = aiError instanceof Error ? aiError.message : String(aiError)
       if (msg === 'AI_TIMEOUT') {
-        console.warn('[SEO Deep] AI 분석 타임아웃 (50초)')
+        console.warn('[SEO Deep] AI 분석 타임아웃 (35초)')
       } else {
         console.error('[SEO Deep] AI 심층 분석 실패:', aiError)
       }

@@ -139,11 +139,15 @@ function getAxisBg(score: number) {
   return 'bg-red-500'
 }
 
-const PROGRESS_STEPS = [
+/** 스캔 애니메이션 설정 */
+const SCAN_MIN_MS = 4000       // 최소 4초 스캔 애니메이션
+const SCAN_INTERVAL_MS = 150   // 150ms 간격 업데이트
+const SCAN_TOTAL_STEPS = Math.ceil(SCAN_MIN_MS / SCAN_INTERVAL_MS)
+const SCAN_LABELS = [
   'SEO 엔진 분석 중...',
+  '키워드·구조 분석 중...',
   '가독성 분석 중...',
-  'AI 심층 분석 중...',
-  '점수 보정 중...',
+  '결과 정리 중...',
 ]
 
 export default function SeoCheckPage() {
@@ -288,31 +292,37 @@ export default function SeoCheckPage() {
       }),
     }
 
-    // 스캔 진행 애니메이션 (fetch 대기 중 자동 진행)
-    const scanSteps = [
-      { step: 1, total: 3, label: 'SEO 엔진 분석 중...', percent: 15 },
-      { step: 2, total: 3, label: '키워드·구조 분석 중...', percent: 40 },
-      { step: 2, total: 3, label: '가독성 분석 중...', percent: 60 },
-      { step: 3, total: 3, label: '결과 정리 중...', percent: 80 },
-    ]
-    let scanIdx = 0
-    setProgressStep(scanSteps[0])
-    const scanTimer = setInterval(() => {
-      scanIdx++
-      if (scanIdx < scanSteps.length) {
-        setProgressStep(scanSteps[scanIdx])
-      }
-    }, 800)
+    // === 스캔 애니메이션 + API 호출 동시 실행 ===
+    // 스캔이 최소 4초 동안 완전히 재생된 후에 결과를 보여줌
+    setProgressStep({ step: 1, total: 3, label: SCAN_LABELS[0], percent: 5 })
+
+    // 스캔 애니메이션 Promise (5% → 95%, 약 4초)
+    let scanTimerRef: ReturnType<typeof setInterval> | null = null
+    const scanDone = new Promise<void>(resolve => {
+      let s = 0
+      scanTimerRef = setInterval(() => {
+        s++
+        const pct = Math.min(95, 5 + (s / SCAN_TOTAL_STEPS) * 90)
+        const li = Math.min(Math.floor(pct / 25), SCAN_LABELS.length - 1)
+        setProgressStep({ step: li + 1, total: 3, label: SCAN_LABELS[li], percent: Math.round(pct) })
+        if (s >= SCAN_TOTAL_STEPS) {
+          clearInterval(scanTimerRef!)
+          scanTimerRef = null
+          resolve()
+        }
+      }, SCAN_INTERVAL_MS)
+    })
 
     try {
-      // === 1단계: 기본 SEO 분석 (빠름, ~3초) ===
-      const res = await fetch('/api/ai/seo-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      })
-
-      clearInterval(scanTimer)
+      // 스캔 애니메이션 + API 호출 병렬 실행 (둘 다 완료될 때까지 대기)
+      const [, res] = await Promise.all([
+        scanDone,
+        fetch('/api/ai/seo-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        }),
+      ])
 
       let data
       try {
@@ -331,13 +341,16 @@ export default function SeoCheckPage() {
         return
       }
 
-      // 기본 결과 즉시 표시
+      // 스캔 완료 → 100% 잠시 표시 후 결과 전환
       setProgressStep({ step: 3, total: 3, label: '분석 완료!', percent: 100 })
+      await new Promise(r => setTimeout(r, 600))
+
+      // 기본 결과 표시
       setResult(data)
       setLoading(false)
       setProgressStep(null)
 
-      // === 2단계: AI 심층 분석 (별도 요청, 최대 50초) ===
+      // === 2단계: AI 심층 분석 (별도 요청, 최대 35초) ===
       setAiLoading(true)
       setAiProgressLabel('AI 심층 분석 시작...')
 
@@ -378,7 +391,7 @@ export default function SeoCheckPage() {
         setAiProgressLabel('')
       }
     } catch (err) {
-      clearInterval(scanTimer)
+      if (scanTimerRef) clearInterval(scanTimerRef)
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('abort') || msg.includes('timeout')) {
         setError('요청 시간이 초과되었습니다. 본문을 줄이거나 다시 시도해주세요.')
@@ -386,6 +399,7 @@ export default function SeoCheckPage() {
         setError('네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.')
       }
     } finally {
+      if (scanTimerRef) clearInterval(scanTimerRef)
       setLoading(false)
       setProgressStep(null)
     }
