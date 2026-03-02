@@ -76,10 +76,10 @@ export interface BlogLevelInfo {
 }
 
 export interface PostQuality {
-  score: number          // 0~15 (v4: 인기도 3점 추가)
-  tier: number           // 1~5 (v6: 포스트 품질 등급)
-  label: string          // "준최적화", "최적화", "일반" 등
-  category: string       // 일반/준최적화/최적화/파워
+  score: number          // 0~100 (v5: D.I.A. 기준 6항목 — 깊이25+미디어20+구조20+경험15+제목10+참여10)
+  tier: number           // 1~16 (v5: 블로그 지수와 동일 16등급 체계)
+  label: string          // "준최적화1" ~ "파워" 등
+  category: string       // 일반/준최적화/최적화/최적화+/파워
 }
 
 export interface PostDetail {
@@ -165,9 +165,9 @@ export interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty: AbusePenalty       // v2 추가
   aiAnalysis?: AiAnalysis          // v2.5 추가 (AI 심층 분석)
-  searchBonus: {                   // v10: 검색 성과 (5대축 전용)
-    score: number      // 0~25
-    maxScore: number   // 25
+  searchBonus?: {                   // v10 레거시 — v11에서 폐지 (하위 호환)
+    score: number
+    maxScore: number
     grade: string
     details: string[]
     items?: ScoreItem[]
@@ -212,6 +212,6 @@ export interface NaverAlgorithmScore {
 export interface NaverScoreFactor {
   name: string          // 요소 이름
   weight: number        // 가중치 (0~1)
-  score: number         // 원점수 (0~25)
+  score: number         // 원점수 (축별 maxScore 기준)
   contribution: number  // 가중 기여점 (score * weight * 4)
 }

@@ -50,13 +50,23 @@ export function extractPatternFromScrapedData(
   const hasNaverShopping = meta?.linkAnalysis?.hasNaverShopping || false
   const hasYoutube = meta?.linkAnalysis?.hasYoutubeEmbed || false
 
-  // 품질 점수
+  // 품질 점수 (v5: ScrapedPostData 풍부한 필드 활용)
   const quality = scorePost(
     cleanTitle,
     searchItem.description,
     scrapedData.charCount,
     scrapedData.imageCount,
-    true // isScrapped
+    true, // isScrapped
+    {
+      commentCount: scrapedData.commentCount,
+      sympathyCount: scrapedData.sympathyCount,
+      readCount: scrapedData.readCount,
+      videoCount: scrapedData.videoCount,
+      tableCount: scrapedData.tableCount,
+      formatting: scrapedData.formatting,
+      linkCount: scrapedData.linkCount,
+      internalLinkCount: scrapedData.meta?.linkAnalysis?.internalCount,
+    },
   )
 
   // 키워드 포함 여부

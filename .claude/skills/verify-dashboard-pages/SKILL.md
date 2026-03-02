@@ -41,8 +41,10 @@ description: 대시보드 및 인증 페이지의 클라이언트 선언, 한국
 | `src/app/(dashboard)/post-check/page.tsx` | 포스트 체크 페이지 (개별 글 SEO 분석) |
 | `src/app/(dashboard)/settings/payment/success/page.tsx` | 결제 성공 페이지 |
 | `src/app/(dashboard)/settings/payment/fail/page.tsx` | 결제 실패 페이지 |
-| `src/components/layout/sidebar.tsx` | 사이드바 네비게이션 컴포넌트 |
-| `src/components/layout/mobile-sidebar.tsx` | 모바일 사이드바 네비게이션 컴포넌트 |
+| `src/components/layout/sidebar.tsx` | 사이드바 네비게이션 컴포넌트 (UserProfileContext 소비) |
+| `src/components/layout/mobile-sidebar.tsx` | 모바일 사이드바 네비게이션 컴포넌트 (UserProfileContext 소비) |
+| `src/components/layout/header.tsx` | 헤더 컴포넌트 (알림, 프로필 드롭다운, UserProfileContext 소비) |
+| `src/contexts/user-profile.tsx` | UserProfileContext Provider (plan/role/credits 공유, 1회 fetch) |
 | `src/lib/navigation.ts` | 네비게이션 설정 (navGroups, navItems, NavGroup, NavItem, canAccessFeature) |
 | `src/components/seo/LiveSeoPanel.tsx` | 실시간 SEO 분석 공유 컴포넌트 |
 | `src/components/content/TagEditor.tsx` | 태그 편집 컴포넌트 |
@@ -61,6 +63,7 @@ description: 대시보드 및 인증 페이지의 클라이언트 선언, 한국
 | `src/components/content/TiptapEditor.tsx` | TipTap 리치텍스트 에디터 래퍼 (마크다운 입출력) |
 | `src/components/content/TiptapToolbar.tsx` | TipTap 서식 툴바 (13종 네이버 블로그 호환 서식) |
 | `src/lib/utils/markdown-convert.ts` | 마크다운↔HTML 변환 유틸 (TipTap 경계 변환용) |
+| `src/components/charts/blog-index-history-chart.tsx` | 블로그 지수 히스토리 차트 컴포넌트 |
 
 ## Workflow
 
@@ -293,6 +296,34 @@ Grep pattern="toggleBold|toggleItalic|toggleUnderline|setColor|toggleHighlight|s
 **FAIL:** textarea로 편집 또는 HTML 클립보드 미구현
 **수정:** TiptapEditor 컴포넌트 도입, ClipboardItem으로 text/html 복사, markdownToHtml/htmlToMarkdown 변환 연결
 
+### Step 12: UserProfileContext 공유 상태 검증
+
+**파일:** `src/contexts/user-profile.tsx`, `src/components/layout/sidebar.tsx`, `src/components/layout/mobile-sidebar.tsx`, `src/components/layout/header.tsx`
+
+**검사:** 사이드바/모바일사이드바/헤더가 각각 독립적으로 `/api/dashboard`를 호출하지 않고, `UserProfileContext`를 통해 공유된 상태를 소비하는지 확인합니다. 사이드바는 로딩 중 스켈레톤을 표시해야 합니다.
+
+```bash
+# UserProfileProvider가 대시보드 레이아웃에 적용되어 있는지 확인
+Grep pattern="UserProfileProvider" path="src/app/(dashboard)/layout.tsx" output_mode="content"
+
+# sidebar, mobile-sidebar, header가 useUserProfile()을 사용하는지 확인
+Grep pattern="useUserProfile" path="src/components/layout/sidebar.tsx" output_mode="content"
+Grep pattern="useUserProfile" path="src/components/layout/mobile-sidebar.tsx" output_mode="content"
+Grep pattern="useUserProfile" path="src/components/layout/header.tsx" output_mode="content"
+
+# sidebar, mobile-sidebar, header에서 독립적인 /api/dashboard fetch가 없는지 확인
+Grep pattern="fetch.*api/dashboard" path="src/components/layout/sidebar.tsx" output_mode="content"
+Grep pattern="fetch.*api/dashboard" path="src/components/layout/mobile-sidebar.tsx" output_mode="content"
+Grep pattern="fetch.*api/dashboard" path="src/components/layout/header.tsx" output_mode="content"
+
+# 사이드바에 로딩 스켈레톤이 있는지 확인
+Grep pattern="animate-pulse|loaded" path="src/components/layout/sidebar.tsx" output_mode="content"
+```
+
+**PASS:** UserProfileProvider가 레이아웃에 적용 + 3개 컴포넌트가 useUserProfile() 소비 + 독립 fetch 없음 + 사이드바 로딩 스켈레톤 존재
+**FAIL:** 레이아웃 컴포넌트가 여전히 독립적으로 `/api/dashboard`를 호출하여 "Free" 플랜 flash 발생
+**수정:** `useUserProfile()` 훅으로 전환하고, 독립 fetch 제거, 로딩 중 스켈레톤 표시
+
 ## Output Format
 
 ```markdown
@@ -311,6 +342,7 @@ Grep pattern="toggleBold|toggleItalic|toggleUnderline|setColor|toggleHighlight|s
 | 9 | 맞춤형 가이드 | PASS/FAIL | blog-index/page.tsx | blog-index 전용: 약한 카테고리 분석 기반 가이드 |
 | 10 | AI 텍스트 마크다운 | PASS/FAIL | 파일명 | AI 생성 텍스트 마크다운 렌더링 |
 | 11 | TipTap 에디터 | PASS/FAIL | content/page.tsx | TipTap WYSIWYG + HTML 복사 + 서식 툴바 |
+| 12 | UserProfileContext 공유 | PASS/FAIL | sidebar/header/mobile-sidebar | Context 소비 + 독립 fetch 제거 + 로딩 스켈레톤 |
 ```
 
 ## Exceptions

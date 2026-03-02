@@ -1,8 +1,8 @@
 /**
- * 네이버 알고리즘 추정 점수 계산기
+ * 네이버 알고리즘 추정 점수 계산기 (v11)
  *
- * 4축 블로그 지수(콘텐츠 품질/방문자 활동/SEO 최적화/신뢰도)를
- * 가중 합산하여 D.I.A.와 C-Rank 추정치를 산출합니다.
+ * 5축 비균등 배분(30:25:25:10:10)을 가중 합산하여
+ * D.I.A.와 C-Rank 추정치를 산출합니다.
  *
  * ⚠ 네이버 공식 알고리즘이 아닌 공개된 정보 기반의 "추정"입니다.
  */
@@ -11,22 +11,31 @@ import type { AnalysisCategory, NaverAlgorithmScore, NaverScoreFactor } from './
 
 // ────────── D.I.A. 가중치 ──────────
 // D.I.A. (Deep Intent Analysis): 콘텐츠가 검색 의도에 부합하는가?
-// 핵심: 콘텐츠 품질 + 사용자 반응(체류시간, 댓글, 공감)
+// 핵심: 주제 전문성 + 콘텐츠 품질 + 사용자 반응(체류시간, 댓글, 공감)
 const DIA_WEIGHTS: Record<string, number> = {
-  '콘텐츠 품질': 0.35,   // 글 품질·이미지·구조 → 의도 부합도 핵심
-  '방문자 활동': 0.30,   // 체류시간·댓글·공감 → 만족도 지표
-  'SEO 최적화': 0.20,    // 키워드 부합·검색 노출 → 의도 매칭
-  '신뢰도': 0.15,        // 꾸준한 활동 → 신선한 콘텐츠
+  '주제 전문성': 0.30,   // C-Rank 연계 — 주제 부합도
+  '콘텐츠 품질': 0.25,   // 글 품질·이미지·구조 → 의도 부합도 핵심
+  '활동 신뢰도': 0.20,   // 꾸준한 활동 → 신선한 콘텐츠
+  '사용자 반응': 0.15,   // 체류시간·댓글·공감 → 만족도 지표
+  '검색 노출력': 0.10,   // 키워드 부합·검색 노출 → 의도 매칭
 }
 
 // ────────── C-Rank 가중치 ──────────
 // C-Rank: 해당 주제에 대한 블로그 권위도
 // 핵심: 주제 집중도 + 꾸준한 포스팅 + 운영 이력
 const CRANK_WEIGHTS: Record<string, number> = {
-  '신뢰도': 0.35,        // 운영 기간·꾸준한 포스팅·규칙성
-  '콘텐츠 품질': 0.30,   // 주제 집중도·콘텐츠 깊이·일관성
-  'SEO 최적화': 0.20,    // 검색 순위 = 검증된 권위
-  '방문자 활동': 0.15,   // 방문자 규모 = 블로그 인지도
+  '주제 전문성': 0.35,   // 주제 집중도·전문 용어·시리즈 연속성
+  '활동 신뢰도': 0.25,   // 운영 기간·꾸준한 포스팅·규칙성
+  '콘텐츠 품질': 0.20,   // 콘텐츠 깊이·경험 정보·구조
+  '검색 노출력': 0.10,   // 검색 순위 = 검증된 권위
+  '사용자 반응': 0.10,   // 방문자 규모 = 블로그 인지도
+}
+
+// 레거시 카테고리 이름 매핑 (v10 → v11)
+const LEGACY_NAME_MAP: Record<string, string> = {
+  '방문자 활동': '사용자 반응',
+  'SEO 최적화': '검색 노출력',
+  '신뢰도': '활동 신뢰도',
 }
 
 function assignGrade(score: number): string {
@@ -64,10 +73,12 @@ function calculateScore(
   let totalWeightedScore = 0
 
   for (const cat of categories) {
-    const weight = weights[cat.name] ?? 0
+    // v11: 레거시 이름 호환
+    const mappedName = LEGACY_NAME_MAP[cat.name] ?? cat.name
+    const weight = weights[cat.name] ?? weights[mappedName] ?? 0
     if (weight <= 0) continue
 
-    // 각 축은 0~25점 → 0~100 스케일로 변환 후 가중치 적용
+    // 각 축은 maxScore 기준 → 0~100 스케일로 변환 후 가중치 적용
     const normalized = (cat.score / cat.maxScore) * 100
     const contribution = normalized * weight
 
@@ -83,8 +94,8 @@ function calculateScore(
 
   const finalScore = totalWeightedScore
 
-  // 고정 순서: 콘텐츠 품질 → 방문자 활동 → SEO 최적화 → 신뢰도
-  const CATEGORY_ORDER = ['콘텐츠 품질', '방문자 활동', 'SEO 최적화', '신뢰도']
+  // v11: 5축 고정 순서
+  const CATEGORY_ORDER = ['주제 전문성', '콘텐츠 품질', '활동 신뢰도', '사용자 반응', '검색 노출력']
   const sortedFactors = factors.sort((a, b) => {
     const ai = CATEGORY_ORDER.indexOf(a.name)
     const bi = CATEGORY_ORDER.indexOf(b.name)

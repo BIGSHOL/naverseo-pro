@@ -262,14 +262,18 @@ interface BlogIndexHistoryData {
 // 레이더 차트용 축약 라벨 (5축 정오각형에서 라벨 겹침 방지)
 function getRadarLabel(name: string): string {
   switch (name) {
+    // v11 현행
+    case '주제 전문성': return '전문성'
     case '콘텐츠 품질': return '콘텐츠'
+    case '활동 신뢰도': return '활동'
+    case '사용자 반응': return '반응'
+    case '검색 노출력': return '검색'
+    // 레거시 호환 (캐시된 이전 결과)
     case '방문자 활동': return '방문자'
     case 'SEO 최적화': return 'SEO'
     case '신뢰도': return '신뢰도'
     case '검색 성과': return '검색'
-    // 레거시 호환
     case '방문자 & 인기도': return '방문자'
-    case '주제 전문성': return '전문성'
     case '활동성': return '활동성'
     case '블로그 신뢰도': return '신뢰도'
     default: return name
@@ -472,14 +476,18 @@ function getGradeColor(grade: string) {
 
 function getCategoryIcon(name: string) {
   switch (name) {
+    // v11 현행
+    case '주제 전문성': return <BookOpen className="h-4 w-4" />
     case '콘텐츠 품질': return <FileText className="h-4 w-4" />
+    case '활동 신뢰도': return <Shield className="h-4 w-4" />
+    case '사용자 반응': return <Eye className="h-4 w-4" />
+    case '검색 노출력': return <Target className="h-4 w-4" />
+    // 레거시 호환 (캐시된 이전 결과 표시용)
     case '방문자 활동': return <Eye className="h-4 w-4" />
     case 'SEO 최적화': return <Target className="h-4 w-4" />
     case '신뢰도': return <Shield className="h-4 w-4" />
     case '검색 성과': return <TrendingUp className="h-4 w-4" />
-    // 레거시 호환 (캐시된 이전 결과 표시용)
     case '방문자 & 인기도': return <Eye className="h-4 w-4" />
-    case '주제 전문성': return <BookOpen className="h-4 w-4" />
     case '활동성': return <Clock className="h-4 w-4" />
     case '블로그 신뢰도': return <Shield className="h-4 w-4" />
     default: return <Activity className="h-4 w-4" />
@@ -600,7 +608,7 @@ export default function BlogIndexPage() {
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [pendingCache, setPendingCache] = useState<{ data: BlogIndexResult; checkedAt: string } | null>(null)
-  const [axisMode, setAxisMode] = useState<'4axis' | '5axis'>('4axis')
+  // v11: axisMode 제거 — 항상 5축 비균등 (30:25:25:10:10)
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -1100,29 +1108,7 @@ export default function BlogIndexPage() {
         {/* ========== 측정 결과 ========== */}
         {result && (
           <>
-            {/* ===== 4대축 / 5대축 탭 토글 (상단 고정, 하단 전체 전환) ===== */}
-            <div className="flex items-center gap-1.5 rounded-lg bg-muted p-1">
-              <button
-                onClick={() => setAxisMode('4axis')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  axisMode === '4axis'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                4대축 <span className="text-xs text-muted-foreground">(블로그 체력)</span>
-              </button>
-              <button
-                onClick={() => setAxisMode('5axis')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  axisMode === '5axis'
-                    ? 'bg-violet-50 text-violet-700 shadow-sm dark:bg-violet-900/30 dark:text-violet-300'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                5대축 <span className="text-xs text-muted-foreground">(검색 포함)</span>
-              </button>
-            </div>
+            {/* v11: 항상 5축 비균등 배분 (주제30 + 콘텐츠25 + 활동25 + 반응10 + 검색10) */}
 
             {/* ===== 1행: 블로그 프로필 + 종합 점수 + 레이더 차트 ===== */}
             <div className="grid gap-4 lg:grid-cols-12">
@@ -1195,27 +1181,10 @@ export default function BlogIndexPage() {
                 </CardContent>
               </Card>
 
-              {/* 종합 점수 + 레이더 + 등급 (통합) */}
+              {/* 종합 점수 + 레이더 + 등급 (통합) — v11: 항상 5축 */}
               {(() => {
-                // 5대축: 각 축 20점 환산 → 총 100점
-                const scale20 = (c: AnalysisCategory): AnalysisCategory => ({
-                  ...c, score: Math.round(c.score * 20 / 25), maxScore: 20,
-                })
-                const searchBonusCat: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
-                  name: '검색 성과',
-                  score: result.searchBonus.score,
-                  maxScore: result.searchBonus.maxScore,
-                  grade: result.searchBonus.grade,
-                  details: result.searchBonus.details,
-                  items: result.searchBonus.items,
-                } : null
-                const is5 = axisMode === '5axis' && searchBonusCat
-                const displayCategories = is5
-                  ? [...result.categories, searchBonusCat!].map(scale20)
-                  : result.categories
-                const displayTotal = is5
-                  ? displayCategories.reduce((s, c) => s + c.score, 0)
-                  : result.totalScore
+                const displayCategories = result.categories
+                const displayTotal = result.totalScore
                 const displayScorePct = displayTotal
 
                 return (
@@ -1224,14 +1193,14 @@ export default function BlogIndexPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     {/* 왼쪽: 레이더 차트 */}
                     <div className="flex items-center justify-center">
-                      <RadarChart categories={displayCategories} totalScore={displayTotal} variant={is5 ? 'accent' : 'default'} />
+                      <RadarChart categories={displayCategories} totalScore={displayTotal} />
                     </div>
                     {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
                     <div className="flex flex-col justify-center">
                       <div className="flex items-center gap-3">
-                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${is5 ? 'border-violet-400' : getScoreRingColor(displayScorePct)} bg-background`}>
+                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(displayScorePct)} bg-background`}>
                           <div className="text-center">
-                            <span className={`text-2xl font-bold ${is5 ? 'text-violet-600 dark:text-violet-400' : ''}`}>{displayTotal}</span>
+                            <span className="text-2xl font-bold">{displayTotal}</span>
                             <p className="text-[9px] text-muted-foreground">/100</p>
                           </div>
                         </div>
@@ -1258,9 +1227,9 @@ export default function BlogIndexPage() {
                           const barColor = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-orange-400'
                           return (
                             <div key={cat.name} className="flex items-center gap-2 text-[10px]">
-                              <span className="w-14 shrink-0 truncate text-muted-foreground">{cat.name.replace('콘텐츠 품질', '콘텐츠').replace('방문자 활동', '방문자').replace('SEO 최적화', 'SEO')}</span>
+                              <span className="w-14 shrink-0 truncate text-muted-foreground">{getRadarLabel(cat.name)}</span>
                               <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-                                <div className={`h-full rounded-full ${is5 ? 'bg-violet-500' : barColor}`} style={{ width: `${pct}%` }} />
+                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                               </div>
                               <span className="w-10 shrink-0 text-right font-bold">{cat.score}/{cat.maxScore}</span>
                             </div>
@@ -1378,7 +1347,6 @@ export default function BlogIndexPage() {
                     history={historyData.history}
                     stats={historyData.stats}
                     mode={chartMode}
-                    axisMode={axisMode}
                   />
                 </CardContent>
               </Card>
@@ -1430,21 +1398,11 @@ export default function BlogIndexPage() {
               </div>
             )}
 
-            {/* ===== 2행: 축 상세 카드 (4대축 또는 5대축) ===== */}
+            {/* ===== 2행: 5축 상세 카드 ===== */}
             {(() => {
-              const scale20 = (c: AnalysisCategory): AnalysisCategory => ({
-                ...c, score: Math.round(c.score * 20 / 25), maxScore: 20,
-              })
-              const searchBonusCat5: AnalysisCategory | null = result.searchBonus && result.searchBonus.score > 0 ? {
-                name: '검색 성과', score: result.searchBonus.score, maxScore: result.searchBonus.maxScore,
-                grade: result.searchBonus.grade, details: result.searchBonus.details, items: result.searchBonus.items,
-              } : null
-              const is5 = axisMode === '5axis' && searchBonusCat5
-              const displayCats = is5
-                ? [...result.categories, searchBonusCat5!].map(scale20)
-                : result.categories
+              const displayCats = result.categories
               return (
-            <div className={`grid gap-3 grid-cols-2 ${is5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
               {displayCats.map((cat) => {
                 const pct = Math.round((cat.score / cat.maxScore) * 100)
                 return (

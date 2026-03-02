@@ -67,6 +67,8 @@ description: API Route의 에러 처리, 입력 검증, 데모 데이터 폴백,
 | `src/lib/admin-check.ts` | 관리자 인증 검증 유틸리티 (verifyAdmin) |
 | `src/app/api/profile/blog/route.ts` | 블로그 등록/조회/삭제 엔드포인트 |
 | `src/app/api/profile/blog/verify/route.ts` | 블로그 소유권 인증 엔드포인트 |
+| `src/app/api/ai/images/generate/route.ts` | AI 이미지 생성 엔드포인트 (NDJSON 스트리밍, sharp 압축) |
+| `src/app/api/admin/users/[id]/images/route.ts` | 관리자 사용자 이미지 관리 엔드포인트 (GET/DELETE) |
 | `src/app/api/blog-learning/stats/route.ts` | 블로그 학습 통계 엔드포인트 |
 | `src/app/api/blog-index/history/route.ts` | 블로그 지수 히스토리 조회 엔드포인트 |
 | `src/app/api/naver/search-rank/route.ts` | 네이버 검색 순위 분석 엔드포인트 (cheerio 스크래핑) |

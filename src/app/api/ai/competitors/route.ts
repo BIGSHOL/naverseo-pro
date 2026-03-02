@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchNaverBlog } from '@/lib/naver/blog-search'
-import { callGemini, callGeminiStream, callClaudeStream, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, getUserAiProvider, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
+import { callAI, callGeminiStream, callClaudeStream, hasAiApiKey, parseGeminiJson, analyzeImagesWithGemini, getUserAiProvider, COMPETITOR_ANALYSIS_PROMPT } from '@/lib/ai/gemini'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { stripHtml } from '@/lib/utils/text'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
@@ -509,7 +509,7 @@ ${contentQualitySection}
     ? (provider === 'claude'
       ? await callClaudeStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk)
       : await callGeminiStream(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true }, onChunk))
-    : await callGemini(COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
+    : await callAI(provider, COMPETITOR_ANALYSIS_PROMPT, userMessage, 4096, { jsonMode: true })
   return parseGeminiJson<AiInsights>(response)
 }
 

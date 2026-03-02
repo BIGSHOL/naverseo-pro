@@ -743,7 +743,16 @@ export function analyzeSeo(
 
   // 광고성 키워드 감점 적용
   const adCheck = detectAdKeywords(content, scrapedMeta?.tags)
-  const totalScore = Math.max(0, baseScore + adCheck.penalty)
+  let penaltyScore = adCheck.penalty
+
+  // 문장 반복 스팸 감점 (-5점 max)
+  const repCheck = detectSentenceRepetition(content)
+  penaltyScore += repCheck.penalty
+  if (repCheck.warning) {
+    improvements.unshift(repCheck.warning)
+  }
+
+  const totalScore = Math.max(0, baseScore + penaltyScore)
   if (adCheck.warning) {
     improvements.unshift(adCheck.warning)
   }
@@ -844,6 +853,46 @@ function detectAdKeywords(content: string, tags?: string[]): { penalty: number; 
     : undefined
 
   return { penalty, warning, details }
+}
+
+// ===== 문장 반복 스팸 감지 =====
+
+/**
+ * 포스트 내 문장 반복 감지
+ * - 동일 문장이 반복되면 글자수 부풀리기/AI 저품질 콘텐츠 의심
+ * - 감점: 20%+ 반복 → -3점, 40%+ 반복 → -5점
+ */
+function detectSentenceRepetition(content: string): { penalty: number; warning?: string } {
+  // 마크다운 헤더/이미지/링크 제거 후 문장 분리
+  const plain = content
+    .replace(/^#{1,3}\s+.+$/gm, '')
+    .replace(/\[이미지[:\]][^\]]*\]?/g, '')
+    .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const sentences = plain.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length >= 10)
+  if (sentences.length < 6) return { penalty: 0 }
+
+  const freq: Record<string, number> = {}
+  sentences.forEach(s => { freq[s] = (freq[s] || 0) + 1 })
+  const duplicateCount = Object.values(freq).reduce((sum, c) => sum + (c > 1 ? c - 1 : 0), 0)
+  const repeatRate = duplicateCount / sentences.length
+
+  if (repeatRate >= 0.4) {
+    return {
+      penalty: -5,
+      warning: `문장 반복 심각: 동일 문장 ${Math.round(repeatRate * 100)}% 반복 — 네이버가 저품질 콘텐츠로 판정할 수 있습니다`,
+    }
+  }
+  if (repeatRate >= 0.2) {
+    return {
+      penalty: -3,
+      warning: `문장 반복 주의: 동일 문장 ${Math.round(repeatRate * 100)}% 반복 — 다양한 표현으로 변경하세요`,
+    }
+  }
+  return { penalty: 0 }
 }
 
 // ===== 가독성 분석 =====

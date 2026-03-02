@@ -431,10 +431,14 @@ export async function POST(request: NextRequest) {
         // 히스토리 저장
         let historySaved = false
         try {
+          const topicCat = result.categories.find((c: { name: string }) => c.name === '주제 전문성')
           const contentCat = result.categories.find((c: { name: string }) => c.name === '콘텐츠 품질')
-          const popCat = result.categories.find((c: { name: string }) => c.name === '방문자 활동')
-          const seoCat = result.categories.find((c: { name: string }) => c.name === 'SEO 최적화')
-          const trustCat = result.categories.find((c: { name: string }) => c.name === '신뢰도')
+          const trustCat = result.categories.find((c: { name: string }) =>
+            c.name === '활동 신뢰도' || c.name === '신뢰도')
+          const popCat = result.categories.find((c: { name: string }) =>
+            c.name === '사용자 반응' || c.name === '방문자 활동')
+          const seoCat = result.categories.find((c: { name: string }) =>
+            c.name === '검색 노출력' || c.name === 'SEO 최적화')
 
           const historyRow = {
             user_id: user.id,
@@ -454,6 +458,7 @@ export async function POST(request: NextRequest) {
               avgSympathyCount: result.postAnalysis.avgSympathyCount ?? null,
               totalPostCount: result.blogProfile?.totalPostCount ?? result.postAnalysis.totalFound,
               postsPerWeek: result.blogProfile?.postsPerWeek ?? null,
+              topicAuthorityScore: topicCat?.score ?? null,
               trustScore: trustCat?.score ?? null,
               seoScore: seoCat?.score ?? null,
               diaScore: result.diaScore?.score ?? null,

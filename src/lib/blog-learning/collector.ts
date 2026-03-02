@@ -120,6 +120,8 @@ async function savePatterns(patterns: AnalyzedPostPattern[]): Promise<void> {
       has_bold_emphasis: p.has_bold_emphasis,
       has_numbered_items: p.has_numbered_items,
       writing_tone: p.writing_tone,
+      image_positions: p.image_positions || [],
+      image_types: p.image_types || [],
       quality_score: p.quality_score,
       quality_tier: p.quality_tier,
       collected_from: p.collected_from,

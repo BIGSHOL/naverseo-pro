@@ -1,11 +1,39 @@
 /**
- * 블로그 지수 - 개별 포스트 품질 지수 (v4 개선)
+ * 블로그 지수 - 개별 포스트 품질 지수 (v5.1)
  *
- * v2:   0~12점 (제목 3 + 콘텐츠 3 + 이미지 3 + 구조 2 + 키워드 1)
- * v4:   0~15점 (제목 3 + 콘텐츠 3 + 이미지 3 + 구조 2 + 키워드 1 + 인기도 3)
+ * D.I.A. 알고리즘 기준 100점 만점, 6항목 평가 (객관적 지표 중심):
+ *   콘텐츠 깊이(10) + 미디어 활용(20) + 구조/서식(25) + 경험 정보(25) + 제목 최적화(5) + 참여도(15)
+ *
+ * v5→v5.1 변경:
+ * - 글자수(25→10) / 제목(10→5): 조작 용이한 지표 최소화
+ * - 경험 정보(15→25): D.I.A. E-E-A-T 핵심 신호 강화
+ * - 구조/서식(20→25): 문서 완성도 = 객관적 측정 가능
+ * - 참여도(10→15): 댓글/공감/조회 = 가장 객관적인 결과 지표
+ * - 16등급 유지 (블로그 지수와 동일 등급 체계)
+ * - 미측정=0점 원칙 (무상 점수 폐지)
  */
 
 import type { PostQuality } from './types'
+
+/** scorePost 추가 옵션 (ScrapedPostData에서 전달) */
+export interface ScorePostOpts {
+  commentCount?: number | null
+  sympathyCount?: number | null
+  readCount?: number | null
+  videoCount?: number
+  tableCount?: number
+  formatting?: {
+    hasBold: boolean
+    hasHeading: boolean
+    hasFontSize: boolean
+    hasColor: boolean
+    hasHighlight: boolean
+    hasUnderline: boolean
+    count: number
+  }
+  linkCount?: number
+  internalLinkCount?: number
+}
 
 export function scorePost(
   title: string,
@@ -13,76 +41,224 @@ export function scorePost(
   descLength: number,
   imageCount: number,
   isScrapped = false,
-  commentCount?: number | null,
-  sympathyCount?: number | null
+  opts?: ScorePostOpts,
 ): PostQuality {
-  let score = 0
+  let total = 0
 
-  // 제목 길이 (0~3점) - 15~40자가 최적
+  // ── 1. 콘텐츠 깊이 (10점) — 최소 기준 충족 확인용, 글자수 자체는 낮은 가중치 ──
+  let depthPts = 0
+  if (isScrapped) {
+    if (descLength >= 2000) depthPts = 10
+    else if (descLength >= 1500) depthPts = 8
+    else if (descLength >= 1000) depthPts = 5
+    else if (descLength >= 500) depthPts = 2
+  } else {
+    // 검색 스니펫 — 최대 4점
+    if (descLength >= 300) depthPts = 4
+    else if (descLength >= 200) depthPts = 2
+    else if (descLength >= 100) depthPts = 1
+  }
+  total += depthPts
+
+  // ── 2. 미디어 활용 (20점) ──
+  let mediaPts = 0
+
+  // 이미지 (0~14) — 7장에서 cap, 과다는 감점 섹션에서 처리
+  if (isScrapped) {
+    if (imageCount >= 7) mediaPts += 14
+    else if (imageCount >= 5) mediaPts += 11
+    else if (imageCount >= 3) mediaPts += 7
+    else if (imageCount >= 1) mediaPts += 3
+  } else {
+    if (imageCount >= 5) mediaPts += 10
+    else if (imageCount >= 3) mediaPts += 7
+    else if (imageCount >= 1) mediaPts += 3
+  }
+
+  // 동영상 (0~4) — 스크래핑만
+  const videoCount = opts?.videoCount ?? 0
+  if (videoCount >= 2) mediaPts += 4
+  else if (videoCount >= 1) mediaPts += 2
+
+  // 표 (0~2) — 스크래핑만
+  const tableCount = opts?.tableCount ?? 0
+  if (tableCount >= 1) mediaPts += 2
+
+  total += Math.min(mediaPts, 20)
+
+  // ── 3. 구조/서식 (25점) — D.I.A. 문서 완성도, 객관적 측정 가능 ──
+  let structPts = 0
+  const fmt = opts?.formatting
+
+  if (fmt) {
+    // 소제목 (0~10) — 문서 구조화의 핵심
+    if (fmt.hasHeading) structPts += 10
+
+    // 서식 다양성 (0~8) — 4종에서 cap, 과잉은 감점 섹션에서 처리
+    if (fmt.count >= 4) structPts += 8
+    else if (fmt.count >= 3) structPts += 7
+    else if (fmt.count >= 2) structPts += 5
+    else if (fmt.count >= 1) structPts += 2
+  } else {
+    // 비스크래핑: HTML에서 간접 감지
+    const hasStructure = /[①②③④⑤]|[1-9]\.\s|•|▶|<b>|<strong>/.test(descHtml)
+    if (hasStructure) structPts += 5
+  }
+
+  // 구체적 데이터/수치 (0~7) — 공통, 정보성 콘텐츠 핵심
+  const dataPatterns = [
+    /\d+[만천백]?\s*원|₩\d+|가격/,
+    /\d+분|\d+시간|영업시간/,
+    /\d+km|\d+m|거리|위치/,
+    /\d+개|\d+가지|\d+종/,
+    /전화|연락처|주소/,
+  ]
+  const matchedPatterns = dataPatterns.filter(p => p.test(descHtml)).length
+  if (matchedPatterns >= 3) structPts += 7
+  else if (matchedPatterns >= 2) structPts += 5
+  else if (matchedPatterns >= 1) structPts += 3
+
+  total += Math.min(structPts, 25)
+
+  // ── 4. 경험 정보 (25점) — D.I.A. E-E-A-T 최핵심 신호 ──
+  let expPts = 0
+  const contentText = descHtml.toLowerCase()
+
+  // A. 직접 경험 키워드 (매칭 수 × 1점, 최대 10점)
+  const expKeywords = [
+    '직접', '체험', '후기', '경험', '사용기', '리뷰',
+    '방문', '다녀', '먹어', '써봤', '써본', '입어',
+    '착용', '구매후기', '실사용', '개봉기',
+  ]
+  const expHits = expKeywords.filter(k => contentText.includes(k)).length
+  expPts += Math.min(expHits, 10)
+
+  // B. 감각/감정 표현 (매칭 수 × 1점, 최대 7점)
+  const sensoryKeywords = [
+    '맛있', '예쁘', '좋았', '별로', '아쉬', '추천',
+    '만족', '불편', '편리', '깔끔', '넓', '좁',
+    '조용', '시끄', '향기', '냄새',
+  ]
+  const sensoryHits = sensoryKeywords.filter(k => contentText.includes(k)).length
+  expPts += Math.min(sensoryHits, 7)
+
+  // C. 구체적 정보 (매칭 수 × 1점, 최대 8점)
+  const infoPatterns = [
+    /\d+[만천백]?\s*원|₩/,
+    /주소|위치|도로명/,
+    /영업시간|운영시간|오픈/,
+    /\d+분|\d+km/,
+    /전화|연락|예약/,
+    /주차|교통/,
+    /메뉴|사이즈|크기|무게/,
+    /층|호|번지/,
+  ]
+  const infoHits = infoPatterns.filter(p => p.test(contentText)).length
+  expPts += Math.min(infoHits, 8)
+
+  total += Math.min(expPts, 25)
+
+  // ── 5. 제목 최적화 (5점) — 기본 체크만, 조작 용이하므로 최소 배점 ──
+  let titlePts = 0
   const titleLen = title.length
-  if (titleLen >= 15 && titleLen <= 40) score += 3
-  else if (titleLen >= 10 && titleLen <= 50) score += 2
-  else if (titleLen >= 5) score += 1
 
-  // 콘텐츠 길이 (0~3점)
-  if (isScrapped) {
-    if (descLength >= 1500) score += 3
-    else if (descLength >= 800) score += 2
-    else if (descLength >= 300) score += 1
-  } else {
-    if (descLength >= 300) score += 3
-    else if (descLength >= 150) score += 2
-    else if (descLength >= 60) score += 1
+  // 길이 적정 범위 (0~3)
+  if (titleLen >= 15 && titleLen <= 35) titlePts += 3
+  else if (titleLen >= 10 && titleLen <= 40) titlePts += 2
+  else if (titleLen >= 5 && titleLen <= 50) titlePts += 1
+
+  // 검색 의도 키워드 (0~2)
+  if (/추천|후기|방법|비교|정리|가이드|리뷰|TOP|순위|꿀팁|총정리/i.test(title)) titlePts += 2
+
+  total += Math.min(titlePts, 5)
+
+  // ── 6. 참여도 (15점) — 가장 객관적인 결과 지표, 미측정=0점 ──
+  let engagePts = 0
+
+  // 댓글 (0~5)
+  const comments = opts?.commentCount ?? 0
+  if (comments >= 20) engagePts += 5
+  else if (comments >= 10) engagePts += 4
+  else if (comments >= 5) engagePts += 3
+  else if (comments >= 2) engagePts += 2
+  else if (comments >= 1) engagePts += 1
+
+  // 공감 (0~5)
+  const sympathy = opts?.sympathyCount ?? 0
+  if (sympathy >= 30) engagePts += 5
+  else if (sympathy >= 15) engagePts += 4
+  else if (sympathy >= 5) engagePts += 3
+  else if (sympathy >= 2) engagePts += 2
+  else if (sympathy >= 1) engagePts += 1
+
+  // 조회수 (0~5) — 가장 객관적 지표
+  const reads = opts?.readCount ?? 0
+  if (reads >= 1000) engagePts += 5
+  else if (reads >= 500) engagePts += 4
+  else if (reads >= 200) engagePts += 3
+  else if (reads >= 50) engagePts += 2
+  else if (reads >= 10) engagePts += 1
+
+  total += Math.min(engagePts, 15)
+
+  // ── 감점 요소 (과도한 수량/서식은 품질 저하) ──
+  let penalty = 0
+
+  // 이미지 과다 (이미지 도배)
+  if (imageCount >= 15) penalty += 5          // 심각 — 이미지 스팸
+  else if (imageCount >= 11) penalty += 3     // 과다
+
+  // 서식 과잉 (가독성 저하)
+  if (fmt && fmt.count >= 6) penalty += 3     // 6종 전부 — 서식 남용
+  else if (fmt && fmt.count >= 5) penalty += 1
+
+  // 이미지:글 비율 불균형 (글은 짧은데 이미지만 많음)
+  if (isScrapped && imageCount >= 7 && descLength < 1000) penalty += 3
+
+  // 콘텐츠 과다 (패딩/스팸 — 네이버 최적 1500~3000자, 5000+ 스팸급)
+  if (isScrapped && descLength >= 7000) penalty += 5
+  else if (isScrapped && descLength >= 5000) penalty += 3
+
+  // 포스트 내부 문장 반복 (글자수 부풀리기 스팸 감지)
+  // HTML 태그 제거 후 문장 단위로 쪼개어 동일 문장 반복률 측정
+  if (isScrapped && descLength >= 500) {
+    const plainText = descHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    // 마침표/느낌표/물음표/줄바꿈으로 문장 분리, 10자 이상만 유효
+    const sentences = plainText.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length >= 10)
+    if (sentences.length >= 4) {
+      const freq: Record<string, number> = {}
+      sentences.forEach(s => { freq[s] = (freq[s] || 0) + 1 })
+      const duplicateCount = Object.values(freq).reduce((sum, c) => sum + (c > 1 ? c - 1 : 0), 0)
+      const repeatRate = duplicateCount / sentences.length
+      if (repeatRate >= 0.4) penalty += 5        // 40%+ 문장 반복 — 심각한 복붙 스팸
+      else if (repeatRate >= 0.2) penalty += 3   // 20%+ 문장 반복 — 의심
+    }
   }
 
-  // 이미지 (0~3점) - 개수 기반
-  if (isScrapped) {
-    if (imageCount >= 5) score += 3
-    else if (imageCount >= 3) score += 2
-    else if (imageCount >= 1) score += 1
-  } else {
-    if (imageCount >= 3) score += 3
-    else if (imageCount >= 2) score += 2
-    else if (imageCount >= 1) score += 1
-  }
+  total -= penalty
 
-  // 구조/서식 (0~2점)
-  const hasStructure = /[①②③④⑤]|[1-9]\.\s|•|▶|<b>|<strong>/.test(descHtml)
-  const hasConcreteData = /\d+[만천백]?\s*원|₩\d|가격|\d+분|\d+km/.test(descHtml)
-  if (hasStructure && hasConcreteData) score += 2
-  else if (hasStructure || hasConcreteData) score += 1
+  // ── 최종 clamp + 16등급 매핑 (블로그 지수와 동일 구간) ──
+  const score = Math.max(0, Math.min(100, total))
 
-  // 제목 키워드 포함 여부 (0~1점)
-  if (/\d+/.test(title) || /추천|후기|방법|비교|정리|가이드|리뷰|TOP/i.test(title)) {
-    score += 1
-  }
-
-  // 인기도 (0~3점, v4 신규) - 댓글+공감 합산 기준
-  const engagement = (commentCount ?? 0) + (sympathyCount ?? 0)
-  if (engagement >= 30) score += 3
-  else if (engagement >= 10) score += 2
-  else if (engagement >= 3) score += 1
-
-  // score 0~15 → 16등급 매핑 (v7: 블로그 지수와 동일한 16등급 체계)
   let tier: number
   let category: string
   let label: string
 
-  if (score >= 15) { tier = 16; category = '파워'; label = '파워' }
-  else if (score >= 14) { tier = 15; category = '최적화+'; label = '최적화4+' }
-  else if (score >= 13) { tier = 14; category = '최적화+'; label = '최적화3+' }
-  else if (score >= 12) { tier = 13; category = '최적화+'; label = '최적화2+' }
-  else if (score >= 11) { tier = 12; category = '최적화+'; label = '최적화1+' }
-  else if (score >= 10) { tier = 11; category = '최적화'; label = '최적화3' }
-  else if (score >= 9) { tier = 10; category = '최적화'; label = '최적화2' }
-  else if (score >= 8) { tier = 9; category = '최적화'; label = '최적화1' }
-  else if (score >= 7) { tier = 8; category = '준최적화'; label = '준최적화7' }
-  else if (score >= 6) { tier = 7; category = '준최적화'; label = '준최적화6' }
-  else if (score >= 5) { tier = 6; category = '준최적화'; label = '준최적화5' }
-  else if (score >= 4) { tier = 5; category = '준최적화'; label = '준최적화4' }
-  else if (score >= 3) { tier = 4; category = '준최적화'; label = '준최적화3' }
-  else if (score >= 2) { tier = 3; category = '준최적화'; label = '준최적화2' }
-  else if (score >= 1) { tier = 2; category = '준최적화'; label = '준최적화1' }
+  if (score >= 93) { tier = 16; category = '파워'; label = '파워' }
+  else if (score >= 86) { tier = 15; category = '최적화+'; label = '최적화4+' }
+  else if (score >= 79) { tier = 14; category = '최적화+'; label = '최적화3+' }
+  else if (score >= 72) { tier = 13; category = '최적화+'; label = '최적화2+' }
+  else if (score >= 66) { tier = 12; category = '최적화+'; label = '최적화1+' }
+  else if (score >= 60) { tier = 11; category = '최적화'; label = '최적화3' }
+  else if (score >= 54) { tier = 10; category = '최적화'; label = '최적화2' }
+  else if (score >= 48) { tier = 9; category = '최적화'; label = '최적화1' }
+  else if (score >= 42) { tier = 8; category = '준최적화'; label = '준최적화7' }
+  else if (score >= 36) { tier = 7; category = '준최적화'; label = '준최적화6' }
+  else if (score >= 30) { tier = 6; category = '준최적화'; label = '준최적화5' }
+  else if (score >= 24) { tier = 5; category = '준최적화'; label = '준최적화4' }
+  else if (score >= 18) { tier = 4; category = '준최적화'; label = '준최적화3' }
+  else if (score >= 12) { tier = 3; category = '준최적화'; label = '준최적화2' }
+  else if (score >= 6) { tier = 2; category = '준최적화'; label = '준최적화1' }
   else { tier = 1; category = '일반'; label = '일반' }
 
   return { score, tier, label, category }

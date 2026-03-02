@@ -1,10 +1,10 @@
 /**
- * 블로그 지수 - 축4. 신뢰도 (25점)
+ * 블로그 지수 - 축3. 활동 신뢰도 (25점)
  *
- * v10: 범위 기반 빈도 + 스팸/외부링크 감점 통합 + items 배열
+ * v11: '신뢰도' → '활동 신뢰도'. 규칙성 강화, 누적 기준 상향.
  *
- * 가점: 규칙성(7) + 빈도(6) + 최근 활동성(5) + 누적 포스팅(4) + 운영 기간(3) = 25
- * 감점: 스팸 키워드(-3) + 외부 링크 과다(-3) + 기계적 일괄 발행(-2) = -8
+ * 가점: 규칙성(8) + 빈도(6) + 최근 활동성(5) + 누적 포스팅(3) + 운영 기간(3) = 25
+ * 감점: 스팸 키워드(-3) + 외부 링크 과다(-3) + 기계적 일괄 발행(-3) + 극단적 과다 발행(-2) = -11
  * 최종: clamp(가점 + 감점, 0, 25)
  */
 
@@ -53,7 +53,7 @@ export function analyzeTrust(
 
   if (posts.length === 0) {
     return {
-      category: { name: '신뢰도', score: 0, maxScore, grade: 'F', details: ['분석할 포스트가 없습니다'], items: [] },
+      category: { name: '활동 신뢰도', score: 0, maxScore, grade: 'F', details: ['분석할 포스트가 없습니다'], items: [] },
       frequency,
       recentPostDays,
     }
@@ -69,13 +69,13 @@ export function analyzeTrust(
 
   if (dates.length === 0) {
     return {
-      category: { name: '신뢰도', score: 1, maxScore, grade: 'D', details: ['포스트 날짜를 파싱할 수 없습니다'], items: [] },
+      category: { name: '활동 신뢰도', score: 1, maxScore, grade: 'D', details: ['포스트 날짜를 파싱할 수 없습니다'], items: [] },
       frequency,
       recentPostDays,
     }
   }
 
-  // === 포스팅 규칙성 - 변동계수 (7점) ===
+  // === 포스팅 규칙성 - 변동계수 (8점) ===
   let regularityPts = 0
   if (dates.length >= 3) {
     const gaps: number[] = []
@@ -88,14 +88,14 @@ export function analyzeTrust(
     const cv = avgGap > 0 ? stdDev / avgGap : 0
 
     if (cv < 0.3) {
-      regularityPts = 7
-      details.push('포스팅 주기 매우 규칙적 (+7)')
+      regularityPts = 8
+      details.push('포스팅 주기 매우 규칙적 (+8)')
     } else if (cv < 0.5) {
-      regularityPts = 5
-      details.push('포스팅 주기 규칙적 (+5)')
+      regularityPts = 6
+      details.push('포스팅 주기 규칙적 (+6)')
     } else if (cv < 1.0) {
-      regularityPts = 3
-      details.push('포스팅 주기 비교적 규칙적 (+3)')
+      regularityPts = 4
+      details.push('포스팅 주기 비교적 규칙적 (+4)')
     } else if (cv < 2.0) {
       regularityPts = 1
       details.push('포스팅 주기 불규칙 - 꾸준한 발행이 C-Rank에 도움됩니다 (+1)')
@@ -155,25 +155,22 @@ export function analyzeTrust(
   score += recentPts
   items.push({ label: `최근 활동 (${recentPostDays}일 전)`, points: recentPts })
 
-  // === 누적 포스팅 수 (4점) ===
+  // === 누적 포스팅 수 (3점) ===
   const totalPostCount = blogProfileData?.totalPostCount ?? posts.length
   let postCountPts = 0
 
-  if (totalPostCount >= 500) {
-    postCountPts = 4
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (최우수) (+4)`)
-  } else if (totalPostCount >= 200) {
+  if (totalPostCount >= 1000) {
     postCountPts = 3
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (우수) (+3)`)
-  } else if (totalPostCount >= 100) {
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (최우수) (+3)`)
+  } else if (totalPostCount >= 500) {
     postCountPts = 2
-    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (양호) (+2)`)
-  } else if (totalPostCount >= 50) {
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (우수) (+2)`)
+  } else if (totalPostCount >= 200) {
     postCountPts = 1
-    details.push(`누적 포스팅: ${totalPostCount}개 (보통) (+1)`)
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (양호) (+1)`)
   } else {
     postCountPts = 0
-    details.push(`누적 포스팅: ${totalPostCount}개 (부족) (+0)`)
+    details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (부족) (+0)`)
   }
   score += postCountPts
   items.push({ label: `누적 포스팅 (${totalPostCount.toLocaleString()}개)`, points: postCountPts })
@@ -275,7 +272,7 @@ export function analyzeTrust(
     }
   }
 
-  // === [감점] 기계적 일괄 발행 (0 ~ -2) ===
+  // === [감점] 기계적 일괄 발행 (0 ~ -3) ===
   // 같은 날짜에 3개 이상 발행하는 날이 많으면 기계적 패턴
   if (dates.length >= 5) {
     const dateCountMap: Record<string, number> = {}
@@ -288,13 +285,32 @@ export function analyzeTrust(
     const bulkRate = totalDays > 0 ? bulkDays / totalDays : 0
 
     if (bulkRate >= 0.4) {
-      score -= 2
-      details.push(`기계적 일괄 발행: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-2)`)
-      items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -2 })
+      score -= 3
+      details.push(`기계적 일괄 발행: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-3)`)
+      items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -3 })
     } else if (bulkRate >= 0.2) {
+      score -= 2
+      details.push(`일괄 발행 주의: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-2)`)
+      items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -2 })
+    } else if (bulkRate >= 0.1) {
       score -= 1
-      details.push(`일괄 발행 주의: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-1)`)
+      details.push(`일괄 발행 경미: ${Math.round(bulkRate * 100)}% 날짜에서 하루 3건↑ 발행 (-1)`)
       items.push({ label: `일괄 발행 (${Math.round(bulkRate * 100)}%)`, points: -1 })
+    }
+  }
+
+  // === [감점] 극단적 포스팅 과다 (0 ~ -2) ===
+  if (dates.length >= 2) {
+    const spanDays = daysBetween(dates[0], dates[dates.length - 1]) || 1
+    const weeklyRate = (dates.length / spanDays) * 7
+    if (weeklyRate >= 35) {
+      score -= 2
+      details.push(`극단적 포스팅 과다: 주 ${weeklyRate.toFixed(1)}회 — AI 대량 발행 의심 (-2)`)
+      items.push({ label: `포스팅 과다 (주 ${weeklyRate.toFixed(1)}회)`, points: -2 })
+    } else if (weeklyRate >= 25) {
+      score -= 1
+      details.push(`포스팅 과다: 주 ${weeklyRate.toFixed(1)}회 — 양보다 질에 집중 권장 (-1)`)
+      items.push({ label: `포스팅 과다 (주 ${weeklyRate.toFixed(1)}회)`, points: -1 })
     }
   }
 
@@ -303,7 +319,7 @@ export function analyzeTrust(
   const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
   return {
-    category: { name: '신뢰도', score, maxScore, grade, details, items },
+    category: { name: '활동 신뢰도', score, maxScore, grade, details, items },
     frequency,
     recentPostDays,
   }

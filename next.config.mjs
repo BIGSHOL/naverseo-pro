@@ -18,6 +18,21 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           // 권한 정책 (카메라/마이크 등 차단)
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // HTTPS 강제 (1년, 서브도메인 포함)
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          // XSS 방지 CSP
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://app.lemonsqueezy.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://*.supabase.co https://*.google.com https://generativelanguage.googleapis.com https://api.anthropic.com https://api.searchad.naver.com https://openapi.naver.com https://api.lemonsqueezy.com",
+              "frame-src https://app.lemonsqueezy.com",
+            ].join('; '),
+          },
         ],
       },
       {

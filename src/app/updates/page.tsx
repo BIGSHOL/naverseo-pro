@@ -18,6 +18,14 @@ interface UpdateEntry {
 
 // 새로운 업데이트는 이 배열 맨 위에 추가
 const UPDATES: UpdateEntry[] = [
+  // 2026-03-02
+  { date: '2026-03-02', type: 'feat', message: 'AI 이미지 자동 압축 — WebP 변환으로 이미지 용량 ~90% 절감, 블로그 로딩 속도 향상' },
+  { date: '2026-03-02', type: 'fix', message: 'AI 약점 개선 안정화 — 1회 개선 후 자동 비활성화로 중복 수정 방지' },
+  { date: '2026-03-02', type: 'refactor', message: '페이지 로딩 개선 — 요금제·크레딧 정보가 깜빡임 없이 즉시 표시' },
+  // 2026-03-01
+  { date: '2026-03-01', type: 'feat', message: 'AI 이미지 자동 생성 — 콘텐츠의 [이미지] 마커에 AI가 맞춤 이미지를 자동 생성하여 삽입' },
+  { date: '2026-03-01', type: 'feat', message: 'SEO 엔진 전면 개선 — 16단계 등급 체계 통합 + 블로그지수·리포트·UI 동기화' },
+  { date: '2026-03-01', type: 'fix', message: 'AI 콘텐츠 글 길이 정확도 향상 — 요청한 분량에 맞게 엄격하게 생성' },
   // 2026-02-28
   { date: '2026-02-28', type: 'feat', message: 'AI 콘텐츠 자동 최적화 — 생성 후 SEO 약점 자동 수정 + 6단계 실시간 진행 표시' },
   { date: '2026-02-28', type: 'feat', message: 'AI 약점 개선 시각 효과 — 수정 전/후를 색상 애니메이션으로 비교 확인' },

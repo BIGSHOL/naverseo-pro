@@ -2202,6 +2202,39 @@ export function autoOptimizeContent(
     patches.push({ find: titleBeforeLen, replace: optTitle, label: '제목 길이 조정' })
   }
 
+  // --- Fixer 6: 문장 반복 제거 ---
+  const contentBeforeRep = optContent
+  {
+    const plain = optContent
+      .replace(/^#{1,3}\s+.+$/gm, '')
+      .replace(/\[이미지[:\]][^\]]*\]?/g, '')
+      .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const sentences = plain.split(/[.!?\n]+/).map(s => s.trim()).filter(s => s.length >= 10)
+    if (sentences.length >= 6) {
+      const freq: Record<string, number> = {}
+      sentences.forEach(s => { freq[s] = (freq[s] || 0) + 1 })
+      const duplicates = Object.entries(freq).filter(([, c]) => c >= 2)
+      if (duplicates.length > 0) {
+        // 중복 문장을 첫 번째만 남기고 이후 등장분 제거
+        for (const [dupSentence] of duplicates) {
+          const escaped = dupSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          let found = 0
+          optContent = optContent.replace(new RegExp(escaped, 'g'), (match) => {
+            found++
+            return found === 1 ? match : ''
+          })
+        }
+        // 빈 줄 정리
+        optContent = optContent.replace(/\n{3,}/g, '\n\n').trim()
+        optimizations.push(`반복 문장 ${duplicates.length}건 제거`)
+      }
+    }
+  }
+  captureContentPatch(contentBeforeRep, optContent, '반복 문장 제거')
+
   // 수정 후 점수 측정
   const afterResult = analyzeSeo(keyword, optTitle, optContent, relatedKeywords)
   const scoreAfter = afterResult.totalScore
