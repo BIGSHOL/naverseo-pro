@@ -224,6 +224,7 @@ export default function ContentPage() {
   const [result, setResult] = useState<ContentResult | null>(null)
   const [streamingText, setStreamingText] = useState('')
   const streamingTextRef = useRef('')
+  const rafPendingRef = useRef(false)
   const streamingContentRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const autoScrollRef = useRef(true)
@@ -1000,26 +1001,25 @@ export default function ContentPage() {
               } else if (event.type === 'stream') {
                 const isFirst = !streamingTextRef.current
                 streamingTextRef.current += event.delta
-                const accumulated = streamingTextRef.current
-                setStreamingText(accumulated)
+
+                // requestAnimationFrame으로 배칭 → 부드러운 렌더링
+                if (!rafPendingRef.current) {
+                  rafPendingRef.current = true
+                  requestAnimationFrame(() => {
+                    rafPendingRef.current = false
+                    setStreamingText(streamingTextRef.current)
+                    // auto-scroll
+                    if (autoScrollRef.current) {
+                      const el = streamingContentRef.current
+                      if (el) el.scrollTop = el.scrollHeight
+                    }
+                  })
+                }
 
                 // 첫 스트림 청크: 외부 스크롤을 스트리밍 영역으로 1회만 이동
                 if (isFirst) {
                   setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
-
-                // 스트리밍 콘텐츠 auto-scroll (내부 컨테이너만 — 외부 스크롤은 건드리지 않음)
-                if (autoScrollRef.current) {
-                  setTimeout(() => {
-                    const el = streamingContentRef.current
-                    if (el) {
-                      el.scrollTop = el.scrollHeight
-                    }
-                  }, 0)
-                }
-
-                // 스트리밍 중에는 SEO 분석 안 함 (렉 방지)
-                // editTitle/editContent는 result 이벤트 후 설정됨
               } else if (event.type === 'selfHealPatches') {
                 // Self-Healing 패치 저장 (result 수신 시 애니메이션 실행)
                 selfHealPatchesRef.current = {

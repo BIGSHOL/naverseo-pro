@@ -19,6 +19,28 @@ const CATEGORY_TOOLTIPS: Record<string, string> = {
   '경험형': '실제 경험/후기를 찾는 검색 의도입니다',
 }
 
+// ===== 경쟁도 유틸 (공유) =====
+
+export const COMP_ORDER: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+
+export function getCompLabel(compIdx: string): string {
+  switch (compIdx) {
+    case 'HIGH': return '높음'
+    case 'MEDIUM': return '보통'
+    case 'LOW': return '낮음'
+    default: return '-'
+  }
+}
+
+export function getCompColor(compIdx: string): string {
+  switch (compIdx) {
+    case 'HIGH': return 'text-red-600 bg-red-50'
+    case 'MEDIUM': return 'text-amber-600 bg-amber-50'
+    case 'LOW': return 'text-green-600 bg-green-50'
+    default: return 'text-muted-foreground bg-muted'
+  }
+}
+
 // ===== 경쟁도 배지 =====
 
 export function getCompBadge(compIdx: string) {
@@ -89,6 +111,22 @@ export function getScoreTooltip(score: number): string {
   if (score >= 70) return '블로그 상위 노출 가능성이 높은 추천 키워드입니다'
   if (score >= 40) return '경쟁에 따라 상위 노출 가능한 키워드입니다'
   return '경쟁이 높거나 검색량이 부족한 키워드입니다'
+}
+
+// ===== SEO 점수 배경/텍스트 색상 (100점 만점 기준) =====
+
+export function getScoreBgClass(score: number): string {
+  if (score >= 80) return 'bg-green-500'
+  if (score >= 60) return 'bg-yellow-500'
+  if (score >= 40) return 'bg-orange-500'
+  return 'bg-red-500'
+}
+
+export function getScoreTextClass(score: number): string {
+  if (score >= 80) return 'text-green-600'
+  if (score >= 60) return 'text-yellow-600'
+  if (score >= 40) return 'text-orange-600'
+  return 'text-red-600'
 }
 
 // ===== 포화지수 배지 =====

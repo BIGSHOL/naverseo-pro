@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { getCompBadge, getSaturationBadge, getScoreColor, getScoreTooltip, formatNumber, getKeywordGrade } from '@/components/keywords/keyword-utils'
+import { getCompBadge, getSaturationBadge, getScoreColor, getScoreTooltip, formatNumber, getKeywordGrade, COMP_ORDER } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
 
 export interface TopSearchResult {
@@ -66,9 +66,8 @@ export function KeywordResults({ keywords, isDemo }: KeywordResultsProps) {
     let bVal: number
 
     if (sortKey === 'compIdx') {
-      const compOrder: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
-      aVal = compOrder[a.compIdx] || 0
-      bVal = compOrder[b.compIdx] || 0
+      aVal = COMP_ORDER[a.compIdx] || 0
+      bVal = COMP_ORDER[b.compIdx] || 0
     } else {
       aVal = a[sortKey]
       bVal = b[sortKey]

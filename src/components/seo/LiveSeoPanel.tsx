@@ -8,6 +8,7 @@ import { analyzeDia, type DiaAnalysisResult } from '@/lib/dia/engine'
 import { ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Sparkles, Shield, Lightbulb, TrendingUp, ArrowUp } from 'lucide-react'
 import type { SeoCategory } from '@/lib/seo/engine'
 import { cn } from '@/lib/utils'
+import { getScoreBgClass, getScoreTextClass } from '@/components/keywords/keyword-utils'
 
 interface LiveSeoPanelProps {
   keyword: string
@@ -18,20 +19,6 @@ interface LiveSeoPanelProps {
   compact?: boolean
   /** 메인 결과 영역에 강점이 표시될 때 중복 방지용 */
   hideStrengths?: boolean
-}
-
-function getScoreBgClass(score: number) {
-  if (score >= 80) return 'bg-green-500'
-  if (score >= 60) return 'bg-yellow-500'
-  if (score >= 40) return 'bg-orange-500'
-  return 'bg-red-500'
-}
-
-function getScoreTextClass(score: number) {
-  if (score >= 80) return 'text-green-600'
-  if (score >= 60) return 'text-yellow-600'
-  if (score >= 40) return 'text-orange-600'
-  return 'text-red-600'
 }
 
 // ===== 실시간 개선 가이드 =====

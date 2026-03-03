@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import type { SearchRankResult } from '@/types/search-rank'
 import { ensureUrl } from '@/lib/utils/text'
-import { getScoreColor, getKeywordGrade } from '@/components/keywords/keyword-utils'
+import { getScoreColor, getKeywordGrade, getCompLabel, getCompColor } from '@/components/keywords/keyword-utils'
 
 export interface BulkKeywordData {
     keyword: string
@@ -85,25 +85,6 @@ function compIdxValue(compIdx: string): number {
     }
 }
 
-// 경쟁도 라벨
-function getCompLabel(compIdx: string): string {
-    switch (compIdx) {
-        case 'HIGH': return '높음'
-        case 'MEDIUM': return '보통'
-        case 'LOW': return '낮음'
-        default: return '-'
-    }
-}
-
-// 경쟁도 색상
-function getCompColor(compIdx: string): string {
-    switch (compIdx) {
-        case 'HIGH': return 'text-red-600 bg-red-50'
-        case 'MEDIUM': return 'text-amber-600 bg-amber-50'
-        case 'LOW': return 'text-green-600 bg-green-50'
-        default: return 'text-muted-foreground bg-muted'
-    }
-}
 
 // 비블로그 타입 배지 스타일 (keyword-results.tsx와 동일)
 function getResultTypeBadgeStyle(type: string): string {

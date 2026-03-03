@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
+import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber, COMP_ORDER } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
 import { creditToast } from '@/lib/credit-toast'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
@@ -171,9 +171,8 @@ export default function OpportunitiesPage() {
       let bVal: number
 
       if (sortKey === 'compIdx') {
-        const compOrder: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
-        aVal = compOrder[a.compIdx] || 0
-        bVal = compOrder[b.compIdx] || 0
+        aVal = COMP_ORDER[a.compIdx] || 0
+        bVal = COMP_ORDER[b.compIdx] || 0
       } else {
         aVal = a[sortKey]
         bVal = b[sortKey]

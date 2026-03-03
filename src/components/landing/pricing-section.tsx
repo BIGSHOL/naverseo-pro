@@ -19,7 +19,7 @@ const planValueProps: Partial<Record<Plan, string | null>> = {
 // 기능 수 표시
 const planFeatureCount: Partial<Record<Plan, string>> = {
   free: '4가지 기능',
-  lite: '6가지 기능',
+  lite: '7가지 기능',
   starter: '전체 기능',
   pro: '전체 기능',
   enterprise: '전체 기능',

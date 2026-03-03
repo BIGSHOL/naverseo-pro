@@ -818,10 +818,28 @@ ${imageList}
             const elapsed = Date.now() - routeStartMs
             const aiTimeoutMs = Math.max(10000, (maxDuration * 1000) - elapsed - 15000)
 
-            const onDelta = (delta: string) => send({ type: 'stream', delta })
+            // 스트리밍 버퍼: 50자 이상 모이거나 80ms 경과 시 flush → 부드러운 UX
+            let streamBuf = ''
+            let flushTimer: ReturnType<typeof setTimeout> | null = null
+            const flushStream = () => {
+              if (streamBuf) {
+                send({ type: 'stream', delta: streamBuf })
+                streamBuf = ''
+              }
+              if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+            }
+            const onDelta = (delta: string) => {
+              streamBuf += delta
+              if (streamBuf.length >= 50) {
+                flushStream()
+              } else if (!flushTimer) {
+                flushTimer = setTimeout(flushStream, 80)
+              }
+            }
             const response = provider === 'gemini'
               ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048, timeoutMs: aiTimeoutMs }, onDelta)
               : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true, timeoutMs: aiTimeoutMs }, onDelta)
+            flushStream() // 남은 버퍼 즉시 전송
 
             // Step 4/6: SEO 분석 + 후처리
             send({ type: 'progress', step: 4, totalSteps: 6, message: 'SEO 자동 최적화 중...' })

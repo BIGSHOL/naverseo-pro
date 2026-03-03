@@ -78,6 +78,8 @@ description: API Route의 에러 처리, 입력 검증, 데모 데이터 폴백,
 | `src/lib/naver/blog-crawler.ts` | 네이버 블로그 본문 크롤링 유틸리티 |
 | `src/lib/naver/blog-profile-scraper.ts` | 네이버 블로그 프로필 스크래핑 유틸리티 |
 | `src/lib/keyword-discovery/engine.ts` | 키워드 발굴 엔진 (Phase 1~3, onProgress 콜백) |
+| `src/app/api/util/parse-pdf/route.ts` | PDF 파싱 유틸리티 엔드포인트 (pdf-parse v2, 텍스트 추출) |
+| `src/lib/content/validators.ts` | 콘텐츠 첨부 자료 검증 유틸 (PDF/이미지/TXT/참고자료 사전 검증) |
 
 ## Workflow
 

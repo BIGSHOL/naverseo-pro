@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  try {
   // 인증 + 크레딧 체크 (에러 시 즉시 JSON 반환)
   const { createClient } = await import('@/lib/supabase/server')
   const supabase = createClient()
@@ -129,4 +130,11 @@ export async function POST(request: NextRequest) {
       'Transfer-Encoding': 'chunked',
     },
   })
+  } catch (error) {
+    console.error('[Opportunities] 최상위 오류:', error)
+    return NextResponse.json(
+      { error: '키워드 발굴 중 오류가 발생했습니다.' },
+      { status: 500 }
+    )
+  }
 }
