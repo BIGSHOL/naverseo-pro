@@ -162,6 +162,16 @@ export async function PATCH(
       allowedFields.credits_balance = (currentProfile?.credits_balance ?? 0) + body.add_credits
     }
 
+    // 크레딧 감소 (현재 잔액에서 차감, 최소 0)
+    if (typeof body.subtract_credits === 'number' && body.subtract_credits > 0) {
+      const { data: currentProfile } = await adminDb
+        .from('profiles')
+        .select('credits_balance')
+        .eq('id', id)
+        .single()
+      allowedFields.credits_balance = Math.max(0, (currentProfile?.credits_balance ?? 0) - body.subtract_credits)
+    }
+
     // 크레딧 리셋 (잔액을 월간 할당량으로 복원)
     if (body.reset_credits === true) {
       const { data: currentProfile } = await adminDb

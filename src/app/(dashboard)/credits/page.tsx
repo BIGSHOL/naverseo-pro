@@ -364,7 +364,7 @@ export default function CreditsPage() {
 
       {/* 기능별 사용 비율 + 비용 안내 */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* 기능별 소모 비율 */}
+        {/* 기능별 소모 비율 + 인사이트 */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">기능별 크레딧 소모</CardTitle>
@@ -375,42 +375,80 @@ export default function CreditsPage() {
                 <p className="text-sm text-muted-foreground">사용 내역이 없습니다</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={featureChartData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="feature"
-                    tick={{ fontSize: 11 }}
-                    width={90}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(value: any, _name: any, props: any) =>
-                      [`${value} 크레딧 (${props?.payload?.count ?? 0}회)`, '소모']
-                    }
-                  />
-                  <Bar dataKey="spent" radius={[0, 4, 4, 0]}>
-                    {featureChartData.map((entry) => (
-                      <Cell
-                        key={entry.featureKey}
-                        fill={FEATURE_COLORS[entry.featureKey] || '#94a3b8'}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {totalSpent > 0 && (
-              <p className="mt-2 text-xs text-muted-foreground text-right">
-                총 {totalSpent.toLocaleString()} 크레딧 소모
-              </p>
+              <>
+                <ResponsiveContainer width="100%" height={Math.max(140, featureChartData.length * 36)}>
+                  <BarChart data={featureChartData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="feature"
+                      tick={{ fontSize: 11 }}
+                      width={90}
+                    />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--background))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      formatter={(value: any, _name: any, props: any) =>
+                        [`${value} 크레딧 (${props?.payload?.count ?? 0}회)`, '소모']
+                      }
+                    />
+                    <Bar dataKey="spent" radius={[0, 4, 4, 0]}>
+                      {featureChartData.map((entry) => (
+                        <Cell
+                          key={entry.featureKey}
+                          fill={FEATURE_COLORS[entry.featureKey] || '#94a3b8'}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+
+                {totalSpent > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground text-right">
+                    총 {totalSpent.toLocaleString()} 크레딧 소모
+                  </p>
+                )}
+
+                {/* 사용 인사이트 */}
+                {featureChartData.length > 0 && (() => {
+                  const top = featureChartData[0]
+                  const totalCount = featureChartData.reduce((s, d) => s + d.count, 0)
+                  const activeDays = data.dailyStats.filter(d => d.spent > 0).length
+                  const dailyAvg = activeDays > 0 ? Math.round(totalSpent / activeDays) : 0
+                  const topPercent = totalSpent > 0 ? Math.round((top.spent / totalSpent) * 100) : 0
+
+                  return (
+                    <div className="mt-4 space-y-2 border-t pt-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span className="text-muted-foreground">
+                          가장 많이 사용: <span className="font-medium text-foreground">{top.feature}</span>
+                          <span className="text-xs ml-1">({topPercent}%, {top.count}회)</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <TrendingDown className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                        <span className="text-muted-foreground">
+                          일 평균 소모: <span className="font-medium text-foreground">{dailyAvg} 크레딧</span>
+                          <span className="text-xs ml-1">(활동 {activeDays}일 기준)</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Coins className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                        <span className="text-muted-foreground">
+                          총 사용 횟수: <span className="font-medium text-foreground">{totalCount}회</span>
+                          <span className="text-xs ml-1">(평균 {totalCount > 0 ? (totalSpent / totalCount).toFixed(1) : 0} 크레딧/회)</span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </>
             )}
           </CardContent>
         </Card>

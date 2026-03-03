@@ -142,6 +142,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
   const [editRole, setEditRole] = useState('')
   const [editAiProvider, setEditAiProvider] = useState('')
   const [addCreditsAmount, setAddCreditsAmount] = useState('')
+  const [subtractCreditsAmount, setSubtractCreditsAmount] = useState('')
   const [kwPage, setKwPage] = useState(1)
   const [ctPage, setCtPage] = useState(1)
 
@@ -372,6 +373,44 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       setSuccess(`${amount} 크레딧이 추가되었습니다.`)
     } catch {
       setError('크레딧 추가 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSubtractCredits() {
+    if (!data) return
+    const amount = parseInt(subtractCreditsAmount, 10)
+    if (!amount || amount <= 0) {
+      setError('차감할 크레딧 수를 입력해주세요.')
+      return
+    }
+    if (amount > data.profile.credits_balance) {
+      setError(`현재 잔액(${data.profile.credits_balance})보다 큰 값은 차감할 수 없습니다.`)
+      return
+    }
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtract_credits: amount }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '크레딧 차감 중 오류가 발생했습니다.')
+        return
+      }
+
+      setData({ ...data, profile: result.profile })
+      setSubtractCreditsAmount('')
+      setSuccess(`${amount} 크레딧이 차감되었습니다.`)
+    } catch {
+      setError('크레딧 차감 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
     }
@@ -659,6 +698,37 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 ))}
                 <Button onClick={handleAddCredits} disabled={saving} size="sm">
                   추가
+                </Button>
+              </div>
+            </div>
+
+            {/* 크레딧 감소 (입력 + 빠른 버튼 한 행) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-destructive">크레딧 차감</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="number"
+                  placeholder="직접 입력"
+                  value={subtractCreditsAmount}
+                  onChange={(e) => setSubtractCreditsAmount(e.target.value)}
+                  min={1}
+                  max={profile.credits_balance}
+                  className="w-28"
+                />
+                {[10, 50, 100, 500].map((amount) => (
+                  <Button
+                    key={amount}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                    disabled={saving}
+                    onClick={() => setSubtractCreditsAmount(String(amount))}
+                  >
+                    -{amount}
+                  </Button>
+                ))}
+                <Button onClick={handleSubtractCredits} disabled={saving} size="sm" variant="destructive">
+                  차감
                 </Button>
               </div>
             </div>

@@ -8,6 +8,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PLANS } from '@/types/database'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
+import { pathToFeatureKey } from '@/lib/features'
 import { Lock } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
 
@@ -15,7 +16,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const {
     plan, role, creditsBalance, creditsQuota,
-    avatarUrl, userName, userEmail, loaded,
+    avatarUrl, userName, userEmail, loaded, disabledFeatures,
   } = useUserProfile()
 
   const planInfo = PLANS[plan]
@@ -41,7 +42,10 @@ export function Sidebar() {
                 </p>
               )}
               <div className="space-y-1">
-                {group.items.map((item) => {
+                {group.items.filter((item) => {
+                  const fk = pathToFeatureKey(item.href)
+                  return !fk || !disabledFeatures.includes(fk)
+                }).map((item) => {
                   const isActive = pathname === item.href
                   const locked = !canAccessFeature(plan, item.minPlan)
                   return (
