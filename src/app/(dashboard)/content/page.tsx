@@ -1155,9 +1155,19 @@ export default function ContentPage() {
           console.warn('[Content] result 이벤트 미수신 — 스트리밍 텍스트로 폴백 복구')
           const parsed = extractFromStreamJson(streamingTextRef.current)
           if (parsed.title && parsed.content) {
+            // [IMG-N] 마커를 마크다운 이미지로 교체 (폴백 경로)
+            let fallbackContent = parsed.content
+            if (attachedImages.length > 0) {
+              attachedImages.forEach((img, idx) => {
+                const marker = `[IMG-${idx + 1}]`
+                if (fallbackContent.includes(marker)) {
+                  fallbackContent = fallbackContent.replace(marker, `![${img.description}](${img.previewUrl})`)
+                }
+              })
+            }
             const fallbackResult: ContentResult = {
               title: parsed.title,
-              content: parsed.content,
+              content: fallbackContent,
               tags: [],
               isDemo: false,
               notice: '서버 응답이 불완전하여 스트리밍 데이터로 복구되었습니다. 내용을 확인해주세요.',
