@@ -294,40 +294,11 @@ export default function SeoCheckPage() {
       }),
     }
 
-    // === 클라이언트 직접 분석 + 스캔 애니메이션 ===
-    // API 의존성 제거: analyzeSeo는 순수 함수이므로 클라이언트에서 즉시 실행
-    // 크레딧 차감과 AI 심층 분석만 API 호출 (백그라운드)
-    setProgressStep({ step: 1, total: 3, label: SCAN_LABELS[0], percent: 5 })
+    // === 스캔 애니메이션 먼저 시작 → 끝나면 분석 실행 ===
+    setProgressStep({ step: 1, total: SCAN_LABELS.length, label: SCAN_LABELS[0], percent: 5 })
 
-    // 1단계: 클라이언트 로컬 SEO 분석 (즉시, API 호출 없음)
-    const seoScrapedMeta = scrapedStats ? {
-      tags: scrapedStats.tags,
-      formatting: scrapedStats.formatting,
-    } : undefined
-    const engineResult = analyzeSeo(
-      keyword.trim(),
-      title.trim(),
-      content.trim(),
-      undefined,
-      seoScrapedMeta
-    )
-    const readability = analyzeReadability(content.trim())
-
-    const localResult: SeoResult = {
-      totalScore: engineResult.totalScore,
-      grade: engineResult.grade,
-      categories: engineResult.categories.map(cat => ({
-        id: cat.id,
-        name: cat.name,
-        score: cat.score,
-        maxScore: cat.maxScore,
-        feedback: cat.details,
-      })),
-      improvements: engineResult.improvements,
-      strengths: engineResult.strengths,
-      isDemo: false,
-      aiAnalysis: null,
-    }
+    // UI가 로딩 상태를 렌더링할 수 있도록 한 프레임 대기
+    await new Promise(r => requestAnimationFrame(r))
 
     // 스캔 애니메이션 — 콘텐츠 줄 수에 비례 (AI가 한 줄씩 읽는 느낌)
     const lineCount = content.trim().slice(0, 2000).split('\n').length
@@ -351,9 +322,39 @@ export default function SeoCheckPage() {
         }, SCAN_INTERVAL_MS)
       })
 
-      // 스캔 완료 → 100% 잠시 표시 후 결과 전환
-      setProgressStep({ step: 3, total: 3, label: '분석 완료!', percent: 100 })
-      await new Promise(r => setTimeout(r, 600))
+      // 스캔 완료 후 로컬 SEO 분석 실행 (순수 함수, ~50ms)
+      setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '분석 완료!', percent: 100 })
+
+      const seoScrapedMeta = scrapedStats ? {
+        tags: scrapedStats.tags,
+        formatting: scrapedStats.formatting,
+      } : undefined
+      const engineResult = analyzeSeo(
+        keyword.trim(),
+        title.trim(),
+        content.trim(),
+        undefined,
+        seoScrapedMeta
+      )
+      const readability = analyzeReadability(content.trim())
+
+      const localResult: SeoResult = {
+        totalScore: engineResult.totalScore,
+        grade: engineResult.grade,
+        categories: engineResult.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          score: cat.score,
+          maxScore: cat.maxScore,
+          feedback: cat.details,
+        })),
+        improvements: engineResult.improvements,
+        strengths: engineResult.strengths,
+        isDemo: false,
+        aiAnalysis: null,
+      }
+
+      await new Promise(r => setTimeout(r, 400))
 
       // 로컬 분석 결과 즉시 표시
       setResult(localResult)
