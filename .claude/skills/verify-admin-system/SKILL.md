@@ -92,7 +92,7 @@ Grep pattern="process\.env\.\w+[^?!]" path="src/app/api/admin/system/route.ts" o
 Grep pattern="(plan|ai_provider|email)" path="src/app/api/admin/users/[id]/route.ts" output_mode="content"
 ```
 
-파일을 읽어 PATCH에서 `plan`, `ai_provider`, `add_credits`, `reset_credits` 등 허용된 필드만 업데이트하고, 임의 필드를 받아서 DB에 저장하지 않는지 확인합니다.
+파일을 읽어 PATCH에서 `plan`, `ai_provider`, `add_credits`, `subtract_credits`, `reset_credits` 등 허용된 필드만 업데이트하고, 임의 필드를 받아서 DB에 저장하지 않는지 확인합니다.
 
 **PASS:** 허용 필드가 화이트리스트 방식으로 검증되고, 필드 값 유효성 검사 존재
 **FAIL:** 요청 body를 그대로 DB에 전달하여 임의 필드 수정 가능
