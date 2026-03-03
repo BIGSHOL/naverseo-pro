@@ -322,47 +322,41 @@ export default function SeoCheckPage() {
         }, SCAN_INTERVAL_MS)
       })
 
-      // 스캔 완료 → 브라우저에 렌더링 기회를 준 뒤 분석 실행
+      // 스캔 완료 → 50ms 대기로 UI 렌더링 기회를 준 뒤 분석 실행
       setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '점수 계산 중...', percent: 100 })
-      await new Promise(r => setTimeout(r, 0))  // UI 렌더 양보
+      await new Promise(r => setTimeout(r, 50))  // UI 렌더 양보
 
       const seoScrapedMeta = scrapedStats ? {
         tags: scrapedStats.tags,
         formatting: scrapedStats.formatting,
       } : undefined
 
-      // analyzeSeo를 매크로태스크로 실행하여 메인 스레드 차단 방지
-      // try/catch 필수: setTimeout 안에서 에러 시 Promise가 영원히 안 끝남
-      const localResult = await new Promise<SeoResult>((resolve, reject) => {
-        setTimeout(() => {
-          try {
-            const engineResult = analyzeSeo(
-              keyword.trim(),
-              title.trim(),
-              content.trim(),
-              undefined,
-              seoScrapedMeta
-            )
-            resolve({
-              totalScore: engineResult.totalScore,
-              grade: engineResult.grade,
-              categories: engineResult.categories.map(cat => ({
-                id: cat.id,
-                name: cat.name,
-                score: cat.score,
-                maxScore: cat.maxScore,
-                feedback: cat.details,
-              })),
-              improvements: engineResult.improvements,
-              strengths: engineResult.strengths,
-              isDemo: false,
-              aiAnalysis: null,
-            })
-          } catch (err) {
-            reject(err)
-          }
-        }, 0)
-      })
+      // analyzeSeo 직접 실행 (순수 함수, ~50ms 이내)
+      console.log('[SEO] analyzeSeo 시작')
+      const engineResult = analyzeSeo(
+        keyword.trim(),
+        title.trim(),
+        content.trim(),
+        undefined,
+        seoScrapedMeta
+      )
+      console.log('[SEO] analyzeSeo 완료:', engineResult.totalScore, '점')
+
+      const localResult: SeoResult = {
+        totalScore: engineResult.totalScore,
+        grade: engineResult.grade,
+        categories: engineResult.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          score: cat.score,
+          maxScore: cat.maxScore,
+          feedback: cat.details,
+        })),
+        improvements: engineResult.improvements,
+        strengths: engineResult.strengths,
+        isDemo: false,
+        aiAnalysis: null,
+      }
 
       // 로컬 분석 결과 즉시 표시
       setResult(localResult)
