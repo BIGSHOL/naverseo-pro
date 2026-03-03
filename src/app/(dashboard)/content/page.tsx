@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CREDIT_COSTS } from '@/types/database'
-import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
@@ -528,6 +527,14 @@ export default function ContentPage() {
   const [historyCopied, setHistoryCopied] = useState(false)
   const [showHistoryRawMarkdown, setShowHistoryRawMarkdown] = useState(false)
 
+  // 순위 트래킹 다이얼로그
+  const [showTrackingDialog, setShowTrackingDialog] = useState(false)
+  const [trackingKeyword, setTrackingKeyword] = useState('')
+  const [trackingBlogUrl, setTrackingBlogUrl] = useState('')
+  const [trackingLoading, setTrackingLoading] = useState(false)
+  const [trackingResult, setTrackingResult] = useState<{ rank: number | null; section: string | null } | null>(null)
+  const [userBlogUrl, setUserBlogUrl] = useState<string | null>(null)
+
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
     try {
@@ -541,6 +548,24 @@ export default function ContentPage() {
     } finally {
       setHistoryLoading(false)
     }
+  }, [])
+
+  // 사용자 블로그 URL 사전 로드 (순위 트래킹 다이얼로그용)
+  useEffect(() => {
+    const fetchBlogUrl = async () => {
+      try {
+        const res = await fetch('/api/profile/blog')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.blogProfile?.blogUrl) {
+            setUserBlogUrl(data.blogProfile.blogUrl)
+          }
+        }
+      } catch {
+        // 블로그 URL 없어도 수동 입력 가능
+      }
+    }
+    fetchBlogUrl()
   }, [])
 
   // 내 콘텐츠 탭 진입 시 로드
@@ -961,6 +986,18 @@ export default function ContentPage() {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+
+    // 자동 발행: contentId가 있으면 상태를 'published'로 변경
+    if (result.contentId) {
+      await updateContentStatus(result.contentId, 'published')
+      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+
+      // 순위 트래킹 다이얼로그 표시
+      setTrackingKeyword(keyword)
+      setTrackingBlogUrl(userBlogUrl || '')
+      setTrackingResult(null)
+      setShowTrackingDialog(true)
+    }
   }
 
   // result 도착 시 편집 상태 초기화 (Self-Healing 애니메이션 중에는 건너뜀)
@@ -1463,6 +1500,51 @@ export default function ContentPage() {
     }
   }
 
+  const handleTrackingRegister = async () => {
+    if (!trackingKeyword.trim() || !trackingBlogUrl.trim()) return
+    setTrackingLoading(true)
+    try {
+      const res = await fetch('/api/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: trackingKeyword.trim(),
+          blogUrl: trackingBlogUrl.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setTrackingResult({ rank: data.rank, section: data.section })
+        toast({
+          title: '순위 트래킹 등록 완료',
+          description: data.rank
+            ? `${trackingKeyword}: ${data.rank}위 (${data.section || '블로그'})`
+            : `${trackingKeyword}: 100위 밖`,
+        })
+      } else if (data.cooldown) {
+        toast({
+          title: '이미 트래킹 중',
+          description: data.error,
+        })
+        setShowTrackingDialog(false)
+      } else {
+        toast({
+          title: '등록 실패',
+          description: data.error || '순위 트래킹 등록에 실패했습니다.',
+          variant: 'destructive',
+        })
+      }
+    } catch {
+      toast({
+        title: '네트워크 오류',
+        description: '순위 트래킹 등록 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTrackingLoading(false)
+    }
+  }
+
   const saveHistoryEdit = async () => {
     if (!selectedContentId || historySaving) return
     setHistorySaving(true)
@@ -1491,15 +1573,27 @@ export default function ContentPage() {
     }
   }
 
-  const copyHistoryContent = (c: { title: string; content: string }) => {
+  const copyHistoryContent = async (c: { id: string; title: string; content: string; status: string; target_keyword: string }) => {
     navigator.clipboard.writeText(c.title + '\n\n' + c.content)
     setHistoryCopied(true)
     setTimeout(() => setHistoryCopied(false), 2000)
+
+    // 자동 발행: draft 상태인 경우만 published로 전환
+    if (c.status === 'draft') {
+      await updateContentStatus(c.id, 'published')
+      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+    }
+
+    // 순위 트래킹 다이얼로그 표시
+    setTrackingKeyword(c.target_keyword)
+    setTrackingBlogUrl(userBlogUrl || '')
+    setTrackingResult(null)
+    setShowTrackingDialog(true)
   }
 
   const statusLabel: Record<string, { label: string; color: string }> = {
     draft: { label: '초안', color: 'bg-gray-100 text-gray-700' },
-    published: { label: '발행됨', color: 'bg-green-100 text-green-700' },
+    published: { label: '복사 완료', color: 'bg-green-100 text-green-700' },
     archived: { label: '보관됨', color: 'bg-yellow-100 text-yellow-700' },
   }
 
@@ -1753,12 +1847,6 @@ export default function ContentPage() {
                               <Pencil className="mr-1 h-3 w-3" />
                               편집
                             </Button>
-                            {selectedContent.status !== 'published' && (
-                              <Button size="sm" variant="outline" className="text-green-700" onClick={() => updateContentStatus(selectedContent.id, 'published')}>
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                발행
-                              </Button>
-                            )}
                             {selectedContent.status !== 'archived' && (
                               <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => updateContentStatus(selectedContent.id, 'archived')}>
                                 <Trash2 className="mr-1 h-3 w-3" />
@@ -2190,6 +2278,11 @@ export default function ContentPage() {
                   </Badge>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {targetLength === 'short' && '모바일 최적화 · 핵심만 간결하게 전달하는 글'}
+                {targetLength === 'medium' && '💡 네이버 검색 상위노출에 가장 유리한 길이입니다'}
+                {targetLength === 'long' && '전문성 높은 심층 콘텐츠 · 체류시간 증가에 유리'}
+              </p>
             </div>
 
             {/* 톤앤매너 */}
@@ -3492,6 +3585,81 @@ export default function ContentPage() {
               <ImagePlus className="mr-1 h-4 w-4" />
               {imageMarkers.filter(m => !m.isReal).length}장 생성하기
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 순위 트래킹 등록 다이얼로그 */}
+      <Dialog open={showTrackingDialog} onOpenChange={setShowTrackingDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              순위 트래킹 등록
+            </DialogTitle>
+            <DialogDescription>
+              블로그에 발행 후 이 키워드의 순위를 추적할까요?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>키워드</Label>
+              <Input value={trackingKeyword} readOnly className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label>블로그 URL</Label>
+              <Input
+                value={trackingBlogUrl}
+                onChange={(e) => setTrackingBlogUrl(e.target.value)}
+                placeholder="https://blog.naver.com/아이디"
+              />
+              {!trackingBlogUrl && (
+                <p className="text-xs text-muted-foreground">
+                  설정에서 블로그 URL을 등록하면 자동으로 입력됩니다
+                </p>
+              )}
+            </div>
+            {trackingResult && (
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                {trackingResult.rank ? (
+                  <div>
+                    <span className="text-2xl font-bold text-green-600">{trackingResult.rank}위</span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      ({trackingResult.section || '블로그'} 섹션)
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-lg font-medium text-muted-foreground">100위 밖</span>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowTrackingDialog(false)}>
+              나중에
+            </Button>
+            {!trackingResult ? (
+              <Button
+                onClick={handleTrackingRegister}
+                disabled={trackingLoading || !trackingBlogUrl.trim()}
+              >
+                {trackingLoading ? (
+                  <>
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    확인 중...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="mr-1 h-4 w-4" />
+                    순위 트래킹 등록 (1크레딧)
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button onClick={() => setShowTrackingDialog(false)}>
+                확인
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

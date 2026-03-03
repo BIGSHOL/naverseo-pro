@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, Wand2, BarChart3, TrendingUp, ArrowRight, Clock, FileText,
@@ -11,14 +11,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { PLANS, type Plan } from '@/types/database'
 import { timeAgo } from '@/lib/utils/date'
 import { ensureUrl } from '@/lib/utils/text'
+import { useUserProfile } from '@/contexts/user-profile'
+
+// ---------- Recharts 지연 로딩 ----------
+
+const ActivityChart = dynamic(
+  () => import('@/components/charts/activity-chart'),
+  {
+    loading: () => <div className="h-[220px] animate-pulse rounded bg-muted" />,
+    ssr: false,
+  },
+)
 
 // ---------- 타입 ----------
 
@@ -112,53 +120,43 @@ const quickActions = [
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [plan, setPlan] = useState<Plan>('free')
-  const [creditsBalance, setCreditsBalance] = useState(0)
-  const [creditsQuota, setCreditsQuota] = useState(30)
-  const [recentKeywords, setRecentKeywords] = useState<RecentKeyword[]>([])
-  const [recentContent, setRecentContent] = useState<RecentContent[]>([])
-  const [contentStats, setContentStats] = useState<ContentStats>({ total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
-  const [dailyActivity, setDailyActivity] = useState<DailyActivity[]>([])
-  const [trackedKeywordsCount, setTrackedKeywordsCount] = useState(0)
-  const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([])
-  const [blogProfile, setBlogProfile] = useState<BlogProfile | null>(null)
-  const [greeting, setGreeting] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { plan, creditsBalance, creditsQuota, loaded, dashboardData } = useUserProfile()
 
-  useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('좋은 아침입니다')
-    else if (hour < 18) setGreeting('좋은 오후입니다')
-    else setGreeting('좋은 저녁입니다')
-
-    async function loadDashboard() {
-      try {
-        const res = await fetch('/api/dashboard')
-        if (!res.ok) {
-          setError('대시보드 데이터를 불러오지 못했습니다.')
-          return
-        }
-        const data = await res.json()
-
-        setPlan((data.profile?.plan || 'free') as Plan)
-        setCreditsBalance(data.profile?.credits_balance ?? 30)
-        setCreditsQuota(data.profile?.credits_monthly_quota ?? 30)
-        setRecentKeywords(data.recentKeywords || [])
-        setRecentContent(data.recentContent || [])
-        setContentStats(data.contentStats || { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 })
-        setDailyActivity(data.dailyActivity || [])
-        setTrackedKeywordsCount(data.trackedKeywordsCount || 0)
-        setRecommendedKeywords(data.recommendedKeywords || [])
-        setBlogProfile(data.blogProfile || null)
-      } catch {
-        setError('대시보드 데이터를 불러오는 중 오류가 발생했습니다.')
-      } finally {
-        setLoading(false)
-      }
+  // dashboardData에서 파생 (별도 fetch 없이 컨텍스트 재사용)
+  const {
+    recentKeywords,
+    recentContent,
+    contentStats,
+    dailyActivity,
+    trackedKeywordsCount,
+    recommendedKeywords,
+    blogProfile,
+  } = useMemo(() => {
+    if (!dashboardData) return {
+      recentKeywords: [] as RecentKeyword[],
+      recentContent: [] as RecentContent[],
+      contentStats: { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 } as ContentStats,
+      dailyActivity: [] as DailyActivity[],
+      trackedKeywordsCount: 0,
+      recommendedKeywords: [] as string[],
+      blogProfile: null as BlogProfile | null,
     }
+    return {
+      recentKeywords: (dashboardData.recentKeywords || []) as RecentKeyword[],
+      recentContent: (dashboardData.recentContent || []) as RecentContent[],
+      contentStats: (dashboardData.contentStats || { total: 0, draft: 0, published: 0, archived: 0, avgSeoScore: 0 }) as ContentStats,
+      dailyActivity: (dashboardData.dailyActivity || []) as DailyActivity[],
+      trackedKeywordsCount: (dashboardData.trackedKeywordsCount || 0) as number,
+      recommendedKeywords: (dashboardData.recommendedKeywords || []) as string[],
+      blogProfile: (dashboardData.blogProfile || null) as BlogProfile | null,
+    }
+  }, [dashboardData])
 
-    loadDashboard()
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) return '좋은 아침입니다'
+    if (hour < 18) return '좋은 오후입니다'
+    return '좋은 저녁입니다'
   }, [])
 
   const planInfo = PLANS[plan]
@@ -166,12 +164,11 @@ export default function DashboardPage() {
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`
 
   // 크레딧 사용량 계산
-  const creditsUsed = creditsQuota - creditsBalance
   const creditPercent = creditsQuota > 0 ? (creditsBalance / creditsQuota) * 100 : 0
 
   // ---------- 로딩 스켈레톤 ----------
 
-  if (loading) {
+  if (!loaded) {
     return (
       <div className="space-y-6">
         {/* 헤더 스켈레톤 */}
@@ -211,14 +208,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg bg-destructive/10 p-4 text-destructive text-sm">
-        {error}
       </div>
     )
   }
@@ -451,56 +440,7 @@ export default function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={dailyActivity} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="kwGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="seoGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="trkGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                <RechartsTooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
-                <Area
-                  type="monotone" dataKey="keywords" name="키워드"
-                  stroke="#3b82f6" fill="url(#kwGrad)" strokeWidth={2}
-                />
-                <Area
-                  type="monotone" dataKey="content" name="콘텐츠"
-                  stroke="#a855f7" fill="url(#ctGrad)" strokeWidth={2}
-                />
-                <Area
-                  type="monotone" dataKey="seo" name="SEO 분석"
-                  stroke="#22c55e" fill="url(#seoGrad)" strokeWidth={2}
-                />
-                <Area
-                  type="monotone" dataKey="tracking" name="순위 트래킹"
-                  stroke="#f97316" fill="url(#trkGrad)" strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <ActivityChart data={dailyActivity} />
           )}
         </CardContent>
       </Card>

@@ -106,17 +106,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 이미 등록된 키워드인지 확인
+    // 이미 등록된 키워드인지 확인 + 쿨다운 체크
     const { data: existing } = await supabase
       .from('rank_tracking')
-      .select('id')
+      .select('id, checked_at')
       .eq('user_id', user.id)
       .eq('keyword', keyword.trim())
       .eq('blog_url', blogUrl.trim())
+      .order('checked_at', { ascending: false })
       .limit(1)
 
-    // 크레딧 체크
     const isNew = !existing || existing.length === 0
+
+    // 이미 등록된 키워드는 1시간 쿨다운 적용
+    if (!isNew && existing[0]?.checked_at) {
+      const lastChecked = new Date(existing[0].checked_at)
+      const cooldownMs = 60 * 60 * 1000
+      if (Date.now() - lastChecked.getTime() < cooldownMs) {
+        const minutesLeft = Math.ceil((lastChecked.getTime() + cooldownMs - Date.now()) / 60000)
+        return NextResponse.json(
+          { error: `이 키워드는 ${minutesLeft}분 후에 다시 확인할 수 있습니다.`, cooldown: true, minutesLeft },
+          { status: 429 }
+        )
+      }
+    }
     const creditCheck = await checkCredits(supabase, user.id, 'tracking_per_keyword')
     if (!creditCheck.allowed) {
       return NextResponse.json(

@@ -123,22 +123,24 @@ export async function GET() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5),
-      // 콘텐츠 통계: 전체 콘텐츠의 status, seo_score
+      // 콘텐츠 통계: 전체 콘텐츠의 status, seo_score (최대 1000건)
       supabase
         .from('generated_content')
         .select('status, seo_score')
-        .eq('user_id', user.id),
+        .eq('user_id', user.id)
+        .limit(1000),
       // 7일 활동: credit_usage_log에서 전체 기능 집계
       supabase
         .from('credit_usage_log')
         .select('feature, created_at')
         .eq('user_id', user.id)
         .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-      // 트래킹 키워드 수
+      // 트래킹 키워드 수 (최대 500건)
       supabase
         .from('rank_tracking')
         .select('keyword')
-        .eq('user_id', user.id),
+        .eq('user_id', user.id)
+        .limit(500),
     ])
 
     // 콘텐츠 통계 집계

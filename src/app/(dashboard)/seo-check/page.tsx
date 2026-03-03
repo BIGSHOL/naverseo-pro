@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, Check, RotateCcw } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, RotateCcw } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

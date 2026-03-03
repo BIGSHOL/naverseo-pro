@@ -34,6 +34,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 쿨다운 체크: 같은 키워드+블로그 조합은 1시간 이내 재확인 불가
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { data: recentCheck } = await supabase
+      .from('rank_tracking')
+      .select('checked_at')
+      .eq('user_id', user.id)
+      .eq('keyword', keyword.trim())
+      .eq('blog_url', blogUrl.trim())
+      .gte('checked_at', oneHourAgo)
+      .order('checked_at', { ascending: false })
+      .limit(1)
+
+    if (recentCheck && recentCheck.length > 0) {
+      const lastChecked = new Date(recentCheck[0].checked_at)
+      const nextAvailable = new Date(lastChecked.getTime() + 60 * 60 * 1000)
+      const minutesLeft = Math.ceil((nextAvailable.getTime() - Date.now()) / 60000)
+      return NextResponse.json(
+        { error: `이 키워드는 ${minutesLeft}분 후에 다시 확인할 수 있습니다.`, cooldown: true, minutesLeft },
+        { status: 429 }
+      )
+    }
+
     // 순위 체크
     let rankResult: { rank: number | null; section: string | null }
 

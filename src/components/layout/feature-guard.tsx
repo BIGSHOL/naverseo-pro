@@ -1,51 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { pathToFeatureKey } from '@/lib/features'
+import { useUserProfile } from '@/contexts/user-profile'
 
 /**
  * 기능 비활성화 가드
  * 현재 페이지의 기능이 관리자에 의해 비활성화되었으면 차단 메시지를 표시
+ * UserProfileProvider 컨텍스트에서 비활성화 목록을 읽어 별도 API 호출 없음
  */
 export function FeatureGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [disabled, setDisabled] = useState(false)
-  const [checked, setChecked] = useState(false)
+  const { loaded, disabledFeatures } = useUserProfile()
 
-  useEffect(() => {
-    const featureKey = pathToFeatureKey(pathname)
-    if (!featureKey) {
-      setChecked(true)
-      return
-    }
+  // 아직 로딩 중이면 children을 그대로 보여줌 (각 페이지가 자체 스켈레톤 처리)
+  if (!loaded) return <>{children}</>
 
-    async function checkFeature() {
-      try {
-        const res = await fetch('/api/features')
-        if (!res.ok) {
-          setChecked(true)
-          return
-        }
-        const data = await res.json()
-        const disabledFeatures: string[] = data.disabledFeatures || []
-        setDisabled(disabledFeatures.includes(featureKey!))
-      } catch {
-        // 오류 시 기능 활성화 상태로 처리
-      } finally {
-        setChecked(true)
-      }
-    }
-    checkFeature()
-  }, [pathname])
+  const featureKey = pathToFeatureKey(pathname)
+  if (!featureKey) return <>{children}</>
 
-  if (!checked) return null
-
-  if (disabled) {
+  if (disabledFeatures.includes(featureKey)) {
     return (
       <div className="flex items-center justify-center py-20">
         <Card className="w-full max-w-md">

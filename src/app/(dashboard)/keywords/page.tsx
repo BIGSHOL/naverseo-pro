@@ -10,7 +10,7 @@ import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2, Clock } from '
 import Link from 'next/link'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 import type { ProgressState } from '@/lib/progress'
-import { CardProgress, getProgressPercent } from '@/lib/progress'
+import { CardProgress } from '@/lib/progress'
 
 const DEFAULT_EXAMPLES = ['다이어트 식단', '맛집 추천', '여행 코스', '인테리어 팁']
 

@@ -82,12 +82,6 @@ export interface Project {
   created_at: string
 }
 
-export interface WaitlistEntry {
-  id: string
-  email: string
-  created_at: string
-}
-
 // ─── 추천인 & 프로모 코드 시스템 ───
 
 export interface PromoCode {

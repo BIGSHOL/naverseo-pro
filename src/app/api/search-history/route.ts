@@ -97,18 +97,21 @@ export async function POST(request: NextRequest) {
       .eq('type', type)
       .eq('keyword', keyword)
 
-    await supabase
-      .from('search_history')
-      .insert({ user_id: user.id, keyword, type })
+    // 삽입 + 오래된 히스토리 조회를 병렬 실행
+    const [, { data: all }] = await Promise.all([
+      supabase
+        .from('search_history')
+        .insert({ user_id: user.id, keyword, type }),
+      supabase
+        .from('search_history')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('type', type)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
 
     // 오래된 히스토리 정리 (5개 초과 시)
-    const { data: all } = await supabase
-      .from('search_history')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('type', type)
-      .order('created_at', { ascending: false })
-
     if (all && all.length > 5) {
       const idsToDelete = all.slice(5).map((row) => row.id)
       await supabase
