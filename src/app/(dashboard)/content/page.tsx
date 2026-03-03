@@ -523,6 +523,7 @@ export default function ContentPage() {
 
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
+  const [showPromoDialog, setShowPromoDialog] = useState(false)
   const [businessName, setBusinessName] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
   const [businessPricing, setBusinessPricing] = useState('')
@@ -2311,6 +2312,7 @@ export default function ContentPage() {
                     if (!isPromoMode) {
                       setContentType('local')
                       setIsPromoMode(true)
+                      setShowPromoDialog(true)
                     } else {
                       setIsPromoMode(false)
                     }
@@ -2514,115 +2516,141 @@ export default function ContentPage() {
               </p>
             </div>
 
-            {/* 내 업체 홍보글 입력 폼 */}
+            {/* 내 업체 홍보글 — 입력 요약 + 수정 버튼 */}
             {isPromoMode && (
-              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/50 p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-orange-700">
-                  <Store className="h-4 w-4" />
-                  내 업체 정보 입력
-                </div>
-                <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-name" className="text-sm">업체명 *</Label>
-                      <Input
-                        id="biz-name"
-                        placeholder="내 업체/매장 이름을 입력하세요"
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        disabled={loading}
-                      />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-address" className="text-sm">위치/주소</Label>
-                        <Input
-                          id="biz-address"
-                          placeholder="시/구/동 또는 상세 주소"
-                          value={businessAddress}
-                          onChange={(e) => setBusinessAddress(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-hours" className="text-sm">운영 시간</Label>
-                        <Input
-                          id="biz-hours"
-                          placeholder="평일/주말 운영 시간"
-                          value={businessHours}
-                          onChange={(e) => setBusinessHours(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-pricing" className="text-sm">가격 정보</Label>
-                        <Input
-                          id="biz-pricing"
-                          placeholder="대표 상품/서비스 가격대"
-                          value={businessPricing}
-                          onChange={(e) => setBusinessPricing(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-contact" className="text-sm">연락처/예약</Label>
-                        <Input
-                          id="biz-contact"
-                          placeholder="전화번호 또는 예약 링크"
-                          value={businessContact}
-                          onChange={(e) => setBusinessContact(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-strengths" className="text-sm">강점/특징</Label>
-                      <Textarea
-                        id="biz-strengths"
-                        placeholder="우리 업체만의 차별점, 핵심 강점을 적어주세요"
-                        value={businessStrengths}
-                        onChange={(e) => setBusinessStrengths(e.target.value)}
-                        disabled={loading}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-topic" className="text-sm font-medium text-orange-700">
-                        글 주제/소재 (핵심!)
-                      </Label>
-                      <Textarea
-                        id="biz-topic"
-                        placeholder="어떤 주제의 글을 쓸지 자유롭게 입력하세요"
-                        value={businessTopic}
-                        onChange={(e) => setBusinessTopic(e.target.value)}
-                        disabled={loading}
-                        rows={2}
-                      />
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { label: '서비스 탐방', text: '대표 서비스 체험기 - 직접 방문해서 경험한 솔직한 후기' },
-                          { label: '시설 소개', text: '새로 리뉴얼한 매장 소개 - 깔끔한 인테리어와 편의시설' },
-                          { label: '이벤트 안내', text: '이번 달 특별 이벤트 안내 - 할인 및 무료 체험 정보' },
-                          { label: '고객 후기', text: '단골 고객의 솔직 후기 - 실제 이용자의 생생한 경험담' },
-                          { label: '전문가 칼럼', text: '업계 전문가가 알려주는 꿀팁 - 현장 노하우 공유' },
-                          { label: '일상/비하인드', text: '매장 운영 비하인드 - 사장님과 직원들의 소소한 일상' },
-                        ].map(({ label, text }) => (
-                          <button
-                            key={label}
-                            type="button"
-                            className="rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs text-orange-600 hover:bg-orange-100 transition-colors"
-                            onClick={() => setBusinessTopic(text)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        칩을 클릭하면 예시가 자동 입력됩니다. 자유롭게 수정하세요!
-                      </p>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/50 px-3 py-2">
+                <Store className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="text-sm truncate flex-1">
+                  {businessName ? <span className="font-medium text-orange-700">{businessName}</span> : <span className="text-muted-foreground">업체 정보를 입력하세요</span>}
+                  {businessAddress && <span className="text-muted-foreground"> · {businessAddress}</span>}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 text-xs h-7 border-orange-200 text-orange-600 hover:bg-orange-100"
+                  onClick={() => setShowPromoDialog(true)}
+                >
+                  {businessName ? '수정' : '입력'}
+                </Button>
               </div>
             )}
+
+            {/* 내 업체 홍보글 다이얼로그 */}
+            <Dialog open={showPromoDialog} onOpenChange={setShowPromoDialog}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-orange-700">
+                    <Store className="h-5 w-5" />
+                    내 업체 정보 입력
+                  </DialogTitle>
+                  <DialogDescription>
+                    입력한 정보를 바탕으로 AI가 자연스러운 홍보 블로그 글을 작성합니다.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-name" className="text-sm">업체명 *</Label>
+                    <Input
+                      id="biz-name"
+                      placeholder="내 업체/매장 이름을 입력하세요"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-address" className="text-sm">위치/주소</Label>
+                      <Input
+                        id="biz-address"
+                        placeholder="시/구/동 또는 상세 주소"
+                        value={businessAddress}
+                        onChange={(e) => setBusinessAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-hours" className="text-sm">운영 시간</Label>
+                      <Input
+                        id="biz-hours"
+                        placeholder="평일/주말 운영 시간"
+                        value={businessHours}
+                        onChange={(e) => setBusinessHours(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-pricing" className="text-sm">가격 정보</Label>
+                      <Input
+                        id="biz-pricing"
+                        placeholder="대표 상품/서비스 가격대"
+                        value={businessPricing}
+                        onChange={(e) => setBusinessPricing(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-contact" className="text-sm">연락처/예약</Label>
+                      <Input
+                        id="biz-contact"
+                        placeholder="전화번호 또는 예약 링크"
+                        value={businessContact}
+                        onChange={(e) => setBusinessContact(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-strengths" className="text-sm">강점/특징</Label>
+                    <Textarea
+                      id="biz-strengths"
+                      placeholder="우리 업체만의 차별점, 핵심 강점을 적어주세요"
+                      value={businessStrengths}
+                      onChange={(e) => setBusinessStrengths(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-topic" className="text-sm font-medium text-orange-700">
+                      글 주제/소재 (핵심!)
+                    </Label>
+                    <Textarea
+                      id="biz-topic"
+                      placeholder="어떤 주제의 글을 쓸지 자유롭게 입력하세요"
+                      value={businessTopic}
+                      onChange={(e) => setBusinessTopic(e.target.value)}
+                      rows={2}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '서비스 탐방', text: '대표 서비스 체험기 - 직접 방문해서 경험한 솔직한 후기' },
+                        { label: '시설 소개', text: '새로 리뉴얼한 매장 소개 - 깔끔한 인테리어와 편의시설' },
+                        { label: '이벤트 안내', text: '이번 달 특별 이벤트 안내 - 할인 및 무료 체험 정보' },
+                        { label: '고객 후기', text: '단골 고객의 솔직 후기 - 실제 이용자의 생생한 경험담' },
+                        { label: '전문가 칼럼', text: '업계 전문가가 알려주는 꿀팁 - 현장 노하우 공유' },
+                        { label: '일상/비하인드', text: '매장 운영 비하인드 - 사장님과 직원들의 소소한 일상' },
+                      ].map(({ label, text }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          className="rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs text-orange-600 hover:bg-orange-100 transition-colors"
+                          onClick={() => setBusinessTopic(text)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      칩을 클릭하면 예시가 자동 입력됩니다. 자유롭게 수정하세요!
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={() => setShowPromoDialog(false)}
+                    className="bg-orange-500 hover:bg-orange-600"
+                  >
+                    확인
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* 글 길이 */}
             <div className="space-y-2">
