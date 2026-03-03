@@ -483,6 +483,7 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 }
 
 export async function POST(request: NextRequest) {
+  const routeStartMs = Date.now()
   try {
     // 인증 체크
     const { createClient } = await import('@/lib/supabase/server')
@@ -813,10 +814,14 @@ ${imageList}
           send({ type: 'progress', step: 3, totalSteps: 6, message: 'AI 콘텐츠 생성 중...' })
 
           try {
+            // AI 타임아웃: Vercel 60초 - 경과시간 - 후처리 여유 15초
+            const elapsed = Date.now() - routeStartMs
+            const aiTimeoutMs = Math.max(10000, (maxDuration * 1000) - elapsed - 15000)
+
             const onDelta = (delta: string) => send({ type: 'stream', delta })
             const response = provider === 'gemini'
-              ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048 }, onDelta)
-              : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true }, onDelta)
+              ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048, timeoutMs: aiTimeoutMs }, onDelta)
+              : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true, timeoutMs: aiTimeoutMs }, onDelta)
 
             // Step 4/6: SEO 분석 + 후처리
             send({ type: 'progress', step: 4, totalSteps: 6, message: 'SEO 자동 최적화 중...' })
@@ -837,6 +842,26 @@ ${imageList}
             }>(response)
 
             const processedResult = postProcessContent(contentRequest, parsed)
+
+            // 사용자 첨부 이미지가 있으면 [IMG-N] 근처의 [이미지: ...] 마커 제거 (중복 방지)
+            if (contentRequest.attachedImages && contentRequest.attachedImages.length > 0) {
+              const lines = processedResult.content.split('\n')
+              const imgMarkerLines = new Set<number>()
+              // [IMG-N] 위치 찾기
+              lines.forEach((line, i) => {
+                if (/\[IMG-\d+\]/.test(line)) {
+                  // 위아래 2줄 이내의 [이미지: ...] 마커를 제거 대상으로
+                  for (let j = Math.max(0, i - 2); j <= Math.min(lines.length - 1, i + 2); j++) {
+                    if (/^\s*\[이미지:\s*.+\]\s*$/.test(lines[j])) {
+                      imgMarkerLines.add(j)
+                    }
+                  }
+                }
+              })
+              if (imgMarkerLines.size > 0) {
+                processedResult.content = lines.filter((_, i) => !imgMarkerLines.has(i)).join('\n')
+              }
+            }
 
             // 로컬 자동 최적화 (API 비용 0)
             const optimizeResult = autoOptimizeContent(
