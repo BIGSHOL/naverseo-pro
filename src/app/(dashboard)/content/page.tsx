@@ -1137,6 +1137,9 @@ export default function ContentPage() {
                   setResult(event)
                   setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
+              } else if (event.type === 'saved' && event.contentId) {
+                // DB 저장 완료 — result에 contentId 보충
+                setResult(prev => prev ? { ...prev, contentId: event.contentId } : prev)
               } else if (event.type === 'error') {
                 setStreamingText('')
                 streamingTextRef.current = ''

@@ -891,10 +891,8 @@ ${imageList}
               validation.score = Math.max(0, validation.score - 20)
             }
 
-            // Step 6/6: 저장
+            // Step 6/6: result를 먼저 전송 (Vercel 60초 타임아웃 방지)
             send({ type: 'progress', step: 6, totalSteps: 6, message: '저장 중...' })
-
-            const saved = await saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords)
 
             send({
               type: 'result',
@@ -904,7 +902,6 @@ ${imageList}
               tags: optimizeResult.tags,
               metaDescription: optimizeResult.metaDescription,
               isDemo: false,
-              contentId: saved?.id,
               seoScore: optimizeResult.scoreAfter,
               enrichment: hasEnrichment ? enrichment : undefined,
               unknownKeyword: isUnknownKeyword || undefined,
@@ -921,6 +918,11 @@ ${imageList}
               referenceUsageReport: parsed.referenceUsageReport || undefined,
               imagePlacementReport: parsed.imagePlacementReport || undefined,
             })
+
+            // DB 저장은 result 전송 후 비동기 (타임아웃되어도 사용자는 콘텐츠 수신 완료)
+            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords)
+              .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
+              .catch(err => console.error('[Content] DB 저장 실패 (result는 전송됨):', err))
           } catch (aiError) {
             const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)
 
@@ -931,15 +933,15 @@ ${imageList}
 
             if (aiMsg.includes('JSON') || aiMsg.includes('파싱')) {
               const demo = generateDemoContent(contentRequest)
-              const saved = await saveGeneratedContent(trimmedKeyword, demo.title, demo.content)
               send({
                 type: 'result',
                 ...demo,
-                contentId: saved?.id,
-                seoScore: saved?.seoScore,
                 isDemo: true,
                 notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
               })
+              saveGeneratedContent(trimmedKeyword, demo.title, demo.content)
+                .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
+                .catch(err => console.error('[Content] 데모 저장 실패:', err))
               return
             }
 
