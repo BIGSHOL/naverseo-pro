@@ -14,7 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { LiveSeoPanel } from '@/components/seo/LiveSeoPanel'
 import { SeoScanPreview } from '@/components/seo/SeoScanPreview'
 import { cn } from '@/lib/utils'
-import { analyzeSeo, analyzeReadability, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
+import { analyzeSeo, getGradeByScore, type SeoGradeInfo } from '@/lib/seo/engine'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -311,7 +311,7 @@ export default function SeoCheckPage() {
         let s = 0
         scanTimerRef = setInterval(() => {
           s++
-          const pct = Math.min(95, 5 + (s / totalSteps) * 90)
+          const pct = Math.min(100, 5 + (s / totalSteps) * 95)
           const labelIdx = Math.min(Math.floor((pct / 100) * SCAN_LABELS.length), SCAN_LABELS.length - 1)
           setProgressStep({ step: labelIdx + 1, total: SCAN_LABELS.length, label: SCAN_LABELS[labelIdx], percent: Math.round(pct) })
           if (s >= totalSteps) {
@@ -322,39 +322,43 @@ export default function SeoCheckPage() {
         }, SCAN_INTERVAL_MS)
       })
 
-      // 스캔 완료 후 로컬 SEO 분석 실행 (순수 함수, ~50ms)
+      // 스캔 완료 → 브라우저에 렌더링 기회를 준 뒤 분석 실행
+      // (analyzeSeo가 동기 함수라 메인 스레드를 차단할 수 있으므로 setTimeout(0)으로 양보)
       setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '분석 완료!', percent: 100 })
+      await new Promise(r => setTimeout(r, 0))  // UI 렌더 양보
 
       const seoScrapedMeta = scrapedStats ? {
         tags: scrapedStats.tags,
         formatting: scrapedStats.formatting,
       } : undefined
-      const engineResult = analyzeSeo(
-        keyword.trim(),
-        title.trim(),
-        content.trim(),
-        undefined,
-        seoScrapedMeta
-      )
-      const readability = analyzeReadability(content.trim())
 
-      const localResult: SeoResult = {
-        totalScore: engineResult.totalScore,
-        grade: engineResult.grade,
-        categories: engineResult.categories.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          score: cat.score,
-          maxScore: cat.maxScore,
-          feedback: cat.details,
-        })),
-        improvements: engineResult.improvements,
-        strengths: engineResult.strengths,
-        isDemo: false,
-        aiAnalysis: null,
-      }
-
-      await new Promise(r => setTimeout(r, 400))
+      // analyzeSeo를 매크로태스크로 실행하여 메인 스레드 차단 방지
+      const localResult = await new Promise<SeoResult>(resolve => {
+        setTimeout(() => {
+          const engineResult = analyzeSeo(
+            keyword.trim(),
+            title.trim(),
+            content.trim(),
+            undefined,
+            seoScrapedMeta
+          )
+          resolve({
+            totalScore: engineResult.totalScore,
+            grade: engineResult.grade,
+            categories: engineResult.categories.map(cat => ({
+              id: cat.id,
+              name: cat.name,
+              score: cat.score,
+              maxScore: cat.maxScore,
+              feedback: cat.details,
+            })),
+            improvements: engineResult.improvements,
+            strengths: engineResult.strengths,
+            isDemo: false,
+            aiAnalysis: null,
+          })
+        }, 0)
+      })
 
       // 로컬 분석 결과 즉시 표시
       setResult(localResult)

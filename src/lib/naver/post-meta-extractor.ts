@@ -65,20 +65,32 @@ export interface OpenGraphData {
 export function extractTags(html: string): string[] {
     const tags = new Set<string>()
 
+    // 패턴 0: gsTagName 변수 (구형 네이버 블로그 — 쉼표 구분 문자열)
+    // var gsTagName = "첫글,침산동,수학학원";
+    const gsTagMatch = html.match(/gsTagName\s*=\s*["']([^"']+)["']/)
+    if (gsTagMatch) {
+        gsTagMatch[1].split(',').forEach(t => {
+            const cleaned = t.replace(/^#/, '').trim()
+            if (cleaned.length >= 2 && cleaned.length <= 30) tags.add(cleaned)
+        })
+    }
+
     // 패턴 1: JSON 임베딩 (네이버 모바일의 SSR/초기 state 데이터)
     // 네이버 모바일 블로그는 태그를 JSON 배열로 페이지에 삽입
-    const jsonTagPatterns = [
-        /["'](?:logTagList|postTagList|hashTagList|tagList)["']\s*:\s*\[([^\]]+)\]/g,
-    ]
-    for (const pattern of jsonTagPatterns) {
-        let jMatch: RegExpExecArray | null
-        while ((jMatch = pattern.exec(html)) !== null) {
-            const arr = jMatch[1]
-            const strRegex = /["']([^"']{2,30})["']/g
-            let sMatch: RegExpExecArray | null
-            while ((sMatch = strRegex.exec(arr)) !== null) {
-                const t = sMatch[1].replace(/^#/, '').trim()
-                if (t.length >= 2 && t.length <= 30) tags.add(t)
+    if (tags.size === 0) {
+        const jsonTagPatterns = [
+            /["'](?:logTagList|postTagList|hashTagList|tagList)["']\s*:\s*\[([^\]]+)\]/g,
+        ]
+        for (const pattern of jsonTagPatterns) {
+            let jMatch: RegExpExecArray | null
+            while ((jMatch = pattern.exec(html)) !== null) {
+                const arr = jMatch[1]
+                const strRegex = /["']([^"']{2,30})["']/g
+                let sMatch: RegExpExecArray | null
+                while ((sMatch = strRegex.exec(arr)) !== null) {
+                    const t = sMatch[1].replace(/^#/, '').trim()
+                    if (t.length >= 2 && t.length <= 30) tags.add(t)
+                }
             }
         }
     }
