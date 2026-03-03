@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Search, TrendingUp, BarChart3, Sparkles, Loader2, Wand2, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { creditToast } from '@/lib/credit-toast'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 import type { ProgressState } from '@/lib/progress'
 import { CardProgress } from '@/lib/progress'
@@ -102,6 +103,7 @@ export default function KeywordsPage() {
                 setIsDemo(data.isDemo || false)
                 setSpaceNotice(data.spaceNotice || '')
                 setExpandedNotice(data.expandedNotice || '')
+                creditToast('keyword_research')
               } else if (data.type === 'error') {
                 setError(data.error || '키워드 조회에 실패했습니다.')
                 setKeywords([])
@@ -119,6 +121,7 @@ export default function KeywordsPage() {
         setKeywords(data.keywords)
         setIsDemo(data.isDemo || false)
         setSpaceNotice(data.spaceNotice || '')
+        creditToast('keyword_research')
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')

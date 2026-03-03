@@ -5,7 +5,7 @@ import { Search, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CreditTooltip } from '@/components/credit-tooltip'
-import type { CreditFeature } from '@/types/database'
+import { CREDIT_COSTS, type CreditFeature } from '@/types/database'
 
 interface KeywordSearchProps {
   onSearch: (keyword: string) => void
@@ -45,7 +45,7 @@ export function KeywordSearch({ onSearch, loading, creditFeature = 'keyword_rese
               분석 중
             </>
           ) : (
-            '검색'
+            `검색 (${CREDIT_COSTS[creditFeature]}크레딧)`
           )}
         </Button>
       </CreditTooltip>

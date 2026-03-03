@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useDebounce } from '@/hooks/use-debounce'
 import { analyzeSeo, analyzeReadability } from '@/lib/seo/engine'
+import type { SeoScrapedMeta } from '@/lib/seo/engine'
 import { analyzeDia, type DiaAnalysisResult } from '@/lib/dia/engine'
 import { ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Sparkles, Shield, Lightbulb, TrendingUp, ArrowUp } from 'lucide-react'
 import type { SeoCategory } from '@/lib/seo/engine'
@@ -13,7 +14,10 @@ interface LiveSeoPanelProps {
   title: string
   content: string
   additionalKeywords?: string[]
+  scrapedMeta?: SeoScrapedMeta
   compact?: boolean
+  /** 메인 결과 영역에 강점이 표시될 때 중복 방지용 */
+  hideStrengths?: boolean
 }
 
 function getScoreBgClass(score: number) {
@@ -98,7 +102,7 @@ function getCharCountInfo(len: number) {
   return { color: 'text-yellow-500', label: '길 수 있음' }
 }
 
-export function LiveSeoPanel({ keyword, title, content, additionalKeywords, compact = false }: LiveSeoPanelProps) {
+export function LiveSeoPanel({ keyword, title, content, additionalKeywords, scrapedMeta, compact = false, hideStrengths = false }: LiveSeoPanelProps) {
   const debouncedContent = useDebounce(content, 300)
   const debouncedTitle = useDebounce(title, 300)
   const [showDetails, setShowDetails] = useState(!compact)
@@ -106,14 +110,14 @@ export function LiveSeoPanel({ keyword, title, content, additionalKeywords, comp
   const analysis = useMemo(() => {
     if (!debouncedContent || debouncedContent.trim().length < 50 || !keyword.trim()) return null
     try {
-      const seo = analyzeSeo(keyword.trim(), debouncedTitle.trim(), debouncedContent.trim(), additionalKeywords)
+      const seo = analyzeSeo(keyword.trim(), debouncedTitle.trim(), debouncedContent.trim(), additionalKeywords, scrapedMeta)
       const readability = analyzeReadability(debouncedContent.trim())
       const dia = analyzeDia(keyword.trim(), debouncedTitle.trim(), debouncedContent.trim())
       return { seo, readability, dia }
     } catch {
       return null
     }
-  }, [debouncedContent, debouncedTitle, keyword, additionalKeywords])
+  }, [debouncedContent, debouncedTitle, keyword, additionalKeywords, scrapedMeta])
 
   if (!analysis) {
     return (
@@ -278,8 +282,8 @@ export function LiveSeoPanel({ keyword, title, content, additionalKeywords, comp
       {/* DIA 점수 (D.I.A. 품질 분석) */}
       <DiaScoreSection dia={dia} compact={compact} />
 
-      {/* 강점 (compact 모드에서는 숨김) */}
-      {!compact && seo.strengths.length > 0 && (
+      {/* 강점 (compact 모드 또는 메인 결과에서 표시 시 숨김) */}
+      {!compact && !hideStrengths && seo.strengths.length > 0 && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-3">
           <p className="mb-2 text-xs font-medium text-green-700">강점</p>
           <ul className="space-y-1">

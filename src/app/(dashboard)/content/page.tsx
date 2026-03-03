@@ -35,6 +35,7 @@ import { analyzeSeo, type ContentType, type DomainCategory, DOMAIN_CATEGORY_NAME
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
@@ -798,6 +799,7 @@ export default function ContentPage() {
                 }
               } else if (event.type === 'result') {
                 resultReceived = true
+                if (!event.isDemo) creditToast('content_generation')
                 setStreamingText('')
                 streamingTextRef.current = ''
 
@@ -937,6 +939,7 @@ export default function ContentPage() {
           return
         }
         setResult(data)
+        if (!data.isDemo) creditToast('content_generation')
         setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
       }
     } catch {
@@ -1264,6 +1267,7 @@ export default function ContentPage() {
           setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
         }
         setTimeout(() => setImproveMessage(''), 5000)
+        creditToast('content_improve')
       }
     } catch {
       setImproveMessage('네트워크 오류가 발생했습니다.')
@@ -1791,7 +1795,7 @@ export default function ContentPage() {
                               {improving ? (
                                 <><Loader2 className="h-3 w-3 animate-spin" />개선 중</>
                               ) : (
-                                <><Sparkles className="h-3 w-3" />AI 약점 개선</>
+                                <><Sparkles className="h-3 w-3" />AI 약점 개선 (3크레딧)</>
                               )}
                             </Button>
                             <Button
@@ -2663,7 +2667,7 @@ export default function ContentPage() {
                 ) : (
                   <>
                     <Wand2 className="mr-2 h-4 w-4" />
-                    블로그 글 생성하기
+                    블로그 글 생성하기 (7크레딧)
                   </>
                 )}
               </Button>
@@ -3323,7 +3327,7 @@ export default function ContentPage() {
                                   {improving ? (
                                     <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
                                   ) : (
-                                    <><Sparkles className="h-4 w-4" />AI 약점 개선</>
+                                    <><Sparkles className="h-4 w-4" />AI 약점 개선 (3크레딧)</>
                                   )}
                                 </Button>
                               </span>
@@ -3348,7 +3352,7 @@ export default function ContentPage() {
                                   {generatingImages ? (
                                     <><Loader2 className="h-4 w-4 animate-spin" />이미지 생성 중...</>
                                   ) : (
-                                    <><ImagePlus className="h-4 w-4" />AI 이미지 생성</>
+                                    <><ImagePlus className="h-4 w-4" />AI 이미지 생성 (1크레딧)</>
                                   )}
                                 </Button>
                               </span>

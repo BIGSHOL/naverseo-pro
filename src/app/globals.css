@@ -161,6 +161,13 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .patch-highlight-find {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
 /* 수정 후: 초록 타이핑 reveal (←→) = "채워지는" 느낌 */
 .patch-highlight-active {
   position: relative;
@@ -185,6 +192,14 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .patch-highlight-active {
+    animation: none;
+    background-size: 100% 100%;
+    border-bottom-color: rgb(34, 197, 94);
+  }
+}
+
 /* 페이드아웃 */
 .patch-highlight-fade {
   background: rgba(74, 222, 128, 0.4);
@@ -198,11 +213,11 @@
 @keyframes seo-scan-pulse {
   0%, 100% {
     opacity: 0.6;
-    box-shadow: 0 0 10px 2px rgba(34, 211, 238, 0.2);
+    transform: scale(1);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 25px 5px rgba(34, 211, 238, 0.4), 0 0 50px 10px rgba(34, 211, 238, 0.1);
+    transform: scale(1.02);
   }
 }
 

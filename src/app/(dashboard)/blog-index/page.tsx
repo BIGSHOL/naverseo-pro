@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CreditTooltip } from '@/components/credit-tooltip'
 import { CREDIT_COSTS } from '@/types/database'
+import { creditToast } from '@/lib/credit-toast'
 import dynamic from 'next/dynamic'
 import {
   Activity,
@@ -699,6 +700,7 @@ export default function BlogIndexPage() {
                 setCachedAt(new Date().toISOString())
                 fetchHistory(blogUrl.trim())
                 fetchPlan()
+                creditToast('blog_index')
                 if (keywords.length === 0 && event.keywordResults?.length > 0) {
                   setTestKeywords(event.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
                 }
@@ -717,6 +719,7 @@ export default function BlogIndexPage() {
         setCachedAt(new Date().toISOString())
         fetchHistory(blogUrl.trim())
         fetchPlan()
+        creditToast('blog_index')
         if (keywords.length === 0 && data.keywordResults?.length > 0) {
           setTestKeywords(data.keywordResults.map((kr: KeywordRankResult) => kr.keyword).join(', '))
         }
@@ -1040,7 +1043,7 @@ export default function BlogIndexPage() {
               )}
               <CreditTooltip feature="blog_index">
                 <Button type="submit" disabled={loading || refreshing || !blogUrl.trim()} className="w-full">
-                  {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회</>)}
+                  {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회 (5크레딧)</>)}
                 </Button>
               </CreditTooltip>
             </form>

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, RotateCcw } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,13 +22,6 @@ import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl, extractKoreanKeywords, STOPWORDS } from '@/lib/utils/text'
 import dynamic from 'next/dynamic'
-/** NDJSON 스트림 진행 이벤트 (seo-check 전용) */
-interface ScanProgress {
-  step: number
-  total: number
-  label: string
-  percent: number
-}
 
 // TipTap 에디터는 클라이언트 전용 (SSR 방지)
 const TiptapEditor = dynamic(
@@ -190,18 +184,6 @@ function getAxisBg(score: number) {
   return 'bg-red-500'
 }
 
-/** 스캔 애니메이션 설정 — 콘텐츠 길이에 비례 */
-const SCAN_MS_PER_LINE = 120   // 줄당 120ms (AI가 한 줄씩 읽는 느낌)
-const SCAN_MIN_DURATION = 5000 // 최소 5초 (짧은 글이라도 충분히 보여줌)
-const SCAN_MAX_DURATION = 18000 // 최대 18초 (긴 글도 지루하지 않게)
-const SCAN_INTERVAL_MS = 100   // 100ms 간격 업데이트 (부드러운 진행)
-const SCAN_LABELS = [
-  '본문 구조 스캔 중...',
-  '키워드 배치 분석 중...',
-  '경험 정보·데이터 탐지 중...',
-  '소제목·가독성 분석 중...',
-  '분석 결과 정리 중...',
-]
 
 export default function SeoCheckPage() {
   const searchParams = useSearchParams()
@@ -229,11 +211,10 @@ export default function SeoCheckPage() {
   const [manualTags, setManualTags] = useState('') // 직접 입력 모드 태그 (쉼표/공백 구분)
   // URL fetch 후 콘텐츠 미리보기 접기/펼치기
   const [showContentPreview, setShowContentPreview] = useState(false)
+  // 결과 나온 후 입력 폼 접기/펼치기
+  const [formCollapsed, setFormCollapsed] = useState(false)
 
-  // 프로그레스 UI
-  const [progressStep, setProgressStep] = useState<ScanProgress | null>(null)
-
-  // AI 심층 분석 후속 로딩 상태
+  // AI 심층 분석 로딩 상태
   const [aiLoading, setAiLoading] = useState(false)
   const [aiProgressLabel, setAiProgressLabel] = useState('')
 
@@ -349,33 +330,68 @@ export default function SeoCheckPage() {
     setLoading(true)
     setError('')
     setPlanGate(null)
-    setProgressStep(null)
-    setAiLoading(false)
-    setAiProgressLabel('')
     setGuidanceItems([])
     setImproveMessage('')
 
-    // 직접 입력 모드: manualTags 파싱 + 댓글/공감 기본값
+    try {
+      // 로컬 SEO 엔진으로 즉시 분석 (API 호출 없음, 크레딧 소모 없음)
+      const seoScrapedMeta = scrapedStats ? {
+        tags: scrapedStats.tags,
+        formatting: scrapedStats.formatting,
+      } : inputMode === 'manual' && manualTags.trim() ? {
+        tags: manualTags.split(/[,\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean),
+      } : undefined
+
+      const engineResult = analyzeSeo(
+        effectiveKeyword,
+        title.trim(),
+        content.trim(),
+        undefined,
+        seoScrapedMeta,
+      )
+
+      setResult({
+        totalScore: engineResult.totalScore,
+        grade: engineResult.grade,
+        categories: engineResult.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          score: cat.score,
+          maxScore: cat.maxScore,
+          feedback: cat.details,
+        })),
+        improvements: engineResult.improvements,
+        strengths: engineResult.strengths,
+        isDemo: false,
+        aiAnalysis: null,
+      })
+      setFormCollapsed(true)
+    } catch {
+      setError('분석 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /** AI 심층 분석 — 사용자가 명시적으로 활성화 */
+  const handleDeepAnalysis = async () => {
+    if (aiLoading || !result || !content.trim()) return
+
+    setAiLoading(true)
+    setAiProgressLabel('AI 심층 분석 시작...')
+    setError('')
+    setPlanGate(null)
+
+    // 직접 입력 모드: manualTags 파싱
     const parsedManualTags = inputMode === 'manual' && manualTags.trim()
       ? manualTags.split(/[,\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean)
       : []
 
-    // 직접 입력 모드: 댓글/공감/조회수를 측정할 수 없으므로 평균적 기본값 부여
-    const manualScrapedMeta = inputMode === 'manual' ? {
-      scrapedMeta: {
-        charCount: content.trim().length,
-        imageCount: (content.match(/\[이미지[\]:\s]/g) || []).length,
-        videoCount: 0,
-        commentCount: 3,    // 기본값: 평균적인 댓글 수
-        sympathyCount: 5,   // 기본값: 평균적인 공감 수
-        tags: parsedManualTags,
-      },
-    } : {}
-
     const requestBody = {
-      keyword: effectiveKeyword,
+      keyword: keyword.trim(),
       title: title.trim(),
       content: content.trim(),
+      baseScore: result.totalScore,
       ...(scrapedStats ? {
         scrapedMeta: {
           charCount: scrapedStats.charCount,
@@ -386,128 +402,60 @@ export default function SeoCheckPage() {
           tags: scrapedStats.tags,
           formatting: scrapedStats.formatting,
         },
-      } : manualScrapedMeta),
+      } : parsedManualTags.length > 0 ? {
+        scrapedMeta: {
+          charCount: content.trim().length,
+          imageCount: (content.match(/\[이미지[\]:\s]/g) || []).length,
+          videoCount: 0,
+          commentCount: 3,
+          sympathyCount: 5,
+          tags: parsedManualTags,
+        },
+      } : {}),
     }
 
-    // === API 호출 + 스캔 애니메이션 동시 시작 ===
-    // 스캔은 시각 효과, API는 실제 분석 — 병렬 실행 후 둘 다 끝나면 결과 표시
-    setProgressStep({ step: 1, total: SCAN_LABELS.length, label: SCAN_LABELS[0], percent: 5 })
-
-    // UI가 로딩 상태를 렌더링할 수 있도록 한 프레임 대기
-    await new Promise(r => requestAnimationFrame(r))
-
-    // 1) API 호출 즉시 시작 (백그라운드)
-    console.log('[SEO] API 호출 시작:', '/api/ai/seo-check')
-    const apiPromise = fetch('/api/ai/seo-check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    }).then(async res => {
-      const data = await res.json()
-      console.log('[SEO] API 응답:', res.status, data.totalScore ?? data.error)
-      return { ok: res.ok, data }
-    }).catch(err => {
-      console.error('[SEO] API 에러:', err)
-      return { ok: false, data: { error: '네트워크 오류가 발생했습니다.' } }
-    })
-
-    // 2) 스캔 애니메이션 동시 시작 — 콘텐츠 줄 수에 비례
-    const lineCount = content.trim().slice(0, 2000).split('\n').length
-    const scanDuration = Math.min(SCAN_MAX_DURATION, Math.max(SCAN_MIN_DURATION, lineCount * SCAN_MS_PER_LINE))
-    const totalSteps = Math.ceil(scanDuration / SCAN_INTERVAL_MS)
-
-    let scanTimerRef: ReturnType<typeof setInterval> | null = null
     try {
-      await new Promise<void>(resolve => {
-        let s = 0
-        scanTimerRef = setInterval(() => {
-          s++
-          const pct = Math.min(100, 5 + (s / totalSteps) * 95)
-          const labelIdx = Math.min(Math.floor((pct / 100) * SCAN_LABELS.length), SCAN_LABELS.length - 1)
-          setProgressStep({ step: labelIdx + 1, total: SCAN_LABELS.length, label: SCAN_LABELS[labelIdx], percent: Math.round(pct) })
-          if (s >= totalSteps) {
-            clearInterval(scanTimerRef!)
-            scanTimerRef = null
-            resolve()
-          }
-        }, SCAN_INTERVAL_MS)
+      const aiRes = await fetch('/api/ai/seo-check/deep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       })
 
-      // 3) 스캔 완료 → API 결과 대기 (이미 완료됐을 가능성 높음)
-      setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '점수 계산 중...', percent: 100 })
-      const { ok, data: baseData } = await apiPromise
+      let aiData
+      try {
+        aiData = await aiRes.json()
+      } catch {
+        setError('AI 응답을 처리할 수 없습니다.')
+        return
+      }
 
-      if (!ok) {
-        if (baseData.planGate) {
-          setPlanGate(baseData.error)
-        } else if (baseData.creditLimit) {
-          setError(`크레딧이 부족합니다. (잔액: ${baseData.balance}, 필요: ${baseData.cost})`)
+      if (!aiRes.ok) {
+        if (aiData.planGate) {
+          setPlanGate(aiData.error)
+        } else if (aiData.creditLimit) {
+          setError(`크레딧이 부족합니다. (잔액: ${aiData.balance}, 필요: ${aiData.cost})`)
         } else {
-          setError(baseData.error || 'SEO 분석에 실패했습니다.')
+          setError(aiData.error || 'AI 심층 분석에 실패했습니다.')
         }
         return
       }
 
-      const localResult: SeoResult = {
-        totalScore: baseData.totalScore,
-        grade: baseData.grade,
-        categories: baseData.categories,
-        improvements: baseData.improvements,
-        strengths: baseData.strengths,
-        isDemo: baseData.isDemo ?? false,
-        aiAnalysis: null,
-      }
-
-      // 기본 분석 결과 즉시 표시
-      setResult(localResult)
-      setLoading(false)
-      setProgressStep(null)
-
-      // 2단계: AI 심층 분석 (별도 요청)
-      setAiLoading(true)
-      setAiProgressLabel('AI 심층 분석 시작...')
-
-      try {
-        const aiRes = await fetch('/api/ai/seo-check/deep', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...requestBody,
-            baseScore: localResult.totalScore,
-          }),
-        })
-
-        let aiData
-        try {
-          aiData = await aiRes.json()
-        } catch {
-          setAiLoading(false)
-          setAiProgressLabel('')
-          return
-        }
-
-        if (aiRes.ok && aiData.aiAnalysis) {
-          setResult(prev => prev ? {
-            ...prev,
-            aiAnalysis: aiData.aiAnalysis,
-            isDemo: aiData.isDemo ?? prev.isDemo,
-            demoReason: aiData.demoReason ?? prev.demoReason,
-            ...(aiData.totalScore != null ? { totalScore: aiData.totalScore } : {}),
-            ...(aiData.grade != null ? { grade: aiData.grade } : {}),
-          } : prev)
-        }
-      } catch {
-        // AI 분석 실패해도 기본 결과 유지
-      } finally {
-        setAiLoading(false)
-        setAiProgressLabel('')
+      if (aiData.aiAnalysis) {
+        setResult(prev => prev ? {
+          ...prev,
+          aiAnalysis: aiData.aiAnalysis,
+          isDemo: aiData.isDemo ?? prev.isDemo,
+          demoReason: aiData.demoReason ?? prev.demoReason,
+          ...(aiData.totalScore != null ? { totalScore: aiData.totalScore } : {}),
+          ...(aiData.grade != null ? { grade: aiData.grade } : {}),
+        } : prev)
+        creditToast('seo_check')
       }
     } catch {
-      setError('분석 중 오류가 발생했습니다.')
+      setError('AI 심층 분석 중 오류가 발생했습니다.')
     } finally {
-      if (scanTimerRef) clearInterval(scanTimerRef)
-      setLoading(false)
-      setProgressStep(null)
+      setAiLoading(false)
+      setAiProgressLabel('')
     }
   }
 
@@ -647,6 +595,7 @@ export default function SeoCheckPage() {
       if (appliedCount > 0) messages.push(`${appliedCount}개 수정 적용!`)
       if (skippedCount > 0) messages.push(`${skippedCount}개 건너뜀`)
       if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
+      creditToast('content_improve')
       if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
         setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
       } else {
@@ -677,24 +626,40 @@ export default function SeoCheckPage() {
       <div className={cn('grid gap-6', showLivePanel && 'lg:grid-cols-[1fr,380px]')}>
         {/* 좌측: 입력 폼 */}
         <Card>
-          <CardHeader>
+          <CardHeader
+            className={cn(result ? 'cursor-pointer select-none hover:bg-muted/30 transition-colors' : '')}
+            onClick={() => result && setFormCollapsed(!formCollapsed)}
+          >
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-lg">
-              <span>{inputMode === 'url' ? '블로그 URL 분석' : '직접 입력 분석'}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground"
-                onClick={() => {
-                  setInputMode(inputMode === 'url' ? 'manual' : 'url')
-                  setError('')
-                }}
-              >
-                {inputMode === 'url' ? '직접 입력으로 전환' : 'URL 분석으로 전환'}
-              </Button>
+              <span className="flex items-center gap-2">
+                {inputMode === 'url' ? '블로그 URL 분석' : '직접 입력 분석'}
+                {result && formCollapsed && title && (
+                  <span className="text-sm font-normal text-muted-foreground truncate max-w-[200px]">— {title}</span>
+                )}
+              </span>
+              <div className="flex items-center gap-2">
+                {!formCollapsed && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setInputMode(inputMode === 'url' ? 'manual' : 'url')
+                      setError('')
+                    }}
+                  >
+                    {inputMode === 'url' ? '직접 입력으로 전환' : 'URL 분석으로 전환'}
+                  </Button>
+                )}
+                {result && (
+                  formCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          {!formCollapsed && <CardContent>
             <form onSubmit={handleAnalyze} className="space-y-4">
               {/* === URL 모드 === */}
               {inputMode === 'url' && (
@@ -982,44 +947,57 @@ export default function SeoCheckPage() {
 
               {planGate && <PlanGateAlert message={planGate} />}
 
-              <CreditTooltip feature="seo_check">
-                <Button type="submit" disabled={loading || aiLoading || !content.trim()} className="w-full gap-2">
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {progressStep ? progressStep.label : 'AI 심층 분석 중...'}
-                    </>
-                  ) : aiLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      AI 심층 분석 진행 중...
-                    </>
-                  ) : result ? (
-                    <>
-                      <RotateCcw className="h-4 w-4" />
-                      다시 분석하기
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      AI 심층 분석
-                    </>
-                  )}
-                </Button>
-              </CreditTooltip>
+              <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    분석 중...
+                  </>
+                ) : result ? (
+                  <>
+                    <RotateCcw className="h-4 w-4" />
+                    다시 분석하기
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="h-4 w-4" />
+                    SEO 분석
+                  </>
+                )}
+              </Button>
 
-              {showLivePanel && (
+              {showLivePanel && !result && (
                 <p className="text-center text-xs text-muted-foreground">
-                  실시간 기본 분석은 우측에서 확인하세요. AI 심층 분석은 더 정밀한 결과를 제공합니다.
+                  우측에서 실시간 점수를 확인하세요. 분석을 실행하면 상세 결과를 볼 수 있습니다.
                 </p>
               )}
             </form>
-          </CardContent>
+          </CardContent>}
+          {/* 접힌 상태에서 다시 분석 버튼 */}
+          {formCollapsed && (
+            <CardContent className="pt-0 pb-4">
+              <Button
+                type="button"
+                disabled={loading || !content.trim()}
+                className="w-full gap-2"
+                onClick={(e) => {
+                  setFormCollapsed(false)
+                  handleAnalyze(e as unknown as React.FormEvent)
+                }}
+              >
+                {loading ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />분석 중...</>
+                ) : (
+                  <><RotateCcw className="h-4 w-4" />다시 분석하기</>
+                )}
+              </Button>
+            </CardContent>
+          )}
         </Card>
 
-        {/* 우측: 실시간 SEO 분석 패널 */}
+        {/* 우측: 실시간 SEO 분석 패널 (sticky로 스크롤 시 따라감) */}
         {showLivePanel && (
-          <div className="space-y-4">
+          <div className="space-y-4 lg:self-start lg:sticky lg:top-20">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium">실시간 분석</span>
@@ -1029,19 +1007,24 @@ export default function SeoCheckPage() {
               keyword={keyword}
               title={title}
               content={content}
+              scrapedMeta={scrapedStats ? {
+                tags: scrapedStats.tags,
+                formatting: scrapedStats.formatting,
+              } : undefined}
+              hideStrengths={!!result}
             />
           </div>
         )}
       </div>
 
-      {/* SEO 스캐닝 이펙트 — 분석 중 본문 스캔 + 콘텐츠 하이라이팅 */}
-      {loading && content.trim() && (
+      {/* SEO 스캐닝 이펙트 — AI 심층 분석 진행 중 */}
+      {aiLoading && content.trim() && (
         <SeoScanPreview
           content={content}
           title={title}
           keyword={keyword}
-          scanPercent={progressStep?.percent ?? 5}
-          progressLabel={progressStep?.label}
+          scanPercent={50}
+          progressLabel={aiProgressLabel || 'AI 심층 분석 중...'}
         />
       )}
 
@@ -1074,7 +1057,9 @@ export default function SeoCheckPage() {
                       <TooltipContent><p>{gradeInfo.description}</p></TooltipContent>
                     </Tooltip>
                     <div className="mt-1 flex items-center gap-2">
-                      <p className="text-sm text-muted-foreground">AI 심층 분석 결과</p>
+                      <p className="text-sm text-muted-foreground">
+                        {ai ? 'AI 심층 분석 반영' : 'SEO 분석 결과'}
+                      </p>
                       {result.isDemo && (
                         <Badge variant="outline" className="text-xs">데모</Badge>
                       )}
@@ -1113,13 +1098,15 @@ export default function SeoCheckPage() {
                     <Button
                       variant="outline"
                       onClick={handleImprove}
-                      disabled={improving || loading}
+                      disabled={improving || loading || aiLoading}
                       className="gap-1.5"
                     >
                       {improving ? (
                         <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
+                      ) : aiLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" />심층 분석 중...</>
                       ) : (
-                        <><Sparkles className="h-4 w-4" />AI 약점 개선</>
+                        <><Sparkles className="h-4 w-4" />AI 약점 개선 (3크레딧)</>
                       )}
                     </Button>
                   </CreditTooltip>
@@ -1152,14 +1139,40 @@ export default function SeoCheckPage() {
             </div>
           )}
 
-          {/* AI 4축 심층 분석 */}
+          {/* AI 심층 분석 — 사용자 활성화 카드 */}
+          {!ai && !aiLoading && (
+            <Card className="border-purple-200 bg-gradient-to-br from-purple-50/60 to-indigo-50/60 dark:from-purple-950/20 dark:to-indigo-950/20">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+                    <Brain className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <h3 className="text-base font-semibold">AI 심층 분석으로 더 정밀하게</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      AI가 경험 정보, 콘텐츠 품질, 키워드 전략, 독자 참여를
+                      심층 분석하여 맞춤 개선안을 제공합니다.
+                    </p>
+                  </div>
+                  <CreditTooltip feature="seo_check">
+                    <Button onClick={handleDeepAnalysis} className="gap-2 shrink-0">
+                      <Sparkles className="h-4 w-4" />
+                      AI 심층 분석 시작 (2크레딧)
+                    </Button>
+                  </CreditTooltip>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI 심층 분석 진행 중 */}
           {aiLoading && !ai && (
-            <Card>
+            <Card className="border-purple-200">
               <CardContent className="py-8">
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
-                  <p className="text-sm font-medium text-muted-foreground">{aiProgressLabel || 'AI 심층 분석 중...'}</p>
-                  <p className="text-xs text-muted-foreground">기본 SEO 분석은 이미 완료되었습니다. AI 심층 분석이 추가로 진행 중입니다.</p>
+                  <p className="text-sm font-medium">{aiProgressLabel || 'AI 심층 분석 중...'}</p>
+                  <p className="text-xs text-muted-foreground">경험 정보, 콘텐츠 품질, 키워드 전략, 독자 참여를 분석하고 있습니다</p>
                 </div>
               </CardContent>
             </Card>

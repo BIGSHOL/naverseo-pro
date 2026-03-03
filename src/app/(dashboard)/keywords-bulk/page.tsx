@@ -9,6 +9,7 @@ import { ListChecks, Search, TrendingUp, BarChart3 } from 'lucide-react'
 import type { BlogCategory } from '@/lib/blog-index/categories'
 import type { ProgressState } from '@/lib/progress'
 import { createCountProgress, CardProgress } from '@/lib/progress'
+import { creditToast } from '@/lib/credit-toast'
 
 export default function KeywordsBulkPage() {
     const [results, setResults] = useState<BulkKeywordData[]>([])
@@ -112,6 +113,7 @@ export default function KeywordsBulkPage() {
             }))
 
             setResults(mergedResults)
+            creditToast('keyword_bulk')
         } catch (err) {
             setError(err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.')
         } finally {

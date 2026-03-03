@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
+import { creditToast } from '@/lib/credit-toast'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import type { ProgressState } from '@/lib/progress'
@@ -125,6 +126,7 @@ export default function OpportunitiesPage() {
                 setProgress(event)
               } else if (event.type === 'result') {
                 setResult(event)
+                creditToast('keyword_discovery')
               } else if (event.type === 'error') {
                 setError(event.error || '키워드 발굴 분석에 실패했습니다.')
               }
@@ -137,6 +139,7 @@ export default function OpportunitiesPage() {
         // 폴백: 일반 JSON 응답
         const data = await res.json()
         setResult(data)
+        creditToast('keyword_discovery')
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -227,7 +230,7 @@ export default function OpportunitiesPage() {
                 ) : (
                   <Search className="h-4 w-4 sm:mr-2" />
                 )}
-                <span className="hidden sm:inline">{loading ? '분석 중...' : '블루오션 키워드 찾기'}</span>
+                <span className="hidden sm:inline">{loading ? '분석 중...' : '블루오션 키워드 찾기 (3크레딧)'}</span>
               </Button>
             </div>
 

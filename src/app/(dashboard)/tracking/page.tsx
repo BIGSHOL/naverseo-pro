@@ -23,6 +23,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { timeAgo } from '@/lib/utils/date'
 import { CreditTooltip } from '@/components/credit-tooltip'
 import { useToast } from '@/hooks/use-toast'
+import { creditToast } from '@/lib/credit-toast'
 
 const RankHistoryChart = dynamic(
   () => import('@/components/charts/rank-history-chart').then(mod => ({ default: mod.RankHistoryChart })),
@@ -142,6 +143,7 @@ export default function TrackingPage() {
       setNewBlogUrl('')
       setShowAddForm(false)
       await loadTracking()
+      creditToast('tracking_per_keyword')
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
@@ -220,6 +222,11 @@ export default function TrackingPage() {
     await loadTracking()
     setBulkChecking(false)
 
+    const checkedCount = keywords.length - skippedCount
+    if (checkedCount > 0) {
+      creditToast('tracking_per_keyword', checkedCount)
+    }
+
     if (skippedCount > 0) {
       toast({
         title: '일부 키워드 건너뜀',
@@ -285,7 +292,7 @@ export default function TrackingPage() {
                 size="sm"
               >
                 <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침'}</span>
+                <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침 (1크레딧/키워드)'}</span>
                 <span className="sm:hidden">{bulkChecking ? '확인 중' : '새로고침'}</span>
               </Button>
             </CreditTooltip>
@@ -348,7 +355,7 @@ export default function TrackingPage() {
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    등록 및 순위 확인
+                    등록 및 순위 확인 (1크레딧)
                   </>
                 )}
               </Button>

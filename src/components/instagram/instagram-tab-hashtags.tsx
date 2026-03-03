@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import type { Plan } from '@/types/database'
 
 interface HashtagItem {
@@ -71,6 +72,7 @@ export function InstagramTabHashtags({ userPlan }: Props) {
       }
 
       setResult(data)
+      creditToast('instagram_convert')
     } catch {
       setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
@@ -106,7 +108,7 @@ export function InstagramTabHashtags({ userPlan }: Props) {
                 ) : (
                   <>
                     <Hash className="mr-2 h-4 w-4" />
-                    추천
+                    추천 (2크레딧)
                   </>
                 )}
               </Button>

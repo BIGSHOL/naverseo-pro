@@ -114,7 +114,7 @@ export function BulkKeywordInput({ onSubmit, loading, blogCategory }: BulkKeywor
                             ) : (
                                 <>
                                     <Upload className="mr-2 h-4 w-4" />
-                                    대량 조회 ({Math.min(uniqueKeywords.length, 100)}개)
+                                    대량 조회 ({Math.min(uniqueKeywords.length, 100)}개 · 3크레딧)
                                 </>
                             )}
                         </Button>

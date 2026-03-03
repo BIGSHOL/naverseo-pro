@@ -683,7 +683,7 @@ function analyzeStructuralConsistency(
 
   // 이미지 배치 균등성
   const imagePositions: number[] = []
-  const imageRegex = /\[이미지[:\s]/g
+  const imageRegex = /\[이미지[\]:\s]/g
   let match
   while ((match = imageRegex.exec(content)) !== null) {
     imagePositions.push(match.index / contentLength)
@@ -877,7 +877,7 @@ function analyzeMultimediaQuality(
   let score = 0
 
   // 이미지 수
-  const imageMatches = content.match(/\[이미지[:\s][^\]]*\]/g) || []
+  const imageMatches = content.match(/\[이미지[\]:\s][^\]]*\]?/g) || []
   const imageCount = imageMatches.length
 
   // 이미지 설명 품질 (설명이 있는지)
@@ -889,7 +889,7 @@ function analyzeMultimediaQuality(
 
   // 이미지 배치 분포
   const imagePositions: number[] = []
-  const regex = /\[이미지[:\s]/g
+  const regex = /\[이미지[\]:\s]/g
   let m
   while ((m = regex.exec(content)) !== null) {
     imagePositions.push(m.index)

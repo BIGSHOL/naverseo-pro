@@ -3,6 +3,7 @@ import { getGradeByScore } from '@/lib/seo/engine'
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/seo/ai-analyzer'
 import type { AiSeoAnalysis, ScrapedMeta } from '@/lib/seo/ai-analyzer'
 import { getUserAiProvider, hasAiApiKey } from '@/lib/ai/gemini'
+import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,15 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
+    }
+
+    // 크레딧 체크 (기본 분석은 무료, AI 심층 분석에서 크레딧 차감)
+    const creditCheck = await checkCredits(supabase, user.id, 'seo_check')
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
+        { status: 403 }
+      )
     }
 
     const { title, content, keyword, scrapedMeta, baseScore } = await request.json() as {
@@ -67,6 +77,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (aiAnalysis) {
+      // AI 분석 성공 시 크레딧 차감
+      await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
+
       let finalScore = baseScore ?? 0
       let finalGrade = ''
       if (aiAnalysis.scoreAdjustment && baseScore != null) {
