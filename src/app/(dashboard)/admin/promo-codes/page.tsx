@@ -18,6 +18,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -158,6 +159,7 @@ export default function AdminPromoCodesPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>프로모 코드 생성</DialogTitle>
+                <DialogDescription className="sr-only">새로운 프로모 코드를 생성합니다</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 {createError && (

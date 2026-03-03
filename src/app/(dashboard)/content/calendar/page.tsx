@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -454,6 +455,7 @@ export default function ContentCalendarPage() {
                   })} 활동${selectedActivities.length > 0 ? ` (${selectedActivities.length}건)` : ''}`
                 : '활동 상세'}
             </DialogTitle>
+            <DialogDescription className="sr-only">선택한 날짜의 활동 상세 정보</DialogDescription>
           </DialogHeader>
 
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 120px)' }}>
