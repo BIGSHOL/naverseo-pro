@@ -294,13 +294,29 @@ export default function SeoCheckPage() {
       }),
     }
 
-    // === 스캔 애니메이션 먼저 시작 → 끝나면 분석 실행 ===
+    // === API 호출 + 스캔 애니메이션 동시 시작 ===
+    // 스캔은 시각 효과, API는 실제 분석 — 병렬 실행 후 둘 다 끝나면 결과 표시
     setProgressStep({ step: 1, total: SCAN_LABELS.length, label: SCAN_LABELS[0], percent: 5 })
 
     // UI가 로딩 상태를 렌더링할 수 있도록 한 프레임 대기
     await new Promise(r => requestAnimationFrame(r))
 
-    // 스캔 애니메이션 — 콘텐츠 줄 수에 비례 (AI가 한 줄씩 읽는 느낌)
+    // 1) API 호출 즉시 시작 (백그라운드)
+    console.log('[SEO] API 호출 시작:', '/api/ai/seo-check')
+    const apiPromise = fetch('/api/ai/seo-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    }).then(async res => {
+      const data = await res.json()
+      console.log('[SEO] API 응답:', res.status, data.totalScore ?? data.error)
+      return { ok: res.ok, data }
+    }).catch(err => {
+      console.error('[SEO] API 에러:', err)
+      return { ok: false, data: { error: '네트워크 오류가 발생했습니다.' } }
+    })
+
+    // 2) 스캔 애니메이션 동시 시작 — 콘텐츠 줄 수에 비례
     const lineCount = content.trim().slice(0, 2000).split('\n').length
     const scanDuration = Math.min(SCAN_MAX_DURATION, Math.max(SCAN_MIN_DURATION, lineCount * SCAN_MS_PER_LINE))
     const totalSteps = Math.ceil(scanDuration / SCAN_INTERVAL_MS)
@@ -322,55 +338,37 @@ export default function SeoCheckPage() {
         }, SCAN_INTERVAL_MS)
       })
 
-      // 스캔 완료 → 50ms 대기로 UI 렌더링 기회를 준 뒤 분석 실행
+      // 3) 스캔 완료 → API 결과 대기 (이미 완료됐을 가능성 높음)
       setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '점수 계산 중...', percent: 100 })
-      await new Promise(r => setTimeout(r, 50))  // UI 렌더 양보
+      const { ok, data: baseData } = await apiPromise
 
-      const seoScrapedMeta = scrapedStats ? {
-        tags: scrapedStats.tags,
-        formatting: scrapedStats.formatting,
-      } : undefined
-
-      // analyzeSeo 직접 실행 (순수 함수, ~50ms 이내)
-      console.log('[SEO] analyzeSeo 시작')
-      const engineResult = analyzeSeo(
-        keyword.trim(),
-        title.trim(),
-        content.trim(),
-        undefined,
-        seoScrapedMeta
-      )
-      console.log('[SEO] analyzeSeo 완료:', engineResult.totalScore, '점')
+      if (!ok) {
+        if (baseData.planGate) {
+          setPlanGate(baseData.error)
+        } else if (baseData.creditLimit) {
+          setError(`크레딧이 부족합니다. (잔액: ${baseData.balance}, 필요: ${baseData.cost})`)
+        } else {
+          setError(baseData.error || 'SEO 분석에 실패했습니다.')
+        }
+        return
+      }
 
       const localResult: SeoResult = {
-        totalScore: engineResult.totalScore,
-        grade: engineResult.grade,
-        categories: engineResult.categories.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          score: cat.score,
-          maxScore: cat.maxScore,
-          feedback: cat.details,
-        })),
-        improvements: engineResult.improvements,
-        strengths: engineResult.strengths,
-        isDemo: false,
+        totalScore: baseData.totalScore,
+        grade: baseData.grade,
+        categories: baseData.categories,
+        improvements: baseData.improvements,
+        strengths: baseData.strengths,
+        isDemo: baseData.isDemo ?? false,
         aiAnalysis: null,
       }
 
-      // 로컬 분석 결과 즉시 표시
+      // 기본 분석 결과 즉시 표시
       setResult(localResult)
       setLoading(false)
       setProgressStep(null)
 
-      // 2단계: 크레딧 차감 (백그라운드, 실패해도 결과는 유지)
-      fetch('/api/ai/seo-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      }).catch(() => { /* 크레딧 차감 실패 무시 — 결과는 이미 표시됨 */ })
-
-      // 3단계: AI 심층 분석 (별도 요청)
+      // 2단계: AI 심층 분석 (별도 요청)
       setAiLoading(true)
       setAiProgressLabel('AI 심층 분석 시작...')
 

@@ -46,9 +46,8 @@ const HEADING_LINE_PATTERN = /^#{1,3}\s|^\*\*[^*]+\*\*$|^▶|^◆|^■|^●|^①
 
 // ===== 파싱 함수 =====
 
-function parseContent(content: string, keyword?: string): { lines: ParsedLine[]; counts: Record<SegmentType, number> } {
+function parseContent(content: string, keyword?: string): { lines: ParsedLine[] } {
   const rawLines = content.slice(0, 2000).split('\n')
-  const counts: Record<SegmentType, number> = { keyword: 0, heading: 0, experience: 0, data: 0, normal: 0 }
 
   const lines: ParsedLine[] = rawLines.map(line => {
     const trimmed = line.trim()
@@ -56,7 +55,6 @@ function parseContent(content: string, keyword?: string): { lines: ParsedLine[];
 
     const isHeading = HEADING_LINE_PATTERN.test(trimmed)
     if (isHeading) {
-      counts.heading++
       return {
         segments: [{ text: trimmed.replace(/^#{1,3}\s/, '').replace(/^\*\*|\*\*$/g, ''), type: 'heading' as SegmentType }],
         isHeading: true,
@@ -64,14 +62,14 @@ function parseContent(content: string, keyword?: string): { lines: ParsedLine[];
     }
 
     // 줄 내부 세그먼트 파싱
-    const segments = segmentizeLine(trimmed, keyword, counts)
+    const segments = segmentizeLine(trimmed, keyword)
     return { segments, isHeading: false }
   })
 
-  return { lines, counts }
+  return { lines }
 }
 
-function segmentizeLine(text: string, keyword: string | undefined, counts: Record<SegmentType, number>): Segment[] {
+function segmentizeLine(text: string, keyword: string | undefined): Segment[] {
   // 매치 위치 수집
   interface MatchInfo { start: number; end: number; type: SegmentType }
   const matches: MatchInfo[] = []
@@ -84,7 +82,6 @@ function segmentizeLine(text: string, keyword: string | undefined, counts: Recor
       const found = text.indexOf(kw, idx)
       if (found === -1) break
       matches.push({ start: found, end: found + kw.length, type: 'keyword' })
-      counts.keyword++
       idx = found + kw.length
     }
   }
@@ -94,14 +91,12 @@ function segmentizeLine(text: string, keyword: string | undefined, counts: Recor
   const expRe = new RegExp(EXPERIENCE_PATTERN.source, 'g')
   while ((m = expRe.exec(text)) !== null) {
     matches.push({ start: m.index, end: m.index + m[0].length, type: 'experience' })
-    counts.experience++
   }
 
   // 데이터 매치
   const dataRe = new RegExp(DATA_PATTERN.source, 'g')
   while ((m = dataRe.exec(text)) !== null) {
     matches.push({ start: m.index, end: m.index + m[0].length, type: 'data' })
-    counts.data++
   }
 
   if (matches.length === 0) {
@@ -154,11 +149,23 @@ export function SeoScanPreview({
   progressLabel,
   className,
 }: SeoScanPreviewProps) {
-  const { lines, counts } = useMemo(() => parseContent(content, keyword), [content, keyword])
+  const { lines } = useMemo(() => parseContent(content, keyword), [content, keyword])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const totalLines = lines.length
   const scanLine = Math.floor((scanPercent / 100) * totalLines)
+
+  // 스캔된 줄까지만 카운트 (스캔하면서 숫자가 올라가는 효과)
+  const counts = useMemo(() => {
+    const c: Record<SegmentType, number> = { keyword: 0, heading: 0, experience: 0, data: 0, normal: 0 }
+    const limit = Math.min(scanLine + 1, lines.length)
+    for (let i = 0; i < limit; i++) {
+      for (const seg of lines[i].segments) {
+        if (seg.type !== 'normal') c[seg.type]++
+      }
+    }
+    return c
+  }, [lines, scanLine])
 
   // 자동스크롤: 스캔 라인을 따라 부드럽게 스크롤
   useEffect(() => {
