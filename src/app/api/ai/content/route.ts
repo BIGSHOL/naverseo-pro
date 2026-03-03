@@ -505,7 +505,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions, domainCategory, customDomain } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions, domainCategory, customDomain, referenceMaterial, attachedImages } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -527,6 +527,19 @@ export async function POST(request: NextRequest) {
       domainCategory: domainCategory || detectDomainCategory(keyword.trim()) || undefined,
       customDomain: domainCategory === 'other' && typeof customDomain === 'string' ? customDomain.trim() || undefined : undefined,
       advancedOptions: advancedOptions || undefined,
+      referenceMaterial: referenceMaterial?.text?.trim() ? {
+        text: referenceMaterial.text.trim().substring(0, 5000),
+        source: referenceMaterial.source || '직접 입력',
+      } : undefined,
+      attachedImages: Array.isArray(attachedImages) && attachedImages.length > 0
+        ? (attachedImages as { index?: number; description?: string }[])
+            .slice(0, 5)
+            .map((img, idx) => ({
+              index: img.index || idx + 1,
+              description: typeof img.description === 'string' ? img.description.trim() : '',
+            }))
+            .filter(img => img.description)
+        : undefined,
     }
 
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
@@ -746,6 +759,37 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
 위 구조를 참고하되, 동일한 내용 복사가 아닌 키워드에 맞는 독창적인 콘텐츠를 작성하세요.`
           }
 
+          // 사용자 첨부 참고 자료 주입
+          if (contentRequest.referenceMaterial?.text) {
+            userMessage += `\n\n## 📎 사용자 제공 참고 자료 (출처: ${contentRequest.referenceMaterial.source})
+다음은 사용자가 제공한 참고 자료입니다. 이 자료를 **선별적으로** 활용하세요:
+- 키워드 "${trimmedKeyword}"와 콘텐츠 방향에 관련된 부분만 참고하여 반영하세요
+- 관련 없는 부분은 과감히 무시하세요
+- 자료 내용을 그대로 복사하지 말고, 블로그 글 톤에 맞게 재구성하세요
+- JSON 응답의 "referenceUsageReport" 필드에 활용/미사용 부분을 보고하세요
+
+--- 참고 자료 시작 ---
+${contentRequest.referenceMaterial.text}
+--- 참고 자료 끝 ---`
+          }
+
+          // 사용자 첨부 이미지 설명 주입
+          if (contentRequest.attachedImages && contentRequest.attachedImages.length > 0) {
+            const imageList = contentRequest.attachedImages
+              .map(img => `- [IMG-${img.index}]: ${img.description}`)
+              .join('\n')
+            userMessage += `\n\n## 📷 사용자 첨부 이미지
+사용자가 다음 이미지들을 첨부했습니다. 본문의 적절한 위치에 [IMG-N] 마커를 배치하세요:
+${imageList}
+
+배치 규칙:
+- 각 이미지의 설명을 읽고, 본문 내용과 맥락이 맞는 위치에 [IMG-N] 마커를 배치하세요
+- 본문 맥락에 맞지 않는 이미지는 배치하지 마세요
+- [IMG-N] 마커는 별도 줄에 단독으로 배치하세요
+- 기존 [이미지: 설명] 마커와 별개로, 사용자 첨부 이미지는 [IMG-N] 형식만 사용하세요
+- JSON 응답의 "imagePlacementReport" 필드에 배치/미배치 이미지를 보고하세요`
+          }
+
           // enrichment 메타데이터
           const enrichment: Record<string, unknown> = {}
           if (keywordsRef) {
@@ -782,6 +826,14 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               content: string
               tags: string[]
               metaDescription?: string
+              referenceUsageReport?: {
+                usedParts: string[]
+                skippedParts: Array<{ part: string; reason: string }>
+              }
+              imagePlacementReport?: {
+                used: number[]
+                skipped: Array<{ index: number; reason: string }>
+              }
             }>(response)
 
             const processedResult = postProcessContent(contentRequest, parsed)
@@ -866,6 +918,8 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               optimizations: optimizeResult.optimizations,
               scoreBefore: optimizeResult.scoreBefore,
               scoreAfter: optimizeResult.scoreAfter,
+              referenceUsageReport: parsed.referenceUsageReport || undefined,
+              imagePlacementReport: parsed.imagePlacementReport || undefined,
             })
           } catch (aiError) {
             const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)

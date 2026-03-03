@@ -39,6 +39,11 @@ import { creditToast } from '@/lib/credit-toast'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import {
+  validateReferenceText, validateImageDescription, validateImageFile,
+  validateTxtFile, validatePdfFile,
+  REF_MATERIAL_MAX_CHARS, MAX_ATTACHED_IMAGES,
+} from '@/lib/content/validators'
 
 interface SeoCategory {
   id: string
@@ -99,6 +104,14 @@ interface ContentResult {
   notice?: string
   unknownKeyword?: boolean
   validation?: { score: number; warnings: string[]; errors: string[]; isValid: boolean }
+  referenceUsageReport?: {
+    usedParts: string[]
+    skippedParts: Array<{ part: string; reason: string }>
+  }
+  imagePlacementReport?: {
+    used: number[]
+    skipped: Array<{ index: number; reason: string }>
+  }
 }
 
 /** 스트리밍 중 부분 JSON에서 title/content 필드를 추출 */
@@ -494,6 +507,20 @@ export default function ContentPage() {
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageMarkers, setImageMarkers] = useState<ParsedImageMarker[]>([])
 
+  // 참고 자료 첨부
+  const [refMaterialText, setRefMaterialText] = useState('')
+  const [refMaterialSource, setRefMaterialSource] = useState('')
+  const [refMaterialLoading, setRefMaterialLoading] = useState(false)
+
+  // 이미지 첨부 + 설명
+  interface AttachedImage {
+    id: string
+    file: File
+    previewUrl: string
+    description: string
+  }
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
+
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
   const [businessName, setBusinessName] = useState('')
@@ -671,8 +698,141 @@ export default function ContentPage() {
     }
   }
 
+  // === 참고 자료 TXT 파일 로드 ===
+  const handleRefFileTxt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fileCheck = validateTxtFile(file)
+    if (!fileCheck.valid) {
+      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    const text = await file.text()
+    const trimmed = text.substring(0, REF_MATERIAL_MAX_CHARS)
+    const validation = validateReferenceText(trimmed)
+    if (!validation.valid) {
+      toast({ title: '내용 오류', description: validation.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setRefMaterialText(trimmed)
+    setRefMaterialSource(file.name)
+    if (text.length > REF_MATERIAL_MAX_CHARS) {
+      toast({ title: '텍스트 잘림', description: `${REF_MATERIAL_MAX_CHARS.toLocaleString()}자까지만 사용됩니다.` })
+    }
+    e.target.value = ''
+  }
+
+  // === 참고 자료 PDF 파일 로드 ===
+  const handleRefFilePdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fileCheck = validatePdfFile(file)
+    if (!fileCheck.valid) {
+      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setRefMaterialLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/util/parse-pdf', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'PDF 파싱 실패')
+      setRefMaterialText(data.text)
+      setRefMaterialSource(data.fileName)
+      if (data.truncated) {
+        toast({ title: '텍스트 잘림', description: `원본 ${data.originalLength.toLocaleString()}자 중 ${REF_MATERIAL_MAX_CHARS.toLocaleString()}자만 사용됩니다.` })
+      }
+    } catch (err) {
+      toast({ title: 'PDF 파싱 실패', description: err instanceof Error ? err.message : 'PDF 텍스트 추출에 실패했습니다.', variant: 'destructive' })
+    } finally {
+      setRefMaterialLoading(false)
+      e.target.value = ''
+    }
+  }
+
+  // === 이미지 첨부 ===
+  const handleAttachImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    const remaining = MAX_ATTACHED_IMAGES - attachedImages.length
+    if (remaining <= 0) {
+      toast({ title: '이미지 최대 개수', description: `최대 ${MAX_ATTACHED_IMAGES}장까지 첨부할 수 있습니다.`, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    const newImages: AttachedImage[] = []
+    for (let i = 0; i < Math.min(files.length, remaining); i++) {
+      const file = files[i]
+      const validation = validateImageFile(file)
+      if (!validation.valid) {
+        toast({ title: '이미지 오류', description: validation.error, variant: 'destructive' })
+        continue
+      }
+      newImages.push({
+        id: `${Date.now()}-${i}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        description: '',
+      })
+    }
+    if (newImages.length > 0) {
+      setAttachedImages(prev => [...prev, ...newImages])
+    }
+    e.target.value = ''
+  }
+
+  const removeAttachedImage = (id: string) => {
+    setAttachedImages(prev => {
+      const img = prev.find(i => i.id === id)
+      if (img) URL.revokeObjectURL(img.previewUrl)
+      return prev.filter(i => i.id !== id)
+    })
+  }
+
+  const updateImageDescription = (id: string, description: string) => {
+    setAttachedImages(prev => prev.map(img =>
+      img.id === id ? { ...img, description } : img
+    ))
+  }
+
+  // Object URL cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      attachedImages.forEach(img => URL.revokeObjectURL(img.previewUrl))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const generateContent = async (overrides?: { tone?: string; targetLength?: string; contentType?: string }) => {
     if (!keyword.trim() || loading) return
+
+    // 참고 자료 사전 검증
+    if (refMaterialText.trim()) {
+      const refValidation = validateReferenceText(refMaterialText)
+      if (!refValidation.valid) {
+        setError(`참고 자료 오류: ${refValidation.error}`)
+        return
+      }
+    }
+
+    // 이미지 설명 사전 검증
+    const imagesWithoutDesc = attachedImages.filter(img => !img.description.trim())
+    if (imagesWithoutDesc.length > 0) {
+      setError(`${imagesWithoutDesc.length}개의 첨부 이미지에 설명이 없습니다. 모든 이미지에 설명을 입력해주세요.`)
+      return
+    }
+    for (const img of attachedImages) {
+      const descValidation = validateImageDescription(img.description)
+      if (!descValidation.valid) {
+        setError(`이미지 "${img.file.name}" 설명 오류: ${descValidation.error}`)
+        return
+      }
+    }
 
     setLoading(true)
     setProgress(null)
@@ -681,6 +841,11 @@ export default function ContentPage() {
     setShowSeoDetail(false)
 
     try {
+      // 유효한 이미지 설명만 필터
+      const validAttachedImages = attachedImages
+        .filter(img => img.description.trim())
+        .map((img, idx) => ({ index: idx + 1, description: img.description.trim() }))
+
       const res = await fetch('/api/ai/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -725,6 +890,11 @@ export default function ContentPage() {
             targetAudience,
             ageGroup,
           } : undefined,
+          referenceMaterial: refMaterialText.trim() ? {
+            text: refMaterialText.trim().substring(0, REF_MATERIAL_MAX_CHARS),
+            source: refMaterialSource || '직접 입력',
+          } : undefined,
+          attachedImages: validAttachedImages.length > 0 ? validAttachedImages : undefined,
         }),
       })
 
@@ -802,6 +972,18 @@ export default function ContentPage() {
                 if (!event.isDemo) creditToast('content_generation')
                 setStreamingText('')
                 streamingTextRef.current = ''
+
+                // [IMG-N] 마커를 마크다운 이미지로 교체
+                if (attachedImages.length > 0 && event.content) {
+                  let processed = event.content as string
+                  attachedImages.forEach((img, idx) => {
+                    const marker = `[IMG-${idx + 1}]`
+                    if (processed.includes(marker)) {
+                      processed = processed.replace(marker, `![${img.description}](${img.previewUrl})`)
+                    }
+                  })
+                  event.content = processed
+                }
 
                 const healData = selfHealPatchesRef.current
                 selfHealPatchesRef.current = null
@@ -2152,6 +2334,127 @@ export default function ContentPage() {
               </div>
             )}
 
+            {/* 참고 자료 첨부 (선택) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-amber-500" />
+                참고 자료 첨부
+                <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+              </Label>
+              <Textarea
+                placeholder="AI가 참고할 자료를 붙여넣으세요 (보도자료, 논문 요약, 제품 스펙 등). AI가 관련 부분만 선별하여 활용합니다."
+                value={refMaterialText}
+                onChange={(e) => {
+                  const val = e.target.value.substring(0, REF_MATERIAL_MAX_CHARS)
+                  setRefMaterialText(val)
+                  if (!refMaterialSource || refMaterialSource === '직접 입력') {
+                    setRefMaterialSource(val ? '직접 입력' : '')
+                  }
+                }}
+                disabled={loading || refMaterialLoading}
+                rows={3}
+                className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
+              />
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer">
+                  <input type="file" accept=".txt" className="hidden" onChange={handleRefFileTxt} disabled={loading || refMaterialLoading} />
+                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
+                    <FileText className="h-3 w-3" /> TXT
+                  </Badge>
+                </label>
+                <label className="cursor-pointer">
+                  <input type="file" accept=".pdf" className="hidden" onChange={handleRefFilePdf} disabled={loading || refMaterialLoading} />
+                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
+                    {refMaterialLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />} PDF
+                  </Badge>
+                </label>
+                {refMaterialText && (
+                  <button
+                    type="button"
+                    className="text-xs text-amber-500 hover:text-amber-700 underline"
+                    onClick={() => { setRefMaterialText(''); setRefMaterialSource('') }}
+                  >
+                    삭제
+                  </button>
+                )}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {refMaterialText.length.toLocaleString()} / {REF_MATERIAL_MAX_CHARS.toLocaleString()}자
+                  {refMaterialSource && <span className="ml-1 text-amber-600">({refMaterialSource})</span>}
+                </span>
+              </div>
+              <p className="text-xs text-amber-600/80">
+                AI가 키워드와 관련된 부분만 선별 활용하며, 활용/미사용 부분을 리포트합니다
+              </p>
+            </div>
+
+            {/* 이미지 첨부 + 설명 (선택) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <ImagePlus className="h-3.5 w-3.5 text-emerald-500" />
+                이미지 첨부
+                <span className="text-xs font-normal text-muted-foreground">(선택, 최대 {MAX_ATTACHED_IMAGES}장)</span>
+              </Label>
+
+              {attachedImages.length > 0 && (
+                <div className="space-y-2">
+                  {attachedImages.map((img, idx) => (
+                    <div key={img.id} className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2">
+                      <img
+                        src={img.previewUrl}
+                        alt={`첨부 이미지 ${idx + 1}`}
+                        className="h-16 w-16 rounded object-cover shrink-0"
+                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-xs font-mono shrink-0">IMG-{idx + 1}</Badge>
+                          <span className="text-xs text-muted-foreground truncate">{img.file.name}</span>
+                        </div>
+                        <Input
+                          placeholder="이미지 설명 입력 (필수) — 예: 매장 외관 전경 사진"
+                          value={img.description}
+                          onChange={(e) => updateImageDescription(img.id, e.target.value)}
+                          disabled={loading}
+                          className={`text-xs h-7 ${!img.description.trim() ? 'border-red-300 focus:border-red-400' : 'border-emerald-200'}`}
+                        />
+                        {!img.description.trim() && (
+                          <p className="text-[10px] text-red-500">설명을 입력해야 AI가 이미지를 배치할 수 있습니다</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 h-6 w-6 p-0 text-muted-foreground hover:text-red-500"
+                        onClick={() => removeAttachedImage(img.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {attachedImages.length < MAX_ATTACHED_IMAGES && (
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleAttachImages}
+                    disabled={loading}
+                  />
+                  <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-emerald-200 p-3 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors">
+                    <ImagePlus className="h-4 w-4" />
+                    이미지 추가 ({attachedImages.length}/{MAX_ATTACHED_IMAGES})
+                  </div>
+                </label>
+              )}
+              <p className="text-xs text-emerald-600/80">
+                각 이미지에 설명을 입력하면 AI가 본문의 적절한 위치에 배치합니다. 맥락에 맞지 않는 이미지는 자동 제외됩니다.
+              </p>
+            </div>
+
             {/* 내 업체 홍보글 입력 폼 */}
             {isPromoMode && (
               <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/50 p-4">
@@ -2855,6 +3158,53 @@ export default function ContentPage() {
                 </ul>
               </details>
             )}
+            {/* 참고 자료 / 이미지 활용 리포트 */}
+            {(result.referenceUsageReport || result.imagePlacementReport) && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-amber-700 hover:text-amber-900 font-medium">
+                  참고 자료 / 이미지 활용 리포트
+                </summary>
+                <div className="mt-1.5 space-y-2">
+                  {result.referenceUsageReport && (
+                    <div className="rounded border border-amber-200 bg-amber-50/50 p-2 space-y-1">
+                      <p className="font-medium text-amber-800">참고 자료 활용</p>
+                      {result.referenceUsageReport.usedParts.length > 0 && (
+                        <ul className="list-disc pl-4 text-green-700">
+                          {result.referenceUsageReport.usedParts.map((p, i) => (
+                            <li key={i}>{p}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {result.referenceUsageReport.skippedParts.length > 0 && (
+                        <ul className="list-disc pl-4 text-orange-600">
+                          {result.referenceUsageReport.skippedParts.map((p, i) => (
+                            <li key={i}>{p.part} — <em>{p.reason}</em></li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {result.imagePlacementReport && (
+                    <div className="rounded border border-emerald-200 bg-emerald-50/50 p-2 space-y-1">
+                      <p className="font-medium text-emerald-800">이미지 배치 결과</p>
+                      {result.imagePlacementReport.used.length > 0 && (
+                        <p className="text-green-700">
+                          배치됨: {result.imagePlacementReport.used.map(n => `IMG-${n}`).join(', ')}
+                        </p>
+                      )}
+                      {result.imagePlacementReport.skipped.length > 0 && (
+                        <ul className="list-disc pl-4 text-orange-600">
+                          {result.imagePlacementReport.skipped.map((s, i) => (
+                            <li key={i}>IMG-{s.index}: {s.reason}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
