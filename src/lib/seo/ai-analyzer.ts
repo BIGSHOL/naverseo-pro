@@ -164,7 +164,7 @@ ${truncatedContent}
 
     console.log(`[SEO AI] 분석 요청 (${truncatedContent.length}자)`)
 
-    const response = await callAI(provider, SEO_DEEP_ANALYSIS_PROMPT, userMessage, 1024, { jsonMode: true, thinkingBudget: 0 })
+    const response = await callAI(provider, SEO_DEEP_ANALYSIS_PROMPT, userMessage, 2048, { jsonMode: true, thinkingBudget: 0 })
     const raw = parseGeminiJson<AiAnalysisRaw>(response)
 
     // 점수 범위 보정 (1~10)

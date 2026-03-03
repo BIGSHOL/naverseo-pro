@@ -79,11 +79,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // AI 실패/타임아웃 → 데모 분석 반환
+    // AI 실패/타임아웃 → null 반환 (기본 분석만 표시, 데모 표시 안 함)
     return NextResponse.json({
-      aiAnalysis: generateDemoAiAnalysis(),
-      isDemo: true,
-      demoReason: 'AI 분석 시간이 초과되었습니다. 기본 분석 결과를 표시합니다.',
+      aiAnalysis: null,
+      aiError: 'AI 심층 분석에 실패했습니다. 기본 분석 결과를 확인하세요.',
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

@@ -147,6 +147,14 @@ export function getGradeInfo(grade: string): SeoGradeInfo {
 
 /** 1. 제목 키워드 (8점) */
 function analyzeTitleKeyword(keyword: string, title: string): { category: SeoCategory; strength?: string; improvement?: string } {
+  // 빈 키워드 → 0점 (includes('') = true 오작동 방지)
+  if (!keyword.trim()) {
+    return {
+      category: { id: 'title_keyword', name: '제목 키워드', score: 0, maxScore: 8, details: '키워드 미지정', priority: 'high' },
+      improvement: '분석할 핵심 키워드를 입력하세요',
+    }
+  }
+
   let score = 0
   const titleHasKeyword = title.includes(keyword)
   const keywordPos = title.indexOf(keyword)
@@ -249,6 +257,16 @@ function analyzeHeadingStructure(content: string): { category: SeoCategory; stre
 
 /** 4. 키워드 밀도 (8점) - 스터핑 패턴 감지 포함 */
 function analyzeKeywordDensity(keyword: string, content: string): { category: SeoCategory; strength?: string; improvement?: string; keywordCount: number; density: number } {
+  // 빈 키워드 → 즉시 0점 반환 (split('') 오작동 + 무한루프 방지)
+  if (!keyword.trim()) {
+    return {
+      category: { id: 'keyword_density', name: '키워드 밀도', score: 0, maxScore: 8, details: '키워드 미지정 (0점)', priority: 'high' },
+      improvement: '분석할 핵심 키워드를 입력하세요',
+      keywordCount: 0,
+      density: 0,
+    }
+  }
+
   const keywordCount = content.split(keyword).length - 1
   const spaceBasedWords = (content.match(/\S+/g) || []).length
   const estimatedWords = spaceBasedWords > 10 ? spaceBasedWords : Math.ceil(content.length / 3.5)
@@ -310,6 +328,14 @@ function analyzeKeywordDensity(keyword: string, content: string): { category: Se
 
 /** 5. 키워드 분포 (7점) */
 function analyzeKeywordDistribution(keyword: string, content: string): { category: SeoCategory; strength?: string; improvement?: string } {
+  // 빈 키워드 → 0점 (includes('') = true 오작동 방지)
+  if (!keyword.trim()) {
+    return {
+      category: { id: 'keyword_distribution', name: '키워드 분포', score: 0, maxScore: 7, details: '키워드 미지정 (0점)', priority: 'high' },
+      improvement: '분석할 핵심 키워드를 입력하세요',
+    }
+  }
+
   const third = Math.floor(content.length / 3)
   const firstThird = content.substring(0, third)
   const middleThird = content.substring(third, third * 2)

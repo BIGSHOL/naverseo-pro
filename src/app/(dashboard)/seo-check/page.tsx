@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, Check } from 'lucide-react'
+import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, Link2, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, Check, RotateCcw } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,7 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
-import { ensureUrl } from '@/lib/utils/text'
+import { ensureUrl, extractKoreanKeywords, STOPWORDS } from '@/lib/utils/text'
 import dynamic from 'next/dynamic'
 /** NDJSON 스트림 진행 이벤트 (seo-check 전용) */
 interface ScanProgress {
@@ -34,6 +34,57 @@ const TiptapEditor = dynamic(
   () => import('@/components/content/TiptapEditor').then(mod => ({ default: mod.TiptapEditor })),
   { ssr: false, loading: () => <div className="h-[300px] animate-pulse rounded-lg border bg-muted" /> }
 )
+
+/**
+ * 제목+본문에서 핵심 타겟 키워드 자동 추출
+ * 1. 제목에서 연속 2~3단어 복합 키워드가 본문에 등장하는지 탐색
+ * 2. 없으면 제목 단어 중 본문 빈도가 가장 높은 단어 선택
+ */
+function extractBestKeyword(title: string, content: string): string {
+  const contentSlice = content.slice(0, 3000)
+
+  // 제목 토큰화 (한국어 2글자+, 영문 3글자+, 불용어 제외)
+  const titleClean = title.replace(/[^\s가-힣a-zA-Z0-9]/g, ' ').trim()
+  const titleTokens = titleClean.split(/\s+/).filter(t =>
+    ((/[가-힣]/.test(t) && t.length >= 2) || (/[a-zA-Z]/.test(t) && t.length >= 3)) && !STOPWORDS.has(t)
+  )
+
+  if (titleTokens.length === 0) {
+    // 제목에서 추출 실패 → 본문 빈도 1위
+    const bodyWords = extractKoreanKeywords(contentSlice)
+    const freq: Record<string, number> = {}
+    for (const w of bodyWords) freq[w] = (freq[w] || 0) + 1
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1])
+    return sorted[0]?.[0] || ''
+  }
+
+  // 1) 제목에서 연속 2~3단어 복합 키워드 (본문에 존재하는 것만)
+  for (let len = Math.min(3, titleTokens.length); len >= 2; len--) {
+    for (let i = 0; i <= titleTokens.length - len; i++) {
+      const phrase = titleTokens.slice(i, i + len).join(' ')
+      if (phrase.length >= 3 && contentSlice.includes(phrase)) {
+        return phrase
+      }
+    }
+  }
+
+  // 2) 제목 단어 중 본문 빈도가 가장 높은 것
+  const bodyWords = extractKoreanKeywords(contentSlice)
+  const freq: Record<string, number> = {}
+  for (const w of bodyWords) freq[w] = (freq[w] || 0) + 1
+
+  let bestWord = titleTokens[0]
+  let bestScore = 0
+  for (const tw of titleTokens) {
+    const score = freq[tw.toLowerCase()] || 0
+    if (score > bestScore) {
+      bestScore = score
+      bestWord = tw
+    }
+  }
+
+  return bestWord
+}
 
 interface SeoCategory {
   id: string
@@ -155,6 +206,7 @@ const SCAN_LABELS = [
 export default function SeoCheckPage() {
   const searchParams = useSearchParams()
   const [keyword, setKeyword] = useState('')
+  const [autoExtracted, setAutoExtracted] = useState(false) // 키워드 자동 추출 여부
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
@@ -174,6 +226,7 @@ export default function SeoCheckPage() {
     formatting?: { hasBold: boolean; hasHeading: boolean; hasFontSize: boolean; hasColor: boolean; hasHighlight: boolean; hasUnderline: boolean; count: number }
   } | null>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
+  const [manualTags, setManualTags] = useState('') // 직접 입력 모드 태그 (쉼표/공백 구분)
   // URL fetch 후 콘텐츠 미리보기 접기/펼치기
   const [showContentPreview, setShowContentPreview] = useState(false)
 
@@ -218,6 +271,20 @@ export default function SeoCheckPage() {
       sessionStorage.removeItem('naverseo-workflow:content-keyword')
     }
   }, [searchParams])
+
+  // 콘텐츠/제목 변경 시 키워드 자동 추출 (사용자가 수기 입력한 경우 제외)
+  useEffect(() => {
+    // 이미 수동 입력된 키워드가 있으면 건드리지 않음
+    if (keyword.trim() && !autoExtracted) return
+    // 콘텐츠가 충분히 있을 때만 추출
+    if (content.trim().length < 50) return
+
+    const extracted = extractBestKeyword(title, content)
+    if (extracted && extracted !== keyword) {
+      setKeyword(extracted)
+      setAutoExtracted(true)
+    }
+  }, [content, title]) // keyword, autoExtracted 의존성 제외 (무한루프 방지)
 
   const handleFetchBlog = async () => {
     if (!blogUrl.trim() || fetchingUrl) return
@@ -268,6 +335,17 @@ export default function SeoCheckPage() {
     e.preventDefault()
     if (!content.trim() || loading) return
 
+    // 키워드 미입력 시 자동 추출
+    let effectiveKeyword = keyword.trim()
+    if (!effectiveKeyword) {
+      const extracted = extractBestKeyword(title, content)
+      if (extracted) {
+        effectiveKeyword = extracted
+        setKeyword(extracted)
+        setAutoExtracted(true)
+      }
+    }
+
     setLoading(true)
     setError('')
     setPlanGate(null)
@@ -277,11 +355,28 @@ export default function SeoCheckPage() {
     setGuidanceItems([])
     setImproveMessage('')
 
+    // 직접 입력 모드: manualTags 파싱 + 댓글/공감 기본값
+    const parsedManualTags = inputMode === 'manual' && manualTags.trim()
+      ? manualTags.split(/[,\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean)
+      : []
+
+    // 직접 입력 모드: 댓글/공감/조회수를 측정할 수 없으므로 평균적 기본값 부여
+    const manualScrapedMeta = inputMode === 'manual' ? {
+      scrapedMeta: {
+        charCount: content.trim().length,
+        imageCount: (content.match(/\[이미지[\]:\s]/g) || []).length,
+        videoCount: 0,
+        commentCount: 3,    // 기본값: 평균적인 댓글 수
+        sympathyCount: 5,   // 기본값: 평균적인 공감 수
+        tags: parsedManualTags,
+      },
+    } : {}
+
     const requestBody = {
-      keyword: keyword.trim(),
+      keyword: effectiveKeyword,
       title: title.trim(),
       content: content.trim(),
-      ...(scrapedStats && {
+      ...(scrapedStats ? {
         scrapedMeta: {
           charCount: scrapedStats.charCount,
           imageCount: scrapedStats.imageCount,
@@ -291,7 +386,7 @@ export default function SeoCheckPage() {
           tags: scrapedStats.tags,
           formatting: scrapedStats.formatting,
         },
-      }),
+      } : manualScrapedMeta),
     }
 
     // === API 호출 + 스캔 애니메이션 동시 시작 ===
@@ -634,20 +729,26 @@ export default function SeoCheckPage() {
                     </div>
                   </div>
 
-                  {/* 키워드 입력 */}
+                  {/* 키워드 (URL 모드: 자동 추출 전용, 수기 입력 불가) */}
                   <div className="space-y-2">
-                    <Label htmlFor="keyword">타겟 키워드 {!keyword.trim() && content.trim() && <span className="text-amber-600 font-normal">(입력 권장)</span>}</Label>
+                    <Label htmlFor="keyword">
+                      타겟 키워드
+                      {autoExtracted && keyword.trim() && <span className="text-cyan-600 font-normal ml-1">(자동 추출)</span>}
+                    </Label>
                     <Input
                       id="keyword"
-                      placeholder="예: 다이어트 식단"
+                      placeholder="블로그 가져오기 후 자동 추출됩니다"
                       value={keyword}
-                      onChange={(e) => setKeyword(e.target.value)}
+                      readOnly
                       disabled={loading}
+                      className="bg-muted/50"
                     />
-                    {!keyword.trim() && content.trim() ? (
+                    {keyword.trim() ? (
+                      <p className="text-xs text-muted-foreground">제목과 본문에서 자동 추출된 키워드입니다</p>
+                    ) : content.trim() ? (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3 shrink-0" />
-                        키워드 없이 분석하면 키워드 밀도·배치·제목 포함 등 핵심 항목이 0점 처리됩니다
+                        키워드 자동 추출에 실패했습니다. 직접 입력 모드에서 수기 입력하세요
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">이 글이 상위노출을 노리는 키워드를 입력하세요</p>
@@ -802,18 +903,24 @@ export default function SeoCheckPage() {
                   <div className="rounded-md border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-400">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>서식 에디터로 볼드, 소제목, 색상 등을 적용하면 SEO 분석에 반영됩니다. 단, 태그/댓글/공감 등 블로그 메타 정보는 URL 분석에서만 확인 가능합니다.</span>
+                      <div>
+                        <p>서식 에디터로 볼드, 소제목, 색상 등을 적용하면 SEO 분석에 반영됩니다. 태그도 아래에 직접 입력할 수 있습니다.</p>
+                        <p className="mt-0.5 text-blue-600/80 dark:text-blue-500/80">댓글·공감·조회수는 직접 입력 시 측정할 수 없어 기본 점수가 부여됩니다.</p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="keyword">타겟 키워드</Label>
+                      <Label htmlFor="keyword">
+                        타겟 키워드
+                        {autoExtracted && keyword.trim() && <span className="text-cyan-600 font-normal ml-1">(자동 추출)</span>}
+                      </Label>
                       <Input
                         id="keyword"
-                        placeholder="예: 다이어트 식단"
+                        placeholder="예: 다이어트 식단 (미입력 시 자동 추출)"
                         value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
+                        onChange={(e) => { setKeyword(e.target.value); setAutoExtracted(false) }}
                         disabled={loading}
                       />
                     </div>
@@ -849,6 +956,21 @@ export default function SeoCheckPage() {
                       서식(볼드, 소제목, 색상 등)을 적용하면 SEO 분석에 반영됩니다. 작성 후 네이버 블로그에 서식 유지 복사 가능합니다.
                     </p>
                   </div>
+
+                  {/* 태그 입력 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="manualTags">태그</Label>
+                    <Input
+                      id="manualTags"
+                      placeholder="예: #다이어트 #식단 #건강 (쉼표 또는 공백으로 구분)"
+                      value={manualTags}
+                      onChange={(e) => setManualTags(e.target.value)}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      실제 블로그에 달 태그를 입력하면 태그 & CTA 항목에 반영됩니다
+                    </p>
+                  </div>
                 </>
               )}
 
@@ -861,11 +983,21 @@ export default function SeoCheckPage() {
               {planGate && <PlanGateAlert message={planGate} />}
 
               <CreditTooltip feature="seo_check">
-                <Button type="submit" disabled={loading || !content.trim()} className="w-full gap-2">
+                <Button type="submit" disabled={loading || aiLoading || !content.trim()} className="w-full gap-2">
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       {progressStep ? progressStep.label : 'AI 심층 분석 중...'}
+                    </>
+                  ) : aiLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      AI 심층 분석 진행 중...
+                    </>
+                  ) : result ? (
+                    <>
+                      <RotateCcw className="h-4 w-4" />
+                      다시 분석하기
                     </>
                   ) : (
                     <>

@@ -102,6 +102,9 @@ export function extractBlogId(url: string): string | null {
  * SEO 엔진 + DIA 엔진 공용
  */
 export function detectStuffingPatterns(keyword: string, content: string): { stuffedCount: number; totalCount: number; patterns: string[] } {
+  // 빈 키워드 → 무한루프 방지
+  if (!keyword || keyword.length === 0) return { stuffedCount: 0, totalCount: 0, patterns: [] }
+
   const patterns: string[] = []
   let stuffedCount = 0
   const totalCount = content.split(keyword).length - 1
