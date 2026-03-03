@@ -636,7 +636,7 @@ export default function SeoCheckPage() {
 
                   {/* 키워드 입력 */}
                   <div className="space-y-2">
-                    <Label htmlFor="keyword">타겟 키워드 (선택)</Label>
+                    <Label htmlFor="keyword">타겟 키워드 {!keyword.trim() && content.trim() && <span className="text-amber-600 font-normal">(입력 권장)</span>}</Label>
                     <Input
                       id="keyword"
                       placeholder="예: 다이어트 식단"
@@ -644,7 +644,14 @@ export default function SeoCheckPage() {
                       onChange={(e) => setKeyword(e.target.value)}
                       disabled={loading}
                     />
-                    <p className="text-xs text-muted-foreground">키워드를 입력하면 키워드 밀도, 배치 등 더 정밀한 분석이 가능합니다</p>
+                    {!keyword.trim() && content.trim() ? (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        키워드 없이 분석하면 키워드 밀도·배치·제목 포함 등 핵심 항목이 0점 처리됩니다
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">이 글이 상위노출을 노리는 키워드를 입력하세요</p>
+                    )}
                   </div>
 
                   {/* URL fetch 완료 후 결과 요약 */}

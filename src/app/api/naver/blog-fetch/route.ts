@@ -203,6 +203,7 @@ export async function POST(request: NextRequest) {
 
         // 2. 메타 데이터 추출 (태그, 링크 분석 등)
         detailedAnalysis = extractPostMetaData(html, parsed.blogId)
+        console.log(`[BlogFetch] 태그 추출: ${detailedAnalysis?.tags?.length ?? 0}개`, detailedAnalysis?.tags?.slice(0, 5))
       }
     } catch (err) {
       console.log('[BlogFetch] 상세 분석 실패 (무시하고 계속):', err)
