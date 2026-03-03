@@ -323,8 +323,7 @@ export default function SeoCheckPage() {
       })
 
       // 스캔 완료 → 브라우저에 렌더링 기회를 준 뒤 분석 실행
-      // (analyzeSeo가 동기 함수라 메인 스레드를 차단할 수 있으므로 setTimeout(0)으로 양보)
-      setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '분석 완료!', percent: 100 })
+      setProgressStep({ step: SCAN_LABELS.length, total: SCAN_LABELS.length, label: '점수 계산 중...', percent: 100 })
       await new Promise(r => setTimeout(r, 0))  // UI 렌더 양보
 
       const seoScrapedMeta = scrapedStats ? {
@@ -333,30 +332,35 @@ export default function SeoCheckPage() {
       } : undefined
 
       // analyzeSeo를 매크로태스크로 실행하여 메인 스레드 차단 방지
-      const localResult = await new Promise<SeoResult>(resolve => {
+      // try/catch 필수: setTimeout 안에서 에러 시 Promise가 영원히 안 끝남
+      const localResult = await new Promise<SeoResult>((resolve, reject) => {
         setTimeout(() => {
-          const engineResult = analyzeSeo(
-            keyword.trim(),
-            title.trim(),
-            content.trim(),
-            undefined,
-            seoScrapedMeta
-          )
-          resolve({
-            totalScore: engineResult.totalScore,
-            grade: engineResult.grade,
-            categories: engineResult.categories.map(cat => ({
-              id: cat.id,
-              name: cat.name,
-              score: cat.score,
-              maxScore: cat.maxScore,
-              feedback: cat.details,
-            })),
-            improvements: engineResult.improvements,
-            strengths: engineResult.strengths,
-            isDemo: false,
-            aiAnalysis: null,
-          })
+          try {
+            const engineResult = analyzeSeo(
+              keyword.trim(),
+              title.trim(),
+              content.trim(),
+              undefined,
+              seoScrapedMeta
+            )
+            resolve({
+              totalScore: engineResult.totalScore,
+              grade: engineResult.grade,
+              categories: engineResult.categories.map(cat => ({
+                id: cat.id,
+                name: cat.name,
+                score: cat.score,
+                maxScore: cat.maxScore,
+                feedback: cat.details,
+              })),
+              improvements: engineResult.improvements,
+              strengths: engineResult.strengths,
+              isDemo: false,
+              aiAnalysis: null,
+            })
+          } catch (err) {
+            reject(err)
+          }
         }, 0)
       })
 
