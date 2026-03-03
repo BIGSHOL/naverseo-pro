@@ -754,8 +754,46 @@ export default function ContentPage() {
     }
   }
 
+  // === 이미지 리사이징 (Canvas, 클라이언트 전용 — API 비용 0) ===
+  const MAX_IMAGE_WIDTH = 1200
+  const MAX_IMAGE_HEIGHT = 1200
+  const resizeImage = (file: File): Promise<{ file: File; previewUrl: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const originalUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        let { width, height } = img
+        // 리사이징 필요 없으면 그대로 반환
+        if (width <= MAX_IMAGE_WIDTH && height <= MAX_IMAGE_HEIGHT) {
+          resolve({ file, previewUrl: originalUrl })
+          return
+        }
+        // 비율 유지하며 축소
+        const ratio = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        URL.revokeObjectURL(originalUrl)
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve({ file, previewUrl: URL.createObjectURL(file) }); return }
+          const resizedFile = new File([blob], file.name, { type: file.type || 'image/jpeg' })
+          resolve({ file: resizedFile, previewUrl: URL.createObjectURL(resizedFile) })
+        }, file.type || 'image/jpeg', 0.85)
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(originalUrl)
+        resolve({ file, previewUrl: URL.createObjectURL(file) })
+      }
+      img.src = originalUrl
+    })
+  }
+
   // === 이미지 첨부 (공통 로직) ===
-  const addImageFiles = (files: File[]) => {
+  const addImageFiles = async (files: File[]) => {
     const remaining = MAX_ATTACHED_IMAGES - attachedImages.length
     if (remaining <= 0) {
       toast({ title: '이미지 최대 개수', description: `최대 ${MAX_ATTACHED_IMAGES}장까지 첨부할 수 있습니다.`, variant: 'destructive' })
@@ -769,10 +807,11 @@ export default function ContentPage() {
         toast({ title: '이미지 오류', description: validation.error, variant: 'destructive' })
         continue
       }
+      const { file: resizedFile, previewUrl } = await resizeImage(file)
       newImages.push({
         id: `${Date.now()}-${i}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
+        file: resizedFile,
+        previewUrl,
         description: '',
       })
     }
