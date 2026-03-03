@@ -754,14 +754,11 @@ export default function ContentPage() {
     }
   }
 
-  // === 이미지 첨부 ===
-  const handleAttachImages = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
+  // === 이미지 첨부 (공통 로직) ===
+  const addImageFiles = (files: File[]) => {
     const remaining = MAX_ATTACHED_IMAGES - attachedImages.length
     if (remaining <= 0) {
       toast({ title: '이미지 최대 개수', description: `최대 ${MAX_ATTACHED_IMAGES}장까지 첨부할 수 있습니다.`, variant: 'destructive' })
-      e.target.value = ''
       return
     }
     const newImages: AttachedImage[] = []
@@ -782,7 +779,30 @@ export default function ContentPage() {
     if (newImages.length > 0) {
       setAttachedImages(prev => [...prev, ...newImages])
     }
+  }
+
+  const handleAttachImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    addImageFiles(Array.from(files))
     e.target.value = ''
+  }
+
+  // === Ctrl+V 클립보드 이미지 붙여넣기 ===
+  const handleImagePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const imageFiles: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault()
+      addImageFiles(imageFiles)
+    }
   }
 
   const removeAttachedImage = (id: string) => {
@@ -2388,7 +2408,7 @@ export default function ContentPage() {
             </div>
 
             {/* 이미지 첨부 + 설명 (선택) */}
-            <div className="space-y-2">
+            <div className="space-y-2" onPaste={handleImagePaste}>
               <Label className="flex items-center gap-1.5">
                 <ImagePlus className="h-3.5 w-3.5 text-emerald-500" />
                 이미지 첨부
@@ -2451,7 +2471,7 @@ export default function ContentPage() {
                 </label>
               )}
               <p className="text-xs text-emerald-600/80">
-                각 이미지에 설명을 입력하면 AI가 본문의 적절한 위치에 배치합니다. 맥락에 맞지 않는 이미지는 자동 제외됩니다.
+                각 이미지에 설명을 입력하면 AI가 본문의 적절한 위치에 배치합니다. Ctrl+V로 스크린샷 붙여넣기도 가능합니다.
               </p>
             </div>
 
