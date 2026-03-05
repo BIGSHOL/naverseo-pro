@@ -20,27 +20,26 @@ export function Sidebar() {
     plan, role, creditsBalance, creditsQuota,
     avatarUrl, userName, userEmail, loaded, disabledFeatures,
   } = useUserProfile()
-  const { isV2, toggleV2 } = useDesignV2()
 
   const planInfo = PLANS[plan]
   const creditPercent = creditsQuota > 0 ? Math.min(100, (creditsBalance / creditsQuota) * 100) : 0
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r bg-card lg:block">
+    <aside className="hidden w-[260px] shrink-0 lg:block rounded-[1.5rem] bg-[#272e3f] text-slate-100 shadow-xl overflow-hidden border border-slate-700/50 relative">
       <div className="flex h-full flex-col">
         {/* 로고 */}
-        <div className="flex h-16 items-center border-b px-6">
-          <Link href="/dashboard">
+        <div className="flex h-[72px] items-center border-b border-slate-700/50 px-6 bg-[#212736]">
+          <Link href="/dashboard" className="text-white hover:opacity-90 transition-opacity">
             <Logo size="md" />
           </Link>
         </div>
 
         {/* 네비게이션 */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
           {navGroups.map((group, gi) => (
-            <div key={group.label} className={gi > 0 ? 'mt-4' : ''}>
+            <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
               {gi > 0 && (
-                <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                   {group.label}
                 </p>
               )}
@@ -57,17 +56,17 @@ export function Sidebar() {
                         <Link
                           href={locked ? '/billing' : item.href}
                           className={cn(
-                            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                            'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
                             locked
-                              ? 'cursor-default text-muted-foreground/50'
+                              ? 'cursor-default text-slate-600'
                               : isActive
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                                ? 'bg-primary/20 text-emerald-400 shadow-sm'
+                                : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'
                           )}
                         >
-                          <item.icon className={cn('h-5 w-5', locked && 'opacity-40')} />
+                          <item.icon className={cn('h-5 w-5', locked ? 'opacity-40' : isActive ? 'text-emerald-400' : 'group-hover:scale-110 transition-transform')} />
                           <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
-                          {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                          {locked && <Lock className="h-4 w-4 text-slate-600" />}
                         </Link>
                       </TooltipTrigger>
                       {locked && (
@@ -84,23 +83,10 @@ export function Sidebar() {
 
           {/* 관리자 메뉴 */}
           {role === 'admin' && (
-            <>
-              <div className="my-2">
-                <div className="border-t" />
-                <div className="flex items-center justify-between mt-2 px-3">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">
-                    관리자
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">V2 Design (Beta)</span>
-                    <Switch
-                      checked={isV2}
-                      onCheckedChange={toggleV2}
-                      className="scale-75"
-                    />
-                  </div>
-                </div>
-              </div>
+            <div className="mt-6 pt-6 border-t border-slate-700/50">
+              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                관리자
+              </p>
               {adminNavItems.map((item) => {
                 const isActive = pathname === item.href
                 return (
@@ -108,37 +94,37 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
                       isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        ? 'bg-primary/20 text-emerald-400 shadow-sm'
+                        : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'
                     )}
                   >
-                    <item.icon className="h-5 w-5" />
+                    <item.icon className={cn("h-5 w-5", isActive ? "text-emerald-400" : "group-hover:scale-110 transition-transform")} />
                     {item.label}
                   </Link>
                 )
               })}
-            </>
+            </div>
           )}
         </nav>
 
         {/* 하단 프로필 + 크레딧 표시 */}
-        <div className="border-t p-4">
+        <div className="border-t border-slate-700/50 p-5 bg-[#212736]">
           {/* 로딩 중 스켈레톤 */}
           {!loaded ? (
-            <div className="space-y-3 animate-pulse">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-full bg-muted" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 w-20 rounded bg-muted" />
-                  <div className="h-2.5 w-32 rounded bg-muted" />
+            <div className="space-y-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-slate-700" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-20 rounded bg-slate-700" />
+                  <div className="h-3 w-32 rounded bg-slate-700/50" />
                 </div>
               </div>
-              <div className="rounded-lg bg-muted p-3 space-y-2">
-                <div className="h-2.5 w-12 rounded bg-background/50" />
-                <div className="h-3.5 w-16 rounded bg-background/50" />
-                <div className="h-1.5 w-full rounded-full bg-background/50" />
+              <div className="rounded-xl bg-[#1d2331] p-4 border border-slate-700/50 space-y-3">
+                <div className="h-3 w-16 rounded bg-slate-700" />
+                <div className="h-4 w-24 rounded bg-slate-700" />
+                <div className="h-1.5 w-full rounded-full bg-slate-700/50" />
               </div>
             </div>
           ) : (

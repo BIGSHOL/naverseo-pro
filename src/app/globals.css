@@ -1,57 +1,77 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* 새로운 디자인 기본 전역 팔레트 (B2B SaaS Style) */
+    --background: 214 26% 95%;
+    /* 기존 V2 캔버스 백그라운드 */
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 150 97% 39%;
+    --popover-foreground: 222 47% 11%;
+
+    /* 눈에 띄는 네온/에메랄드 그린 포인트 (NaverSEO 톤업) */
+    --primary: 151 100% 41%;
     --primary-foreground: 0 0% 100%;
+
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
+
+    /* V2 Muted & Border Elements */
+    --muted: 220 14% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 150 97% 39%;
-    --chart-1: 150 97% 39%;
+    --ring: 151 100% 41%;
+
+    --chart-1: 151 100% 41%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+
+    --radius: 1rem;
+    /* 전체적으로 둥근 모서리 V2 기준 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 226 23% 11%;
+    /* V2 다크모드 백그라운드 */
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 226 23% 11%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 226 23% 11%;
     --popover-foreground: 210 40% 98%;
-    --primary: 150 97% 39%;
+
+    --primary: 151 100% 41%;
     --primary-foreground: 0 0% 100%;
+
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
+
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
+
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 150 97% 39%;
-    --chart-1: 150 97% 39%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 151 100% 41%;
+
+    --chart-1: 151 100% 41%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
@@ -66,6 +86,8 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif !important;
+    letter-spacing: -0.015em;
   }
 }
 
@@ -279,169 +301,86 @@
   }
 }
 
-/* ====== DESIGN V2 (BETA) OVERRIDES ====== */
-/* ====== DESIGN V2 (BETA) OVERRIDES ====== */
-/* 단순 변수 변경이 아닌 레이아웃 코어 구조 전체를 유행하는 B2B SaaS (Linear, Vercel 등) 형태로 바꿉니다. */
-
-:root.design-v2 {
-  --background: 214 26% 95%;
-  /* 앱 전체 바깥쪽 회색 캔버스 (더 부드러운 스틸블루 톤) */
-  --card: 0 0% 100%;
-  --primary: 151 100% 41%;
-  /* 눈에 띄는 네온/에메랄드 그린 */
-  --muted: 220 14% 96%;
-  --border: 220 13% 91%;
-  --radius: 1rem;
-}
-
-/* V2 Layout Overhaul (Global Level) */
-.design-v2 body {
-  background-color: hsl(var(--background));
-  letter-spacing: -0.015em;
-  overflow: hidden;
-  /* Prevent body scroll, handle inside islands */
-}
-
-/* 1. 사이드바 대격변: 다크 테마 플로팅 아일랜드 */
-.design-v2 aside {
-  background-color: #272e3f !important;
-  /* 검정 대신 확연히 부드러운 네이비 그레이 (눈 피로 최소화) */
-  color: #fafafa !important;
-  /* 폰트는 화이트 */
-  margin: 1rem 0.5rem 1rem 1rem;
-  height: calc(100vh - 2rem) !important;
-  border-radius: 1.5rem !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 10px 0 30px -10px rgba(0, 0, 0, 0.15) !important;
-  z-index: 50;
-}
-
-/* 사이드바 내부 폰트 반전 */
-.design-v2 aside .text-foreground {
-  color: #ffffff !important;
-}
-
-.design-v2 aside .text-muted-foreground {
-  color: #a1a1aa !important;
-}
-
-.design-v2 aside p,
-.design-v2 aside span {
-  color: #e4e4e7;
-}
-
-.design-v2 aside .hover\:bg-accent:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #ffffff !important;
-}
-
-.design-v2 aside .bg-primary\/10 {
-  background-color: rgba(16, 185, 129, 0.2) !important;
-  color: #34d399 !important;
-}
-
-.design-v2 aside .text-primary {
-  color: #34d399 !important;
-}
-
-.design-v2 aside .border-b,
-.design-v2 aside .border-t {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.design-v2 aside .bg-muted {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.design-v2 aside svg {
-  color: inherit;
-}
-
-/* 2. 메인 대시보드 대격변: 화이트보드 아일랜드 */
-.design-v2 .flex.h-screen>.flex-1.flex-col.overflow-hidden {
-  margin: 0.5rem 0.5rem 0.5rem 0;
-  height: calc(100vh - 1rem) !important;
-  background-color: #f1f5f9 !important;
-  /* 너무 하얀색(#fbfdff) 대비 확연히 눈이 편안한 옅은 회색(Tailwind slate-100) */
-  border-radius: 1.5rem !important;
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* 2.5 사이드바 스크롤바 커스텀 (접근성 및 인지 향상) */
-.design-v2 aside nav::-webkit-scrollbar {
+/* ====== NEW GLOBAL APP DESIGN ====== */
+/* 1. 사이드바 스크롤바 커스텀 */
+aside nav::-webkit-scrollbar {
   width: 6px;
 }
 
-.design-v2 aside nav::-webkit-scrollbar-track {
+aside nav::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
-  /* 트랙(길)이 살짝 보이도록 하여 스크롤 영역임을 암시 */
   border-radius: 10px;
 }
 
-.design-v2 aside nav::-webkit-scrollbar-thumb {
+aside nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.25);
-  /* 기본 상태에서도 막대가 확실히 보이도록 불투명도 증가 */
   border-radius: 10px;
 }
 
-.design-v2 aside nav::-webkit-scrollbar-thumb:hover {
+aside nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.45);
 }
 
-/* 헤더 개선 */
-.design-v2 header {
+/* 2. 헤더 커스텀 */
+header {
   background-color: rgba(241, 245, 249, 0.6) !important;
-  /* 배경과 동일한 색상의 반투명 */
   backdrop-filter: blur(12px) !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
   border-radius: 1.5rem 1.5rem 0 0 !important;
 }
 
+.dark header {
+  background-color: rgba(18, 18, 18, 0.8) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+}
+
 /* 3. 카드 및 컴포넌트 마감 극대화 */
-.design-v2 .bg-card {
+.bg-card {
   border-radius: 1.25rem !important;
   border: none !important;
-  /* 선 대신 오직 그림자로만 구분 */
   box-shadow: 0 4px 12px -3px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03) !important;
   transition: box-shadow 0.3s ease;
 }
 
-.design-v2 .bg-card:hover {
+.bg-card:hover {
   box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04) !important;
 }
 
-/* Badge (뱃지) V2 스타일링 */
-.design-v2 .badge,
-.design-v2 [class*="inline-flex items-center rounded-"],
-/* 뱃지 캐치 */
-.design-v2 [class*="bg-primary/10"] {
+.dark .bg-card {
+  background-color: #18181b !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Badge (뱃지) 스타일링 */
+.badge,
+[class*="inline-flex items-center rounded-"],
+[class*="bg-primary/10"] {
   border-radius: 0.5rem !important;
   border: none !important;
 }
 
 /* 툴팁 V2 오버라이드 */
-.design-v2 [role="tooltip"] {
+[role="tooltip"] {
   border-radius: 0.75rem !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
   padding: 0.5rem 0.75rem !important;
 }
 
 /* 버튼 인터랙션 */
-.design-v2 button,
-.design-v2 a[role="button"] {
+button,
+a[role="button"] {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   border-radius: 0.75rem !important;
 }
 
-.design-v2 button:active {
+button:active {
   transform: scale(0.96) !important;
 }
 
-/* 4. 랜딩 페이지 V2 파격 변신 (Floating Navbar & Soft Sections) */
+/* 4. 랜딩 페이지 파격 변신 (Floating Navbar & Soft Sections) */
 /* 네비게이션 바 플로팅 효과 */
-.design-v2 nav.fixed.top-0 {
-  background: rgba(255, 255, 255, 0.6) !important;
+nav.fixed.top-0 {
+  background: rgba(255, 255, 255, 0.8) !important;
   backdrop-filter: blur(24px) !important;
   border-bottom: none !important;
   box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.08) !important;
@@ -455,40 +394,24 @@
   border: 1px solid rgba(255, 255, 255, 0.4) !important;
 }
 
-.dark.design-v2 nav.fixed.top-0 {
+.dark nav.fixed.top-0 {
   background: rgba(9, 9, 11, 0.7) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
 /* 랜딩 버튼 곡률 최대화 (알약 형태) */
-.design-v2 main.min-h-screen button {
+main.min-h-screen button {
   border-radius: 9999px !important;
 }
 
 /* 랜딩 히어로 배경 그라데이션 고급화 */
-.design-v2 main.min-h-screen section:first-of-type {
+main.min-h-screen section:first-of-type {
   background: radial-gradient(ellipse at top, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
 }
 
 /* 랜딩 주요 제목 타이포그래피 */
-.design-v2 main.min-h-screen h1,
-.design-v2 main.min-h-screen h2 {
+main.min-h-screen h1,
+main.min-h-screen h2 {
   letter-spacing: -0.04em !important;
   line-height: 1.1 !important;
-}
-
-/* 다크 모드 V2 지원 */
-.dark.design-v2 .flex.h-screen>.flex-1.flex-col.overflow-hidden {
-  background-color: hsl(var(--background)) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-.dark.design-v2 header {
-  background-color: rgba(18, 18, 18, 0.8) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.dark.design-v2 .bg-card {
-  background-color: #18181b !important;
-  border-color: rgba(255, 255, 255, 0.06) !important;
 }

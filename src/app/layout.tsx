@@ -63,18 +63,6 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        {/* V2 디자인 관련 FOUC 방지 스크립트 */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                if (localStorage.getItem('design-v2') === 'true') {
-                  document.documentElement.classList.add('design-v2');
-                }
-              } catch (e) {}
-            `,
-          }}
-        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}

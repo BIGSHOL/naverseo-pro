@@ -547,7 +547,7 @@ function getDaysAgoBadge(daysAgo: number) {
   return <Badge variant="outline" className="text-[10px] whitespace-nowrap">{daysAgo}일 전</Badge>
 }
 
-// ===== 벤치마크 항목 컴포넌트 (통일 디자인: 0 → 평균 → 상위블로거) =====
+// ===== 벤치마크 항목 컴포넌트 (통일 디자인: 0 → 권장 → 목표) =====
 
 function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: rawTop, unit, icon, maxOptimal }: {
   label: string; mine: number; recommended: number; topBlogger: number; unit?: string; icon: React.ReactNode
@@ -602,17 +602,17 @@ function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: 
           className={`absolute inset-y-0 left-0 rounded-full transition-all ${barColor}`}
           style={{ width: `${minePct}%` }}
         />
-        {/* 평균 수직선 */}
+        {/* 권장 수직선 */}
         <div
           className="absolute top-[-3px] w-[2px] h-[calc(100%+6px)] bg-gray-400 dark:bg-gray-500 rounded"
           style={{ left: `${recPct}%` }}
-          title={`평균: ${formatVal(recommended)}${u}`}
+          title={`권장: ${formatVal(recommended)}${u}`}
         />
-        {/* 상위블로거 수직선 */}
+        {/* 목표 수직선 */}
         <div
           className="absolute top-[-3px] w-[2px] h-[calc(100%+6px)] bg-emerald-500 dark:bg-emerald-400 rounded"
           style={{ left: `${topPct}%` }}
-          title={`상위: ${formatVal(topBlogger)}${u}`}
+          title={`목표: ${formatVal(topBlogger)}${u}`}
         />
       </div>
       {/* 범례 */}
@@ -621,11 +621,11 @@ function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: 
         <div className="flex gap-3">
           <span className="flex items-center gap-0.5">
             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-gray-400" />
-            평균 {formatVal(recommended)}{u}
+            권장 {formatVal(recommended)}{u}
           </span>
           <span className="flex items-center gap-0.5">
             <span className="inline-block w-1.5 h-1.5 rounded-sm bg-emerald-500" />
-            상위 {formatVal(topBlogger)}{u}
+            목표 {formatVal(topBlogger)}{u}
           </span>
         </div>
       </div>
@@ -821,8 +821,9 @@ export default function BlogIndexPage() {
     }
   }
 
-  // "갱신" 버튼 → 크레딧 소모 확인
+  // "갱신" 버튼 → 키워드 초기화 후 크레딧 소모 확인 (서버에서 재탐지)
   const handleRefreshClick = () => {
+    setTestKeywords('')
     setPendingCache(null)
     setShowCreditConfirm(true)
   }

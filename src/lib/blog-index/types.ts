@@ -115,7 +115,7 @@ export interface BlogProfile {
 }
 
 export interface BenchmarkData {
-  // 나의 수치 vs 평균 vs 상위블로거
+  // 나의 수치 vs 권장 기준 vs 목표 기준
   postingFrequency: { mine: number; recommended: number; topBlogger: number }
   avgTitleLength: { mine: number; optimal: number; topBlogger: number }
   avgContentLength: { mine: number; recommended: number; topBlogger: number }
