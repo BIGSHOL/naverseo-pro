@@ -452,7 +452,18 @@ ${trendAdvice}`
 }
 
 // Supabase에 생성된 콘텐츠 저장 + 사용량 증가
-async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[], tags?: string[]) {
+interface SaveContentMetadata {
+  metaDescription?: string
+  enrichment?: Record<string, unknown>
+  validation?: { score: number; warnings: string[]; errors: string[]; isValid: boolean }
+  scoreBefore?: number
+  scoreAfter?: number
+  optimizations?: string[]
+  referenceUsageReport?: unknown
+  imagePlacementReport?: unknown
+}
+
+async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[], tags?: string[], metadata?: SaveContentMetadata) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
@@ -462,7 +473,22 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 
     const seoScore = calculateBasicSeoScore(keyword, title, content, additionalKeywords)
 
-    // 콘텐츠 저장 (SEO 점수 포함)
+    // seo_feedback JSONB에 메타데이터 저장
+    const seoFeedback: Record<string, unknown> = {}
+    if (metadata?.metaDescription) seoFeedback.metaDescription = metadata.metaDescription
+    if (metadata?.enrichment) seoFeedback.enrichment = metadata.enrichment
+    if (metadata?.validation) seoFeedback.validation = metadata.validation
+    if (metadata?.optimizations && metadata.optimizations.length > 0) {
+      seoFeedback.autoOptimization = {
+        scoreBefore: metadata.scoreBefore,
+        scoreAfter: metadata.scoreAfter,
+        optimizations: metadata.optimizations,
+      }
+    }
+    if (metadata?.referenceUsageReport) seoFeedback.referenceUsageReport = metadata.referenceUsageReport
+    if (metadata?.imagePlacementReport) seoFeedback.imagePlacementReport = metadata.imagePlacementReport
+
+    // 콘텐츠 저장 (SEO 점수 + 메타데이터 포함)
     const { data } = await supabase.from('generated_content').insert({
       user_id: user.id,
       target_keyword: keyword,
@@ -471,6 +497,8 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
       status: 'draft',
       seo_score: seoScore,
       tags: tags && tags.length > 0 ? tags : [],
+      meta_description: metadata?.metaDescription || null,
+      seo_feedback: Object.keys(seoFeedback).length > 0 ? seoFeedback : null,
     }).select('id').single()
 
     // 크레딧 차감
@@ -964,7 +992,16 @@ ${imageList}
             })
 
             // DB 저장은 result 전송 후 비동기 (타임아웃되어도 사용자는 콘텐츠 수신 완료)
-            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords, optimizeResult.tags)
+            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords, optimizeResult.tags, {
+              metaDescription: optimizeResult.metaDescription,
+              enrichment: hasEnrichment ? enrichment : undefined,
+              validation: { score: validation.score, warnings: validation.warnings, errors: validation.errors, isValid: validation.isValid },
+              scoreBefore: optimizeResult.scoreBefore,
+              scoreAfter: optimizeResult.scoreAfter,
+              optimizations: optimizeResult.optimizations,
+              referenceUsageReport: parsed.referenceUsageReport,
+              imagePlacementReport: parsed.imagePlacementReport,
+            })
               .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
               .catch(err => console.error('[Content] DB 저장 실패 (result는 전송됨):', err))
           } catch (aiError) {
