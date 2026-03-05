@@ -67,7 +67,7 @@ export interface VisitorData {
 export interface BlogLevelInfo {
   tier: number           // 1~16 (v6: 16등급)
   category: string       // 일반 / 준최적화 / 최적화 / 최적화+ / 파워
-  label: string          // Lv.1 일반 ~ Lv.16 파워
+  label: string          // 일반 ~ 파워 (등급 라벨)
   shortLabel: string     // 짧은 라벨 (배지용): 일반, 준최적화1~7, 최적화1~3, 최적화1+~4+, 파워
   description: string    // 상세 설명
   color: string          // UI 색상 키 (slate/violet/indigo/sky/blue/lime/green/teal/emerald/amber 등)

@@ -173,14 +173,13 @@ export function getSaturationBadge(plAvgDepth: number) {
   )
 }
 
-// ===== 16단계 키워드 등급 체계 (SEO/블로그 지수와 통일) =====
-// Lv.1 (최하) ~ Lv.16 (최상)
+// ===== 16단계 키워드 등급 체계 (v11.3: 상위 좁고 하위 넓은 커브, Lv 제거) =====
 
 export interface KeywordGrade {
   level: number        // 1~16
   category: '비추' | '보통' | '준최' | '최적'
-  label: string        // 'Lv.16'
-  fullLabel: string    // 'Lv.16 최적'
+  label: string        // '파워'
+  fullLabel: string    // '파워'
   tier: number         // 카테고리 내 세부 등급 (1~4)
   color: string
   bgColor: string
@@ -189,22 +188,22 @@ export interface KeywordGrade {
 import { GRADE_BADGES } from '@/lib/seo/grade-constants'
 
 export function getKeywordGrade(score: number): KeywordGrade {
-  if (score >= 95) return { level: 16, category: '최적', label: 'Lv.16 파워', fullLabel: 'Lv.16 파워', tier: 1, color: 'text-amber-700', bgColor: GRADE_BADGES[16] }
-  if (score >= 89) return { level: 15, category: '최적', label: 'Lv.15 최적화4+', fullLabel: 'Lv.15 최적화4+', tier: 2, color: 'text-emerald-700', bgColor: GRADE_BADGES[15] }
-  if (score >= 82) return { level: 14, category: '최적', label: 'Lv.14 최적화3+', fullLabel: 'Lv.14 최적화3+', tier: 3, color: 'text-emerald-700', bgColor: GRADE_BADGES[14] }
-  if (score >= 76) return { level: 13, category: '최적', label: 'Lv.13 최적화2+', fullLabel: 'Lv.13 최적화2+', tier: 4, color: 'text-teal-700', bgColor: GRADE_BADGES[13] }
-  if (score >= 70) return { level: 12, category: '최적', label: 'Lv.12 최적화1+', fullLabel: 'Lv.12 최적화1+', tier: 1, color: 'text-teal-700', bgColor: GRADE_BADGES[12] }
-  if (score >= 64) return { level: 11, category: '최적', label: 'Lv.11 최적화3', fullLabel: 'Lv.11 최적화3', tier: 2, color: 'text-green-700', bgColor: GRADE_BADGES[11] }
-  if (score >= 57) return { level: 10, category: '최적', label: 'Lv.10 최적화2', fullLabel: 'Lv.10 최적화2', tier: 3, color: 'text-green-700', bgColor: GRADE_BADGES[10] }
-  if (score >= 51) return { level: 9, category: '최적', label: 'Lv.9 최적화1', fullLabel: 'Lv.9 최적화1', tier: 4, color: 'text-lime-700', bgColor: GRADE_BADGES[9] }
-  if (score >= 45) return { level: 8, category: '준최', label: 'Lv.8 준최적화7', fullLabel: 'Lv.8 준최적화7', tier: 1, color: 'text-blue-700', bgColor: GRADE_BADGES[8] }
-  if (score >= 38) return { level: 7, category: '준최', label: 'Lv.7 준최적화6', fullLabel: 'Lv.7 준최적화6', tier: 2, color: 'text-blue-700', bgColor: GRADE_BADGES[7] }
-  if (score >= 32) return { level: 6, category: '준최', label: 'Lv.6 준최적화5', fullLabel: 'Lv.6 준최적화5', tier: 3, color: 'text-sky-700', bgColor: GRADE_BADGES[6] }
-  if (score >= 26) return { level: 5, category: '준최', label: 'Lv.5 준최적화4', fullLabel: 'Lv.5 준최적화4', tier: 4, color: 'text-sky-700', bgColor: GRADE_BADGES[5] }
-  if (score >= 20) return { level: 4, category: '준최', label: 'Lv.4 준최적화3', fullLabel: 'Lv.4 준최적화3', tier: 1, color: 'text-indigo-700', bgColor: GRADE_BADGES[4] }
-  if (score >= 13) return { level: 3, category: '준최', label: 'Lv.3 준최적화2', fullLabel: 'Lv.3 준최적화2', tier: 2, color: 'text-indigo-700', bgColor: GRADE_BADGES[3] }
-  if (score >= 7) return { level: 2, category: '준최', label: 'Lv.2 준최적화1', fullLabel: 'Lv.2 준최적화1', tier: 3, color: 'text-violet-700', bgColor: GRADE_BADGES[2] }
-  return { level: 1, category: '보통', label: 'Lv.1 일반', fullLabel: 'Lv.1 일반', tier: 4, color: 'text-slate-700', bgColor: GRADE_BADGES[1] }
+  if (score >= 98) return { level: 16, category: '최적', label: '파워', fullLabel: '파워', tier: 1, color: 'text-amber-700', bgColor: GRADE_BADGES[16] }
+  if (score >= 95) return { level: 15, category: '최적', label: '최적화4+', fullLabel: '최적화4+', tier: 2, color: 'text-emerald-700', bgColor: GRADE_BADGES[15] }
+  if (score >= 91) return { level: 14, category: '최적', label: '최적화3+', fullLabel: '최적화3+', tier: 3, color: 'text-emerald-700', bgColor: GRADE_BADGES[14] }
+  if (score >= 86) return { level: 13, category: '최적', label: '최적화2+', fullLabel: '최적화2+', tier: 4, color: 'text-teal-700', bgColor: GRADE_BADGES[13] }
+  if (score >= 80) return { level: 12, category: '최적', label: '최적화1+', fullLabel: '최적화1+', tier: 1, color: 'text-teal-700', bgColor: GRADE_BADGES[12] }
+  if (score >= 73) return { level: 11, category: '최적', label: '최적화3', fullLabel: '최적화3', tier: 2, color: 'text-green-700', bgColor: GRADE_BADGES[11] }
+  if (score >= 65) return { level: 10, category: '최적', label: '최적화2', fullLabel: '최적화2', tier: 3, color: 'text-green-700', bgColor: GRADE_BADGES[10] }
+  if (score >= 57) return { level: 9, category: '최적', label: '최적화1', fullLabel: '최적화1', tier: 4, color: 'text-lime-700', bgColor: GRADE_BADGES[9] }
+  if (score >= 48) return { level: 8, category: '준최', label: '준최적화7', fullLabel: '준최적화7', tier: 1, color: 'text-blue-700', bgColor: GRADE_BADGES[8] }
+  if (score >= 39) return { level: 7, category: '준최', label: '준최적화6', fullLabel: '준최적화6', tier: 2, color: 'text-blue-700', bgColor: GRADE_BADGES[7] }
+  if (score >= 30) return { level: 6, category: '준최', label: '준최적화5', fullLabel: '준최적화5', tier: 3, color: 'text-sky-700', bgColor: GRADE_BADGES[6] }
+  if (score >= 22) return { level: 5, category: '준최', label: '준최적화4', fullLabel: '준최적화4', tier: 4, color: 'text-sky-700', bgColor: GRADE_BADGES[5] }
+  if (score >= 15) return { level: 4, category: '준최', label: '준최적화3', fullLabel: '준최적화3', tier: 1, color: 'text-indigo-700', bgColor: GRADE_BADGES[4] }
+  if (score >= 9) return { level: 3, category: '준최', label: '준최적화2', fullLabel: '준최적화2', tier: 2, color: 'text-indigo-700', bgColor: GRADE_BADGES[3] }
+  if (score >= 4) return { level: 2, category: '준최', label: '준최적화1', fullLabel: '준최적화1', tier: 3, color: 'text-violet-700', bgColor: GRADE_BADGES[2] }
+  return { level: 1, category: '보통', label: '일반', fullLabel: '일반', tier: 4, color: 'text-slate-700', bgColor: GRADE_BADGES[1] }
 }
 
 // ===== 숫자 포맷 =====

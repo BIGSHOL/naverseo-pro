@@ -1030,7 +1030,7 @@ export default function BlogIndexPage() {
             <form onSubmit={handleCheck} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="blogUrl">블로그 URL *</Label>
-                <Input id="blogUrl" placeholder="https://blog.naver.com/myblog" value={blogUrl} onChange={(e) => setBlogUrl(e.target.value)} disabled={loading} />
+                <Input id="blogUrl" placeholder="https://blog.naver.com/myblog" value={blogUrl} onChange={(e) => { setBlogUrl(e.target.value); setTestKeywords('') }} disabled={loading} />
                 <p className="text-xs text-muted-foreground">네이버 블로그 주소를 입력하세요</p>
               </div>
               {/* 측정 키워드: 기본 자동 추출, 직접 입력은 접이식 */}

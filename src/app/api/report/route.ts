@@ -5,23 +5,24 @@ export const dynamic = 'force-dynamic'
 
 // ─── SEO 등급 판정 (16단계 - 블로그 지수와 동일 체계) ───
 
+// v11.3: 상위 좁고 하위 넓은 커브 + Lv 제거
 const GRADE_THRESHOLDS = [
-  { minScore: 95, grade: 'Lv.16', label: '파워', color: '#f59e0b' },
-  { minScore: 89, grade: 'Lv.15', label: '최적화4+', color: '#10b981' },
-  { minScore: 82, grade: 'Lv.14', label: '최적화3+', color: '#10b981' },
-  { minScore: 76, grade: 'Lv.13', label: '최적화2+', color: '#14b8a6' },
-  { minScore: 70, grade: 'Lv.12', label: '최적화1+', color: '#14b8a6' },
-  { minScore: 64, grade: 'Lv.11', label: '최적화3', color: '#22c55e' },
-  { minScore: 57, grade: 'Lv.10', label: '최적화2', color: '#22c55e' },
-  { minScore: 51, grade: 'Lv.9', label: '최적화1', color: '#84cc16' },
-  { minScore: 45, grade: 'Lv.8', label: '준최적화7', color: '#3b82f6' },
-  { minScore: 38, grade: 'Lv.7', label: '준최적화6', color: '#3b82f6' },
-  { minScore: 32, grade: 'Lv.6', label: '준최적화5', color: '#0ea5e9' },
-  { minScore: 26, grade: 'Lv.5', label: '준최적화4', color: '#0ea5e9' },
-  { minScore: 20, grade: 'Lv.4', label: '준최적화3', color: '#6366f1' },
-  { minScore: 13, grade: 'Lv.3', label: '준최적화2', color: '#6366f1' },
-  { minScore: 7, grade: 'Lv.2', label: '준최적화1', color: '#8b5cf6' },
-  { minScore: 0, grade: 'Lv.1', label: '일반', color: '#94a3b8' },
+  { minScore: 98, grade: '파워', label: '파워', color: '#f59e0b' },
+  { minScore: 95, grade: '최적화4+', label: '최적화4+', color: '#10b981' },
+  { minScore: 91, grade: '최적화3+', label: '최적화3+', color: '#10b981' },
+  { minScore: 86, grade: '최적화2+', label: '최적화2+', color: '#14b8a6' },
+  { minScore: 80, grade: '최적화1+', label: '최적화1+', color: '#14b8a6' },
+  { minScore: 73, grade: '최적화3', label: '최적화3', color: '#22c55e' },
+  { minScore: 65, grade: '최적화2', label: '최적화2', color: '#22c55e' },
+  { minScore: 57, grade: '최적화1', label: '최적화1', color: '#84cc16' },
+  { minScore: 48, grade: '준최적화7', label: '준최적화7', color: '#3b82f6' },
+  { minScore: 39, grade: '준최적화6', label: '준최적화6', color: '#3b82f6' },
+  { minScore: 30, grade: '준최적화5', label: '준최적화5', color: '#0ea5e9' },
+  { minScore: 22, grade: '준최적화4', label: '준최적화4', color: '#0ea5e9' },
+  { minScore: 15, grade: '준최적화3', label: '준최적화3', color: '#6366f1' },
+  { minScore: 9, grade: '준최적화2', label: '준최적화2', color: '#6366f1' },
+  { minScore: 4, grade: '준최적화1', label: '준최적화1', color: '#8b5cf6' },
+  { minScore: 0, grade: '일반', label: '일반', color: '#94a3b8' },
 ]
 
 function getGrade(score: number) {
@@ -66,12 +67,12 @@ function generateInsights(ctx: {
     insights.push(`현재 평균 SEO 점수는 ${ctx.thisMonthAvg}점입니다. 70점 이상을 목표로 제목 키워드 배치와 소제목 구조를 개선하세요.`)
   }
 
-  // 3. 저등급(Lv.1~Lv.8, 준최적화 이하) 경고
-  const LOW_GRADES = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6', 'Lv.7', 'Lv.8']
+  // 3. 저등급(준최적화 이하) 경고
+  const LOW_GRADES = ['일반', '준최적화1', '준최적화2', '준최적화3', '준최적화4', '준최적화5', '준최적화6', '준최적화7']
   const lowGrades = ctx.gradeDistribution.filter(g => LOW_GRADES.includes(g.grade))
   const lowCount = lowGrades.reduce((s, g) => s + g.count, 0)
   if (lowCount > 0) {
-    insights.push(`준최적화 이하(Lv.8 이하) 콘텐츠가 ${lowCount}편 있습니다. SEO 점수 체커로 개선 포인트를 확인하고 수정하세요.`)
+    insights.push(`준최적화 이하 콘텐츠가 ${lowCount}편 있습니다. SEO 점수 체커로 개선 포인트를 확인하고 수정하세요.`)
   }
 
   // 4. 섹션 분포 분석
