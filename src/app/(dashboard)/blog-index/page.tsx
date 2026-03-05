@@ -268,6 +268,38 @@ interface BlogIndexHistoryData {
   stats: BlogIndexHistoryStats | null
 }
 
+/** 텍스트 내 [text](url) 마크다운 링크를 클릭 가능한 <a> 태그로 변환 */
+function renderTextWithLinks(text: string): ReactNode {
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index))
+    }
+    parts.push(
+      <a
+        key={match.index}
+        href={match[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline decoration-dotted underline-offset-2 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+      >
+        {match[1]}
+      </a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex))
+  }
+
+  return parts.length > 1 ? <>{parts}</> : text
+}
+
 // ===== SVG 레이더 차트 =====
 
 // 레이더 차트용 축약 라벨 (5축 정오각형에서 라벨 겹침 방지)
@@ -355,7 +387,7 @@ function RadarChart({ categories, totalScore, maxTotal = 100, variant = 'default
   })
 
   return (
-    <svg viewBox={`0 0 ${totalSize} ${totalSize}`} className="mx-auto w-full max-w-[340px]">
+    <svg viewBox={`0 0 ${totalSize} ${totalSize}`} className="mx-auto w-full h-auto aspect-square max-w-[340px]">
       <defs>
         <radialGradient id={gradientId} cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor={chartColor} stopOpacity="0.25" />
@@ -633,7 +665,7 @@ export default function BlogIndexPage() {
     fetch(`/api/blog-index/history?blogUrl=${encodeURIComponent(url)}`)
       .then(r => r.ok ? r.json() : null)
       .then(h => { if (h && Array.isArray(h.history)) setHistoryData(h) })
-      .catch(() => {})
+      .catch(() => { })
   }
 
   // 플랜 정보 가져오기
@@ -910,8 +942,8 @@ export default function BlogIndexPage() {
               {aiCardModal?.icon}
               {aiCardModal?.title}
               <span className={`ml-auto text-xl font-bold ${aiCardModal?.isRisk
-                  ? aiCardModal.score <= 2 ? 'text-green-600' : aiCardModal.score <= 5 ? 'text-yellow-600' : 'text-red-600'
-                  : aiCardModal?.score && aiCardModal.score >= 7 ? 'text-green-600' : aiCardModal?.score && aiCardModal.score >= 4 ? 'text-yellow-600' : 'text-red-600'
+                ? aiCardModal.score <= 2 ? 'text-green-600' : aiCardModal.score <= 5 ? 'text-yellow-600' : 'text-red-600'
+                : aiCardModal?.score && aiCardModal.score >= 7 ? 'text-green-600' : aiCardModal?.score && aiCardModal.score >= 4 ? 'text-yellow-600' : 'text-red-600'
                 }`}>
                 {aiCardModal?.score}
                 <span className="text-sm text-muted-foreground font-normal">/10</span>
@@ -923,8 +955,8 @@ export default function BlogIndexPage() {
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
                 className={`h-full rounded-full ${aiCardModal?.isRisk
-                    ? (aiCardModal.score <= 2 ? 'bg-green-500' : aiCardModal.score <= 5 ? 'bg-yellow-500' : 'bg-red-500')
-                    : (aiCardModal?.score && aiCardModal.score >= 7 ? 'bg-green-500' : aiCardModal?.score && aiCardModal.score >= 4 ? 'bg-yellow-500' : 'bg-red-500')
+                  ? (aiCardModal.score <= 2 ? 'bg-green-500' : aiCardModal.score <= 5 ? 'bg-yellow-500' : 'bg-red-500')
+                  : (aiCardModal?.score && aiCardModal.score >= 7 ? 'bg-green-500' : aiCardModal?.score && aiCardModal.score >= 4 ? 'bg-yellow-500' : 'bg-red-500')
                   }`}
                 style={{ width: `${(aiCardModal?.score ?? 0) * 10}%` }}
               />
@@ -1199,147 +1231,146 @@ export default function BlogIndexPage() {
                 const displayScorePct = displayTotal
 
                 return (
-              <Card className="lg:col-span-9">
-                <CardContent className="pt-6">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {/* 왼쪽: 레이더 차트 */}
-                    <div className="flex items-center justify-center">
-                      <RadarChart categories={displayCategories} totalScore={displayTotal} />
-                    </div>
-                    {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
-                    <div className="flex flex-col justify-center">
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(displayScorePct)} bg-background`}>
-                          <div className="text-center">
-                            <span className="text-2xl font-bold">{displayTotal}</span>
-                            <p className="text-[9px] text-muted-foreground">/100</p>
-                          </div>
+                  <Card className="lg:col-span-9">
+                    <CardContent className="pt-6">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {/* 왼쪽: 레이더 차트 */}
+                        <div className="flex items-center justify-center">
+                          <RadarChart categories={displayCategories} totalScore={displayTotal} />
                         </div>
-                        <div className="min-w-0">
-                          <Badge className={`text-xs font-bold ${result.level.badgeColor}`}>
-                            {result.level.label}
-                          </Badge>
-                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                            <Badge variant="outline" className="text-[10px]">{result.level.category}</Badge>
-                            {result.benchmark && (
-                              <Badge variant="outline" className="text-[10px] text-primary">
-                                상위 {result.benchmark.categoryPercentile}%
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{result.level.description}</p>
-                        </div>
-                      </div>
-
-                      {/* 축별 미니 점수 바 */}
-                      <div className="mt-3 space-y-1.5">
-                        {displayCategories.map((cat) => {
-                          const pct = Math.round((cat.score / cat.maxScore) * 100)
-                          const barColor = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-orange-400'
-                          return (
-                            <div key={cat.name} className="flex items-center gap-2 text-[10px]">
-                              <span className="w-14 shrink-0 truncate text-muted-foreground">{getRadarLabel(cat.name)}</span>
-                              <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                        {/* 오른쪽: 등급 + 최적화 + 프로그레스 */}
+                        <div className="flex flex-col justify-center">
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 ${getScoreRingColor(displayScorePct)} bg-background`}>
+                              <div className="text-center">
+                                <span className="text-2xl font-bold">{displayTotal}</span>
+                                <p className="text-[9px] text-muted-foreground">/100</p>
                               </div>
-                              <span className="w-10 shrink-0 text-right font-bold">{cat.score}/{cat.maxScore}</span>
                             </div>
-                          )
-                        })}
-                      </div>
-
-                      {/* 다음 등급 */}
-                      {result.level.nextTierScore !== null && (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span>다음 등급까지</span>
-                            <span className="font-bold text-primary">+{result.level.nextTierScore - result.totalScore}점</span>
-                          </div>
-                          <div className="mt-0.5 h-1.5 rounded-full bg-muted">
-                            <div className={`h-full rounded-full ${getTierBarColor(result.level.tier)}`} style={{ width: `${Math.min(100, (result.totalScore / result.level.nextTierScore) * 100)}%` }} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* v13: 노출 검증 보정 알림 */}
-                      {result.exposureVerification && result.exposureVerification.status !== 'verified' && (
-                        <div className={`mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
-                          result.exposureVerification.status === 'unverified'
-                            ? 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/30 dark:border-orange-800 dark:text-orange-300'
-                            : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300'
-                        }`}>
-                          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold">
-                                {result.exposureVerification.status === 'unverified' ? '노출 미검증' : '노출 부분 검증'}
-                              </span>
-                              <span className="rounded bg-white/60 px-1 py-0.5 text-[9px] font-bold dark:bg-black/20">
-                                -{result.exposureVerification.discount}점 보정
-                              </span>
-                            </div>
-                            <p className="mt-0.5 opacity-80 leading-relaxed">{result.exposureVerification.message}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 16단계 등급 맵 — 1행 나열 + 현재 단계 이펙트 */}
-                  {(() => {
-                    const TIER_LABELS = ['일반','준최1','준최2','준최3','준최4','준최5','준최6','준최7','최적1','최적2','최적3','최적1+','최적2+','최적3+','최적4+','파워']
-                    const tierBg = (t: number) => {
-                      if (t >= 16) return 'bg-amber-500'
-                      if (t >= 14) return 'bg-emerald-500'
-                      if (t >= 12) return 'bg-teal-500'
-                      if (t >= 10) return 'bg-green-500'
-                      if (t >= 9) return 'bg-lime-500'
-                      if (t >= 7) return 'bg-blue-500'
-                      if (t >= 5) return 'bg-sky-500'
-                      if (t >= 3) return 'bg-indigo-500'
-                      if (t >= 2) return 'bg-violet-500'
-                      return 'bg-slate-500'
-                    }
-                    const tierBgPassed = (t: number) => {
-                      if (t >= 16) return 'bg-amber-200 dark:bg-amber-800'
-                      if (t >= 14) return 'bg-emerald-200 dark:bg-emerald-800'
-                      if (t >= 12) return 'bg-teal-200 dark:bg-teal-800'
-                      if (t >= 10) return 'bg-green-200 dark:bg-green-800'
-                      if (t >= 9) return 'bg-lime-200 dark:bg-lime-800'
-                      if (t >= 7) return 'bg-blue-200 dark:bg-blue-800'
-                      if (t >= 5) return 'bg-sky-200 dark:bg-sky-800'
-                      if (t >= 3) return 'bg-indigo-200 dark:bg-indigo-800'
-                      if (t >= 2) return 'bg-violet-200 dark:bg-violet-800'
-                      return 'bg-slate-200 dark:bg-slate-700'
-                    }
-                    const myTier = result.level.tier
-                    return (
-                    <div className="mt-4 pt-3 border-t">
-                      <div className="flex gap-0.5 overflow-x-auto pt-2 pb-1 -mx-1 px-1">
-                        {TIER_LABELS.map((label, i) => {
-                          const t = i + 1
-                          const active = t === myTier
-                          const passed = t < myTier
-                          const bg = active ? tierBg(t) : passed ? tierBgPassed(t) : 'bg-muted'
-                          return (
-                            <div key={t} className="min-w-[24px] flex-1 text-center">
-                              <div className={`relative h-6 sm:h-7 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
-                                <span className={`text-[7px] sm:text-[9px] leading-none whitespace-nowrap ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
-                                  {label}
-                                </span>
-                                {active && (
-                                  <span className="absolute -top-1 -right-0.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+                            <div className="min-w-0">
+                              <Badge className={`text-xs font-bold ${result.level.badgeColor}`}>
+                                {result.level.label}
+                              </Badge>
+                              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className="text-[10px]">{result.level.category}</Badge>
+                                {result.benchmark && (
+                                  <Badge variant="outline" className="text-[10px] text-primary">
+                                    상위 {result.benchmark.categoryPercentile}%
+                                  </Badge>
                                 )}
                               </div>
+                              <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{result.level.description}</p>
                             </div>
-                          )
-                        })}
+                          </div>
+
+                          {/* 축별 미니 점수 바 */}
+                          <div className="mt-3 space-y-1.5">
+                            {displayCategories.map((cat) => {
+                              const pct = Math.round((cat.score / cat.maxScore) * 100)
+                              const barColor = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-orange-400'
+                              return (
+                                <div key={cat.name} className="flex items-center gap-2 text-[10px]">
+                                  <span className="w-14 shrink-0 truncate text-muted-foreground">{getRadarLabel(cat.name)}</span>
+                                  <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="w-10 shrink-0 text-right font-bold">{cat.score}/{cat.maxScore}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* 다음 등급 */}
+                          {result.level.nextTierScore !== null && (
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                <span>다음 등급까지</span>
+                                <span className="font-bold text-primary">+{result.level.nextTierScore - result.totalScore}점</span>
+                              </div>
+                              <div className="mt-0.5 h-1.5 rounded-full bg-muted">
+                                <div className={`h-full rounded-full ${getTierBarColor(result.level.tier)}`} style={{ width: `${Math.min(100, (result.totalScore / result.level.nextTierScore) * 100)}%` }} />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* v13: 노출 검증 보정 알림 */}
+                          {result.exposureVerification && result.exposureVerification.status !== 'verified' && (
+                            <div className={`mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs ${result.exposureVerification.status === 'unverified'
+                                ? 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/30 dark:border-orange-800 dark:text-orange-300'
+                                : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300'
+                              }`}>
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold">
+                                    {result.exposureVerification.status === 'unverified' ? '노출 미검증' : '노출 부분 검증'}
+                                  </span>
+                                  <span className="rounded bg-white/60 px-1 py-0.5 text-[9px] font-bold dark:bg-black/20">
+                                    -{result.exposureVerification.discount}점 보정
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 opacity-80 leading-relaxed">{result.exposureVerification.message}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    )
-                  })()}
-                </CardContent>
-              </Card>
+
+                      {/* 16단계 등급 맵 — 1행 나열 + 현재 단계 이펙트 */}
+                      {(() => {
+                        const TIER_LABELS = ['일반', '준최1', '준최2', '준최3', '준최4', '준최5', '준최6', '준최7', '최적1', '최적2', '최적3', '최적1+', '최적2+', '최적3+', '최적4+', '파워']
+                        const tierBg = (t: number) => {
+                          if (t >= 16) return 'bg-amber-500'
+                          if (t >= 14) return 'bg-emerald-500'
+                          if (t >= 12) return 'bg-teal-500'
+                          if (t >= 10) return 'bg-green-500'
+                          if (t >= 9) return 'bg-lime-500'
+                          if (t >= 7) return 'bg-blue-500'
+                          if (t >= 5) return 'bg-sky-500'
+                          if (t >= 3) return 'bg-indigo-500'
+                          if (t >= 2) return 'bg-violet-500'
+                          return 'bg-slate-500'
+                        }
+                        const tierBgPassed = (t: number) => {
+                          if (t >= 16) return 'bg-amber-200 dark:bg-amber-800'
+                          if (t >= 14) return 'bg-emerald-200 dark:bg-emerald-800'
+                          if (t >= 12) return 'bg-teal-200 dark:bg-teal-800'
+                          if (t >= 10) return 'bg-green-200 dark:bg-green-800'
+                          if (t >= 9) return 'bg-lime-200 dark:bg-lime-800'
+                          if (t >= 7) return 'bg-blue-200 dark:bg-blue-800'
+                          if (t >= 5) return 'bg-sky-200 dark:bg-sky-800'
+                          if (t >= 3) return 'bg-indigo-200 dark:bg-indigo-800'
+                          if (t >= 2) return 'bg-violet-200 dark:bg-violet-800'
+                          return 'bg-slate-200 dark:bg-slate-700'
+                        }
+                        const myTier = result.level.tier
+                        return (
+                          <div className="mt-4 pt-3 border-t">
+                            <div className="flex gap-0.5 overflow-x-auto pt-2 pb-1 -mx-1 px-1">
+                              {TIER_LABELS.map((label, i) => {
+                                const t = i + 1
+                                const active = t === myTier
+                                const passed = t < myTier
+                                const bg = active ? tierBg(t) : passed ? tierBgPassed(t) : 'bg-muted'
+                                return (
+                                  <div key={t} className="min-w-[24px] flex-1 text-center">
+                                    <div className={`relative h-6 sm:h-7 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
+                                      <span className={`text-[7px] sm:text-[9px] leading-none whitespace-nowrap ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
+                                        {label}
+                                      </span>
+                                      {active && (
+                                        <span className="absolute -top-1 -right-0.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </CardContent>
+                  </Card>
                 )
               })()}
             </div>
@@ -1435,64 +1466,63 @@ export default function BlogIndexPage() {
             {(() => {
               const displayCats = result.categories
               return (
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-              {displayCats.map((cat) => {
-                const pct = Math.round((cat.score / cat.maxScore) * 100)
-                return (
-                  <Card key={cat.name} className="overflow-hidden">
-                    <div className={`h-1 ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          {getCategoryIcon(cat.name)}
-                          <p className="text-xs font-medium">{cat.name}</p>
-                        </div>
-                        <Badge className={`text-[10px] ${getGradeColor(cat.grade)}`}>{cat.grade}</Badge>
-                      </div>
-                      <div className="mt-2">
-                        <div className="flex items-end justify-between">
-                          <span className="text-xl font-bold">{cat.score}</span>
-                          <span className="text-[10px] text-muted-foreground">/{cat.maxScore}</span>
-                        </div>
-                        <div className="mt-1.5 h-1.5 rounded-full bg-muted">
-                          <div className={`h-full rounded-full ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
-                      </div>
-                      {/* v10: items 기반 항목별 ±점수 표시 */}
-                      {cat.items && cat.items.length > 0 ? (
-                        <ul className="mt-1.5 space-y-0.5">
-                          {cat.items.map((item, ii) => (
-                            <li key={ii} className="flex items-start gap-1 text-[10px] text-muted-foreground">
-                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${item.points < 0 ? 'bg-red-400' : 'bg-muted-foreground/40'}`} />
-                              <span className="line-clamp-2 flex-1">{item.label}</span>
-                              <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${
-                                item.points < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                                item.points >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                item.points >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                item.points >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                'bg-muted text-muted-foreground'
-                              }`}>
-                                {item.points > 0 ? `+${item.points}` : item.points === 0 ? '0' : `${item.points}`}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : cat.details.length > 0 ? (
-                        <ul className="mt-1.5 space-y-0.5">
-                          {cat.details.map((detail, di) => (
-                            <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                              <span className="line-clamp-2 flex-1">{detail}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
+                <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+                  {displayCats.map((cat) => {
+                    const pct = Math.round((cat.score / cat.maxScore) * 100)
+                    return (
+                      <Card key={cat.name} className="overflow-hidden">
+                        <div className={`h-1 ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              {getCategoryIcon(cat.name)}
+                              <p className="text-xs font-medium">{cat.name}</p>
+                            </div>
+                            <Badge className={`text-[10px] ${getGradeColor(cat.grade)}`}>{cat.grade}</Badge>
+                          </div>
+                          <div className="mt-2">
+                            <div className="flex items-end justify-between">
+                              <span className="text-xl font-bold">{cat.score}</span>
+                              <span className="text-[10px] text-muted-foreground">/{cat.maxScore}</span>
+                            </div>
+                            <div className="mt-1.5 h-1.5 rounded-full bg-muted">
+                              <div className={`h-full rounded-full ${pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="mt-0.5 text-right text-[9px] text-muted-foreground">{pct}%</p>
+                          </div>
+                          {/* v10: items 기반 항목별 ±점수 표시 */}
+                          {cat.items && cat.items.length > 0 ? (
+                            <ul className="mt-1.5 space-y-0.5">
+                              {cat.items.map((item, ii) => (
+                                <li key={ii} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                                  <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${item.points < 0 ? 'bg-red-400' : 'bg-muted-foreground/40'}`} />
+                                  <span className="line-clamp-2 flex-1">{item.label}</span>
+                                  <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${item.points < 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                      item.points >= 5 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                        item.points >= 3 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                          item.points >= 1 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                            'bg-muted text-muted-foreground'
+                                    }`}>
+                                    {item.points > 0 ? `+${item.points}` : item.points === 0 ? '0' : `${item.points}`}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : cat.details.length > 0 ? (
+                            <ul className="mt-1.5 space-y-0.5">
+                              {cat.details.map((detail, di) => (
+                                <li key={di} className="flex items-start gap-1 text-[10px] text-muted-foreground">
+                                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                                  <span className="line-clamp-2 flex-1">{detail}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
               )
             })()}
 
@@ -1638,7 +1668,7 @@ export default function BlogIndexPage() {
                         <Eye className="h-4 w-4 text-blue-500" />
                         <span className="text-xs font-medium">경험 정보</span>
                         <span className={`ml-auto text-lg font-bold ${result.aiAnalysis.experienceScore >= 7 ? 'text-green-600' :
-                            result.aiAnalysis.experienceScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+                          result.aiAnalysis.experienceScore >= 4 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
                           {result.aiAnalysis.experienceScore}
                           <span className="text-[10px] text-muted-foreground font-normal">/10</span>
@@ -1647,13 +1677,13 @@ export default function BlogIndexPage() {
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                           className={`h-full rounded-full ${result.aiAnalysis.experienceScore >= 7 ? 'bg-green-500' :
-                              result.aiAnalysis.experienceScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                            result.aiAnalysis.experienceScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
                             }`}
                           style={{ width: `${result.aiAnalysis.experienceScore * 10}%` }}
                         />
                       </div>
                       <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
-                        {result.aiAnalysis.experienceDetails}
+                        {renderTextWithLinks(result.aiAnalysis.experienceDetails)}
                       </p>
                       <p className="mt-1 text-[9px] text-primary/50 group-hover:text-primary/70 text-right">전체 보기 →</p>
                     </div>
@@ -1672,7 +1702,7 @@ export default function BlogIndexPage() {
                         <FileText className="h-4 w-4 text-purple-500" />
                         <span className="text-xs font-medium">콘텐츠 품질</span>
                         <span className={`ml-auto text-lg font-bold ${result.aiAnalysis.qualityScore >= 7 ? 'text-green-600' :
-                            result.aiAnalysis.qualityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
+                          result.aiAnalysis.qualityScore >= 4 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
                           {result.aiAnalysis.qualityScore}
                           <span className="text-[10px] text-muted-foreground font-normal">/10</span>
@@ -1681,13 +1711,13 @@ export default function BlogIndexPage() {
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                           className={`h-full rounded-full ${result.aiAnalysis.qualityScore >= 7 ? 'bg-green-500' :
-                              result.aiAnalysis.qualityScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
+                            result.aiAnalysis.qualityScore >= 4 ? 'bg-yellow-500' : 'bg-red-500'
                             }`}
                           style={{ width: `${result.aiAnalysis.qualityScore * 10}%` }}
                         />
                       </div>
                       <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
-                        {result.aiAnalysis.qualityDetails}
+                        {renderTextWithLinks(result.aiAnalysis.qualityDetails)}
                       </p>
                       <p className="mt-1 text-[9px] text-primary/50 group-hover:text-primary/70 text-right">전체 보기 →</p>
                     </div>
@@ -1707,7 +1737,7 @@ export default function BlogIndexPage() {
                         <ShieldAlert className="h-4 w-4 text-orange-500" />
                         <span className="text-xs font-medium">어뷰징 위험도</span>
                         <span className={`ml-auto text-lg font-bold ${result.aiAnalysis.abuseRisk <= 2 ? 'text-green-600' :
-                            result.aiAnalysis.abuseRisk <= 5 ? 'text-yellow-600' : 'text-red-600'
+                          result.aiAnalysis.abuseRisk <= 5 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
                           {result.aiAnalysis.abuseRisk}
                           <span className="text-[10px] text-muted-foreground font-normal">/10</span>
@@ -1716,13 +1746,13 @@ export default function BlogIndexPage() {
                       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                           className={`h-full rounded-full ${result.aiAnalysis.abuseRisk <= 2 ? 'bg-green-500' :
-                              result.aiAnalysis.abuseRisk <= 5 ? 'bg-yellow-500' : 'bg-red-500'
+                            result.aiAnalysis.abuseRisk <= 5 ? 'bg-yellow-500' : 'bg-red-500'
                             }`}
                           style={{ width: `${result.aiAnalysis.abuseRisk * 10}%` }}
                         />
                       </div>
                       <p className="mt-1.5 text-[10px] text-muted-foreground line-clamp-2">
-                        {result.aiAnalysis.abuseDetails}
+                        {renderTextWithLinks(result.aiAnalysis.abuseDetails)}
                       </p>
                       <p className="mt-1 text-[9px] text-primary/50 group-hover:text-primary/70 text-right">전체 보기 →</p>
                     </div>
@@ -1731,8 +1761,8 @@ export default function BlogIndexPage() {
                   {/* AI 점수 보정 알림 */}
                   {result.aiAnalysis.scoreAdjustment !== 0 && (
                     <div className={`mb-4 flex items-center gap-2 rounded-lg p-2.5 text-xs ${result.aiAnalysis.scoreAdjustment > 0
-                        ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
-                        : 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                      ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
+                      : 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
                       }`}>
                       <Sparkles className="h-3.5 w-3.5 shrink-0" />
                       <span>
@@ -1755,7 +1785,7 @@ export default function BlogIndexPage() {
                         {result.aiAnalysis.strengths.map((s, i) => (
                           <li key={i} className="flex items-start gap-1.5 text-[11px] text-green-600 dark:text-green-400">
                             <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-green-500" />
-                            {s}
+                            {renderTextWithLinks(s)}
                           </li>
                         ))}
                       </ul>
@@ -1769,7 +1799,7 @@ export default function BlogIndexPage() {
                         {result.aiAnalysis.weaknesses.map((w, i) => (
                           <li key={i} className="flex items-start gap-1.5 text-[11px] text-orange-600 dark:text-orange-400">
                             <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-orange-500" />
-                            {w}
+                            {renderTextWithLinks(w)}
                           </li>
                         ))}
                       </ul>
@@ -1788,7 +1818,7 @@ export default function BlogIndexPage() {
                             <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-purple-200 text-[9px] font-bold text-purple-700 dark:bg-purple-800 dark:text-purple-200">
                               {i + 1}
                             </div>
-                            <p className="text-[11px] text-purple-700 dark:text-purple-300">{rec}</p>
+                            <p className="text-[11px] text-purple-700 dark:text-purple-300">{renderTextWithLinks(rec)}</p>
                           </div>
                         ))}
                       </div>

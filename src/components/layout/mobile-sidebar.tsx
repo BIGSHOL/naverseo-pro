@@ -11,10 +11,13 @@ import { cn } from '@/lib/utils'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { pathToFeatureKey } from '@/lib/features'
 import { useUserProfile } from '@/contexts/user-profile'
+import { Switch } from '@/components/ui/switch'
+import { useDesignV2 } from '@/contexts/design-v2'
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
   const { plan, role, disabledFeatures } = useUserProfile()
+  const { isV2, toggleV2 } = useDesignV2()
   const pathname = usePathname()
 
   return (
@@ -54,8 +57,8 @@ export function MobileSidebar() {
                           locked
                             ? 'text-muted-foreground/50'
                             : isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                         )}
                       >
                         <item.icon className={cn('h-5 w-5', locked && 'opacity-40')} />
@@ -73,9 +76,19 @@ export function MobileSidebar() {
               <>
                 <div className="my-2">
                   <div className="border-t" />
-                  <p className="mt-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
-                    관리자
-                  </p>
+                  <div className="flex items-center justify-between mt-2 px-3">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      관리자
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">V2 Design (Beta)</span>
+                      <Switch
+                        checked={isV2}
+                        onCheckedChange={toggleV2}
+                        className="scale-75"
+                      />
+                    </div>
+                  </div>
                 </div>
                 {adminNavItems.map((item) => {
                   const isActive = pathname === item.href

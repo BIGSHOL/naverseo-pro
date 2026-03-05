@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import Script from 'next/script'
 import { Toaster } from '@/components/ui/toaster'
+import { DesignV2Provider } from '@/contexts/design-v2'
 import './globals.css'
 
 const geistSans = localFont({
@@ -61,11 +62,27 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        {/* V2 디자인 관련 FOUC 방지 스크립트 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (localStorage.getItem('design-v2') === 'true') {
+                  document.documentElement.classList.add('design-v2');
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        {children}
-        <Toaster />
+        <DesignV2Provider>
+          {children}
+          <Toaster />
+        </DesignV2Provider>
         <Script
           src="https://app.lemonsqueezy.com/js/lemon.js"
           strategy="lazyOnload"

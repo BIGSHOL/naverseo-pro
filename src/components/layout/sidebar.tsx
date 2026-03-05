@@ -11,6 +11,8 @@ import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { pathToFeatureKey } from '@/lib/features'
 import { Lock } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
+import { Switch } from '@/components/ui/switch'
+import { useDesignV2 } from '@/contexts/design-v2'
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -18,6 +20,7 @@ export function Sidebar() {
     plan, role, creditsBalance, creditsQuota,
     avatarUrl, userName, userEmail, loaded, disabledFeatures,
   } = useUserProfile()
+  const { isV2, toggleV2 } = useDesignV2()
 
   const planInfo = PLANS[plan]
   const creditPercent = creditsQuota > 0 ? Math.min(100, (creditsBalance / creditsQuota) * 100) : 0
@@ -58,8 +61,8 @@ export function Sidebar() {
                             locked
                               ? 'cursor-default text-muted-foreground/50'
                               : isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                                ? 'bg-primary/10 text-primary'
+                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                           )}
                         >
                           <item.icon className={cn('h-5 w-5', locked && 'opacity-40')} />
@@ -84,9 +87,19 @@ export function Sidebar() {
             <>
               <div className="my-2">
                 <div className="border-t" />
-                <p className="mt-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
-                  관리자
-                </p>
+                <div className="flex items-center justify-between mt-2 px-3">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">
+                    관리자
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">V2 Design (Beta)</span>
+                    <Switch
+                      checked={isV2}
+                      onCheckedChange={toggleV2}
+                      className="scale-75"
+                    />
+                  </div>
+                </div>
               </div>
               {adminNavItems.map((item) => {
                 const isActive = pathname === item.href

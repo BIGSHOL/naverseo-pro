@@ -27,6 +27,44 @@ interface AiAnalysisRaw {
   recommendations: string[]
 }
 
+/** 포스트 제목을 maxLen자 + "..." 로 자르기 */
+function truncateTitle(title: string, maxLen: number = 10): string {
+  const clean = title.replace(/<[^>]*>/g, '').trim()
+  if (clean.length <= maxLen) return clean
+  return clean.substring(0, maxLen) + '...'
+}
+
+/** AI 응답 텍스트에서 "포스트 N" 참조를 [제목...](link) 하이퍼링크로 교체 */
+function replacePostReferences(
+  text: string,
+  postRefMap: Record<number, { title: string; link: string }>
+): string {
+  return text.replace(/포스트\s*(\d+)/g, (_match, num) => {
+    const idx = parseInt(num, 10)
+    const ref = postRefMap[idx]
+    if (ref) {
+      return `[${ref.title}](${ref.link})`
+    }
+    return _match
+  })
+}
+
+/** AI 분석 결과의 모든 텍스트 필드에서 포스트 참조를 하이퍼링크로 교체 */
+function replaceAllPostReferences(
+  raw: AiAnalysisRaw,
+  postRefMap: Record<number, { title: string; link: string }>
+): AiAnalysisRaw {
+  return {
+    ...raw,
+    experienceDetails: replacePostReferences(raw.experienceDetails || '', postRefMap),
+    qualityDetails: replacePostReferences(raw.qualityDetails || '', postRefMap),
+    abuseDetails: replacePostReferences(raw.abuseDetails || '', postRefMap),
+    strengths: (raw.strengths || []).map(s => replacePostReferences(s, postRefMap)),
+    weaknesses: (raw.weaknesses || []).map(w => replacePostReferences(w, postRefMap)),
+    recommendations: (raw.recommendations || []).map(r => replacePostReferences(r, postRefMap)),
+  }
+}
+
 /** Gemini 요약 응답 형식 */
 interface PostSummary {
   title: string
@@ -368,6 +406,18 @@ export async function analyzeWithAi(
 
     if (postContents.length === 0) return null
 
+    // 포스트 참조 맵 생성: index(1-based) → {truncatedTitle, link}
+    const postRefMap: Record<number, { title: string; link: string }> = {}
+    for (let i = 0; i < postContents.length; i++) {
+      const tp = targetPosts[i]
+      if (tp) {
+        postRefMap[i + 1] = {
+          title: truncateTitle(postContents[i].title, 10),
+          link: tp.link,
+        }
+      }
+    }
+
     // Gemini 단일 모드 (비용 최적화: 구조화된 JSON 분석은 Gemini로 충분)
     const userMessage = `아래는 하나의 네이버 블로그에서 가져온 ${postContents.length}개 포스트입니다. 이 블로그의 전체적인 콘텐츠 품질을 분석해주세요.
 참고: 긴 본문은 앞부분과 뒷부분만 발췌되었을 수 있습니다. 본문이 잘렸다는 언급 없이 제공된 내용만으로 분석해주세요.
@@ -393,7 +443,9 @@ ${p.content}
       response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
     }
 
-    const raw = parseGeminiJson<AiAnalysisRaw>(response)
+    const rawOriginal = parseGeminiJson<AiAnalysisRaw>(response)
+    // AI 응답의 "포스트 N" 참조를 [제목...](link) 하이퍼링크로 교체
+    const raw = replaceAllPostReferences(rawOriginal, postRefMap)
 
     // 점수 범위 보정
     const experienceScore = Math.max(1, Math.min(10, raw.experienceScore))
