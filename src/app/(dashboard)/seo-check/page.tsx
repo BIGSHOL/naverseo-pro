@@ -346,7 +346,7 @@ export default function SeoCheckPage() {
         effectiveKeyword,
         title.trim(),
         content.trim(),
-        undefined,
+        seoScrapedMeta?.tags && seoScrapedMeta.tags.length > 0 ? seoScrapedMeta.tags : undefined,
         seoScrapedMeta,
       )
 
@@ -467,7 +467,12 @@ export default function SeoCheckPage() {
 
     try {
       // 클라이언트에서 SEO 분석 실행 → 약한 항목 추출
-      const seoResult = analyzeSeo(keyword.trim(), title, content)
+      const availableTags = scrapedStats?.tags ?? (
+        inputMode === 'manual' && manualTags.trim()
+          ? manualTags.split(/[,\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean)
+          : undefined
+      )
+      const seoResult = analyzeSeo(keyword.trim(), title, content, availableTags && availableTags.length > 0 ? availableTags : undefined)
       const weakCategories = [...seoResult.categories]
         .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
         .filter(cat => (cat.score / cat.maxScore) < 0.8)

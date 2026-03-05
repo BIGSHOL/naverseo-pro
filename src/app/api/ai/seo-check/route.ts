@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       tags: scrapedMeta.tags,
       formatting: scrapedMeta.formatting,
     } : undefined
-    const engineResult = analyzeSeo(keyword || '', title || '', content, undefined, seoScrapedMeta)
+    const additionalKeywords = seoScrapedMeta?.tags && seoScrapedMeta.tags.length > 0 ? seoScrapedMeta.tags : undefined
+    const engineResult = analyzeSeo(keyword || '', title || '', content, additionalKeywords, seoScrapedMeta)
 
     // 가독성 분석 (로컬 — 빠름)
     const readability = analyzeReadability(content)

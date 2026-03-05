@@ -452,7 +452,7 @@ ${trendAdvice}`
 }
 
 // Supabase에 생성된 콘텐츠 저장 + 사용량 증가
-async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[]) {
+async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[], tags?: string[]) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
@@ -470,6 +470,7 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
       content,
       status: 'draft',
       seo_score: seoScore,
+      tags: tags && tags.length > 0 ? tags : [],
     }).select('id').single()
 
     // 크레딧 차감
@@ -546,7 +547,7 @@ export async function POST(request: NextRequest) {
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
     if (!hasAiApiKey(provider)) {
       const demo = generateDemoContent(contentRequest)
-      const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content, contentRequest.additionalKeywords)
+      const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content, contentRequest.additionalKeywords, demo.tags)
       return NextResponse.json({
         ...demo,
         contentId: saved?.id,
@@ -963,7 +964,7 @@ ${imageList}
             })
 
             // DB 저장은 result 전송 후 비동기 (타임아웃되어도 사용자는 콘텐츠 수신 완료)
-            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords)
+            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords, optimizeResult.tags)
               .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
               .catch(err => console.error('[Content] DB 저장 실패 (result는 전송됨):', err))
           } catch (aiError) {
@@ -982,7 +983,7 @@ ${imageList}
                 isDemo: true,
                 notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
               })
-              saveGeneratedContent(trimmedKeyword, demo.title, demo.content)
+              saveGeneratedContent(trimmedKeyword, demo.title, demo.content, contentRequest.additionalKeywords, demo.tags)
                 .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
                 .catch(err => console.error('[Content] 데모 저장 실패:', err))
               return

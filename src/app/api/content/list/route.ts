@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // 1) 생성된 콘텐츠 조회
     let contentQuery = supabase
       .from('generated_content')
-      .select('id, target_keyword, title, content, status, seo_score, created_at, updated_at')
+      .select('id, target_keyword, title, content, status, seo_score, tags, created_at, updated_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 

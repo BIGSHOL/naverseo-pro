@@ -542,6 +542,7 @@ export default function ContentPage() {
     content: string
     status: string
     seo_score: number | null
+    tags: string[]
     created_at: string
     updated_at: string
   }>>([])
@@ -553,6 +554,7 @@ export default function ContentPage() {
   const [historyEditMode, setHistoryEditMode] = useState(false)
   const [historyEditTitle, setHistoryEditTitle] = useState('')
   const [historyEditContent, setHistoryEditContent] = useState('')
+  const [historyEditTags, setHistoryEditTags] = useState<string[]>([])
   const [historySaving, setHistorySaving] = useState(false)
   const [historyCopied, setHistoryCopied] = useState(false)
   const [showHistoryRawMarkdown, setShowHistoryRawMarkdown] = useState(false)
@@ -1320,7 +1322,7 @@ export default function ContentPage() {
 
     try {
       // 현재 콘텐츠의 SEO 분석 실행
-      const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
+      const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent, editTags.length > 0 ? editTags : undefined)
 
       // 약한 항목 추출 (점수 비율 기준 상위 5개)
       const weakCategories = [...seoResult.categories]
@@ -1727,7 +1729,7 @@ export default function ContentPage() {
     }
     const timer = setTimeout(() => {
       try {
-        const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
+        const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent, editTags.length > 0 ? editTags : undefined)
         const weakCount = seoResult.categories.filter(cat => (cat.score / cat.maxScore) < 0.8).length
         setImproveDisabledReason(weakCount === 0 ? '모든 SEO 항목이 양호합니다 (80% 이상)' : '')
       } catch { /* ignore */ }
@@ -1815,12 +1817,13 @@ export default function ContentPage() {
           contentId: selectedContentId,
           title: historyEditTitle,
           content: historyEditContent,
+          tags: historyEditTags,
         }),
       })
       if (res.ok) {
         const data = await res.json()
         setHistoryContents(prev => prev.map(c => c.id === selectedContentId
-          ? { ...c, title: historyEditTitle, content: historyEditContent, seo_score: data.seoScore ?? c.seo_score }
+          ? { ...c, title: historyEditTitle, content: historyEditContent, tags: historyEditTags, seo_score: data.seoScore ?? c.seo_score }
           : c
         ))
         setHistoryEditMode(false)
@@ -2100,6 +2103,7 @@ export default function ContentPage() {
                             <Button size="sm" variant="outline" onClick={() => {
                               setHistoryEditTitle(selectedContent.title)
                               setHistoryEditContent(selectedContent.content)
+                              setHistoryEditTags(selectedContent.tags || [])
                               setShowHistoryRawMarkdown(false)
                               setHistoryEditMode(true)
                             }}>
@@ -2169,6 +2173,7 @@ export default function ContentPage() {
                                   keyword={selectedContent.target_keyword}
                                   title={historyEditTitle}
                                   content={historyEditContent}
+                                  additionalKeywords={historyEditTags.length > 0 ? historyEditTags : undefined}
                                   compact
                                 />
                               </div>
@@ -2184,6 +2189,7 @@ export default function ContentPage() {
                               keyword={selectedContent.target_keyword}
                               title={historyEditTitle}
                               content={historyEditContent}
+                              additionalKeywords={historyEditTags.length > 0 ? historyEditTags : undefined}
                               compact
                             />
                           </div>
@@ -3888,6 +3894,7 @@ export default function ContentPage() {
                           keyword={keyword}
                           title={editTitle}
                           content={editContent}
+                          additionalKeywords={editTags.length > 0 ? editTags : undefined}
                           compact
                         />
                       </div>
@@ -3904,6 +3911,7 @@ export default function ContentPage() {
                       keyword={keyword}
                       title={editTitle}
                       content={editContent}
+                      additionalKeywords={editTags.length > 0 ? editTags : undefined}
                       compact
                     />
                   </div>
