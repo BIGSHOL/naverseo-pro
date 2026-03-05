@@ -2,6 +2,7 @@
  * 블로그 지수 - 축2. 콘텐츠 품질 (25점)
  *
  * v11: 주제/일관성/중복 → topic-authority.ts로 이동. 경험 정보 항목 신규.
+ * v11.2: 기준 상향 — 콘텐츠깊이 1800-2500최적, 이미지 5-10최적, 경험정보 기준 강화
  *
  * 가점: 콘텐츠 깊이(8) + 이미지 활용(5) + 구조/서식(5) + 내부 링크(4) + 경험 정보(3) = 25
  * 감점: 짧은 글 비율(-3) + 이미지 도배(-2) + 과도한 글 길이(-2) + 전체 이미지 과다(-2) + 문장 반복 스팸(-2) = -11
@@ -39,49 +40,53 @@ export function analyzeContentQuality(
     isActualContent = false
   }
 
+  // v11.2: 최적 범위 1800-2500자로 상향, 1000-1500은 중간 점수
   if (isActualContent) {
     let depthPts = 0
-    if (avgContentLen >= 1500 && avgContentLen <= 2500) {
+    if (avgContentLen >= 1800 && avgContentLen <= 2500) {
       depthPts = 8
       details.push(`콘텐츠 깊이 최우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 최적 범위) (+8)`)
-    } else if (avgContentLen >= 1000 && avgContentLen < 1500) {
-      depthPts = 7
-      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+7)`)
-    } else if (avgContentLen > 2500 && avgContentLen <= 3000) {
+    } else if (avgContentLen >= 1500 && avgContentLen < 1800) {
       depthPts = 6
-      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 약간 김) (+6)`)
-    } else if (avgContentLen >= 800 && avgContentLen < 1000) {
+      details.push(`콘텐츠 깊이 우수 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+6)`)
+    } else if (avgContentLen > 2500 && avgContentLen <= 3000) {
+      depthPts = 5
+      details.push(`콘텐츠 깊이 양호 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 약간 김) (+5)`)
+    } else if (avgContentLen >= 1200 && avgContentLen < 1500) {
       depthPts = 4
       details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자) (+4)`)
+    } else if (avgContentLen >= 1000 && avgContentLen < 1200) {
+      depthPts = 3
+      details.push(`콘텐츠가 다소 짧습니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1800자 이상) (+3)`)
     } else if (avgContentLen > 3000 && avgContentLen <= 4000) {
       depthPts = 2
       details.push(`콘텐츠가 다소 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 압축 권장) (+2)`)
     } else if (avgContentLen > 4000) {
       depthPts = 0
-      details.push(`콘텐츠가 과도하게 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1500~2500자) (+0)`)
+      details.push(`콘텐츠가 과도하게 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 1800~2500자) (+0)`)
     } else {
       depthPts = 1
-      details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1500자 이상) (+1)`)
+      details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 1800자 이상) (+1)`)
     }
     score += depthPts
     items.push({ label: `콘텐츠 깊이 (평균 ${Math.round(avgContentLen).toLocaleString()}자)`, points: depthPts })
   } else {
     let depthPts = 0
     if (avgContentLen >= 200) {
-      depthPts = 8
-      details.push(`콘텐츠 깊이 최우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+8)`)
-    } else if (avgContentLen >= 150) {
       depthPts = 6
       details.push(`콘텐츠 깊이 우수 (미리보기 평균 ${Math.round(avgContentLen)}자) (+6)`)
-    } else if (avgContentLen >= 100) {
+    } else if (avgContentLen >= 150) {
       depthPts = 4
       details.push(`콘텐츠 깊이 양호 (미리보기 평균 ${Math.round(avgContentLen)}자) (+4)`)
-    } else if (avgContentLen >= 50) {
+    } else if (avgContentLen >= 100) {
       depthPts = 2
       details.push(`콘텐츠 깊이 보통 (미리보기 평균 ${Math.round(avgContentLen)}자) (+2)`)
-    } else {
+    } else if (avgContentLen >= 50) {
       depthPts = 1
-      details.push(`콘텐츠가 짧습니다 (미리보기 평균 ${Math.round(avgContentLen)}자) (+1)`)
+      details.push(`콘텐츠 깊이 부족 (미리보기 평균 ${Math.round(avgContentLen)}자) (+1)`)
+    } else {
+      depthPts = 0
+      details.push(`콘텐츠가 짧습니다 (미리보기 평균 ${Math.round(avgContentLen)}자) (+0)`)
     }
     score += depthPts
     items.push({ label: `콘텐츠 깊이 (미리보기 ${Math.round(avgContentLen)}자)`, points: depthPts })
@@ -98,19 +103,23 @@ export function analyzeContentQuality(
     avgImageCount = imageCounts.reduce((s, c) => s + c, 0) / posts.length
   }
 
+  // v11.2: 최적 범위 5-10장으로 상향, 1-2장은 낮은 점수
   let imagePts = 0
-  if (avgImageCount >= 3 && avgImageCount <= 10) {
+  if (avgImageCount >= 5 && avgImageCount <= 10) {
     imagePts = 5
     details.push(`이미지 활용 최우수 (평균 ${avgImageCount.toFixed(1)}장, 최적 범위) (+5)`)
-  } else if ((avgImageCount >= 2 && avgImageCount < 3) || (avgImageCount > 10 && avgImageCount <= 20)) {
+  } else if (avgImageCount >= 3 && avgImageCount < 5) {
     imagePts = 4
     details.push(`이미지 활용 우수 (평균 ${avgImageCount.toFixed(1)}장) (+4)`)
-  } else if (avgImageCount > 20) {
+  } else if (avgImageCount > 10 && avgImageCount <= 20) {
     imagePts = 3
-    details.push(`이미지 과다 (평균 ${avgImageCount.toFixed(1)}장, 권장: 3~10장) (+3)`)
-  } else if (avgImageCount >= 1) {
+    details.push(`이미지 다소 과다 (평균 ${avgImageCount.toFixed(1)}장, 권장: 5~10장) (+3)`)
+  } else if (avgImageCount >= 2 && avgImageCount < 3) {
     imagePts = 2
     details.push(`이미지 활용 보통 (평균 ${avgImageCount.toFixed(1)}장) (+2)`)
+  } else if (avgImageCount >= 1) {
+    imagePts = 1
+    details.push(`이미지 부족 (평균 ${avgImageCount.toFixed(1)}장, 권장: 5장 이상) (+1)`)
   } else {
     imagePts = 0
     details.push('이미지가 거의 없습니다 - 직접 촬영한 원본 이미지를 추가하세요 (+0)')
@@ -245,7 +254,7 @@ export function analyzeContentQuality(
   score += linkPts
   items.push({ label: '내부 링크', points: linkPts })
 
-  // === 경험 정보 (3점) ===
+  // === 경험 정보 (3점) === (v11.2 기준 상향)
   // 직접 경험, 체험, 후기, 사용기 등의 패턴 매칭
   let experiencePts = 0
   if (posts.length > 0) {
@@ -256,13 +265,13 @@ export function analyzeContentQuality(
     }).length
     const experienceRate = postsWithExperience / posts.length
 
-    if (experienceRate >= 0.5) {
+    if (experienceRate >= 0.6) {
       experiencePts = 3
       details.push(`경험 정보 풍부: ${Math.round(experienceRate * 100)}% 포스트에 직접 경험 포함 (+3)`)
-    } else if (experienceRate >= 0.3) {
+    } else if (experienceRate >= 0.4) {
       experiencePts = 2
       details.push(`경험 정보 양호: ${Math.round(experienceRate * 100)}% 포스트에 직접 경험 포함 (+2)`)
-    } else if (experienceRate >= 0.1) {
+    } else if (experienceRate >= 0.2) {
       experiencePts = 1
       details.push(`경험 정보 보통: 직접 경험과 체험 정보를 더 추가하세요 (+1)`)
     } else {

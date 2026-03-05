@@ -39,6 +39,7 @@ import {
   RefreshCw,
   Database,
   Users,
+  ChevronDown,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -1022,17 +1023,30 @@ export default function BlogIndexPage() {
                 <Input id="blogUrl" placeholder="https://blog.naver.com/myblog" value={blogUrl} onChange={(e) => setBlogUrl(e.target.value)} disabled={loading} />
                 <p className="text-xs text-muted-foreground">네이버 블로그 주소를 입력하세요</p>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="keywords">측정 키워드</Label>
-                  <Badge className="bg-primary/10 text-primary text-[10px] font-medium">핵심 기능</Badge>
+              {/* 측정 키워드: 기본 자동 추출, 직접 입력은 접이식 */}
+              {testKeywords.trim() ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="keywords">측정 키워드</Label>
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400 text-[10px] font-medium">자동 추출됨</Badge>
+                    </div>
+                    <button type="button" onClick={() => setTestKeywords('')} className="text-[11px] text-muted-foreground hover:text-foreground underline">초기화</button>
+                  </div>
+                  <Input id="keywords" placeholder="쉼표로 구분하여 입력" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
                 </div>
-                <Input id="keywords" placeholder="비워두면 포스트에서 자동 추출 (직접 입력 시 쉼표로 구분)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
-                <div className="rounded-md bg-blue-50 p-2.5 text-[11px] text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-                  <p className="font-medium">실제 키워드 순위를 측정합니다</p>
-                  <p className="mt-0.5 text-blue-600/70 dark:text-blue-400/70">내 블로그가 해당 키워드 검색에서 몇 위에 노출되는지 확인합니다. 비워두면 블로그 포스트에서 자동 추출한 키워드로 테스트합니다.</p>
-                </div>
-              </div>
+              ) : (
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground select-none list-none [&::-webkit-details-marker]:hidden">
+                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                    측정 키워드 직접 입력 <span className="text-[10px]">(기본: 포스트에서 자동 추출)</span>
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    <Input id="keywords" placeholder="키워드를 쉼표로 구분하여 입력 (예: 맛집, 카페 추천)" value={testKeywords} onChange={(e) => setTestKeywords(e.target.value)} disabled={loading} />
+                    <p className="text-[11px] text-muted-foreground">비워두면 블로그 포스트에서 핵심 키워드를 자동 추출하여 순위를 측정합니다.</p>
+                  </div>
+                </details>
+              )}
               {error && (
                 <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4 shrink-0" />{error}
@@ -1269,7 +1283,7 @@ export default function BlogIndexPage() {
                     const myTier = result.level.tier
                     return (
                     <div className="mt-4 pt-3 border-t">
-                      <div className="flex gap-0.5 overflow-x-auto pb-1 -mx-1 px-1">
+                      <div className="flex gap-0.5 overflow-x-auto pt-2 pb-1 -mx-1 px-1">
                         {TIER_LABELS.map((label, i) => {
                           const t = i + 1
                           const active = t === myTier
@@ -1277,8 +1291,8 @@ export default function BlogIndexPage() {
                           const bg = active ? tierBg(t) : passed ? tierBgPassed(t) : 'bg-muted'
                           return (
                             <div key={t} className="min-w-[24px] flex-1 text-center">
-                              <div className={`relative h-5 sm:h-6 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
-                                <span className={`text-[8px] sm:text-[7px] leading-none whitespace-nowrap ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
+                              <div className={`relative h-6 sm:h-7 rounded flex items-center justify-center ${bg} ${active ? 'ring-2 ring-primary ring-offset-1 shadow-md' : ''}`}>
+                                <span className={`text-[7px] sm:text-[9px] leading-none whitespace-nowrap ${active ? 'text-white font-bold' : passed ? 'text-foreground/60' : 'text-muted-foreground/40'}`}>
                                   {label}
                                 </span>
                                 {active && (
