@@ -101,7 +101,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: '초안',
+  draft: '작성완료',
   published: '발행됨',
   archived: '보관됨',
 }

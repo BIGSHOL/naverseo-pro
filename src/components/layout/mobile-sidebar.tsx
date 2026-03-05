@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -71,14 +71,14 @@ export function MobileSidebar() {
               </div>
             ))}
 
-            {/* 관리자 메뉴 */}
+            {/* 愿由ъ옄 硫붾돱 */}
             {role === 'admin' && (
               <>
                 <div className="my-2">
                   <div className="border-t" />
                   <div className="flex items-center justify-between mt-2 px-3">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      관리자
+                      愿由ъ옄
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted-foreground">V2 Design (Beta)</span>

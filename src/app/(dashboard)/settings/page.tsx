@@ -87,7 +87,7 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState(false)
   const [fetchError, setFetchError] = useState('')
-  const [blogUrl, setBlogUrl] = useState('')
+  const [blogId, setBlogId] = useState('')
   const [blogLoading, setBlogLoading] = useState(false)
   const [blogError, setBlogError] = useState('')
   const [blogSuccess, setBlogSuccess] = useState(false)
@@ -305,23 +305,14 @@ export default function SettingsPage() {
     setBlogError('')
     setBlogSuccess(false)
 
-    let normalizedUrl = blogUrl.trim()
+    const trimmedId = blogId.trim()
 
-    if (!normalizedUrl) {
-      setBlogError('블로그 URL을 입력해주세요.')
+    if (!trimmedId) {
+      setBlogError('블로그 아이디를 입력해주세요.')
       return
     }
 
-    // URL 정규화: https:// 없으면 추가
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = 'https://' + normalizedUrl
-    }
-
-    // 네이버 블로그 URL 검증
-    if (!normalizedUrl.includes('blog.naver.com/')) {
-      setBlogError('네이버 블로그 URL을 입력해주세요. (예: https://blog.naver.com/아이디 또는 blog.naver.com/아이디)')
-      return
-    }
+    const normalizedUrl = `https://blog.naver.com/${trimmedId}`
 
     setBlogLoading(true)
     try {
@@ -344,7 +335,7 @@ export default function SettingsPage() {
       }
 
       setBlogSuccess(true)
-      setBlogUrl('')
+      setBlogId('')
       // 블로그 프로필 새로고침
       await loadProfile()
     } catch {
@@ -765,15 +756,27 @@ export default function SettingsPage() {
                   </ul>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="blogUrl">네이버 블로그 URL</Label>
-                  <Input
-                    id="blogUrl"
-                    type="text"
-                    placeholder="blog.naver.com/아이디 또는 https://blog.naver.com/아이디"
-                    value={blogUrl}
-                    onChange={(e) => setBlogUrl(e.target.value)}
-                    required
-                  />
+                  <Label htmlFor="blogId">네이버 블로그 아이디</Label>
+                  <div className="flex">
+                    <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground whitespace-nowrap">
+                      https://blog.naver.com/
+                    </span>
+                    <Input
+                      id="blogId"
+                      type="text"
+                      className="rounded-l-none"
+                      placeholder="myblog"
+                      value={blogId}
+                      onChange={(e) => {
+                        let val = e.target.value
+                        if (val.includes('blog.naver.com/')) {
+                          val = val.replace(/^https?:\/\/blog\.naver\.com\//, '').split(/[?/#]/)[0]
+                        }
+                        setBlogId(val)
+                      }}
+                      required
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     블로그를 등록하면 블로그 지수 측정 결과가 프로필에 표시됩니다.
                   </p>

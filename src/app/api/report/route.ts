@@ -82,11 +82,21 @@ function generateInsights(ctx: {
     insights.push(`스마트블록 노출(${smartblock.count}건)이 블로그탭(${blogTab.count}건)보다 많습니다. 블로그탭 노출을 높이려면 콘텐츠 길이와 전문성을 강화하세요.`)
   }
 
-  // 5. 콘텐츠 생산량 트렌드
-  if (ctx.thisMonthContent > ctx.lastMonthContent && ctx.lastMonthContent > 0) {
-    insights.push(`이번 달 콘텐츠 생산량(${ctx.thisMonthContent}편)이 지난 달(${ctx.lastMonthContent}편)보다 증가했습니다. 꾸준한 발행이 블로그 지수에 도움됩니다.`)
-  } else if (ctx.lastMonthContent > 0 && ctx.thisMonthContent < ctx.lastMonthContent) {
-    insights.push(`이번 달 콘텐츠 생산량(${ctx.thisMonthContent}편)이 지난 달(${ctx.lastMonthContent}편)보다 감소했습니다. 정기적 발행을 유지하세요.`)
+  // 5. 콘텐츠 생산량 트렌드 (일수 보정)
+  if (ctx.lastMonthContent > 0) {
+    const now = new Date()
+    const dayOfMonth = now.getDate()
+    const daysInLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+    // 지난 달 같은 일수 기준으로 비교 (일평균 페이스)
+    const lastMonthPace = ctx.lastMonthContent / daysInLastMonth
+    const thisMonthPace = dayOfMonth > 0 ? ctx.thisMonthContent / dayOfMonth : 0
+
+    if (thisMonthPace > lastMonthPace * 1.1) {
+      const projected = Math.round(thisMonthPace * new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())
+      insights.push(`이번 달 발행 페이스(${ctx.thisMonthContent}편/${dayOfMonth}일)가 지난 달보다 빠릅니다. 이 속도면 약 ${projected}편 예상!`)
+    } else if (thisMonthPace < lastMonthPace * 0.7 && dayOfMonth >= 7) {
+      insights.push(`이번 달 발행 페이스(${ctx.thisMonthContent}편/${dayOfMonth}일)가 지난 달(${ctx.lastMonthContent}편)보다 느립니다. 정기적 발행을 유지하세요.`)
+    }
   }
 
   // 6. TOP10 변화
@@ -94,9 +104,13 @@ function generateInsights(ctx: {
     insights.push(`TOP10 진입 키워드가 ${ctx.top10Last}개에서 ${ctx.top10This}개로 증가했습니다!`)
   }
 
-  // 7. 폴백
+  // 7. 폴백 (콘텐츠/트래킹 유무에 따라 분기)
   if (insights.length === 0) {
-    insights.push('더 많은 콘텐츠를 생성하고 순위 트래킹을 설정하면 전략적 인사이트를 제공합니다.')
+    if (ctx.thisMonthContent === 0 && ctx.lastMonthContent === 0) {
+      insights.push('콘텐츠를 생성하고 순위 트래킹을 설정하면 전략적 인사이트를 제공합니다.')
+    } else {
+      insights.push('현재 SEO 성과가 안정적입니다. 꾸준한 콘텐츠 발행과 키워드 모니터링을 유지하세요!')
+    }
   }
 
   return insights.slice(0, 5)

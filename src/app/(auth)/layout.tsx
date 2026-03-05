@@ -1,4 +1,4 @@
-import { Logo } from '@/components/layout/logo'
+﻿import { Logo } from '@/components/layout/logo'
 import Link from 'next/link'
 
 export default function AuthLayout({
@@ -13,7 +13,7 @@ export default function AuthLayout({
       </Link>
       <div className="w-full max-w-md">{children}</div>
       <p className="mt-8 text-center text-sm text-muted-foreground">
-        © 2026 NaverSEO Pro. All rights reserved.
+        짤 2026 NaverSEO Pro. All rights reserved.
       </p>
     </div>
   )

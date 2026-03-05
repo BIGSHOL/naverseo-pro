@@ -1,8 +1,8 @@
 /**
- * 블로그 지수 - 등급 체계 및 추천 (v11 업데이트)
+ * 블로그 지수 - 등급 체계 및 추천 (v14 업데이트)
  *
  * 16등급 블로그 지수 체계 (일반 / 준최적화 / 최적화 / 최적화+ / 파워)
- * v11: 5축 비균등 배분(30:25:25:10:10)에 맞춘 등급 구간 재조정
+ * v14: 4축(40:25:20:15) 배분 — 검색 노출력 축 폐지
  */
 
 import type { BlogLevelInfo, AnalysisCategory, AbusePenalty, BenchmarkData, PostDetail, BlogProfile } from './types'
@@ -151,7 +151,7 @@ export function generateRecommendations(
     }
   }
 
-  // ── 3단계: 카테고리별 3단계 임계값 추천 (v11: 5축 기반) ──
+  // ── 3단계: 카테고리별 3단계 임계값 추천 (v14: 4축 기반) ──
   for (const cat of categories) {
     const pct = cat.score / cat.maxScore
 
@@ -173,10 +173,6 @@ export function generateRecommendations(
           if (bm && bm.avgImageCount.mine < 1) {
             recs.push(`이미지가 거의 없습니다 (평균 ${bm.avgImageCount.mine}개) → 포스트당 3~5장 삽입하세요`)
           }
-          break
-        case '검색 노출력':
-        case 'SEO 최적화': // 레거시
-          recs.push('검색 노출이 매우 낮습니다 - 경쟁이 낮은 롱테일 키워드부터 공략하고, 제목에 핵심 키워드를 배치하세요')
           break
         case '활동 신뢰도':
         case '신뢰도': // 레거시
@@ -203,10 +199,6 @@ export function generateRecommendations(
             recs.push(`이미지 포함률 ${bm.imageRate.mine}% → ${bm.imageRate.recommended}% 달성 시 품질 점수가 크게 올라갑니다`)
           }
           break
-        case '검색 노출력':
-        case 'SEO 최적화': // 레거시
-          recs.push('검색 노출률을 높이려면 제목에 핵심 키워드를 포함하고, 제목 길이를 20~35자로 최적화하세요')
-          break
         case '활동 신뢰도':
         case '신뢰도': // 레거시
           if (bm && bm.postingFrequency.mine < bm.postingFrequency.recommended) {
@@ -230,10 +222,6 @@ export function generateRecommendations(
             recs.push(`이미지 수 평균 ${bm.avgImageCount.mine}개 → ${bm.avgImageCount.recommended}개로 늘리면 D.I.A. 점수에 유리합니다`)
           }
           recs.push('연관 키워드를 활용한 시리즈 포스팅으로 콘텐츠 깊이를 강화해보세요')
-          break
-        case '검색 노출력':
-        case 'SEO 최적화': // 레거시
-          recs.push('경쟁이 높은 키워드에서도 TOP10에 진입하려면 키워드 밀도와 콘텐츠 깊이를 함께 높이세요')
           break
         case '활동 신뢰도':
         case '신뢰도': // 레거시

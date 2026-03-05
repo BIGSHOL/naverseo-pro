@@ -302,7 +302,7 @@ function renderTextWithLinks(text: string): ReactNode {
 
 // ===== SVG 레이더 차트 =====
 
-// 레이더 차트용 축약 라벨 (5축 정오각형에서 라벨 겹침 방지)
+// 레이더 차트용 축약 라벨 (4축 + 레거시 호환)
 function getRadarLabel(name: string): string {
   switch (name) {
     // v11 현행
@@ -636,7 +636,8 @@ function BenchmarkItem({ label, mine: rawMine, recommended: rawRec, topBlogger: 
 // ===== 메인 컴포넌트 =====
 
 export default function BlogIndexPage() {
-  const [blogUrl, setBlogUrl] = useState('')
+  const [blogId, setBlogId] = useState('')
+  const blogUrl = blogId.trim() ? `https://blog.naver.com/${blogId.trim()}` : ''
   const [testKeywords, setTestKeywords] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -651,7 +652,7 @@ export default function BlogIndexPage() {
   const [cachedAt, setCachedAt] = useState<string | null>(null)
   const [showCreditConfirm, setShowCreditConfirm] = useState(false)
   const [pendingCache, setPendingCache] = useState<{ data: BlogIndexResult; checkedAt: string } | null>(null)
-  // v11: axisMode 제거 — 항상 5축 비균등 (30:25:25:10:10)
+  // v14: 4축 (40:25:20:15) — 검색 노출력 축 폐지
   const [aiCardModal, setAiCardModal] = useState<{
     title: string
     icon: ReactNode
@@ -1062,9 +1063,28 @@ export default function BlogIndexPage() {
           <CardContent>
             <form onSubmit={handleCheck} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="blogUrl">블로그 URL *</Label>
-                <Input id="blogUrl" placeholder="https://blog.naver.com/myblog" value={blogUrl} onChange={(e) => { setBlogUrl(e.target.value); setTestKeywords('') }} disabled={loading} />
-                <p className="text-xs text-muted-foreground">네이버 블로그 주소를 입력하세요</p>
+                <Label htmlFor="blogId">블로그 아이디 *</Label>
+                <div className="flex">
+                  <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground whitespace-nowrap">
+                    https://blog.naver.com/
+                  </span>
+                  <Input
+                    id="blogId"
+                    className="rounded-l-none"
+                    placeholder="myblog"
+                    value={blogId}
+                    onChange={(e) => {
+                      let val = e.target.value
+                      if (val.includes('blog.naver.com/')) {
+                        val = val.replace(/^https?:\/\/blog\.naver\.com\//, '').split(/[?/#]/)[0]
+                      }
+                      setBlogId(val)
+                      setTestKeywords('')
+                    }}
+                    disabled={loading}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">네이버 블로그 아이디를 입력하세요</p>
               </div>
               {/* 측정 키워드: 기본 자동 추출, 직접 입력은 접이식 */}
               {testKeywords.trim() ? (
@@ -1096,7 +1116,7 @@ export default function BlogIndexPage() {
                 </div>
               )}
               <CreditTooltip feature="blog_index">
-                <Button type="submit" disabled={loading || refreshing || !blogUrl.trim()} className="w-full">
+                <Button type="submit" disabled={loading || refreshing || !blogId.trim()} className="w-full">
                   {loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />조회 중...</>) : (<><Activity className="mr-2 h-4 w-4" />블로그 지수 조회 (5크레딧)</>)}
                 </Button>
               </CreditTooltip>
@@ -1152,7 +1172,7 @@ export default function BlogIndexPage() {
         {/* ========== 측정 결과 ========== */}
         {result && (
           <>
-            {/* v11: 항상 5축 비균등 배분 (주제30 + 콘텐츠25 + 활동25 + 반응10 + 검색10) */}
+            {/* v14: 4축 배분 (전문성40 + 활동25 + 반응20 + 품질15) — 검색 노출력 축 폐지 */}
 
             {/* ===== 1행: 블로그 프로필 + 종합 점수 + 레이더 차트 ===== */}
             <div className="grid gap-4 lg:grid-cols-12">
@@ -1167,10 +1187,15 @@ export default function BlogIndexPage() {
                       {result.blogProfile?.blogName || result.blogId || '블로그'}
                     </h3>
                     {result.blogId && <p className="text-[11px] text-muted-foreground">@{result.blogId}</p>}
-                    <div className="mt-1.5 flex items-center gap-1">
+                    <div className="mt-1.5 flex items-center gap-1 flex-wrap justify-center">
                       {result.blogProfile?.isActive
                         ? <Badge className="bg-green-100 text-green-700 text-[10px]">활동 중</Badge>
                         : <Badge variant="outline" className="text-[10px]">비활동</Badge>}
+                      {result.blogCategory && (
+                        <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-[10px]">
+                          {BLOG_CATEGORY_LABELS[result.blogCategory as keyof typeof BLOG_CATEGORY_LABELS] || '일반'}
+                        </Badge>
+                      )}
                       {result.isDemo && <Badge variant="outline" className="text-[10px]">데모</Badge>}
                     </div>
 
@@ -1225,7 +1250,7 @@ export default function BlogIndexPage() {
                 </CardContent>
               </Card>
 
-              {/* 종합 점수 + 레이더 + 등급 (통합) — v11: 항상 5축 */}
+              {/* 종합 점수 + 레이더 + 등급 (통합) — v14: 4축 */}
               {(() => {
                 const displayCategories = result.categories
                 const displayTotal = result.totalScore
@@ -1294,7 +1319,7 @@ export default function BlogIndexPage() {
                             </div>
                           )}
 
-                          {/* v13: 노출 검증 보정 알림 */}
+                          {/* v14: 노출 검증 참고 알림 (감점 없음) */}
                           {result.exposureVerification && result.exposureVerification.status !== 'verified' && (
                             <div className={`mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs ${result.exposureVerification.status === 'unverified'
                                 ? 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/30 dark:border-orange-800 dark:text-orange-300'
@@ -1302,14 +1327,9 @@ export default function BlogIndexPage() {
                               }`}>
                               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                               <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold">
-                                    {result.exposureVerification.status === 'unverified' ? '노출 미검증' : '노출 부분 검증'}
-                                  </span>
-                                  <span className="rounded bg-white/60 px-1 py-0.5 text-[9px] font-bold dark:bg-black/20">
-                                    -{result.exposureVerification.discount}점 보정
-                                  </span>
-                                </div>
+                                <span className="font-semibold">
+                                  {result.exposureVerification.status === 'unverified' ? '검색 노출 참고' : '검색 노출 참고'}
+                                </span>
                                 <p className="mt-0.5 opacity-80 leading-relaxed">{result.exposureVerification.message}</p>
                               </div>
                             </div>
@@ -1452,7 +1472,7 @@ export default function BlogIndexPage() {
                           {algo.factors.map((f) => (
                             <div key={f.name} className="flex items-center justify-between text-[9px]">
                               <span className="text-muted-foreground truncate">{f.name} ({Math.round(f.weight * 100)}%)</span>
-                              <span className="font-medium">{f.score ?? 0}/{25} → {(f.contribution ?? 0).toFixed(1)}점</span>
+                              <span className="font-medium">{(f.contribution ?? 0).toFixed(1)}점</span>
                             </div>
                           ))}
                         </div>
@@ -1463,11 +1483,11 @@ export default function BlogIndexPage() {
               </div>
             )}
 
-            {/* ===== 2행: 5축 상세 카드 ===== */}
+            {/* ===== 2행: 4축 상세 카드 ===== */}
             {(() => {
               const displayCats = result.categories
               return (
-                <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
                   {displayCats.map((cat) => {
                     const pct = Math.round((cat.score / cat.maxScore) * 100)
                     return (
@@ -2080,44 +2100,44 @@ export default function BlogIndexPage() {
                     .sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
                     .slice(0, 2)
 
-                  // 카테고리별 맞춤 가이드 매핑
+                  // v14: 4축 카테고리별 맞춤 가이드 매핑
                   const guideMap: Record<string, { title: string; tips: string[] }> = {
+                    '주제 전문성': {
+                      title: 'C-Rank 주제 전문성 강화',
+                      tips: [
+                        '하나의 주제에 집중하여 시리즈 포스팅 작성',
+                        '전문 용어와 구체적 수치를 활용한 깊이 있는 콘텐츠',
+                        '관련 주제 내 세부 키워드를 체계적으로 커버',
+                        '각 포스트마다 고유한 제목과 내용으로 중복 방지',
+                      ]
+                    },
                     '콘텐츠 품질': {
                       title: 'D.I.A. 콘텐츠 품질 향상',
                       tips: [
                         '1,500~2,000자 이상의 깊이 있는 글 작성',
                         '소제목(H2, H3)으로 구조화하여 가독성 향상',
                         '포스트당 이미지 3~5장 삽입으로 시각적 풍성함 확보',
-                        '한 가지 주제에 집중하여 C-Rank 전문성 확보',
+                        '직접 경험, 비교 정보, 구체적 수치로 경험정보 강화',
                       ]
                     },
-                    '방문자 활동': {
-                      title: '방문자 활동 향상',
-                      tips: [
-                        '댓글을 유도하는 질문형 마무리 활용',
-                        '공감 버튼 클릭 유도 문구 삽입',
-                        '이웃 블로그 소통으로 방문자 유입 확대',
-                        '검색 유입을 늘리는 키워드 최적화',
-                      ]
-                    },
-                    'SEO 최적화': {
-                      title: 'SEO 최적화 강화',
-                      tips: [
-                        '제목 앞부분에 핵심 키워드를 배치',
-                        '본문에 키워드를 자연스럽게 3~5회 배치',
-                        '관련 키워드(롱테일)를 함께 사용',
-                        '태그에 키워드 변형을 포함하여 노출 확대',
-                      ]
-                    },
-                    '신뢰도': {
-                      title: '블로그 신뢰도 강화',
+                    '활동 신뢰도': {
+                      title: '블로그 활동 신뢰도 강화',
                       tips: [
                         '꾸준한 발행 주기 유지 (주 3~5회 권장)',
                         '정해진 요일/시간에 포스팅하여 규칙성 확보',
-                        '다양한 주제의 양질 글을 축적하여 누적 포스트 수 늘리기',
+                        '양질의 글을 축적하여 누적 포스트 수 늘리기',
                         '기존 인기 글을 주기적으로 업데이트',
                       ]
-                    }
+                    },
+                    '사용자 반응': {
+                      title: '사용자 참여도 향상',
+                      tips: [
+                        '글 마무리에 질문형 문구로 댓글 유도',
+                        '공감 버튼 클릭 유도 문구 삽입',
+                        '이웃 블로그 소통으로 방문자 유입 확대',
+                        '체류 시간을 높이는 충실한 콘텐츠 작성',
+                      ]
+                    },
                   }
 
                   return (

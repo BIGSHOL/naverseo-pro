@@ -1,4 +1,4 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css");
+﻿@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css");
 
 @tailwind base;
 @tailwind components;
@@ -6,16 +6,16 @@
 
 @layer base {
   :root {
-    /* 새로운 디자인 기본 전역 팔레트 (B2B SaaS Style) */
+    /* ?덈줈???붿옄??湲곕낯 ?꾩뿭 ?붾젅??(B2B SaaS Style) */
     --background: 214 26% 95%;
-    /* 기존 V2 캔버스 백그라운드 */
+    /* 湲곗〈 V2 罹붾쾭??諛깃렇?쇱슫??*/
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* 눈에 띄는 네온/에메랄드 그린 포인트 (NaverSEO 톤업) */
+    /* ?덉뿉 ?꾨뒗 ?ㅼ삩/?먮찓?꾨뱶 洹몃┛ ?ъ씤??(NaverSEO ?ㅼ뾽) */
     --primary: 151 100% 41%;
     --primary-foreground: 0 0% 100%;
 
@@ -41,12 +41,12 @@
     --chart-5: 27 87% 67%;
 
     --radius: 1rem;
-    /* 전체적으로 둥근 모서리 V2 기준 */
+    /* ?꾩껜?곸쑝濡??κ렐 紐⑥꽌由?V2 湲곗? */
   }
 
   .dark {
     --background: 226 23% 11%;
-    /* V2 다크모드 백그라운드 */
+    /* V2 ?ㅽ겕紐⑤뱶 諛깃렇?쇱슫??*/
     --foreground: 210 40% 98%;
     --card: 226 23% 11%;
     --card-foreground: 210 40% 98%;
@@ -91,7 +91,7 @@
   }
 }
 
-/* TipTap 에디터 스타일 */
+/* TipTap ?먮뵒???ㅽ???*/
 .tiptap {
   outline: none;
 }
@@ -104,8 +104,8 @@
   pointer-events: none;
 }
 
-/* 이미지 마커 스타일 [이미지: 설명] */
-.tiptap img[alt^="이미지"] {
+/* ?대?吏 留덉빱 ?ㅽ???[?대?吏: ?ㅻ챸] */
+.tiptap img[alt^="?대?吏"] {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -118,8 +118,8 @@
   min-height: 80px;
 }
 
-/* AI 생성 이미지 크기 제한 (본문 너비에 맞게) */
-.tiptap img:not([alt^="이미지"]) {
+/* AI ?앹꽦 ?대?吏 ?ш린 ?쒗븳 (蹂몃Ц ?덈퉬??留욊쾶) */
+.tiptap img:not([alt^="?대?吏"]) {
   max-width: 680px;
   width: 100%;
   height: auto;
@@ -128,29 +128,29 @@
   display: block;
 }
 
-/* 선택된 노드 하이라이트 */
+/* ?좏깮???몃뱶 ?섏씠?쇱씠??*/
 .tiptap .ProseMirror-selectednode {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* 링크 스타일 */
+/* 留곹겕 ?ㅽ???*/
 .tiptap a {
   color: hsl(var(--primary));
   text-decoration: underline;
   cursor: pointer;
 }
 
-/* 구분선 */
+/* 援щ텇??*/
 .tiptap hr {
   border-color: hsl(var(--border));
   margin: 1rem 0;
 }
 
-/* AI 패치 하이라이트 애니메이션 */
+/* AI ?⑥튂 ?섏씠?쇱씠???좊땲硫붿씠??*/
 
-/* 수정 전: 빨간 sweep (←→) + 취소선 + 흐려짐 = "지워지는" 느낌 */
+/* ?섏젙 ?? 鍮④컙 sweep (?먥넂) + 痍⑥냼??+ ?먮젮吏?= "吏?뚯??? ?먮굦 */
 .patch-highlight-find {
   position: relative;
   border-bottom: 2px solid rgb(239, 68, 68);
@@ -195,7 +195,7 @@
   }
 }
 
-/* 수정 후: 초록 타이핑 reveal (←→) = "채워지는" 느낌 */
+/* ?섏젙 ?? 珥덈줉 ??댄븨 reveal (?먥넂) = "梨꾩썙吏?? ?먮굦 */
 .patch-highlight-active {
   position: relative;
   border-bottom: 2px solid rgb(34, 197, 94);
@@ -229,7 +229,7 @@
   }
 }
 
-/* 페이드아웃 */
+/* ?섏씠?쒖븘??*/
 .patch-highlight-fade {
   background: rgba(74, 222, 128, 0.4);
   border-bottom: 2px solid transparent;
@@ -238,7 +238,7 @@
   opacity: 0;
 }
 
-/* SEO 스캔 라인 이펙트 */
+/* SEO ?ㅼ틪 ?쇱씤 ?댄럺??*/
 @keyframes seo-scan-pulse {
 
   0%,
@@ -263,7 +263,7 @@
   }
 }
 
-/* PDF 프린트용 스타일 */
+/* PDF ?꾨┛?몄슜 ?ㅽ???*/
 @media print {
   body {
     background: white !important;
@@ -271,13 +271,13 @@
     print-color-adjust: exact;
   }
 
-  /* 사이드바, 헤더 숨김 */
+  /* ?ъ씠?쒕컮, ?ㅻ뜑 ?④? */
   aside,
   header {
     display: none !important;
   }
 
-  /* 메인 콘텐츠 전체 폭 */
+  /* 硫붿씤 肄섑뀗痢??꾩껜 ??*/
   main {
     padding: 0 !important;
     overflow: visible !important;
@@ -293,7 +293,7 @@
     overflow: visible !important;
   }
 
-  /* 아코디언 프린트 시 강제 표시 */
+  /* ?꾩퐫?붿뼵 ?꾨┛????媛뺤젣 ?쒖떆 */
   [data-state="closed"]>[role="region"] {
     display: block !important;
     height: auto !important;
@@ -302,7 +302,7 @@
 }
 
 /* ====== NEW GLOBAL APP DESIGN ====== */
-/* 1. 사이드바 스크롤바 커스텀 */
+/* 1. ?ъ씠?쒕컮 ?ㅽ겕濡ㅻ컮 而ㅼ뒪? */
 aside nav::-webkit-scrollbar {
   width: 6px;
 }
@@ -321,7 +321,7 @@ aside nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.45);
 }
 
-/* 2. 헤더 커스텀 */
+/* 2. ?ㅻ뜑 而ㅼ뒪? */
 header {
   background-color: rgba(241, 245, 249, 0.6) !important;
   backdrop-filter: blur(12px) !important;
@@ -334,7 +334,7 @@ header {
   border-bottom-color: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* 3. 카드 및 컴포넌트 마감 극대화 */
+/* 3. 移대뱶 諛?而댄룷?뚰듃 留덇컧 洹밸???*/
 .bg-card {
   border-radius: 1.25rem !important;
   border: none !important;
@@ -351,7 +351,7 @@ header {
   border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Badge (뱃지) 스타일링 */
+/* Badge (諭껋?) ?ㅽ??쇰쭅 */
 .badge,
 [class*="inline-flex items-center rounded-"],
 [class*="bg-primary/10"] {
@@ -359,14 +359,14 @@ header {
   border: none !important;
 }
 
-/* 툴팁 V2 오버라이드 */
+/* ?댄똻 V2 ?ㅻ쾭?쇱씠??*/
 [role="tooltip"] {
   border-radius: 0.75rem !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
   padding: 0.5rem 0.75rem !important;
 }
 
-/* 버튼 인터랙션 */
+/* 踰꾪듉 ?명꽣?숈뀡 */
 button,
 a[role="button"] {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
@@ -377,8 +377,8 @@ button:active {
   transform: scale(0.96) !important;
 }
 
-/* 4. 랜딩 페이지 파격 변신 (Floating Navbar & Soft Sections) */
-/* 네비게이션 바 플로팅 효과 */
+/* 4. ?쒕뵫 ?섏씠吏 ?뚭꺽 蹂??(Floating Navbar & Soft Sections) */
+/* ?ㅻ퉬寃뚯씠??諛??뚮줈???④낵 */
 nav.fixed.top-0 {
   background: rgba(255, 255, 255, 0.8) !important;
   backdrop-filter: blur(24px) !important;
@@ -399,17 +399,17 @@ nav.fixed.top-0 {
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-/* 랜딩 버튼 곡률 최대화 (알약 형태) */
+/* ?쒕뵫 踰꾪듉 怨〓쪧 理쒕???(?뚯빟 ?뺥깭) */
 main.min-h-screen button {
   border-radius: 9999px !important;
 }
 
-/* 랜딩 히어로 배경 그라데이션 고급화 */
+/* ?쒕뵫 ?덉뼱濡?諛곌꼍 洹몃씪?곗씠??怨좉툒??*/
 main.min-h-screen section:first-of-type {
   background: radial-gradient(ellipse at top, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
 }
 
-/* 랜딩 주요 제목 타이포그래피 */
+/* ?쒕뵫 二쇱슂 ?쒕ぉ ??댄룷洹몃옒??*/
 main.min-h-screen h1,
 main.min-h-screen h2 {
   letter-spacing: -0.04em !important;

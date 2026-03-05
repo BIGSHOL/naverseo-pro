@@ -83,7 +83,8 @@ export default function TrackingPage() {
   const [adding, setAdding] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newKeyword, setNewKeyword] = useState('')
-  const [newBlogUrl, setNewBlogUrl] = useState('')
+  const [newBlogId, setNewBlogId] = useState('')
+  const newBlogUrl = newBlogId.trim() ? `https://blog.naver.com/${newBlogId.trim()}` : ''
   const [error, setError] = useState('')
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [isDemo, setIsDemo] = useState(false)
@@ -107,7 +108,7 @@ export default function TrackingPage() {
   }, [])
 
   async function handleAdd() {
-    if (!newKeyword.trim() || !newBlogUrl.trim()) {
+    if (!newKeyword.trim() || !newBlogId.trim()) {
       setError('키워드와 블로그 URL을 모두 입력해주세요.')
       return
     }
@@ -140,7 +141,7 @@ export default function TrackingPage() {
       if (data.isDemo) setIsDemo(true)
 
       setNewKeyword('')
-      setNewBlogUrl('')
+      setNewBlogId('')
       setShowAddForm(false)
       await loadTracking()
       creditToast('tracking_per_keyword')
@@ -328,15 +329,27 @@ export default function TrackingPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium">블로그 URL</label>
-              <Input
-                type="text"
-                value={newBlogUrl}
-                onChange={(e) => setNewBlogUrl(e.target.value)}
-                placeholder="예: https://blog.naver.com/myblog"
-              />
+              <label className="mb-1.5 block text-sm font-medium">블로그 아이디</label>
+              <div className="flex">
+                <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground whitespace-nowrap">
+                  https://blog.naver.com/
+                </span>
+                <Input
+                  type="text"
+                  className="rounded-l-none"
+                  value={newBlogId}
+                  onChange={(e) => {
+                    let val = e.target.value
+                    if (val.includes('blog.naver.com/')) {
+                      val = val.replace(/^https?:\/\/blog\.naver\.com\//, '').split(/[?/#]/)[0]
+                    }
+                    setNewBlogId(val)
+                  }}
+                  placeholder="myblog"
+                />
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                네이버 블로그 주소를 입력해주세요 (blog.naver.com/아이디)
+                네이버 블로그 아이디를 입력해주세요
               </p>
             </div>
             {planGateMessage && (

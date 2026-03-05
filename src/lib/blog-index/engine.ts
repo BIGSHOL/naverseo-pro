@@ -1,19 +1,25 @@
 /**
- * NaverSEO Pro - 블로그 지수 측정 엔진 v11
+ * NaverSEO Pro - 블로그 지수 측정 엔진 v15
  *
- * v12 점수 체계: 5축 비균등 배분 = 100점
+ * v15 점수 체계: 4축 C-Rank 업계 기준 배분 = 100점
  *
- * 5대 분석 축 (C-Rank 알고리즘 기반 비균등 배분):
- * 1. 주제 전문성 - 25점: 일관성(8), 카테고리(7), 시리즈(4), 전문용어(3), 품질일관성(3), 유사도(-3), 중복(-3)
- * 2. 콘텐츠 품질 - 25점: 깊이(8), 이미지(5), 구조(5), 내부링크(4), 경험정보(3), 짧은글(-3), 이미지도배(-2)
- * 3. 활동 신뢰도 - 20점: 규칙성(6), 빈도(5), 최근성(4), 누적(3), 운영기간(2), 스팸(-3), 외부링크(-3), 일괄발행(-3)
- * 4. 사용자 반응 - 15점: 댓글(5), 공감(3), 이웃(3), 체류(4), 벽텍스트(-1), 광고성(-1)
- * 5. 검색 노출력 - 15점: 순위(5), 노출률(3), TOP10(4), 제목(3), 특수문자(-1), 상업적(-1), 반복(-1)
+ * 4대 분석 축 (C-Rank 업계 컨센서스 40:25:20:15):
+ * 1. 주제 전문성 - 40점: 일관성(11), 카테고리(7), 시리즈(8), 전문용어(7), 품질일관성(7), 유사도(-5), 중복(-5)
+ * 2. 활동 신뢰도 - 25점: 규칙성(6), 빈도(5), 최근성(3), 누적(5), 운영기간(6), 스팸(-3), 외부링크(-3), 일괄발행(-3), 과다발행(-2)
+ * 3. 사용자 반응 - 20점: 댓글(8), 공감(5), 이웃(5), 체류(2), 벽텍스트(-1), 광고성(-1)
+ * 4. 콘텐츠 품질 - 15점: 깊이(3), 이미지(3), 구조(4), 내부링크(2), 경험정보(3), 짧은글(-2), 이미지도배(-1), 과도한길이(-3), 이미지과다(-1), 문장반복(-2)
  *
- * v11→v12 변경:
- * - 5축 비균등(30:25:25:10:10) → (25:25:20:15:15)
- * - 사용자 반응/검색 노출력 가중치 강화 (댓글/공감/검색순위 영향력 ↑)
- * - 미측정 무상 점수 폐지 유지
+ * 검색 노출력: 점수 미반영 (참고 지표로만 표시)
+ *   → 검색 순위는 C-Rank+DIA의 부산물이므로 입력 변수에서 제외 (순환 논리 방지)
+ *
+ * v14→v15 변경:
+ * - 축 간 배분(40:25:20:15) 유지, 내부 배점만 재배분
+ * - 주제 전문성: 이중 측정(일관성+카테고리) 24→18점 축소, 실질 노력(시리즈+전문용어+품질) 16→22점 보강
+ * - 활동 신뢰도: 단기(규칙성+최근활동) 13→9점 축소, 장기(누적+운영기간) 6→11점 보강
+ * - 사용자 반응: 추정값(체류시간) 5→2점 축소, 실측(댓글+공감+이웃) 15→18점 보강
+ * - 콘텐츠 품질: 글자수(깊이) 5→3점 축소, 구조 3→4점, 경험정보 2→3점 보강
+ * - 임계값 전면 강화: 만점 기준 상향, 중간 구간 점수 하향
+ * - 체류시간 추정 공식 보수적 변경: (charCount/400)*60+img*3 → (charCount/600)*60+img*2
  */
 
 import { stripHtml, countImageMarkers, daysBetween, parsePostDate, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
@@ -125,8 +131,9 @@ export function analyzeBlogIndex(
         internalLinkCount: scraped?.meta?.linkAnalysis?.internalCount,
       })
 
+      // v15: 체류시간 추정 공식 보수적 변경 (글자수/600 + 이미지*2)
       const estimatedReadTimeSec = isScrapped
-        ? Math.round((charCount / 400) * 60 + imgCount * 3)
+        ? Math.round((charCount / 600) * 60 + imgCount * 2)
         : undefined
 
       return {
@@ -171,23 +178,24 @@ export function analyzeBlogIndex(
     blogAgeDays = daysBetween(now, preSortedDates[0])
   }
 
-  // v11: 5축 비균등 배분 (30+25+25+10+10 = 100점)
+  // v14: 4축 C-Rank 기준 배분 (40+25+20+15 = 100점)
   const { category: topicAuthority, topicKeywords } = analyzeTopicAuthority(posts, scrapedData, blogName, blogId)
   const contentQuality = analyzeContentQuality(posts, scrapedData, topPostsScrapedData)
   const { category: trust, frequency, recentPostDays } = analyzeTrust(posts, blogProfileData, blogAgeDays, scrapedData)
   const popularity = analyzePopularity(visitorData, engagementData, blogProfileData, recentPosts, scrapedData)
-  const seoOptimization = analyzeSearchPower(keywordResults, keywordCompetition, posts)
+  // v14: 검색 노출력은 참고 지표로만 — 점수 합산 제외
+  const searchPowerInfo = analyzeSearchPower(keywordResults, keywordCompetition, posts)
 
   // v10: 어뷰징 감점이 각 축에 통합되어 별도 페널티 없음
   const abusePenalty = { score: 0, details: [] as string[], flags: [] as string[] }
 
-  // v11: 5축 합계 = 총점
-  const categories = [topicAuthority, contentQuality, trust, popularity, seoOptimization]
+  // v14: 4축 합계 = 총점 (검색 노출력 제외)
+  const categories = [topicAuthority, contentQuality, trust, popularity]
   const rawScore = categories.reduce((sum, c) => sum + c.score, 0)
 
-  // v13: 노출 검증 보정 — 내부 지표 대비 검색 노출 괴리 시 감점
-  const exposureVerification = calculateExposureVerification(categories, keywordResults)
-  const totalScore = Math.max(0, Math.min(100, rawScore - exposureVerification.discount))
+  // v14: 노출 검증 보정 — 내부 지표 대비 검색 노출 괴리 시 참고 알림 (감점 제거)
+  const exposureVerification = calculateExposureVerification(categories, searchPowerInfo, keywordResults)
+  const totalScore = Math.max(0, Math.min(100, rawScore))
   const level = determineLevelInfo(totalScore)
 
   // v10: recentPosts(PostDetail)의 실제 charCount/imageCount 사용 (스크래핑 데이터 우선)
@@ -365,9 +373,10 @@ export function analyzeBlogIndex(
     blogProfile,
   })
 
-  // v9.1: 네이버 알고리즘 추정 점수
-  const diaScore = calculateDiaScore(categories)
-  const crankScore = calculateCrankScore(categories)
+  // v9.1: 네이버 알고리즘 추정 점수 (검색 노출력 포함하여 계산)
+  const allCategoriesForNaver = [...categories, searchPowerInfo]
+  const diaScore = calculateDiaScore(allCategoriesForNaver)
+  const crankScore = calculateCrankScore(allCategoriesForNaver)
 
   return {
     blogUrl,
@@ -407,42 +416,36 @@ export function analyzeBlogIndex(
 }
 
 /**
- * v13: 노출 검증 보정
+ * v14: 노출 검증 (참고 지표)
  *
- * 내부 4축(전문성/품질/활동/반응)과 검색 노출력 사이의 괴리를 감지.
- * 내부 지표가 좋은데 검색에 안 잡히면 총점을 감점하여
- * "점수는 높은데 왜 안 나오지?" 문제를 해결합니다.
+ * 내부 4축(전문성/활동/반응/품질)과 검색 노출 사이의 괴리를 감지하여
+ * 사용자에게 알림을 표시합니다. v14부터 감점(discount)은 0 — 정보 제공만.
  */
 function calculateExposureVerification(
   categories: import('./types').AnalysisCategory[],
+  searchPowerInfo: import('./types').AnalysisCategory,
   keywordResults: KeywordRankResult[],
 ): ExposureVerification {
-  const searchCat = categories.find(c => c.name === '검색 노출력')
-  if (!searchCat) {
-    return { status: 'verified', discount: 0, message: '', internalPct: 0, searchPct: 0 }
-  }
-
-  const internalCats = categories.filter(c => c.name !== '검색 노출력')
-  const internalScore = internalCats.reduce((s, c) => s + c.score, 0)
-  const internalMax = internalCats.reduce((s, c) => s + c.maxScore, 0)
+  const internalScore = categories.reduce((s, c) => s + c.score, 0)
+  const internalMax = categories.reduce((s, c) => s + c.maxScore, 0)
 
   const internalRatio = internalMax > 0 ? internalScore / internalMax : 0
-  const searchRatio = searchCat.maxScore > 0 ? searchCat.score / searchCat.maxScore : 0
+  const searchRatio = searchPowerInfo.maxScore > 0 ? searchPowerInfo.score / searchPowerInfo.maxScore : 0
 
   const internalPct = Math.round(internalRatio * 1000) / 10
   const searchPct = Math.round(searchRatio * 1000) / 10
 
-  // 내부 점수가 낮은 블로그는 추가 감점 불필요
+  // 내부 점수가 낮으면 노출 부족은 당연
   if (internalRatio < 0.5) {
     return { status: 'verified', discount: 0, message: '', internalPct, searchPct }
   }
 
-  // 키워드 미입력 — 검증 자체가 불가
+  // 키워드 미입력 — 검증 불가
   if (keywordResults.length === 0) {
     return {
       status: 'unverified',
-      discount: 5,
-      message: '검색 키워드가 입력되지 않아 노출을 검증할 수 없습니다. 키워드를 추가하면 더 정확한 점수를 받을 수 있습니다.',
+      discount: 0,
+      message: '검색 키워드가 입력되지 않아 노출을 검증할 수 없습니다. 키워드를 추가하면 현재 검색 노출 상태를 확인할 수 있습니다.',
       internalPct,
       searchPct,
     }
@@ -454,8 +457,8 @@ function calculateExposureVerification(
   if (gap >= 0.4) {
     return {
       status: 'unverified',
-      discount: Math.min(10, Math.floor(gap * 15)),
-      message: `내부 지표(${internalPct}%) 대비 실제 검색 노출(${searchPct}%)이 매우 낮습니다. 키워드 전략과 검색 최적화를 우선 개선하세요.`,
+      discount: 0,
+      message: `블로그 역량(${internalPct}%) 대비 실제 검색 노출(${searchPct}%)이 낮습니다. 키워드 전략과 제목 최적화를 점검해보세요.`,
       internalPct,
       searchPct,
     }
@@ -465,8 +468,8 @@ function calculateExposureVerification(
   if (gap >= 0.25) {
     return {
       status: 'partial',
-      discount: Math.min(5, Math.floor(gap * 8)),
-      message: `내부 지표(${internalPct}%) 대비 검색 노출(${searchPct}%)이 다소 부족합니다. 키워드 최적화에 집중하세요.`,
+      discount: 0,
+      message: `블로그 역량(${internalPct}%) 대비 검색 노출(${searchPct}%)이 다소 부족합니다. 키워드 최적화에 집중하세요.`,
       internalPct,
       searchPct,
     }

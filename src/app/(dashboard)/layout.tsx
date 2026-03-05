@@ -1,4 +1,4 @@
-import { Sidebar } from '@/components/layout/sidebar'
+﻿import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { FeatureGuard } from '@/components/layout/feature-guard'

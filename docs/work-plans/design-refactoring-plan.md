@@ -59,13 +59,13 @@ SaaS의 핵심인 데이터 차트를 훨씬 고급스럽게 변경.
 ## 3. 진행 단계 (Milestones)
 
 1. **[x] Phase 1: 기반 세팅 (Foundation Update) - 완료** 
-   * `design-v2.tsx` 컨텍스트 및 사이드바 토글 스위치 도입.
-   * `globals.css`에 V2 전용 Floating Island 레이아웃 구현 (다크 사이드바, 화이트 캔버스 분리).
-   * 둥글기(16px Radius), 그림자(다중 섀도우) 디자인 토큰 일괄 교체.
-2. **Phase 2: 타이포그래피 및 공통 컴포넌트 정비 (Typography & Component Overhaul)**
-   * `Pretendard` 등 고품질 한글 웹 폰트 적용.
-   * 버튼, 카드, 입력창의 모서리(Radius), 그림자(Elevation) 재조정.
-   * Transition 및 마이크로 애니메이션 강화.
+   * 앱 전체 레이아웃 구조를 Native B2B SaaS (Floating Island) 구조로 변경.
+   * `globals.css` 및 `layout.tsx` 코어 리팩토링 (다크 사이드바, 오프화이트 캔버스 분리).
+   * 둥글기(16px Radius), 그림자(다중 섀도우) 디자인 토큰 일괄 적용.
+2. **[x] Phase 2: 타이포그래피 및 공통 컴포넌트 정비 (Typography & Component Overhaul) - 완료**
+   * 프로젝트 전역 폰트를 가독성 최고 수준의 `Pretendard Variable`로 강제 적용 및 자간 최적화.
+   * 모든 카드/버튼/툴팁/뱃지에서 불필요한 테두리(Border) 제거 및 Shadow 기반 엘리베이션 적용 완료.
+   * 버튼 및 상호작용 요소들의 Transition 애니메이션 강화 완료 (`scale`, `box-shadow`).
 3. **Phase 3: 대시보드 및 코어 뷰 개선 (Views Refactoring)**
    * 위젯 그리드(Grid) 여백(Gap, Padding) 개선.
    * Recharts 기반 차트 디자인 커스텀(테두리, 축 선 옅게, 툴팁 향상).

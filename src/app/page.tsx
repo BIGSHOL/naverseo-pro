@@ -1,4 +1,4 @@
-import { Navbar } from '@/components/landing/navbar'
+﻿import { Navbar } from '@/components/landing/navbar'
 import { HeroSection } from '@/components/landing/hero-section'
 import { ProblemSection } from '@/components/landing/problem-section'
 import { FeaturesSection } from '@/components/landing/features-section'

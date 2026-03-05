@@ -62,7 +62,7 @@ const ACTIVITY_CONFIG: Record<string, { name: string; icon: typeof FileText; col
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  draft: { label: '초안', color: 'bg-yellow-100 text-yellow-800' },
+  draft: { label: '작성완료', color: 'bg-blue-100 text-blue-800' },
   published: { label: '발행', color: 'bg-green-100 text-green-800' },
   archived: { label: '보관', color: 'bg-gray-100 text-gray-800' },
 }

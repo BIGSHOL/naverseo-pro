@@ -102,21 +102,7 @@ function CircularProgress({ percent, size = 48, stroke = 4, color = '#3b82f6' }:
   )
 }
 
-// ---------- 빠른 시작 데이터 ----------
 
-const quickActions = [
-  { title: '키워드 검색', href: '/keywords', icon: Search, bg: 'bg-blue-100 text-blue-600' },
-  { title: '키워드 발굴', href: '/opportunities', icon: Lightbulb, bg: 'bg-amber-100 text-amber-600' },
-  { title: 'AI 콘텐츠', href: '/content', icon: Wand2, bg: 'bg-purple-100 text-purple-600' },
-  { title: 'SEO 체크', href: '/seo-check', icon: BarChart3, bg: 'bg-green-100 text-green-600' },
-  { title: '상위노출 분석', href: '/competitors', icon: Users, bg: 'bg-rose-100 text-rose-600' },
-  { title: '블로그 지수', href: '/blog-index', icon: Activity, bg: 'bg-cyan-100 text-cyan-600' },
-  { title: '순위 트래킹', href: '/tracking', icon: TrendingUp, bg: 'bg-orange-100 text-orange-600' },
-  { title: '캘린더', href: '/content/calendar', icon: CalendarDays, bg: 'bg-indigo-100 text-indigo-600' },
-  { title: 'SEO 리포트', href: '/report', icon: FileDown, bg: 'bg-teal-100 text-teal-600' },
-]
-
-// ---------- 메인 컴포넌트 ----------
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -154,9 +140,11 @@ export default function DashboardPage() {
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours()
+    if (hour < 5) return '늦은 밤이에요'
     if (hour < 12) return '좋은 아침입니다'
     if (hour < 18) return '좋은 오후입니다'
-    return '좋은 저녁입니다'
+    if (hour < 22) return '좋은 저녁입니다'
+    return '늦은 밤이에요'
   }, [])
 
   const planInfo = PLANS[plan]
@@ -318,12 +306,10 @@ export default function DashboardPage() {
         {/* 평균 SEO 점수 */}
         <Card>
           <CardContent className="flex items-center gap-4 p-5">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-full shrink-0 ${
-              contentStats.avgSeoScore >= 80 ? 'bg-green-100' : contentStats.avgSeoScore >= 60 ? 'bg-amber-100' : 'bg-red-100'
-            }`}>
-              <BarChart3 className={`h-5 w-5 ${
-                contentStats.avgSeoScore >= 80 ? 'text-green-600' : contentStats.avgSeoScore >= 60 ? 'text-amber-600' : 'text-red-600'
-              }`} />
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full shrink-0 ${contentStats.avgSeoScore >= 80 ? 'bg-green-100' : contentStats.avgSeoScore >= 60 ? 'bg-amber-100' : 'bg-red-100'
+              }`}>
+              <BarChart3 className={`h-5 w-5 ${contentStats.avgSeoScore >= 80 ? 'text-green-600' : contentStats.avgSeoScore >= 60 ? 'text-amber-600' : 'text-red-600'
+                }`} />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">평균 SEO</p>
@@ -461,7 +447,7 @@ export default function DashboardPage() {
                   : recentKeywords.length > 0 && contentStats.total === 0
                     ? '키워드를 조회하셨네요! 이제 AI 콘텐츠 생성으로 SEO 최적화된 블로그 글을 만들어보세요.'
                     : contentStats.total > 0 && recentContent.some(c => c.status === 'draft')
-                      ? '초안 상태의 콘텐츠가 있습니다. SEO 점수를 확인하고 발행해보세요!'
+                      ? '아직 복사하지 않은 콘텐츠가 있습니다. SEO 점수를 확인하고 블로그에 발행해보세요!'
                       : `총 ${contentStats.total}편의 콘텐츠를 작성했습니다. 꾸준한 포스팅이 상위 노출의 핵심입니다!`
               }
             </p>
@@ -533,10 +519,10 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" /> 초안 {contentStats.draft}
+                    <span className="h-2 w-2 rounded-full bg-amber-400" /> 작성완료 {contentStats.draft}
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-green-500" /> 발행 {contentStats.published}
+                    <span className="h-2 w-2 rounded-full bg-green-500" /> 복사 완료 {contentStats.published}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-gray-400" /> 보관 {contentStats.archived}
@@ -545,12 +531,11 @@ export default function DashboardPage() {
               </div>
               {/* 평균 SEO 점수 */}
               <div className="flex items-center gap-3 rounded-lg border px-4 py-2.5 shrink-0">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0 ${
-                  contentStats.avgSeoScore >= 80 ? 'bg-green-500'
-                    : contentStats.avgSeoScore >= 60 ? 'bg-yellow-500'
-                      : contentStats.avgSeoScore >= 40 ? 'bg-orange-500'
-                        : 'bg-red-500'
-                }`}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0 ${contentStats.avgSeoScore >= 80 ? 'bg-green-500'
+                  : contentStats.avgSeoScore >= 60 ? 'bg-yellow-500'
+                    : contentStats.avgSeoScore >= 40 ? 'bg-orange-500'
+                      : 'bg-red-500'
+                  }`}>
                   {contentStats.avgSeoScore}
                 </div>
                 <div>
@@ -591,9 +576,8 @@ export default function DashboardPage() {
                     <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
                   )}
                   {/* 컬러 dot */}
-                  <div className={`relative z-10 mt-1 h-[22px] w-[22px] shrink-0 rounded-full flex items-center justify-center ${
-                    item.type === 'keyword' ? 'bg-blue-100' : 'bg-purple-100'
-                  }`}>
+                  <div className={`relative z-10 mt-1 h-[22px] w-[22px] shrink-0 rounded-full flex items-center justify-center ${item.type === 'keyword' ? 'bg-blue-100' : 'bg-purple-100'
+                    }`}>
                     {item.type === 'keyword'
                       ? <Search className="h-3 w-3 text-blue-600" />
                       : <FileText className="h-3 w-3 text-purple-600" />
@@ -624,17 +608,16 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {item.seoScore != null && (
-                          <Badge variant="secondary" className={`text-[9px] px-1 sm:text-[10px] sm:px-1.5 ${
-                            item.seoScore >= 80 ? 'bg-green-100 text-green-700'
-                              : item.seoScore >= 60 ? 'bg-amber-100 text-amber-700'
-                                : 'bg-red-100 text-red-700'
-                          }`}>
+                          <Badge variant="secondary" className={`text-[9px] px-1 sm:text-[10px] sm:px-1.5 ${item.seoScore >= 80 ? 'bg-green-100 text-green-700'
+                            : item.seoScore >= 60 ? 'bg-amber-100 text-amber-700'
+                              : 'bg-red-100 text-red-700'
+                            }`}>
                             SEO {item.seoScore}
                           </Badge>
                         )}
                         {item.status && (
                           <Badge variant="secondary" className="text-[9px] px-1 sm:text-[10px] sm:px-1.5">
-                            {item.status === 'draft' ? '초안' : item.status === 'published' ? '발행' : '보관'}
+                            {item.status === 'draft' ? '작성완료' : item.status === 'published' ? '복사 완료' : '보관'}
                           </Badge>
                         )}
                         {item.type === 'content' && item.body ? (
@@ -666,22 +649,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ===== 섹션 6: 컴팩트 빠른 시작 ===== */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">빠른 시작</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3">
-          {quickActions.map((action) => (
-            <Link key={action.title} href={action.href}>
-              <div className="flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all hover:shadow-md hover:border-primary/30 cursor-pointer">
-                <div className={`rounded-lg p-2 ${action.bg}`}>
-                  <action.icon className="h-4 w-4" />
-                </div>
-                <span className="text-[11px] font-medium leading-tight">{action.title}</span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+
     </div>
   )
 }

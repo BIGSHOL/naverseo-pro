@@ -41,7 +41,8 @@ interface PostCheckResponse {
 }
 
 export default function PostCheckPage() {
-  const [blogUrl, setBlogUrl] = useState('')
+  const [blogId, setBlogId] = useState('')
+  const blogUrl = blogId.trim() ? `https://blog.naver.com/${blogId.trim()}` : ''
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PostCheckResponse | null>(null)
   const [error, setError] = useState('')
@@ -92,25 +93,37 @@ export default function PostCheckPage() {
       {/* 입력 폼 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">블로그 URL 입력</CardTitle>
+          <CardTitle className="text-lg">블로그 정보 입력</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCheck} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="blogUrl">블로그 URL *</Label>
-              <Input
-                id="blogUrl"
-                placeholder="https://blog.naver.com/myblog"
-                value={blogUrl}
-                onChange={(e) => setBlogUrl(e.target.value)}
-                disabled={loading}
-              />
+              <Label htmlFor="blogId">블로그 아이디 *</Label>
+              <div className="flex">
+                <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground whitespace-nowrap">
+                  https://blog.naver.com/
+                </span>
+                <Input
+                  id="blogId"
+                  className="rounded-l-none"
+                  placeholder="myblog"
+                  value={blogId}
+                  onChange={(e) => {
+                    let val = e.target.value
+                    if (val.includes('blog.naver.com/')) {
+                      val = val.replace(/^https?:\/\/blog\.naver\.com\//, '').split(/[?/#]/)[0]
+                    }
+                    setBlogId(val)
+                  }}
+                  disabled={loading}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                네이버 블로그 주소를 입력하면 최근 포스트 최대 30개의 검색 색인 상태를 확인합니다
+                네이버 블로그 아이디를 입력하면 최근 포스트 최대 30개의 검색 색인 상태를 확인합니다
               </p>
             </div>
             <CreditTooltip feature="post_check">
-              <Button type="submit" disabled={loading || !blogUrl.trim()}>
+              <Button type="submit" disabled={loading || !blogId.trim()}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,10 +1,10 @@
 /**
- * 블로그 지수 - 축4. 사용자 반응 (15점)
+ * 블로그 지수 - 축4. 사용자 반응 (20점)
  *
- * v12: 10→15 재분배. 댓글/공감/체류시간의 영향력 강화.
- *      무상 점수 폐지 — 데이터 미제공 시 0점.
+ * v15: 추정값(체류시간) 5→2점 축소, 실측 데이터(댓글/공감/이웃) 15→18점 보강.
+ *      임계값 상향으로 점수 인플레이션 해소.
  *
- * 댓글 참여(5) + 공감 참여(3) + 이웃/구독자(3) + 체류 시간(4) = 15점
+ * 댓글 참여(8) + 공감 참여(5) + 이웃/구독자(5) + 체류 시간(2) = 20점
  * 방문자 수 → 0점 (조회용으로만 표시)
  * 감점: 체류시간 저하 패턴(-1) + 광고성 콘텐츠 과다(-1) = -2
  *
@@ -28,7 +28,7 @@ export function analyzePopularity(
   recentPosts?: PostDetail[] | null,
   scrapedData?: Map<string, ScrapedPostData> | null,
 ): AnalysisCategory {
-  const maxScore = 15
+  const maxScore = 20
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
@@ -44,65 +44,72 @@ export function analyzePopularity(
     items.push({ label: `${visitorLabel} ${avg.toLocaleString()}명 (참고)`, points: 0 })
   }
 
-  // === 평균 댓글 수 (5점) ===
+  // === 평균 댓글 수 (8점) === (v15: 7→8, 핵심 소통 지표 보강)
   let commentPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgCommentCount !== null) {
     const avgComments = engagementData.avgCommentCount
-    if (avgComments >= 10) {
+    if (avgComments >= 20) {
+      commentPts = 8
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (최우수) (+8)`)
+    } else if (avgComments >= 10) {
       commentPts = 5
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+5)`)
     } else if (avgComments >= 5) {
       commentPts = 3
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+3)`)
     } else if (avgComments >= 2) {
-      commentPts = 2
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+2)`)
+      commentPts = 1
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+1)`)
     } else {
       commentPts = 0
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족) (+0)`)
     }
     items.push({ label: `평균 댓글 (${avgComments.toFixed(1)}개)`, points: commentPts })
   } else {
-    // v11: 무상 점수 폐지 — 미제공 시 0점
     commentPts = 0
     details.push('댓글 데이터 미제공 (+0)')
     items.push({ label: '댓글 데이터 미제공', points: 0 })
   }
   score += commentPts
 
-  // === 평균 공감 수 (3점) ===
+  // === 평균 공감 수 (5점) === (v15: 4→5, 실측 데이터 보강)
   let sympathyPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgSympathyCount !== null) {
     const avgSympathy = engagementData.avgSympathyCount
-    if (avgSympathy >= 15) {
+    if (avgSympathy >= 30) {
+      sympathyPts = 5
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (최우수) (+5)`)
+    } else if (avgSympathy >= 15) {
       sympathyPts = 3
       details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+3)`)
     } else if (avgSympathy >= 5) {
-      sympathyPts = 2
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+2)`)
+      sympathyPts = 1
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+1)`)
     } else {
       sympathyPts = 0
       details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족) (+0)`)
     }
     items.push({ label: `평균 공감 (${avgSympathy.toFixed(1)}개)`, points: sympathyPts })
   } else {
-    // v11: 무상 점수 폐지 — 미제공 시 0점
     sympathyPts = 0
     details.push('공감 데이터 미제공 (+0)')
     items.push({ label: '공감 데이터 미제공', points: 0 })
   }
   score += sympathyPts
 
-  // === 이웃/구독자 수 (3점) ===
+  // === 이웃/구독자 수 (5점) === (v15: 4→5, 실측 데이터 보강)
   let buddyPts = 0
   const buddyCount = blogProfileData?.buddyCount ?? blogProfileData?.subscriberCount ?? null
   if (buddyCount !== null) {
-    if (buddyCount >= 1000) {
+    if (buddyCount >= 2000) {
+      buddyPts = 5
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (최우수) (+5)`)
+    } else if (buddyCount >= 1000) {
       buddyPts = 3
       details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+3)`)
     } else if (buddyCount >= 300) {
-      buddyPts = 2
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+2)`)
+      buddyPts = 1
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+1)`)
     } else {
       buddyPts = 0
       details.push(`이웃: ${buddyCount.toLocaleString()}명 (부족) (+0)`)
@@ -114,7 +121,7 @@ export function analyzePopularity(
   }
   score += buddyPts
 
-  // === 예상 체류 시간 (4점) ===
+  // === 예상 체류 시간 (2점) === (v15: 5→2, 추정값이므로 대폭 축소)
   let dwellPts = 0
   if (recentPosts && recentPosts.length > 0) {
     const withTime = recentPosts.filter(p => p.estimatedReadTimeSec != null)
@@ -122,17 +129,14 @@ export function analyzePopularity(
       const avgSec = withTime.reduce((s, p) => s + p.estimatedReadTimeSec!, 0) / withTime.length
       const avgMin = avgSec / 60
 
-      if (avgMin >= 5) {
-        dwellPts = 4
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수) (+4)`)
-      } else if (avgMin >= 3) {
-        dwellPts = 3
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호) (+3)`)
-      } else if (avgMin >= 1) {
+      if (avgMin >= 8) {
+        dwellPts = 2
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수) (+2)`)
+      } else if (avgMin >= 5) {
         dwellPts = 1
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (보통) (+1)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호) (+1)`)
       } else {
-        details.push(`예상 체류 시간: 평균 ${Math.round(avgSec)}초 (부족 - 콘텐츠 깊이를 늘리세요) (+0)`)
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (부족 - 콘텐츠 깊이를 늘리세요) (+0)`)
       }
       items.push({ label: `예상 체류 시간 (${avgMin.toFixed(1)}분)`, points: dwellPts })
     }
@@ -180,7 +184,7 @@ export function analyzePopularity(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 12 ? 'S' : score >= 9 ? 'A' : score >= 6 ? 'B' : score >= 3 ? 'C' : 'D'
+  const grade = score >= 16 ? 'S' : score >= 12 ? 'A' : score >= 8 ? 'B' : score >= 4 ? 'C' : 'D'
 
   return { name: '사용자 반응', score, maxScore, grade, details, items }
 }

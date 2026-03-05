@@ -3,9 +3,10 @@ import { Search } from 'lucide-react'
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg'
   showText?: boolean
+  theme?: 'light' | 'dark'
 }
 
-export function Logo({ size = 'md', showText = true }: LogoProps) {
+export function Logo({ size = 'md', showText = true, theme = 'light' }: LogoProps) {
   const sizeMap = {
     sm: { icon: 16, text: 'text-lg' },
     md: { icon: 20, text: 'text-xl' },
@@ -22,8 +23,8 @@ export function Logo({ size = 'md', showText = true }: LogoProps) {
       {showText && (
         <span className={`font-bold ${text}`}>
           <span className="text-primary">Naver</span>
-          <span className="text-foreground">SEO</span>
-          <span className="text-muted-foreground ml-1 text-sm font-normal">Pro</span>
+          <span className={theme === 'dark' ? 'text-white' : 'text-foreground'}>SEO</span>
+          <span className={theme === 'dark' ? 'text-slate-300 ml-1 text-sm font-normal' : 'text-muted-foreground ml-1 text-sm font-normal'}>Pro</span>
         </span>
       )}
     </div>

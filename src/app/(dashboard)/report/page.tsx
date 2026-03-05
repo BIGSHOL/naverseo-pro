@@ -574,7 +574,7 @@ export default function ReportPage() {
                         <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
                           <Badge variant="outline" className="text-[10px] max-w-[120px] truncate">{c.target_keyword}</Badge>
                           <Badge variant="secondary" className="text-[10px] shrink-0">
-                            {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                            {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사 완료' : '보관'}
                           </Badge>
                           <span className="shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
                         </div>
@@ -589,9 +589,9 @@ export default function ReportPage() {
                           <th className="pb-2 font-medium">#</th>
                           <th className="pb-2 font-medium">제목</th>
                           <th className="pb-2 font-medium">키워드</th>
-                          <th className="pb-2 font-medium">상태</th>
-                          <th className="pb-2 font-medium">SEO</th>
-                          <th className="pb-2 font-medium">생성일</th>
+                          <th className="pb-2 font-medium text-center">상태</th>
+                          <th className="pb-2 font-medium text-center">SEO</th>
+                          <th className="pb-2 font-medium text-center">생성일</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -600,12 +600,12 @@ export default function ReportPage() {
                             <td className="py-2 text-muted-foreground">{ctOffset + i + 1}</td>
                             <td className="max-w-[200px] truncate py-2 font-medium">{c.title}</td>
                             <td className="py-2">{c.target_keyword}</td>
-                            <td className="py-2">
+                            <td className="py-2 text-center">
                               <Badge variant="secondary" className="text-xs">
-                                {c.status === 'draft' ? '초안' : c.status === 'published' ? '발행' : '보관'}
+                                {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사 완료' : '보관'}
                               </Badge>
                             </td>
-                            <td className="py-2">
+                            <td className="py-2 text-center">
                               {c.seo_score !== null ? (
                                 <span className={`font-medium ${
                                   c.seo_score >= 70 ? 'text-green-600' : c.seo_score >= 50 ? 'text-yellow-600' : 'text-red-600'
@@ -614,7 +614,7 @@ export default function ReportPage() {
                                 </span>
                               ) : '-'}
                             </td>
-                            <td className="py-2 text-muted-foreground">
+                            <td className="py-2 text-center text-muted-foreground">
                               {new Date(c.created_at).toLocaleDateString('ko-KR')}
                             </td>
                           </tr>

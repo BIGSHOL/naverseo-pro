@@ -1854,7 +1854,7 @@ export default function ContentPage() {
   }
 
   const statusLabel: Record<string, { label: string; color: string }> = {
-    draft: { label: '초안', color: 'bg-gray-100 text-gray-700' },
+    draft: { label: '작성완료', color: 'bg-blue-100 text-blue-700' },
     published: { label: '복사 완료', color: 'bg-green-100 text-green-700' },
     archived: { label: '보관됨', color: 'bg-yellow-100 text-yellow-700' },
   }
@@ -2119,7 +2119,7 @@ export default function ContentPage() {
                             {selectedContent.status === 'archived' && (
                               <Button size="sm" variant="outline" onClick={() => updateContentStatus(selectedContent.id, 'draft')}>
                                 <RefreshCw className="mr-1 h-3 w-3" />
-                                초안으로
+                                복원
                               </Button>
                             )}
                           </>
@@ -4069,15 +4069,27 @@ export default function ContentPage() {
               <Input value={trackingKeyword} readOnly className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <Label>블로그 URL</Label>
-              <Input
-                value={trackingBlogUrl}
-                onChange={(e) => setTrackingBlogUrl(e.target.value)}
-                placeholder="https://blog.naver.com/아이디"
-              />
+              <Label>블로그 아이디</Label>
+              <div className="flex">
+                <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-xs text-muted-foreground whitespace-nowrap">
+                  https://blog.naver.com/
+                </span>
+                <Input
+                  className="rounded-l-none"
+                  value={trackingBlogUrl.replace(/^https?:\/\/blog\.naver\.com\//, '')}
+                  onChange={(e) => {
+                    let val = e.target.value
+                    if (val.includes('blog.naver.com/')) {
+                      val = val.replace(/^https?:\/\/blog\.naver\.com\//, '').split(/[?/#]/)[0]
+                    }
+                    setTrackingBlogUrl(`https://blog.naver.com/${val}`)
+                  }}
+                  placeholder="myblog"
+                />
+              </div>
               {!trackingBlogUrl && (
                 <p className="text-xs text-muted-foreground">
-                  설정에서 블로그 URL을 등록하면 자동으로 입력됩니다
+                  설정에서 블로그를 등록하면 자동으로 입력됩니다
                 </p>
               )}
             </div>
