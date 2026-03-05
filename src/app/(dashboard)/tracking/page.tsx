@@ -22,6 +22,8 @@ import { ensureUrl } from '@/lib/utils/text'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { timeAgo } from '@/lib/utils/date'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { useToast } from '@/hooks/use-toast'
+import { creditToast } from '@/lib/credit-toast'
 
 const RankHistoryChart = dynamic(
   () => import('@/components/charts/rank-history-chart').then(mod => ({ default: mod.RankHistoryChart })),
@@ -73,6 +75,7 @@ function getRankChange(history: TrackingHistory[]): {
 }
 
 export default function TrackingPage() {
+  const { toast } = useToast()
   const [keywords, setKeywords] = useState<TrackedKeyword[]>([])
   const [loading, setLoading] = useState(true)
   const [checking, setChecking] = useState<string | null>(null)
@@ -140,6 +143,7 @@ export default function TrackingPage() {
       setNewBlogUrl('')
       setShowAddForm(false)
       await loadTracking()
+      creditToast('tracking_per_keyword')
     } catch {
       setError('네트워크 오류가 발생했습니다.')
     } finally {
@@ -162,6 +166,11 @@ export default function TrackingPage() {
         const data = await res.json()
         if (data.isDemo) setIsDemo(true)
         await loadTracking()
+      } else {
+        const data = await res.json()
+        if (data.cooldown) {
+          toast({ title: '쿨다운 중', description: data.error })
+        }
       }
     } catch {
       // 체크 실패 시 무시
@@ -196,13 +205,15 @@ export default function TrackingPage() {
     if (keywords.length === 0 || bulkChecking) return
     setBulkChecking(true)
 
+    let skippedCount = 0
     for (const kw of keywords) {
       try {
-        await fetch('/api/tracking/check', {
+        const res = await fetch('/api/tracking/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keyword: kw.keyword, blogUrl: kw.blog_url }),
         })
+        if (res.status === 429) skippedCount++
       } catch {
         // 개별 실패 무시
       }
@@ -210,6 +221,18 @@ export default function TrackingPage() {
 
     await loadTracking()
     setBulkChecking(false)
+
+    const checkedCount = keywords.length - skippedCount
+    if (checkedCount > 0) {
+      creditToast('tracking_per_keyword', checkedCount)
+    }
+
+    if (skippedCount > 0) {
+      toast({
+        title: '일부 키워드 건너뜀',
+        description: `${skippedCount}개 키워드가 쿨다운 중이어서 건너뛰었습니다. (1시간 간격)`,
+      })
+    }
   }
 
   // 최고 순위 계산
@@ -269,7 +292,7 @@ export default function TrackingPage() {
                 size="sm"
               >
                 <RefreshCw className={`h-4 w-4 ${bulkChecking ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침'}</span>
+                <span className="hidden sm:inline">{bulkChecking ? '확인 중...' : '전체 새로고침 (1크레딧/키워드)'}</span>
                 <span className="sm:hidden">{bulkChecking ? '확인 중' : '새로고침'}</span>
               </Button>
             </CreditTooltip>
@@ -332,7 +355,7 @@ export default function TrackingPage() {
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    등록 및 순위 확인
+                    등록 및 순위 확인 (1크레딧)
                   </>
                 )}
               </Button>

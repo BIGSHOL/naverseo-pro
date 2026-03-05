@@ -64,6 +64,10 @@ description: 대시보드 및 인증 페이지의 클라이언트 선언, 한국
 | `src/components/content/TiptapToolbar.tsx` | TipTap 서식 툴바 (13종 네이버 블로그 호환 서식) |
 | `src/lib/utils/markdown-convert.ts` | 마크다운↔HTML 변환 유틸 (TipTap 경계 변환용) |
 | `src/components/charts/blog-index-history-chart.tsx` | 블로그 지수 히스토리 차트 컴포넌트 |
+| `src/components/charts/activity-chart.tsx` | 대시보드 주간 활동 차트 (Recharts 지연 로딩용 분리 컴포넌트) |
+| `src/components/layout/feature-guard.tsx` | 기능 비활성화 가드 (UserProfileContext에서 disabledFeatures 소비) |
+| `src/app/(dashboard)/keywords-bulk/page.tsx` | 키워드 대량조회 페이지 |
+| `src/app/(dashboard)/instagram/page.tsx` | 인스타그램 변환 페이지 |
 
 ## Workflow
 
@@ -298,9 +302,9 @@ Grep pattern="toggleBold|toggleItalic|toggleUnderline|setColor|toggleHighlight|s
 
 ### Step 12: UserProfileContext 공유 상태 검증
 
-**파일:** `src/contexts/user-profile.tsx`, `src/components/layout/sidebar.tsx`, `src/components/layout/mobile-sidebar.tsx`, `src/components/layout/header.tsx`
+**파일:** `src/contexts/user-profile.tsx`, `src/components/layout/sidebar.tsx`, `src/components/layout/mobile-sidebar.tsx`, `src/components/layout/header.tsx`, `src/components/layout/feature-guard.tsx`, `src/app/(dashboard)/dashboard/page.tsx`
 
-**검사:** 사이드바/모바일사이드바/헤더가 각각 독립적으로 `/api/dashboard`를 호출하지 않고, `UserProfileContext`를 통해 공유된 상태를 소비하는지 확인합니다. 사이드바는 로딩 중 스켈레톤을 표시해야 합니다.
+**검사:** 사이드바/모바일사이드바/헤더/대시보드 페이지/FeatureGuard가 각각 독립적으로 `/api/dashboard`나 `/api/features`를 호출하지 않고, `UserProfileContext`를 통해 공유된 상태를 소비하는지 확인합니다.
 
 ```bash
 # UserProfileProvider가 대시보드 레이아웃에 적용되어 있는지 확인
@@ -311,18 +315,37 @@ Grep pattern="useUserProfile" path="src/components/layout/sidebar.tsx" output_mo
 Grep pattern="useUserProfile" path="src/components/layout/mobile-sidebar.tsx" output_mode="content"
 Grep pattern="useUserProfile" path="src/components/layout/header.tsx" output_mode="content"
 
+# dashboard page가 useUserProfile()로 데이터를 소비하는지 확인 (중복 fetch 방지)
+Grep pattern="useUserProfile" path="src/app/(dashboard)/dashboard/page.tsx" output_mode="content"
+
+# dashboard page에서 독립적인 /api/dashboard fetch가 없는지 확인
+Grep pattern="fetch.*api/dashboard" path="src/app/(dashboard)/dashboard/page.tsx" output_mode="content"
+
 # sidebar, mobile-sidebar, header에서 독립적인 /api/dashboard fetch가 없는지 확인
 Grep pattern="fetch.*api/dashboard" path="src/components/layout/sidebar.tsx" output_mode="content"
 Grep pattern="fetch.*api/dashboard" path="src/components/layout/mobile-sidebar.tsx" output_mode="content"
 Grep pattern="fetch.*api/dashboard" path="src/components/layout/header.tsx" output_mode="content"
 
+# FeatureGuard가 useUserProfile()에서 disabledFeatures를 소비하는지 확인
+Grep pattern="useUserProfile" path="src/components/layout/feature-guard.tsx" output_mode="content"
+Grep pattern="disabledFeatures" path="src/components/layout/feature-guard.tsx" output_mode="content"
+
+# FeatureGuard에서 독립적인 /api/features fetch가 없는지 확인
+Grep pattern="fetch.*api/features" path="src/components/layout/feature-guard.tsx" output_mode="content"
+
+# UserProfileProvider가 disabledFeatures를 컨텍스트에 포함하는지 확인
+Grep pattern="disabledFeatures" path="src/contexts/user-profile.tsx" output_mode="content"
+
 # 사이드바에 로딩 스켈레톤이 있는지 확인
 Grep pattern="animate-pulse|loaded" path="src/components/layout/sidebar.tsx" output_mode="content"
 ```
 
-**PASS:** UserProfileProvider가 레이아웃에 적용 + 3개 컴포넌트가 useUserProfile() 소비 + 독립 fetch 없음 + 사이드바 로딩 스켈레톤 존재
-**FAIL:** 레이아웃 컴포넌트가 여전히 독립적으로 `/api/dashboard`를 호출하여 "Free" 플랜 flash 발생
-**수정:** `useUserProfile()` 훅으로 전환하고, 독립 fetch 제거, 로딩 중 스켈레톤 표시
+**PASS:** UserProfileProvider가 레이아웃에 적용 + sidebar/header/mobile-sidebar/dashboard/feature-guard가 useUserProfile() 소비 + 독립 fetch 없음 + disabledFeatures 컨텍스트 포함 + 사이드바 로딩 스켈레톤 존재
+**FAIL:**
+- 레이아웃 컴포넌트가 독립적으로 `/api/dashboard`를 호출하여 중복 네트워크 요청 발생
+- FeatureGuard가 독립적으로 `/api/features`를 호출하여 추가 네트워크 요청 발생
+- UserProfileProvider에 `disabledFeatures`가 없어 FeatureGuard가 별도 fetch 필요
+**수정:** `useUserProfile()` 훅으로 전환, 독립 fetch 제거, UserProfileProvider에서 `/api/features` 병렬 호출 후 `disabledFeatures` 컨텍스트 제공
 
 ## Output Format
 
@@ -342,7 +365,7 @@ Grep pattern="animate-pulse|loaded" path="src/components/layout/sidebar.tsx" out
 | 9 | 맞춤형 가이드 | PASS/FAIL | blog-index/page.tsx | blog-index 전용: 약한 카테고리 분석 기반 가이드 |
 | 10 | AI 텍스트 마크다운 | PASS/FAIL | 파일명 | AI 생성 텍스트 마크다운 렌더링 |
 | 11 | TipTap 에디터 | PASS/FAIL | content/page.tsx | TipTap WYSIWYG + HTML 복사 + 서식 툴바 |
-| 12 | UserProfileContext 공유 | PASS/FAIL | sidebar/header/mobile-sidebar | Context 소비 + 독립 fetch 제거 + 로딩 스켈레톤 |
+| 12 | UserProfileContext 공유 | PASS/FAIL | sidebar/header/mobile-sidebar/dashboard/feature-guard | Context 소비 + 독립 fetch 제거 + disabledFeatures + 로딩 스켈레톤 |
 ```
 
 ## Exceptions

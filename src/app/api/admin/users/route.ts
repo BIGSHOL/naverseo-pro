@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         const { data: existingProfiles } = await adminDb
           .from('profiles')
           .select('id')
+          .limit(10000)
         const existingIds = new Set((existingProfiles || []).map(p => p.id))
 
         const missing = authUsers.users.filter(u => !existingIds.has(u.id))
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
           const { data: existingCodes } = await adminDb
             .from('profiles')
             .select('referral_code')
+            .limit(10000)
           const usedCodes = new Set((existingCodes || []).map(p => p.referral_code))
 
           const rows = missing.map(u => {

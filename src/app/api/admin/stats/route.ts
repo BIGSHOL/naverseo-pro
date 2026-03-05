@@ -21,7 +21,7 @@ export async function GET() {
       { data: todaySignups },
     ] = await Promise.all([
       adminDb.from('profiles').select('*', { count: 'exact', head: true }),
-      adminDb.from('profiles').select('plan'),
+      adminDb.from('profiles').select('plan').limit(10000),
       adminDb.from('generated_content').select('*', { count: 'exact', head: true }),
       adminDb.from('keyword_research').select('*', { count: 'exact', head: true }),
       adminDb

@@ -1,12 +1,12 @@
 /**
- * 블로그 지수 - 축5. 검색 노출력 (10점)
+ * 블로그 지수 - 축5. 검색 노출력 (15점)
  *
- * v11: 25점 → 10점 대폭 축소. 검색 순위는 결과 지표이므로 가중치 최소화.
+ * v12: 10→15 재분배. 검색 노출/순위의 영향력 강화.
  *      경쟁 키워드 가치 항목 삭제. 미측정=0점.
  *
- * 가점: 검색 순위(3) + 노출률(2) + TOP10 지배력(3) + 제목 키워드 최적화(2) = 10
+ * 가점: 검색 순위(5) + 노출률(3) + TOP10 지배력(4) + 제목 키워드 최적화(3) = 15
  * 감점: 제목 특수문자 남용(-1) + 상업적 키워드 남용(-1) + 제목 키워드 반복(-1) = -3
- * 최종: clamp(가점 + 감점, 0, 10)
+ * 최종: clamp(가점 + 감점, 0, 15)
  */
 
 import { stripHtml, extractKoreanKeywords } from '@/lib/utils/text'
@@ -17,7 +17,7 @@ export function analyzeSearchPower(
   keywordCompetition?: KeywordCompetitionData[],
   posts?: BlogPost[],
 ): AnalysisCategory {
-  const maxScore = 10
+  const maxScore = 15
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
@@ -31,35 +31,35 @@ export function analyzeSearchPower(
   const total = keywordResults.length
   const exposureRate = rankedCount / total
 
-  // === 검색 순위 품질 (3점) ===
+  // === 검색 순위 품질 (5점) ===
   let rankPts = 0
   if (rankedCount > 0) {
     const avgRank = ranked.reduce((sum, r) => sum + (r.rank || 0), 0) / rankedCount
-    if (avgRank <= 10) rankPts = 3
-    else if (avgRank <= 30) rankPts = 2
+    if (avgRank <= 10) rankPts = 5
+    else if (avgRank <= 30) rankPts = 3
     else if (avgRank <= 50) rankPts = 1
     score += rankPts
     details.push(`평균 순위: ${Math.round(avgRank)}위 (+${rankPts})`)
     items.push({ label: `검색 순위 (평균 ${Math.round(avgRank)}위)`, points: rankPts })
   }
 
-  // === 검색 노출률 (2점) ===
+  // === 검색 노출률 (3점) ===
   let exposureScore = 0
-  if (exposureRate >= 0.8) exposureScore = 2
-  else if (exposureRate >= 0.4) exposureScore = 1
+  if (exposureRate >= 0.8) exposureScore = 3
+  else if (exposureRate >= 0.4) exposureScore = 2
   score += exposureScore
   details.push(`검색 노출률: ${rankedCount}/${total} (${Math.round(exposureRate * 100)}%) (+${exposureScore})`)
   items.push({ label: `검색 노출률 (${Math.round(exposureRate * 100)}%)`, points: exposureScore })
 
-  // === TOP10 지배력 (3점) ===
+  // === TOP10 지배력 (4점) ===
   const top10 = ranked.filter((r) => r.rank! <= 10).length
   let top10Pts = 0
   if (top10 >= 4) {
-    top10Pts = 3
-    details.push(`TOP 10 키워드: ${top10}개 (우수) (+3)`)
+    top10Pts = 4
+    details.push(`TOP 10 키워드: ${top10}개 (우수) (+4)`)
   } else if (top10 >= 2) {
-    top10Pts = 2
-    details.push(`TOP 10 키워드: ${top10}개 (양호) (+2)`)
+    top10Pts = 3
+    details.push(`TOP 10 키워드: ${top10}개 (양호) (+3)`)
   } else if (top10 >= 1) {
     top10Pts = 1
     details.push(`TOP 10 키워드: ${top10}개 (+1)`)
@@ -69,7 +69,7 @@ export function analyzeSearchPower(
   score += top10Pts
   items.push({ label: `TOP 10 (${top10}개)`, points: top10Pts })
 
-  // === 제목 키워드 최적화 (2점) ===
+  // === 제목 키워드 최적화 (3점) ===
   let titleScore = 0
   if (posts && posts.length > 0) {
     const testKeywords = keywordResults.map(kr => kr.keyword.toLowerCase())
@@ -89,11 +89,11 @@ export function analyzeSearchPower(
     const keywordRate = keywordInTitleCount / posts.length
 
     if (keywordRate >= 0.6) {
-      titleScore = 2
-      details.push(`제목 키워드 최적화 우수 (+2)`)
+      titleScore = 3
+      details.push(`제목 키워드 최적화 우수 (+3)`)
     } else if (keywordRate >= 0.3) {
-      titleScore = 1
-      details.push(`제목 키워드 최적화 양호 (+1)`)
+      titleScore = 2
+      details.push(`제목 키워드 최적화 양호 (+2)`)
     } else {
       details.push(`제목에 핵심 키워드를 자연스럽게 포함하세요 (+0)`)
     }
@@ -172,7 +172,7 @@ export function analyzeSearchPower(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 8 ? 'S' : score >= 6 ? 'A' : score >= 4 ? 'B' : score >= 2 ? 'C' : 'D'
+  const grade = score >= 12 ? 'S' : score >= 9 ? 'A' : score >= 6 ? 'B' : score >= 3 ? 'C' : 'D'
 
   return { name: '검색 노출력', score, maxScore, grade, details, items }
 }

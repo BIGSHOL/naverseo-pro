@@ -58,6 +58,24 @@ export const TOGGLEABLE_FEATURES: FeatureConfig[] = [
     href: '/tracking',
   },
   {
+    key: 'post-check',
+    label: '검색 누락 조회',
+    description: '네이버 검색 결과 누락 여부 확인',
+    href: '/post-check',
+  },
+  {
+    key: 'keywords-bulk',
+    label: '키워드 대량조회',
+    description: '여러 키워드를 한 번에 조회',
+    href: '/keywords-bulk',
+  },
+  {
+    key: 'instagram',
+    label: '인스타그램 변환',
+    description: '블로그 콘텐츠를 인스타그램용으로 변환',
+    href: '/instagram',
+  },
+  {
     key: 'calendar',
     label: '활동 캘린더',
     description: '콘텐츠 작성 활동 캘린더',

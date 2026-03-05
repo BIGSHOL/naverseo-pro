@@ -5,7 +5,7 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   Tooltip as RechartsTooltip, ReferenceArea, ReferenceLine
 } from 'recharts'
-import { formatNumber } from '@/components/keywords/keyword-utils'
+import { formatNumber, getCompLabel } from '@/components/keywords/keyword-utils'
 
 interface OpportunityItem {
   keyword: string
@@ -175,7 +175,7 @@ export default function OpportunityMatrixChart({ opportunities }: Props) {
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null
               const d = payload[0].payload as (typeof matrixData)[0]
-              const compLabel = d.compIdx === 'LOW' ? '낮음' : d.compIdx === 'MEDIUM' ? '보통' : d.compIdx === 'HIGH' ? '높음' : '미확인'
+              const compLabel = getCompLabel(d.compIdx)
               return (
                 <div className="rounded-xl border-2 bg-background/98 backdrop-blur-sm px-4 py-3 shadow-2xl text-sm min-w-[200px]">
                   <div className="flex items-center gap-2 mb-2 pb-2 border-b">

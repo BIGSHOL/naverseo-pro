@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeSeo, analyzeReadability, type ReadabilityResult } from '@/lib/seo/engine'
 import type { ScrapedMeta } from '@/lib/seo/ai-analyzer'
-import { checkCredits, deductCredits } from '@/lib/credit-check'
 
 // API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
 export const dynamic = 'force-dynamic'
@@ -38,14 +37,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const creditCheck = await checkCredits(supabase, user.id, 'seo_check')
-    if (!creditCheck.allowed) {
-      return NextResponse.json(
-        { error: creditCheck.message, creditLimit: true, balance: creditCheck.balance, cost: creditCheck.cost, planGate: creditCheck.planGate },
-        { status: 403 }
-      )
-    }
-
+    // 기본 SEO 분석은 크레딧 소모 없음 (AI 심층 분석은 /deep 라우트에서 차감)
     const { title, content, keyword, scrapedMeta } = await request.json() as {
       title?: string; content?: string; keyword?: string
       scrapedMeta?: ScrapedMeta
@@ -63,13 +55,11 @@ export async function POST(request: NextRequest) {
       tags: scrapedMeta.tags,
       formatting: scrapedMeta.formatting,
     } : undefined
-    const engineResult = analyzeSeo(keyword || '', title || '', content, undefined, seoScrapedMeta)
+    const additionalKeywords = seoScrapedMeta?.tags && seoScrapedMeta.tags.length > 0 ? seoScrapedMeta.tags : undefined
+    const engineResult = analyzeSeo(keyword || '', title || '', content, additionalKeywords, seoScrapedMeta)
 
     // 가독성 분석 (로컬 — 빠름)
     const readability = analyzeReadability(content)
-
-    // 크레딧 차감
-    await deductCredits(supabase, user.id, 'seo_check', { keyword: keyword || '' })
 
     const response: SeoCheckResponse = {
       totalScore: engineResult.totalScore,

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import type { Plan } from '@/types/database'
 
 interface CaptionResult {
@@ -58,6 +59,7 @@ export function InstagramTabCaption({ userPlan }: Props) {
       }
 
       setResult(data)
+      creditToast('instagram_convert')
     } catch {
       setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
@@ -100,7 +102,7 @@ export function InstagramTabCaption({ userPlan }: Props) {
                 ) : (
                   <>
                     <Wand2 className="mr-2 h-4 w-4" />
-                    캡션 변환
+                    캡션 변환 (2크레딧)
                   </>
                 )}
               </Button>

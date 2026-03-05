@@ -219,7 +219,7 @@ export default function ReportPage() {
       {/* 헤더 (프린트 시 숨김) */}
       <div className="flex items-center justify-between gap-4 print:hidden">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold">SEO 리포트</h1>
+          <h1 className="text-2xl font-bold">SEO 리포트 <span className="text-sm font-normal text-muted-foreground">(1크레딧)</span></h1>
           <p className="mt-1 text-sm text-muted-foreground truncate">
             SEO 성과를 한눈에 파악하고 전략적 인사이트를 확인하세요
           </p>

@@ -120,6 +120,10 @@ export interface ContentGenerationRequest {
   domainCategory?: DomainCategory
   /** 'other' 선택 시 사용자 입력 도메인명 */
   customDomain?: string
+  /** 사용자 첨부 참고 자료 텍스트 */
+  referenceMaterial?: { text: string; source: string }
+  /** 사용자 첨부 이미지 설명 목록 (AI 프롬프트용) */
+  attachedImages?: { index: number; description: string }[]
 }
 
 /** 생성된 콘텐츠 결과 */
@@ -823,7 +827,15 @@ ${fewShotExamples}
   "title": "블로그 제목",
   "content": "블로그 본문 (마크다운 형식)",
   "tags": ["태그1", "태그2", ...],
-  "metaDescription": "검색 결과에 표시될 1~2문장 요약 (120자 이내)"
+  "metaDescription": "검색 결과에 표시될 1~2문장 요약 (120자 이내)"${request.referenceMaterial ? `,
+  "referenceUsageReport": {
+    "usedParts": ["활용한 부분 요약1", "활용한 부분 요약2"],
+    "skippedParts": [{"part": "미사용 부분", "reason": "사유"}]
+  }` : ''}${request.attachedImages && request.attachedImages.length > 0 ? `,
+  "imagePlacementReport": {
+    "used": [1, 2],
+    "skipped": [{"index": 3, "reason": "본문 맥락과 무관"}]
+  }` : ''}
 }`
 }
 

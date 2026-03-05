@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import type { Plan } from '@/types/database'
 
 interface SlideItem {
@@ -70,6 +71,7 @@ export function InstagramTabCarousel({ userPlan }: Props) {
       }
 
       setResult(data)
+      creditToast('instagram_convert')
     } catch {
       setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
@@ -122,7 +124,7 @@ export function InstagramTabCarousel({ userPlan }: Props) {
                 ) : (
                   <>
                     <Layers className="mr-2 h-4 w-4" />
-                    캐러셀 생성
+                    캐러셀 생성 (2크레딧)
                   </>
                 )}
               </Button>

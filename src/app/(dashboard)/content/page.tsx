@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { CREDIT_COSTS } from '@/types/database'
-import { useCallback } from 'react'
 import {
   Wand2, Loader2, Copy, Check, Tag, CalendarDays, CheckCircle, BarChart3,
   FileText, Eye, ChevronDown, ChevronUp, TrendingUp, AlertCircle, RefreshCw,
@@ -36,9 +35,15 @@ import { analyzeSeo, type ContentType, type DomainCategory, DOMAIN_CATEGORY_NAME
 import { analyzeDia } from '@/lib/dia/engine'
 import { Shield, Store } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
+import { creditToast } from '@/lib/credit-toast'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import {
+  validateReferenceText, validateImageDescription, validateImageFile,
+  validateTxtFile, validatePdfFile,
+  REF_MATERIAL_MAX_CHARS, MAX_ATTACHED_IMAGES,
+} from '@/lib/content/validators'
 
 interface SeoCategory {
   id: string
@@ -99,6 +104,14 @@ interface ContentResult {
   notice?: string
   unknownKeyword?: boolean
   validation?: { score: number; warnings: string[]; errors: string[]; isValid: boolean }
+  referenceUsageReport?: {
+    usedParts: string[]
+    skippedParts: Array<{ part: string; reason: string }>
+  }
+  imagePlacementReport?: {
+    used: number[]
+    skipped: Array<{ index: number; reason: string }>
+  }
 }
 
 /** 스트리밍 중 부분 JSON에서 title/content 필드를 추출 */
@@ -211,6 +224,7 @@ export default function ContentPage() {
   const [result, setResult] = useState<ContentResult | null>(null)
   const [streamingText, setStreamingText] = useState('')
   const streamingTextRef = useRef('')
+  const rafPendingRef = useRef(false)
   const streamingContentRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const autoScrollRef = useRef(true)
@@ -494,8 +508,23 @@ export default function ContentPage() {
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageMarkers, setImageMarkers] = useState<ParsedImageMarker[]>([])
 
+  // 참고 자료 첨부
+  const [refMaterialText, setRefMaterialText] = useState('')
+  const [refMaterialSource, setRefMaterialSource] = useState('')
+  const [refMaterialLoading, setRefMaterialLoading] = useState(false)
+
+  // 이미지 첨부 + 설명
+  interface AttachedImage {
+    id: string
+    file: File
+    previewUrl: string
+    description: string
+  }
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
+
   // 내 업체 홍보글 모드
   const [isPromoMode, setIsPromoMode] = useState(false)
+  const [showPromoDialog, setShowPromoDialog] = useState(false)
   const [businessName, setBusinessName] = useState('')
   const [businessAddress, setBusinessAddress] = useState('')
   const [businessPricing, setBusinessPricing] = useState('')
@@ -513,6 +542,7 @@ export default function ContentPage() {
     content: string
     status: string
     seo_score: number | null
+    tags: string[]
     created_at: string
     updated_at: string
   }>>([])
@@ -524,9 +554,18 @@ export default function ContentPage() {
   const [historyEditMode, setHistoryEditMode] = useState(false)
   const [historyEditTitle, setHistoryEditTitle] = useState('')
   const [historyEditContent, setHistoryEditContent] = useState('')
+  const [historyEditTags, setHistoryEditTags] = useState<string[]>([])
   const [historySaving, setHistorySaving] = useState(false)
   const [historyCopied, setHistoryCopied] = useState(false)
   const [showHistoryRawMarkdown, setShowHistoryRawMarkdown] = useState(false)
+
+  // 순위 트래킹 다이얼로그
+  const [showTrackingDialog, setShowTrackingDialog] = useState(false)
+  const [trackingKeyword, setTrackingKeyword] = useState('')
+  const [trackingBlogUrl, setTrackingBlogUrl] = useState('')
+  const [trackingLoading, setTrackingLoading] = useState(false)
+  const [trackingResult, setTrackingResult] = useState<{ rank: number | null; section: string | null } | null>(null)
+  const [userBlogUrl, setUserBlogUrl] = useState<string | null>(null)
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -541,6 +580,24 @@ export default function ContentPage() {
     } finally {
       setHistoryLoading(false)
     }
+  }, [])
+
+  // 사용자 블로그 URL 사전 로드 (순위 트래킹 다이얼로그용)
+  useEffect(() => {
+    const fetchBlogUrl = async () => {
+      try {
+        const res = await fetch('/api/profile/blog')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.blogProfile?.blogUrl) {
+            setUserBlogUrl(data.blogProfile.blogUrl)
+          }
+        }
+      } catch {
+        // 블로그 URL 없어도 수동 입력 가능
+      }
+    }
+    fetchBlogUrl()
   }, [])
 
   // 내 콘텐츠 탭 진입 시 로드
@@ -645,8 +702,200 @@ export default function ContentPage() {
     }
   }
 
+  // === 참고 자료 TXT 파일 로드 ===
+  const handleRefFileTxt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fileCheck = validateTxtFile(file)
+    if (!fileCheck.valid) {
+      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    const text = await file.text()
+    const trimmed = text.substring(0, REF_MATERIAL_MAX_CHARS)
+    const validation = validateReferenceText(trimmed)
+    if (!validation.valid) {
+      toast({ title: '내용 오류', description: validation.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setRefMaterialText(trimmed)
+    setRefMaterialSource(file.name)
+    if (text.length > REF_MATERIAL_MAX_CHARS) {
+      toast({ title: '텍스트 잘림', description: `${REF_MATERIAL_MAX_CHARS.toLocaleString()}자까지만 사용됩니다.` })
+    }
+    e.target.value = ''
+  }
+
+  // === 참고 자료 PDF 파일 로드 ===
+  const handleRefFilePdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fileCheck = validatePdfFile(file)
+    if (!fileCheck.valid) {
+      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
+      e.target.value = ''
+      return
+    }
+    setRefMaterialLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/util/parse-pdf', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'PDF 파싱 실패')
+      setRefMaterialText(data.text)
+      setRefMaterialSource(data.fileName)
+      if (data.truncated) {
+        toast({ title: '텍스트 잘림', description: `원본 ${data.originalLength.toLocaleString()}자 중 ${REF_MATERIAL_MAX_CHARS.toLocaleString()}자만 사용됩니다.` })
+      }
+    } catch (err) {
+      toast({ title: 'PDF 파싱 실패', description: err instanceof Error ? err.message : 'PDF 텍스트 추출에 실패했습니다.', variant: 'destructive' })
+    } finally {
+      setRefMaterialLoading(false)
+      e.target.value = ''
+    }
+  }
+
+  // === 이미지 리사이징 (Canvas, 클라이언트 전용 — API 비용 0) ===
+  const MAX_IMAGE_WIDTH = 1200
+  const MAX_IMAGE_HEIGHT = 1200
+  const resizeImage = (file: File): Promise<{ file: File; previewUrl: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const originalUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        let { width, height } = img
+        // 리사이징 필요 없으면 그대로 반환
+        if (width <= MAX_IMAGE_WIDTH && height <= MAX_IMAGE_HEIGHT) {
+          resolve({ file, previewUrl: originalUrl })
+          return
+        }
+        // 비율 유지하며 축소
+        const ratio = Math.min(MAX_IMAGE_WIDTH / width, MAX_IMAGE_HEIGHT / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, width, height)
+        URL.revokeObjectURL(originalUrl)
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve({ file, previewUrl: URL.createObjectURL(file) }); return }
+          const resizedFile = new File([blob], file.name, { type: file.type || 'image/jpeg' })
+          resolve({ file: resizedFile, previewUrl: URL.createObjectURL(resizedFile) })
+        }, file.type || 'image/jpeg', 0.85)
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(originalUrl)
+        resolve({ file, previewUrl: URL.createObjectURL(file) })
+      }
+      img.src = originalUrl
+    })
+  }
+
+  // === 이미지 첨부 (공통 로직) ===
+  const addImageFiles = async (files: File[]) => {
+    const remaining = MAX_ATTACHED_IMAGES - attachedImages.length
+    if (remaining <= 0) {
+      toast({ title: '이미지 최대 개수', description: `최대 ${MAX_ATTACHED_IMAGES}장까지 첨부할 수 있습니다.`, variant: 'destructive' })
+      return
+    }
+    const newImages: AttachedImage[] = []
+    for (let i = 0; i < Math.min(files.length, remaining); i++) {
+      const file = files[i]
+      const validation = validateImageFile(file)
+      if (!validation.valid) {
+        toast({ title: '이미지 오류', description: validation.error, variant: 'destructive' })
+        continue
+      }
+      const { file: resizedFile, previewUrl } = await resizeImage(file)
+      newImages.push({
+        id: `${Date.now()}-${i}`,
+        file: resizedFile,
+        previewUrl,
+        description: '',
+      })
+    }
+    if (newImages.length > 0) {
+      setAttachedImages(prev => [...prev, ...newImages])
+    }
+  }
+
+  const handleAttachImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+    addImageFiles(Array.from(files))
+    e.target.value = ''
+  }
+
+  // === Ctrl+V 클립보드 이미지 붙여넣기 ===
+  const handleImagePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const imageFiles: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault()
+      addImageFiles(imageFiles)
+    }
+  }
+
+  const removeAttachedImage = (id: string) => {
+    setAttachedImages(prev => {
+      const img = prev.find(i => i.id === id)
+      if (img) URL.revokeObjectURL(img.previewUrl)
+      return prev.filter(i => i.id !== id)
+    })
+  }
+
+  const updateImageDescription = (id: string, description: string) => {
+    setAttachedImages(prev => prev.map(img =>
+      img.id === id ? { ...img, description } : img
+    ))
+  }
+
+  // Object URL cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      attachedImages.forEach(img => URL.revokeObjectURL(img.previewUrl))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const generateContent = async (overrides?: { tone?: string; targetLength?: string; contentType?: string }) => {
     if (!keyword.trim() || loading) return
+
+    // 참고 자료 사전 검증
+    if (refMaterialText.trim()) {
+      const refValidation = validateReferenceText(refMaterialText)
+      if (!refValidation.valid) {
+        setError(`참고 자료 오류: ${refValidation.error}`)
+        return
+      }
+    }
+
+    // 이미지 설명 사전 검증
+    const imagesWithoutDesc = attachedImages.filter(img => !img.description.trim())
+    if (imagesWithoutDesc.length > 0) {
+      setError(`${imagesWithoutDesc.length}개의 첨부 이미지에 설명이 없습니다. 모든 이미지에 설명을 입력해주세요.`)
+      return
+    }
+    for (const img of attachedImages) {
+      const descValidation = validateImageDescription(img.description)
+      if (!descValidation.valid) {
+        setError(`이미지 "${img.file.name}" 설명 오류: ${descValidation.error}`)
+        return
+      }
+    }
 
     setLoading(true)
     setProgress(null)
@@ -655,6 +904,11 @@ export default function ContentPage() {
     setShowSeoDetail(false)
 
     try {
+      // 유효한 이미지 설명만 필터
+      const validAttachedImages = attachedImages
+        .filter(img => img.description.trim())
+        .map((img, idx) => ({ index: idx + 1, description: img.description.trim() }))
+
       const res = await fetch('/api/ai/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -699,6 +953,11 @@ export default function ContentPage() {
             targetAudience,
             ageGroup,
           } : undefined,
+          referenceMaterial: refMaterialText.trim() ? {
+            text: refMaterialText.trim().substring(0, REF_MATERIAL_MAX_CHARS),
+            source: refMaterialSource || '직접 입력',
+          } : undefined,
+          attachedImages: validAttachedImages.length > 0 ? validAttachedImages : undefined,
         }),
       })
 
@@ -744,26 +1003,25 @@ export default function ContentPage() {
               } else if (event.type === 'stream') {
                 const isFirst = !streamingTextRef.current
                 streamingTextRef.current += event.delta
-                const accumulated = streamingTextRef.current
-                setStreamingText(accumulated)
+
+                // requestAnimationFrame으로 배칭 → 부드러운 렌더링
+                if (!rafPendingRef.current) {
+                  rafPendingRef.current = true
+                  requestAnimationFrame(() => {
+                    rafPendingRef.current = false
+                    setStreamingText(streamingTextRef.current)
+                    // auto-scroll
+                    if (autoScrollRef.current) {
+                      const el = streamingContentRef.current
+                      if (el) el.scrollTop = el.scrollHeight
+                    }
+                  })
+                }
 
                 // 첫 스트림 청크: 외부 스크롤을 스트리밍 영역으로 1회만 이동
                 if (isFirst) {
                   setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
-
-                // 스트리밍 콘텐츠 auto-scroll (내부 컨테이너만 — 외부 스크롤은 건드리지 않음)
-                if (autoScrollRef.current) {
-                  setTimeout(() => {
-                    const el = streamingContentRef.current
-                    if (el) {
-                      el.scrollTop = el.scrollHeight
-                    }
-                  }, 0)
-                }
-
-                // 스트리밍 중에는 SEO 분석 안 함 (렉 방지)
-                // editTitle/editContent는 result 이벤트 후 설정됨
               } else if (event.type === 'selfHealPatches') {
                 // Self-Healing 패치 저장 (result 수신 시 애니메이션 실행)
                 selfHealPatchesRef.current = {
@@ -773,8 +1031,21 @@ export default function ContentPage() {
                 }
               } else if (event.type === 'result') {
                 resultReceived = true
+                if (!event.isDemo) creditToast('content_generation')
                 setStreamingText('')
                 streamingTextRef.current = ''
+
+                // [IMG-N] 마커를 마크다운 이미지로 교체
+                if (attachedImages.length > 0 && event.content) {
+                  let processed = event.content as string
+                  attachedImages.forEach((img, idx) => {
+                    const marker = `[IMG-${idx + 1}]`
+                    if (processed.includes(marker)) {
+                      processed = processed.replace(marker, `![${img.description}](${img.previewUrl})`)
+                    }
+                  })
+                  event.content = processed
+                }
 
                 const healData = selfHealPatchesRef.current
                 selfHealPatchesRef.current = null
@@ -868,6 +1139,9 @@ export default function ContentPage() {
                   setResult(event)
                   setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                 }
+              } else if (event.type === 'saved' && event.contentId) {
+                // DB 저장 완료 — result에 contentId 보충
+                setResult(prev => prev ? { ...prev, contentId: event.contentId } : prev)
               } else if (event.type === 'error') {
                 setStreamingText('')
                 streamingTextRef.current = ''
@@ -886,9 +1160,19 @@ export default function ContentPage() {
           console.warn('[Content] result 이벤트 미수신 — 스트리밍 텍스트로 폴백 복구')
           const parsed = extractFromStreamJson(streamingTextRef.current)
           if (parsed.title && parsed.content) {
+            // [IMG-N] 마커를 마크다운 이미지로 교체 (폴백 경로)
+            let fallbackContent = parsed.content
+            if (attachedImages.length > 0) {
+              attachedImages.forEach((img, idx) => {
+                const marker = `[IMG-${idx + 1}]`
+                if (fallbackContent.includes(marker)) {
+                  fallbackContent = fallbackContent.replace(marker, `![${img.description}](${img.previewUrl})`)
+                }
+              })
+            }
             const fallbackResult: ContentResult = {
               title: parsed.title,
-              content: parsed.content,
+              content: fallbackContent,
               tags: [],
               isDemo: false,
               notice: '서버 응답이 불완전하여 스트리밍 데이터로 복구되었습니다. 내용을 확인해주세요.',
@@ -912,6 +1196,7 @@ export default function ContentPage() {
           return
         }
         setResult(data)
+        if (!data.isDemo) creditToast('content_generation')
         setTimeout(() => contentCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
       }
     } catch {
@@ -961,6 +1246,18 @@ export default function ContentPage() {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+
+    // 자동 발행: contentId가 있으면 상태를 'published'로 변경
+    if (result.contentId) {
+      await updateContentStatus(result.contentId, 'published')
+      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+
+      // 순위 트래킹 다이얼로그 표시
+      setTrackingKeyword(keyword)
+      setTrackingBlogUrl(userBlogUrl || '')
+      setTrackingResult(null)
+      setShowTrackingDialog(true)
+    }
   }
 
   // result 도착 시 편집 상태 초기화 (Self-Healing 애니메이션 중에는 건너뜀)
@@ -1025,7 +1322,7 @@ export default function ContentPage() {
 
     try {
       // 현재 콘텐츠의 SEO 분석 실행
-      const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
+      const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent, editTags.length > 0 ? editTags : undefined)
 
       // 약한 항목 추출 (점수 비율 기준 상위 5개)
       const weakCategories = [...seoResult.categories]
@@ -1227,6 +1524,7 @@ export default function ContentPage() {
           setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
         }
         setTimeout(() => setImproveMessage(''), 5000)
+        creditToast('content_improve')
       }
     } catch {
       setImproveMessage('네트워크 오류가 발생했습니다.')
@@ -1431,7 +1729,7 @@ export default function ContentPage() {
     }
     const timer = setTimeout(() => {
       try {
-        const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent)
+        const seoResult = analyzeSeo(activeKeyword.trim(), activeTitle, activeContent, editTags.length > 0 ? editTags : undefined)
         const weakCount = seoResult.categories.filter(cat => (cat.score / cat.maxScore) < 0.8).length
         setImproveDisabledReason(weakCount === 0 ? '모든 SEO 항목이 양호합니다 (80% 이상)' : '')
       } catch { /* ignore */ }
@@ -1463,6 +1761,51 @@ export default function ContentPage() {
     }
   }
 
+  const handleTrackingRegister = async () => {
+    if (!trackingKeyword.trim() || !trackingBlogUrl.trim()) return
+    setTrackingLoading(true)
+    try {
+      const res = await fetch('/api/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: trackingKeyword.trim(),
+          blogUrl: trackingBlogUrl.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setTrackingResult({ rank: data.rank, section: data.section })
+        toast({
+          title: '순위 트래킹 등록 완료',
+          description: data.rank
+            ? `${trackingKeyword}: ${data.rank}위 (${data.section || '블로그'})`
+            : `${trackingKeyword}: 100위 밖`,
+        })
+      } else if (data.cooldown) {
+        toast({
+          title: '이미 트래킹 중',
+          description: data.error,
+        })
+        setShowTrackingDialog(false)
+      } else {
+        toast({
+          title: '등록 실패',
+          description: data.error || '순위 트래킹 등록에 실패했습니다.',
+          variant: 'destructive',
+        })
+      }
+    } catch {
+      toast({
+        title: '네트워크 오류',
+        description: '순위 트래킹 등록 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTrackingLoading(false)
+    }
+  }
+
   const saveHistoryEdit = async () => {
     if (!selectedContentId || historySaving) return
     setHistorySaving(true)
@@ -1474,12 +1817,13 @@ export default function ContentPage() {
           contentId: selectedContentId,
           title: historyEditTitle,
           content: historyEditContent,
+          tags: historyEditTags,
         }),
       })
       if (res.ok) {
         const data = await res.json()
         setHistoryContents(prev => prev.map(c => c.id === selectedContentId
-          ? { ...c, title: historyEditTitle, content: historyEditContent, seo_score: data.seoScore ?? c.seo_score }
+          ? { ...c, title: historyEditTitle, content: historyEditContent, tags: historyEditTags, seo_score: data.seoScore ?? c.seo_score }
           : c
         ))
         setHistoryEditMode(false)
@@ -1491,15 +1835,27 @@ export default function ContentPage() {
     }
   }
 
-  const copyHistoryContent = (c: { title: string; content: string }) => {
+  const copyHistoryContent = async (c: { id: string; title: string; content: string; status: string; target_keyword: string }) => {
     navigator.clipboard.writeText(c.title + '\n\n' + c.content)
     setHistoryCopied(true)
     setTimeout(() => setHistoryCopied(false), 2000)
+
+    // 자동 발행: draft 상태인 경우만 published로 전환
+    if (c.status === 'draft') {
+      await updateContentStatus(c.id, 'published')
+      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+    }
+
+    // 순위 트래킹 다이얼로그 표시
+    setTrackingKeyword(c.target_keyword)
+    setTrackingBlogUrl(userBlogUrl || '')
+    setTrackingResult(null)
+    setShowTrackingDialog(true)
   }
 
   const statusLabel: Record<string, { label: string; color: string }> = {
     draft: { label: '초안', color: 'bg-gray-100 text-gray-700' },
-    published: { label: '발행됨', color: 'bg-green-100 text-green-700' },
+    published: { label: '복사 완료', color: 'bg-green-100 text-green-700' },
     archived: { label: '보관됨', color: 'bg-yellow-100 text-yellow-700' },
   }
 
@@ -1697,7 +2053,7 @@ export default function ContentPage() {
                               {improving ? (
                                 <><Loader2 className="h-3 w-3 animate-spin" />개선 중</>
                               ) : (
-                                <><Sparkles className="h-3 w-3" />AI 약점 개선</>
+                                <><Sparkles className="h-3 w-3" />AI 약점 개선 (3크레딧)</>
                               )}
                             </Button>
                             <Button
@@ -1747,18 +2103,13 @@ export default function ContentPage() {
                             <Button size="sm" variant="outline" onClick={() => {
                               setHistoryEditTitle(selectedContent.title)
                               setHistoryEditContent(selectedContent.content)
+                              setHistoryEditTags(selectedContent.tags || [])
                               setShowHistoryRawMarkdown(false)
                               setHistoryEditMode(true)
                             }}>
                               <Pencil className="mr-1 h-3 w-3" />
                               편집
                             </Button>
-                            {selectedContent.status !== 'published' && (
-                              <Button size="sm" variant="outline" className="text-green-700" onClick={() => updateContentStatus(selectedContent.id, 'published')}>
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                발행
-                              </Button>
-                            )}
                             {selectedContent.status !== 'archived' && (
                               <Button size="sm" variant="outline" className="text-muted-foreground" onClick={() => updateContentStatus(selectedContent.id, 'archived')}>
                                 <Trash2 className="mr-1 h-3 w-3" />
@@ -1822,6 +2173,7 @@ export default function ContentPage() {
                                   keyword={selectedContent.target_keyword}
                                   title={historyEditTitle}
                                   content={historyEditContent}
+                                  additionalKeywords={historyEditTags.length > 0 ? historyEditTags : undefined}
                                   compact
                                 />
                               </div>
@@ -1837,6 +2189,7 @@ export default function ContentPage() {
                               keyword={selectedContent.target_keyword}
                               title={historyEditTitle}
                               content={historyEditContent}
+                              additionalKeywords={historyEditTags.length > 0 ? historyEditTags : undefined}
                               compact
                             />
                           </div>
@@ -1978,6 +2331,7 @@ export default function ContentPage() {
                     if (!isPromoMode) {
                       setContentType('local')
                       setIsPromoMode(true)
+                      setShowPromoDialog(true)
                     } else {
                       setIsPromoMode(false)
                     }
@@ -2060,115 +2414,262 @@ export default function ContentPage() {
               </div>
             )}
 
-            {/* 내 업체 홍보글 입력 폼 */}
-            {isPromoMode && (
-              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50/50 p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-orange-700">
-                  <Store className="h-4 w-4" />
-                  내 업체 정보 입력
+            {/* 참고 자료 첨부 (선택) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-amber-500" />
+                참고 자료 첨부
+                <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+              </Label>
+              <Textarea
+                placeholder="AI가 참고할 자료를 붙여넣으세요 (보도자료, 논문 요약, 제품 스펙 등). AI가 관련 부분만 선별하여 활용합니다."
+                value={refMaterialText}
+                onChange={(e) => {
+                  const val = e.target.value.substring(0, REF_MATERIAL_MAX_CHARS)
+                  setRefMaterialText(val)
+                  if (!refMaterialSource || refMaterialSource === '직접 입력') {
+                    setRefMaterialSource(val ? '직접 입력' : '')
+                  }
+                }}
+                disabled={loading || refMaterialLoading}
+                rows={3}
+                className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
+              />
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer">
+                  <input type="file" accept=".txt" className="hidden" onChange={handleRefFileTxt} disabled={loading || refMaterialLoading} />
+                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
+                    <FileText className="h-3 w-3" /> TXT
+                  </Badge>
+                </label>
+                <label className="cursor-pointer">
+                  <input type="file" accept=".pdf" className="hidden" onChange={handleRefFilePdf} disabled={loading || refMaterialLoading} />
+                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
+                    {refMaterialLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />} PDF
+                  </Badge>
+                </label>
+                {refMaterialText && (
+                  <button
+                    type="button"
+                    className="text-xs text-amber-500 hover:text-amber-700 underline"
+                    onClick={() => { setRefMaterialText(''); setRefMaterialSource('') }}
+                  >
+                    삭제
+                  </button>
+                )}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {refMaterialText.length.toLocaleString()} / {REF_MATERIAL_MAX_CHARS.toLocaleString()}자
+                  {refMaterialSource && <span className="ml-1 text-amber-600">({refMaterialSource})</span>}
+                </span>
+              </div>
+              <p className="text-xs text-amber-600/80">
+                AI가 키워드와 관련된 부분만 선별 활용하며, 활용/미사용 부분을 리포트합니다
+              </p>
+            </div>
+
+            {/* 이미지 첨부 + 설명 (선택) */}
+            <div className="space-y-2" onPaste={handleImagePaste}>
+              <Label className="flex items-center gap-1.5">
+                <ImagePlus className="h-3.5 w-3.5 text-emerald-500" />
+                이미지 첨부
+                <span className="text-xs font-normal text-muted-foreground">(선택, 최대 {MAX_ATTACHED_IMAGES}장)</span>
+              </Label>
+
+              {attachedImages.length > 0 && (
+                <div className="space-y-2">
+                  {attachedImages.map((img, idx) => (
+                    <div key={img.id} className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2">
+                      <img
+                        src={img.previewUrl}
+                        alt={`첨부 이미지 ${idx + 1}`}
+                        className="h-16 w-16 rounded object-cover shrink-0"
+                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-xs font-mono shrink-0">IMG-{idx + 1}</Badge>
+                          <span className="text-xs text-muted-foreground truncate">{img.file.name}</span>
+                        </div>
+                        <Input
+                          placeholder="이미지 설명 입력 (필수) — 예: 매장 외관 전경 사진"
+                          value={img.description}
+                          onChange={(e) => updateImageDescription(img.id, e.target.value)}
+                          disabled={loading}
+                          className={`text-xs h-7 ${!img.description.trim() ? 'border-red-300 focus:border-red-400' : 'border-emerald-200'}`}
+                        />
+                        {!img.description.trim() && (
+                          <p className="text-[10px] text-red-500">설명을 입력해야 AI가 이미지를 배치할 수 있습니다</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 h-6 w-6 p-0 text-muted-foreground hover:text-red-500"
+                        onClick={() => removeAttachedImage(img.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-name" className="text-sm">업체명 *</Label>
-                      <Input
-                        id="biz-name"
-                        placeholder="내 업체/매장 이름을 입력하세요"
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        disabled={loading}
-                      />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-address" className="text-sm">위치/주소</Label>
-                        <Input
-                          id="biz-address"
-                          placeholder="시/구/동 또는 상세 주소"
-                          value={businessAddress}
-                          onChange={(e) => setBusinessAddress(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-hours" className="text-sm">운영 시간</Label>
-                        <Input
-                          id="biz-hours"
-                          placeholder="평일/주말 운영 시간"
-                          value={businessHours}
-                          onChange={(e) => setBusinessHours(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-pricing" className="text-sm">가격 정보</Label>
-                        <Input
-                          id="biz-pricing"
-                          placeholder="대표 상품/서비스 가격대"
-                          value={businessPricing}
-                          onChange={(e) => setBusinessPricing(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="biz-contact" className="text-sm">연락처/예약</Label>
-                        <Input
-                          id="biz-contact"
-                          placeholder="전화번호 또는 예약 링크"
-                          value={businessContact}
-                          onChange={(e) => setBusinessContact(e.target.value)}
-                          disabled={loading}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-strengths" className="text-sm">강점/특징</Label>
-                      <Textarea
-                        id="biz-strengths"
-                        placeholder="우리 업체만의 차별점, 핵심 강점을 적어주세요"
-                        value={businessStrengths}
-                        onChange={(e) => setBusinessStrengths(e.target.value)}
-                        disabled={loading}
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="biz-topic" className="text-sm font-medium text-orange-700">
-                        글 주제/소재 (핵심!)
-                      </Label>
-                      <Textarea
-                        id="biz-topic"
-                        placeholder="어떤 주제의 글을 쓸지 자유롭게 입력하세요"
-                        value={businessTopic}
-                        onChange={(e) => setBusinessTopic(e.target.value)}
-                        disabled={loading}
-                        rows={2}
-                      />
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { label: '서비스 탐방', text: '대표 서비스 체험기 - 직접 방문해서 경험한 솔직한 후기' },
-                          { label: '시설 소개', text: '새로 리뉴얼한 매장 소개 - 깔끔한 인테리어와 편의시설' },
-                          { label: '이벤트 안내', text: '이번 달 특별 이벤트 안내 - 할인 및 무료 체험 정보' },
-                          { label: '고객 후기', text: '단골 고객의 솔직 후기 - 실제 이용자의 생생한 경험담' },
-                          { label: '전문가 칼럼', text: '업계 전문가가 알려주는 꿀팁 - 현장 노하우 공유' },
-                          { label: '일상/비하인드', text: '매장 운영 비하인드 - 사장님과 직원들의 소소한 일상' },
-                        ].map(({ label, text }) => (
-                          <button
-                            key={label}
-                            type="button"
-                            className="rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs text-orange-600 hover:bg-orange-100 transition-colors"
-                            onClick={() => setBusinessTopic(text)}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        칩을 클릭하면 예시가 자동 입력됩니다. 자유롭게 수정하세요!
-                      </p>
-                    </div>
+              )}
+
+              {attachedImages.length < MAX_ATTACHED_IMAGES && (
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleAttachImages}
+                    disabled={loading}
+                  />
+                  <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-emerald-200 p-3 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors">
+                    <ImagePlus className="h-4 w-4" />
+                    이미지 추가 ({attachedImages.length}/{MAX_ATTACHED_IMAGES})
                   </div>
+                </label>
+              )}
+              <p className="text-xs text-emerald-600/80">
+                각 이미지에 설명을 입력하면 AI가 본문의 적절한 위치에 배치합니다. Ctrl+V로 스크린샷 붙여넣기도 가능합니다.
+              </p>
+            </div>
+
+            {/* 내 업체 홍보글 — 입력 요약 + 수정 버튼 */}
+            {isPromoMode && (
+              <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/50 px-3 py-2">
+                <Store className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="text-sm truncate flex-1">
+                  {businessName ? <span className="font-medium text-orange-700">{businessName}</span> : <span className="text-muted-foreground">업체 정보를 입력하세요</span>}
+                  {businessAddress && <span className="text-muted-foreground"> · {businessAddress}</span>}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 text-xs h-7 border-orange-200 text-orange-600 hover:bg-orange-100"
+                  onClick={() => setShowPromoDialog(true)}
+                >
+                  {businessName ? '수정' : '입력'}
+                </Button>
               </div>
             )}
+
+            {/* 내 업체 홍보글 다이얼로그 */}
+            <Dialog open={showPromoDialog} onOpenChange={setShowPromoDialog}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-orange-700">
+                    <Store className="h-5 w-5" />
+                    내 업체 정보 입력
+                  </DialogTitle>
+                  <DialogDescription>
+                    입력한 정보를 바탕으로 AI가 자연스러운 홍보 블로그 글을 작성합니다.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-name" className="text-sm">업체명 *</Label>
+                    <Input
+                      id="biz-name"
+                      placeholder="내 업체/매장 이름을 입력하세요"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-address" className="text-sm">위치/주소</Label>
+                      <Input
+                        id="biz-address"
+                        placeholder="시/구/동 또는 상세 주소"
+                        value={businessAddress}
+                        onChange={(e) => setBusinessAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-hours" className="text-sm">운영 시간</Label>
+                      <Input
+                        id="biz-hours"
+                        placeholder="평일/주말 운영 시간"
+                        value={businessHours}
+                        onChange={(e) => setBusinessHours(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-pricing" className="text-sm">가격 정보</Label>
+                      <Input
+                        id="biz-pricing"
+                        placeholder="대표 상품/서비스 가격대"
+                        value={businessPricing}
+                        onChange={(e) => setBusinessPricing(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="biz-contact" className="text-sm">연락처/예약</Label>
+                      <Input
+                        id="biz-contact"
+                        placeholder="전화번호 또는 예약 링크"
+                        value={businessContact}
+                        onChange={(e) => setBusinessContact(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-strengths" className="text-sm">강점/특징</Label>
+                    <Textarea
+                      id="biz-strengths"
+                      placeholder="우리 업체만의 차별점, 핵심 강점을 적어주세요"
+                      value={businessStrengths}
+                      onChange={(e) => setBusinessStrengths(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="biz-topic" className="text-sm font-medium text-orange-700">
+                      글 주제/소재 (핵심!)
+                    </Label>
+                    <Textarea
+                      id="biz-topic"
+                      placeholder="어떤 주제의 글을 쓸지 자유롭게 입력하세요"
+                      value={businessTopic}
+                      onChange={(e) => setBusinessTopic(e.target.value)}
+                      rows={2}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '서비스 탐방', text: '대표 서비스 체험기 - 직접 방문해서 경험한 솔직한 후기' },
+                        { label: '시설 소개', text: '새로 리뉴얼한 매장 소개 - 깔끔한 인테리어와 편의시설' },
+                        { label: '이벤트 안내', text: '이번 달 특별 이벤트 안내 - 할인 및 무료 체험 정보' },
+                        { label: '고객 후기', text: '단골 고객의 솔직 후기 - 실제 이용자의 생생한 경험담' },
+                        { label: '전문가 칼럼', text: '업계 전문가가 알려주는 꿀팁 - 현장 노하우 공유' },
+                        { label: '일상/비하인드', text: '매장 운영 비하인드 - 사장님과 직원들의 소소한 일상' },
+                      ].map(({ label, text }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          className="rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs text-orange-600 hover:bg-orange-100 transition-colors"
+                          onClick={() => setBusinessTopic(text)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      칩을 클릭하면 예시가 자동 입력됩니다. 자유롭게 수정하세요!
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={() => setShowPromoDialog(false)}
+                    className="bg-orange-500 hover:bg-orange-600"
+                  >
+                    확인
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* 글 길이 */}
             <div className="space-y-2">
@@ -2190,6 +2691,11 @@ export default function ContentPage() {
                   </Badge>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {targetLength === 'short' && '모바일 최적화 · 핵심만 간결하게 전달하는 글'}
+                {targetLength === 'medium' && '💡 네이버 검색 상위노출에 가장 유리한 길이입니다'}
+                {targetLength === 'long' && '전문성 높은 심층 콘텐츠 · 체류시간 증가에 유리'}
+              </p>
             </div>
 
             {/* 톤앤매너 */}
@@ -2570,7 +3076,7 @@ export default function ContentPage() {
                 ) : (
                   <>
                     <Wand2 className="mr-2 h-4 w-4" />
-                    블로그 글 생성하기
+                    블로그 글 생성하기 (7크레딧)
                   </>
                 )}
               </Button>
@@ -2758,6 +3264,53 @@ export default function ContentPage() {
                 </ul>
               </details>
             )}
+            {/* 참고 자료 / 이미지 활용 리포트 */}
+            {(result.referenceUsageReport || result.imagePlacementReport) && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-amber-700 hover:text-amber-900 font-medium">
+                  참고 자료 / 이미지 활용 리포트
+                </summary>
+                <div className="mt-1.5 space-y-2">
+                  {result.referenceUsageReport && (
+                    <div className="rounded border border-amber-200 bg-amber-50/50 p-2 space-y-1">
+                      <p className="font-medium text-amber-800">참고 자료 활용</p>
+                      {result.referenceUsageReport.usedParts.length > 0 && (
+                        <ul className="list-disc pl-4 text-green-700">
+                          {result.referenceUsageReport.usedParts.map((p, i) => (
+                            <li key={i}>{p}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {result.referenceUsageReport.skippedParts.length > 0 && (
+                        <ul className="list-disc pl-4 text-orange-600">
+                          {result.referenceUsageReport.skippedParts.map((p, i) => (
+                            <li key={i}>{p.part} — <em>{p.reason}</em></li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {result.imagePlacementReport && (
+                    <div className="rounded border border-emerald-200 bg-emerald-50/50 p-2 space-y-1">
+                      <p className="font-medium text-emerald-800">이미지 배치 결과</p>
+                      {result.imagePlacementReport.used.length > 0 && (
+                        <p className="text-green-700">
+                          배치됨: {result.imagePlacementReport.used.map(n => `IMG-${n}`).join(', ')}
+                        </p>
+                      )}
+                      {result.imagePlacementReport.skipped.length > 0 && (
+                        <ul className="list-disc pl-4 text-orange-600">
+                          {result.imagePlacementReport.skipped.map((s, i) => (
+                            <li key={i}>IMG-{s.index}: {s.reason}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -3230,7 +3783,7 @@ export default function ContentPage() {
                                   {improving ? (
                                     <><Loader2 className="h-4 w-4 animate-spin" />개선 중...</>
                                   ) : (
-                                    <><Sparkles className="h-4 w-4" />AI 약점 개선</>
+                                    <><Sparkles className="h-4 w-4" />AI 약점 개선 (3크레딧)</>
                                   )}
                                 </Button>
                               </span>
@@ -3255,7 +3808,7 @@ export default function ContentPage() {
                                   {generatingImages ? (
                                     <><Loader2 className="h-4 w-4 animate-spin" />이미지 생성 중...</>
                                   ) : (
-                                    <><ImagePlus className="h-4 w-4" />AI 이미지 생성</>
+                                    <><ImagePlus className="h-4 w-4" />AI 이미지 생성 (1크레딧)</>
                                   )}
                                 </Button>
                               </span>
@@ -3341,6 +3894,7 @@ export default function ContentPage() {
                           keyword={keyword}
                           title={editTitle}
                           content={editContent}
+                          additionalKeywords={editTags.length > 0 ? editTags : undefined}
                           compact
                         />
                       </div>
@@ -3357,6 +3911,7 @@ export default function ContentPage() {
                       keyword={keyword}
                       title={editTitle}
                       content={editContent}
+                      additionalKeywords={editTags.length > 0 ? editTags : undefined}
                       compact
                     />
                   </div>
@@ -3492,6 +4047,81 @@ export default function ContentPage() {
               <ImagePlus className="mr-1 h-4 w-4" />
               {imageMarkers.filter(m => !m.isReal).length}장 생성하기
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 순위 트래킹 등록 다이얼로그 */}
+      <Dialog open={showTrackingDialog} onOpenChange={setShowTrackingDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              순위 트래킹 등록
+            </DialogTitle>
+            <DialogDescription>
+              블로그에 발행 후 이 키워드의 순위를 추적할까요?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>키워드</Label>
+              <Input value={trackingKeyword} readOnly className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label>블로그 URL</Label>
+              <Input
+                value={trackingBlogUrl}
+                onChange={(e) => setTrackingBlogUrl(e.target.value)}
+                placeholder="https://blog.naver.com/아이디"
+              />
+              {!trackingBlogUrl && (
+                <p className="text-xs text-muted-foreground">
+                  설정에서 블로그 URL을 등록하면 자동으로 입력됩니다
+                </p>
+              )}
+            </div>
+            {trackingResult && (
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                {trackingResult.rank ? (
+                  <div>
+                    <span className="text-2xl font-bold text-green-600">{trackingResult.rank}위</span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      ({trackingResult.section || '블로그'} 섹션)
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-lg font-medium text-muted-foreground">100위 밖</span>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowTrackingDialog(false)}>
+              나중에
+            </Button>
+            {!trackingResult ? (
+              <Button
+                onClick={handleTrackingRegister}
+                disabled={trackingLoading || !trackingBlogUrl.trim()}
+              >
+                {trackingLoading ? (
+                  <>
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    확인 중...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="mr-1 h-4 w-4" />
+                    순위 트래킹 등록 (1크레딧)
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button onClick={() => setShowTrackingDialog(false)}>
+                확인
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

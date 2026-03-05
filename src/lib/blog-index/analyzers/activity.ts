@@ -1,12 +1,11 @@
 /**
- * 블로그 지수 - 축3. 활동 신뢰도 (25점)
+ * 블로그 지수 - 축3. 활동 신뢰도 (20점)
  *
- * v11: '신뢰도' → '활동 신뢰도'. 규칙성 강화, 누적 기준 상향.
- * v11.2: 기준 대폭 상향 — 규칙성 CV<0.2, 빈도 주3-5최적, 최근성 1일=5점, 누적 1500+, 운영 5년+
+ * v12: 25→20 재분배 (반응/검색 강화). 규칙성 강화, 누적 기준 상향.
  *
- * 가점: 규칙성(8) + 빈도(6) + 최근 활동성(5) + 누적 포스팅(3) + 운영 기간(3) = 25
+ * 가점: 규칙성(6) + 빈도(5) + 최근 활동성(4) + 누적 포스팅(3) + 운영 기간(2) = 20
  * 감점: 스팸 키워드(-3) + 외부 링크 과다(-3) + 기계적 일괄 발행(-3) + 극단적 과다 발행(-2) = -11
- * 최종: clamp(가점 + 감점, 0, 25)
+ * 최종: clamp(가점 + 감점, 0, 20)
  */
 
 import { stripHtml, daysBetween, parsePostDate, extractKoreanKeywords } from '@/lib/utils/text'
@@ -45,7 +44,7 @@ export function analyzeTrust(
   actualBlogAgeDays?: number | null,
   scrapedData?: Map<string, ScrapedPostData> | null,
 ): { category: AnalysisCategory; frequency: string; recentPostDays: number | null } {
-  const maxScore = 25
+  const maxScore = 20
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
@@ -76,7 +75,8 @@ export function analyzeTrust(
     }
   }
 
-  // === 포스팅 규칙성 - 변동계수 (8점) === (v11.2 기준 상향)
+  // === 포스팅 규칙성 - 변동계수 (6점) ===
+  // v11.2: CV<0.2로 상향 (네이버 C-Rank가 규칙성을 강하게 가중)
   let regularityPts = 0
   if (dates.length >= 3) {
     const gaps: number[] = []
@@ -89,18 +89,15 @@ export function analyzeTrust(
     const cv = avgGap > 0 ? stdDev / avgGap : 0
 
     if (cv < 0.2) {
-      regularityPts = 8
-      details.push('포스팅 주기 매우 규칙적 (+8)')
-    } else if (cv < 0.35) {
       regularityPts = 6
-      details.push('포스팅 주기 규칙적 (+6)')
-    } else if (cv < 0.6) {
+      details.push('포스팅 주기 매우 규칙적 (+6)')
+    } else if (cv < 0.35) {
       regularityPts = 4
-      details.push('포스팅 주기 비교적 규칙적 (+4)')
-    } else if (cv < 1.0) {
-      regularityPts = 2
-      details.push('포스팅 주기 다소 불규칙 (+2)')
-    } else if (cv < 2.0) {
+      details.push('포스팅 주기 규칙적 (+4)')
+    } else if (cv < 0.6) {
+      regularityPts = 3
+      details.push('포스팅 주기 비교적 규칙적 (+3)')
+    } else if (cv < 1.5) {
       regularityPts = 1
       details.push('포스팅 주기 불규칙 - 꾸준한 발행이 C-Rank에 도움됩니다 (+1)')
     } else {
@@ -110,57 +107,55 @@ export function analyzeTrust(
   score += regularityPts
   items.push({ label: '포스팅 규칙성', points: regularityPts })
 
-  // === 포스팅 빈도 (6점) - 범위 기반 === (v11.2 기준 상향)
+  // === 포스팅 빈도 (5점) - 범위 기반 ===
   let freqPts = 0
   if (dates.length >= 2) {
     const totalDays = daysBetween(dates[0], dates[dates.length - 1]) || 1
     const postsPerWeek = (dates.length / totalDays) * 7
 
+    // v11.2: 주3-5회 최적 (과다 발행 페널티 강화)
     if (postsPerWeek >= 3 && postsPerWeek <= 5) {
-      freqPts = 6
-      frequency = `주 ${postsPerWeek.toFixed(1)}회 (최적)`
-      details.push(`포스팅 빈도: ${frequency} (+6)`)
-    } else if (postsPerWeek > 5 && postsPerWeek <= 7) {
       freqPts = 5
-      frequency = `주 ${postsPerWeek.toFixed(1)}회 (약간 많음)`
+      frequency = `주 ${postsPerWeek.toFixed(1)}회 (최적)`
       details.push(`포스팅 빈도: ${frequency} (+5)`)
+    } else if (postsPerWeek > 5 && postsPerWeek <= 7) {
+      freqPts = 4
+      frequency = `주 ${postsPerWeek.toFixed(1)}회 (양호)`
+      details.push(`포스팅 빈도: ${frequency} (+4)`)
     } else if (postsPerWeek >= 2 && postsPerWeek < 3) {
-      freqPts = 3
+      freqPts = 2
       frequency = `주 ${postsPerWeek.toFixed(1)}회`
-      details.push(`포스팅 빈도: ${frequency} - 주 3회 이상을 권장합니다 (+3)`)
+      details.push(`포스팅 빈도: ${frequency} - 주 3회 이상을 권장합니다 (+2)`)
     } else if (postsPerWeek > 7 && postsPerWeek <= 14) {
-      freqPts = 3
+      freqPts = 2
+      frequency = `주 ${postsPerWeek.toFixed(1)}회 (다소 많음)`
+      details.push(`포스팅 빈도: ${frequency} - 양보다 질이 중요합니다 (+2)`)
+    } else if (postsPerWeek > 14) {
+      freqPts = 1
       frequency = `주 ${postsPerWeek.toFixed(1)}회 (과다)`
-      details.push(`포스팅 빈도: ${frequency} - 양보다 질이 중요합니다 (+3)`)
-    } else if (postsPerWeek >= 1 && postsPerWeek < 2) {
+      details.push(`포스팅 빈도: ${frequency} - 과도한 발행은 품질에 영향 (+1)`)
+    } else {
       freqPts = 1
       frequency = `주 ${postsPerWeek.toFixed(1)}회 (부족)`
       details.push(`포스팅 빈도: ${frequency} - 주 3회 이상을 권장합니다 (+1)`)
-    } else if (postsPerWeek > 14) {
-      freqPts = 1
-      frequency = `주 ${postsPerWeek.toFixed(1)}회 (심각 과다)`
-      details.push(`포스팅 빈도: ${frequency} - AI 대량 발행 의심 (+1)`)
-    } else {
-      freqPts = 0
-      frequency = `주 ${postsPerWeek.toFixed(1)}회 (매우 부족)`
-      details.push(`포스팅 빈도: ${frequency} (+0)`)
     }
   }
   score += freqPts
   items.push({ label: `포스팅 빈도 (${frequency})`, points: freqPts })
 
-  // === 최근 활동성 (5점) === (v11.2 기준 상향)
+  // === 최근 활동성 (4점) ===
+  // v11.2: 1일내=4점으로 상향 (최신 활동을 더 엄격하게 반영)
   let recentPts = 0
   recentPostDays = daysBetween(now, dates[0])
   if (recentPostDays <= 1) {
-    recentPts = 5
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (매우 활발) (+5)`)
-  } else if (recentPostDays <= 3) {
     recentPts = 4
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (활발) (+4)`)
-  } else if (recentPostDays <= 7) {
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (매우 활발) (+4)`)
+  } else if (recentPostDays <= 3) {
     recentPts = 3
-    details.push(`최근 포스팅: ${recentPostDays}일 전 (양호) (+3)`)
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (활발) (+3)`)
+  } else if (recentPostDays <= 7) {
+    recentPts = 2
+    details.push(`최근 포스팅: ${recentPostDays}일 전 (양호) (+2)`)
   } else if (recentPostDays <= 14) {
     recentPts = 1
     details.push(`최근 포스팅: ${recentPostDays}일 전 (보통) (+1)`)
@@ -171,10 +166,11 @@ export function analyzeTrust(
   score += recentPts
   items.push({ label: `최근 활동 (${recentPostDays}일 전)`, points: recentPts })
 
-  // === 누적 포스팅 수 (3점) === (v11.2 기준 상향)
+  // === 누적 포스팅 수 (3점) ===
   const totalPostCount = blogProfileData?.totalPostCount ?? posts.length
   let postCountPts = 0
 
+  // v11.2: 1500+ 최우수 (기존 1000+ 상향)
   if (totalPostCount >= 1500) {
     postCountPts = 3
     details.push(`누적 포스팅: ${totalPostCount.toLocaleString()}개 (최우수) (+3)`)
@@ -201,13 +197,11 @@ export function analyzeTrust(
       ? `${Math.floor(activeSpanDays / 365)}년 ${Math.floor((activeSpanDays % 365) / 30)}개월`
       : `${Math.floor(activeSpanDays / 30)}개월`
 
-    if (activeSpanDays >= 1825) { // 5년+ (v11.2 상향)
-      agePts = 3
-      details.push(`운영 기간: ${label} (최우수) (+3)`)
-    } else if (activeSpanDays >= 1095) { // 3년+
+    // v11.2: 5년+ 최우수 (기존 3년+ 상향)
+    if (activeSpanDays >= 1825) { // 5년+
       agePts = 2
-      details.push(`운영 기간: ${label} (우수) (+2)`)
-    } else if (activeSpanDays >= 365) { // 1년+
+      details.push(`운영 기간: ${label} (최우수) (+2)`)
+    } else if (activeSpanDays >= 1095) { // 3년+
       agePts = 1
       details.push(`운영 기간: ${label} (양호) (+1)`)
     } else {
@@ -332,7 +326,7 @@ export function analyzeTrust(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
+  const grade = score >= 16 ? 'S' : score >= 12 ? 'A' : score >= 8 ? 'B' : score >= 4 ? 'C' : 'D'
 
   return {
     category: { name: '활동 신뢰도', score, maxScore, grade, details, items },

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
 
-    const { contentId, title, content } = await request.json()
+    const { contentId, title, content, tags } = await request.json()
 
     if (!contentId) {
       return NextResponse.json({ error: '콘텐츠 ID가 필요합니다.' }, { status: 400 })
@@ -36,13 +36,16 @@ export async function POST(request: NextRequest) {
 
     if (title !== undefined) updateData.title = title
     if (content !== undefined) updateData.content = content
+    if (Array.isArray(tags)) updateData.tags = tags
 
     // 콘텐츠가 변경되면 SEO 점수 재계산
     if (content !== undefined) {
+      const additionalKeywords = Array.isArray(tags) && tags.length > 0 ? tags : undefined
       const seoResult = analyzeSeo(
         existing.target_keyword,
         title || existing.target_keyword,
-        content
+        content,
+        additionalKeywords
       )
       updateData.seo_score = seoResult.totalScore
     }

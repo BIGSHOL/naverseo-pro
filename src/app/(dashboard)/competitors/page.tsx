@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { KeywordSearch } from '@/components/keywords/keyword-search'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
+import { creditToast } from '@/lib/credit-toast'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
@@ -255,6 +256,7 @@ export default function CompetitorsPage() {
             setDifficulty((data.difficulty as DifficultyAssessment) || null)
             setTitlePatterns((data.titlePatterns as TitlePatternWord[]) || [])
             setIsDemo((data.isDemo as boolean) || false)
+            creditToast('competitor_analysis')
           },
           onError: (err) => setError(err),
         })
@@ -266,6 +268,7 @@ export default function CompetitorsPage() {
         setDifficulty(data.difficulty || null)
         setTitlePatterns(data.titlePatterns || [])
         setIsDemo(data.isDemo || false)
+        creditToast('competitor_analysis')
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')

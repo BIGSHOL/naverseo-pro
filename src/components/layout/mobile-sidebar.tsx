@@ -9,11 +9,12 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
+import { pathToFeatureKey } from '@/lib/features'
 import { useUserProfile } from '@/contexts/user-profile'
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
-  const { plan, role } = useUserProfile()
+  const { plan, role, disabledFeatures } = useUserProfile()
   const pathname = usePathname()
 
   return (
@@ -37,7 +38,10 @@ export function MobileSidebar() {
                   </p>
                 )}
                 <div className="space-y-1">
-                  {group.items.map((item) => {
+                  {group.items.filter((item) => {
+                    const fk = pathToFeatureKey(item.href)
+                    return !fk || !disabledFeatures.includes(fk)
+                  }).map((item) => {
                     const isActive = pathname === item.href
                     const locked = !canAccessFeature(plan, item.minPlan)
                     return (

@@ -452,7 +452,18 @@ ${trendAdvice}`
 }
 
 // Supabase에 생성된 콘텐츠 저장 + 사용량 증가
-async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[]) {
+interface SaveContentMetadata {
+  metaDescription?: string
+  enrichment?: Record<string, unknown>
+  validation?: { score: number; warnings: string[]; errors: string[]; isValid: boolean }
+  scoreBefore?: number
+  scoreAfter?: number
+  optimizations?: string[]
+  referenceUsageReport?: unknown
+  imagePlacementReport?: unknown
+}
+
+async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[], tags?: string[], metadata?: SaveContentMetadata) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = createClient()
@@ -462,7 +473,22 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 
     const seoScore = calculateBasicSeoScore(keyword, title, content, additionalKeywords)
 
-    // 콘텐츠 저장 (SEO 점수 포함)
+    // seo_feedback JSONB에 메타데이터 저장
+    const seoFeedback: Record<string, unknown> = {}
+    if (metadata?.metaDescription) seoFeedback.metaDescription = metadata.metaDescription
+    if (metadata?.enrichment) seoFeedback.enrichment = metadata.enrichment
+    if (metadata?.validation) seoFeedback.validation = metadata.validation
+    if (metadata?.optimizations && metadata.optimizations.length > 0) {
+      seoFeedback.autoOptimization = {
+        scoreBefore: metadata.scoreBefore,
+        scoreAfter: metadata.scoreAfter,
+        optimizations: metadata.optimizations,
+      }
+    }
+    if (metadata?.referenceUsageReport) seoFeedback.referenceUsageReport = metadata.referenceUsageReport
+    if (metadata?.imagePlacementReport) seoFeedback.imagePlacementReport = metadata.imagePlacementReport
+
+    // 콘텐츠 저장 (SEO 점수 + 메타데이터 포함)
     const { data } = await supabase.from('generated_content').insert({
       user_id: user.id,
       target_keyword: keyword,
@@ -470,6 +496,9 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
       content,
       status: 'draft',
       seo_score: seoScore,
+      tags: tags && tags.length > 0 ? tags : [],
+      meta_description: metadata?.metaDescription || null,
+      seo_feedback: Object.keys(seoFeedback).length > 0 ? seoFeedback : null,
     }).select('id').single()
 
     // 크레딧 차감
@@ -483,6 +512,7 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
 }
 
 export async function POST(request: NextRequest) {
+  const routeStartMs = Date.now()
   try {
     // 인증 체크
     const { createClient } = await import('@/lib/supabase/server')
@@ -505,7 +535,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions, domainCategory, customDomain } = await request.json()
+    const { keyword, tone = '친근하고 정보적인', additionalKeywords = [], contentType: requestedType, targetLength, includeFaq, referenceAnalysis, businessInfo, contentDirection, advancedOptions, domainCategory, customDomain, referenceMaterial, attachedImages } = await request.json()
 
     if (!keyword || keyword.trim().length === 0) {
       return NextResponse.json(
@@ -527,12 +557,25 @@ export async function POST(request: NextRequest) {
       domainCategory: domainCategory || detectDomainCategory(keyword.trim()) || undefined,
       customDomain: domainCategory === 'other' && typeof customDomain === 'string' ? customDomain.trim() || undefined : undefined,
       advancedOptions: advancedOptions || undefined,
+      referenceMaterial: referenceMaterial?.text?.trim() ? {
+        text: referenceMaterial.text.trim().substring(0, 5000),
+        source: referenceMaterial.source || '직접 입력',
+      } : undefined,
+      attachedImages: Array.isArray(attachedImages) && attachedImages.length > 0
+        ? (attachedImages as { index?: number; description?: string }[])
+            .slice(0, 5)
+            .map((img, idx) => ({
+              index: img.index || idx + 1,
+              description: typeof img.description === 'string' ? img.description.trim() : '',
+            }))
+            .filter(img => img.description)
+        : undefined,
     }
 
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
     if (!hasAiApiKey(provider)) {
       const demo = generateDemoContent(contentRequest)
-      const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content, contentRequest.additionalKeywords)
+      const saved = await saveGeneratedContent(keyword.trim(), demo.title, demo.content, contentRequest.additionalKeywords, demo.tags)
       return NextResponse.json({
         ...demo,
         contentId: saved?.id,
@@ -746,6 +789,37 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
 위 구조를 참고하되, 동일한 내용 복사가 아닌 키워드에 맞는 독창적인 콘텐츠를 작성하세요.`
           }
 
+          // 사용자 첨부 참고 자료 주입
+          if (contentRequest.referenceMaterial?.text) {
+            userMessage += `\n\n## 📎 사용자 제공 참고 자료 (출처: ${contentRequest.referenceMaterial.source})
+다음은 사용자가 제공한 참고 자료입니다. 이 자료를 **선별적으로** 활용하세요:
+- 키워드 "${trimmedKeyword}"와 콘텐츠 방향에 관련된 부분만 참고하여 반영하세요
+- 관련 없는 부분은 과감히 무시하세요
+- 자료 내용을 그대로 복사하지 말고, 블로그 글 톤에 맞게 재구성하세요
+- JSON 응답의 "referenceUsageReport" 필드에 활용/미사용 부분을 보고하세요
+
+--- 참고 자료 시작 ---
+${contentRequest.referenceMaterial.text}
+--- 참고 자료 끝 ---`
+          }
+
+          // 사용자 첨부 이미지 설명 주입
+          if (contentRequest.attachedImages && contentRequest.attachedImages.length > 0) {
+            const imageList = contentRequest.attachedImages
+              .map(img => `- [IMG-${img.index}]: ${img.description}`)
+              .join('\n')
+            userMessage += `\n\n## 📷 사용자 첨부 이미지
+사용자가 다음 이미지들을 첨부했습니다. 본문의 적절한 위치에 [IMG-N] 마커를 배치하세요:
+${imageList}
+
+배치 규칙:
+- 각 이미지의 설명을 읽고, 본문 내용과 맥락이 맞는 위치에 [IMG-N] 마커를 배치하세요
+- 본문 맥락에 맞지 않는 이미지는 배치하지 마세요
+- [IMG-N] 마커는 별도 줄에 단독으로 배치하세요
+- 기존 [이미지: 설명] 마커와 별개로, 사용자 첨부 이미지는 [IMG-N] 형식만 사용하세요
+- JSON 응답의 "imagePlacementReport" 필드에 배치/미배치 이미지를 보고하세요`
+          }
+
           // enrichment 메타데이터
           const enrichment: Record<string, unknown> = {}
           if (keywordsRef) {
@@ -769,10 +843,32 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
           send({ type: 'progress', step: 3, totalSteps: 6, message: 'AI 콘텐츠 생성 중...' })
 
           try {
-            const onDelta = (delta: string) => send({ type: 'stream', delta })
+            // AI 타임아웃: Vercel 60초 - 경과시간 - 후처리 여유 15초
+            const elapsed = Date.now() - routeStartMs
+            const aiTimeoutMs = Math.max(10000, (maxDuration * 1000) - elapsed - 15000)
+
+            // 스트리밍 버퍼: 50자 이상 모이거나 80ms 경과 시 flush → 부드러운 UX
+            let streamBuf = ''
+            let flushTimer: ReturnType<typeof setTimeout> | null = null
+            const flushStream = () => {
+              if (streamBuf) {
+                send({ type: 'stream', delta: streamBuf })
+                streamBuf = ''
+              }
+              if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+            }
+            const onDelta = (delta: string) => {
+              streamBuf += delta
+              if (streamBuf.length >= 50) {
+                flushStream()
+              } else if (!flushTimer) {
+                flushTimer = setTimeout(flushStream, 80)
+              }
+            }
             const response = provider === 'gemini'
-              ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048 }, onDelta)
-              : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true }, onDelta)
+              ? await callGeminiStream(systemPrompt, userMessage, 4096, { jsonMode: true, thinkingBudget: 2048, timeoutMs: aiTimeoutMs }, onDelta)
+              : await callClaudeStream(systemPrompt, userMessage, 4096, { jsonMode: true, timeoutMs: aiTimeoutMs }, onDelta)
+            flushStream() // 남은 버퍼 즉시 전송
 
             // Step 4/6: SEO 분석 + 후처리
             send({ type: 'progress', step: 4, totalSteps: 6, message: 'SEO 자동 최적화 중...' })
@@ -782,9 +878,37 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               content: string
               tags: string[]
               metaDescription?: string
+              referenceUsageReport?: {
+                usedParts: string[]
+                skippedParts: Array<{ part: string; reason: string }>
+              }
+              imagePlacementReport?: {
+                used: number[]
+                skipped: Array<{ index: number; reason: string }>
+              }
             }>(response)
 
             const processedResult = postProcessContent(contentRequest, parsed)
+
+            // 사용자 첨부 이미지가 있으면 [IMG-N] 근처의 [이미지: ...] 마커 제거 (중복 방지)
+            if (contentRequest.attachedImages && contentRequest.attachedImages.length > 0) {
+              const lines = processedResult.content.split('\n')
+              const imgMarkerLines = new Set<number>()
+              // [IMG-N] 위치 찾기
+              lines.forEach((line, i) => {
+                if (/\[IMG-\d+\]/.test(line)) {
+                  // 위아래 2줄 이내의 [이미지: ...] 마커를 제거 대상으로
+                  for (let j = Math.max(0, i - 2); j <= Math.min(lines.length - 1, i + 2); j++) {
+                    if (/^\s*\[이미지:\s*.+\]\s*$/.test(lines[j])) {
+                      imgMarkerLines.add(j)
+                    }
+                  }
+                }
+              })
+              if (imgMarkerLines.size > 0) {
+                processedResult.content = lines.filter((_, i) => !imgMarkerLines.has(i)).join('\n')
+              }
+            }
 
             // 로컬 자동 최적화 (API 비용 0)
             const optimizeResult = autoOptimizeContent(
@@ -839,10 +963,8 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               validation.score = Math.max(0, validation.score - 20)
             }
 
-            // Step 6/6: 저장
+            // Step 6/6: result를 먼저 전송 (Vercel 60초 타임아웃 방지)
             send({ type: 'progress', step: 6, totalSteps: 6, message: '저장 중...' })
-
-            const saved = await saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords)
 
             send({
               type: 'result',
@@ -852,7 +974,6 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               tags: optimizeResult.tags,
               metaDescription: optimizeResult.metaDescription,
               isDemo: false,
-              contentId: saved?.id,
               seoScore: optimizeResult.scoreAfter,
               enrichment: hasEnrichment ? enrichment : undefined,
               unknownKeyword: isUnknownKeyword || undefined,
@@ -866,7 +987,23 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
               optimizations: optimizeResult.optimizations,
               scoreBefore: optimizeResult.scoreBefore,
               scoreAfter: optimizeResult.scoreAfter,
+              referenceUsageReport: parsed.referenceUsageReport || undefined,
+              imagePlacementReport: parsed.imagePlacementReport || undefined,
             })
+
+            // DB 저장은 result 전송 후 비동기 (타임아웃되어도 사용자는 콘텐츠 수신 완료)
+            saveGeneratedContent(trimmedKeyword, optimizeResult.title, optimizeResult.content, contentRequest.additionalKeywords, optimizeResult.tags, {
+              metaDescription: optimizeResult.metaDescription,
+              enrichment: hasEnrichment ? enrichment : undefined,
+              validation: { score: validation.score, warnings: validation.warnings, errors: validation.errors, isValid: validation.isValid },
+              scoreBefore: optimizeResult.scoreBefore,
+              scoreAfter: optimizeResult.scoreAfter,
+              optimizations: optimizeResult.optimizations,
+              referenceUsageReport: parsed.referenceUsageReport,
+              imagePlacementReport: parsed.imagePlacementReport,
+            })
+              .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
+              .catch(err => console.error('[Content] DB 저장 실패 (result는 전송됨):', err))
           } catch (aiError) {
             const aiMsg = aiError instanceof Error ? aiError.message : String(aiError)
 
@@ -877,15 +1014,15 @@ ${searchEnrichment.realProductNames.map((name, i) => `${i + 1}. ${name}`).join('
 
             if (aiMsg.includes('JSON') || aiMsg.includes('파싱')) {
               const demo = generateDemoContent(contentRequest)
-              const saved = await saveGeneratedContent(trimmedKeyword, demo.title, demo.content)
               send({
                 type: 'result',
                 ...demo,
-                contentId: saved?.id,
-                seoScore: saved?.seoScore,
                 isDemo: true,
                 notice: 'AI 응답 형식 오류로 데모 콘텐츠를 대신 생성했습니다.',
               })
+              saveGeneratedContent(trimmedKeyword, demo.title, demo.content, contentRequest.additionalKeywords, demo.tags)
+                .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
+                .catch(err => console.error('[Content] 데모 저장 실패:', err))
               return
             }
 

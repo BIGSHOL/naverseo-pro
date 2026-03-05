@@ -100,7 +100,7 @@ export async function callGeminiStream(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number = 4096,
-  options?: { jsonMode?: boolean; thinkingBudget?: number },
+  options?: { jsonMode?: boolean; thinkingBudget?: number; timeoutMs?: number },
   onChunk?: (delta: string) => void
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
@@ -128,8 +128,8 @@ export async function callGeminiStream(
 
   try {
     const controller = new AbortController()
-    // 스트리밍은 전체 완료까지 시간이 필요 (thinking + 긴 콘텐츠 출력)
-    const timer = setTimeout(() => controller.abort(), 120000)
+    const timeout = options?.timeoutMs ?? 45000
+    const timer = setTimeout(() => controller.abort(), timeout)
 
     const res = await fetch(url, {
       method: 'POST',
@@ -353,7 +353,7 @@ export async function callClaudeStream(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number = 4096,
-  options?: { jsonMode?: boolean },
+  options?: { jsonMode?: boolean; timeoutMs?: number },
   onChunk?: (delta: string) => void
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
@@ -362,7 +362,8 @@ export async function callClaudeStream(
     throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.')
   }
 
-  const client = new Anthropic({ apiKey, timeout: 120000 })
+  const timeout = options?.timeoutMs ?? 45000
+  const client = new Anthropic({ apiKey, timeout })
 
   try {
     let fullText = ''

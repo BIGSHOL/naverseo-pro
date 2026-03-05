@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { ensureUrl } from '@/lib/utils/text'
+import { creditToast } from '@/lib/credit-toast'
 
 interface PostCheckResult {
   title: string
@@ -68,6 +69,7 @@ export default function PostCheckPage() {
       }
 
       setResult(data)
+      creditToast('post_check')
     } catch {
       setError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
@@ -117,7 +119,7 @@ export default function PostCheckPage() {
                 ) : (
                   <>
                     <FileSearch className="mr-2 h-4 w-4" />
-                    누락 조회 시작
+                    누락 조회 시작 (2크레딧)
                   </>
                 )}
               </Button>

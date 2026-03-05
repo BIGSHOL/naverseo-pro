@@ -30,7 +30,7 @@ argument-hint: "[선택사항: 특정 스킬 이름 또는 집중할 영역]"
 
 | 스킬 | 설명 | 커버 파일 패턴 |
 |------|------|---------------|
-| `verify-api-routes` | API Route 에러 처리/입력 검증/데모 폴백/한국어 메시지 검증 | `src/app/api/**/*.ts`, `src/lib/ai/*.ts`, `src/lib/ai/prompts/*.ts`, `src/lib/naver/*.ts`, `src/lib/lemonsqueezy/*.ts`, `src/app/api/webhooks/**/*.ts`, `src/app/api/profile/**/*.ts` |
+| `verify-api-routes` | API Route 에러 처리/입력 검증/데모 폴백/한국어 메시지 검증 | `src/app/api/**/*.ts`, `src/lib/ai/*.ts`, `src/lib/ai/prompts/*.ts`, `src/lib/naver/*.ts`, `src/lib/lemonsqueezy/*.ts`, `src/app/api/webhooks/**/*.ts`, `src/app/api/profile/**/*.ts`, `src/lib/content/validators.ts` |
 | `verify-dashboard-pages` | 대시보드/인증 페이지 클라이언트 선언/한국어 UI/shadcn-ui/로딩 상태/UserProfileContext 검증 | `src/app/(dashboard)/**/*.tsx`, `src/app/(auth)/**/*.tsx`, `src/components/layout/*.tsx`, `src/contexts/user-profile.tsx`, `src/lib/navigation.ts` |
 | `verify-landing-pages` | 랜딩 페이지 한국어 마케팅 텍스트/가격 일관성/shadcn-ui/아이콘 통일 검증 | `src/components/landing/*.tsx`, `src/components/faq/*.tsx`, `src/app/page.tsx` |
 | `verify-plan-limits` | 통합 크레딧 시스템 일관 적용 검증 | `src/app/api/**/*.ts`, `src/lib/credit-check.ts`, `src/types/database.ts`, `src/app/api/credits/route.ts`, `src/app/(dashboard)/credits/page.tsx` |
