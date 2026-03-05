@@ -157,6 +157,15 @@ export interface AiAnalysis {
   adjustmentReason: string   // 보정 이유
 }
 
+/** v13: 노출 검증 보정 결과 */
+export interface ExposureVerification {
+  status: 'verified' | 'partial' | 'unverified'
+  discount: number        // 감점 (0~10)
+  message: string         // 사용자 표시 메시지
+  internalPct: number     // 내부 4축 달성률 (0~100)
+  searchPct: number       // 검색 노출 달성률 (0~100)
+}
+
 export interface BlogIndexResult {
   blogUrl: string
   blogId: string | null
@@ -165,6 +174,7 @@ export interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty: AbusePenalty       // v2 추가
   aiAnalysis?: AiAnalysis          // v2.5 추가 (AI 심층 분석)
+  exposureVerification?: ExposureVerification  // v13: 노출 검증 보정
   searchBonus?: {                   // v10 레거시 — v11에서 폐지 (하위 호환)
     score: number
     maxScore: number

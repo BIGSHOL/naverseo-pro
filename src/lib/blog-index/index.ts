@@ -45,6 +45,7 @@ export type {
   BenchmarkData,
   AbusePenalty,
   AiAnalysis,
+  ExposureVerification,
   BlogIndexResult,
   NaverAlgorithmScore,
   NaverScoreFactor,

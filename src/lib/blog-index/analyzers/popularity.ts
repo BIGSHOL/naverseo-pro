@@ -1,10 +1,10 @@
 /**
- * 블로그 지수 - 축4. 사용자 반응 (10점)
+ * 블로그 지수 - 축4. 사용자 반응 (15점)
  *
- * v11: 25점 → 10점 대폭 축소. 조작 가능 지표의 영향력 최소화.
+ * v12: 10→15 재분배. 댓글/공감/체류시간의 영향력 강화.
  *      무상 점수 폐지 — 데이터 미제공 시 0점.
  *
- * 댓글 참여(3) + 공감 참여(2) + 이웃/구독자(2) + 체류 시간(3) = 10점
+ * 댓글 참여(5) + 공감 참여(3) + 이웃/구독자(3) + 체류 시간(4) = 15점
  * 방문자 수 → 0점 (조회용으로만 표시)
  * 감점: 체류시간 저하 패턴(-1) + 광고성 콘텐츠 과다(-1) = -2
  *
@@ -28,7 +28,7 @@ export function analyzePopularity(
   recentPosts?: PostDetail[] | null,
   scrapedData?: Map<string, ScrapedPostData> | null,
 ): AnalysisCategory {
-  const maxScore = 10
+  const maxScore = 15
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
@@ -44,19 +44,19 @@ export function analyzePopularity(
     items.push({ label: `${visitorLabel} ${avg.toLocaleString()}명 (참고)`, points: 0 })
   }
 
-  // === 평균 댓글 수 (3점) ===
+  // === 평균 댓글 수 (5점) ===
   let commentPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgCommentCount !== null) {
     const avgComments = engagementData.avgCommentCount
     if (avgComments >= 10) {
-      commentPts = 3
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+3)`)
+      commentPts = 5
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+5)`)
     } else if (avgComments >= 5) {
-      commentPts = 2
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+2)`)
+      commentPts = 3
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+3)`)
     } else if (avgComments >= 2) {
-      commentPts = 1
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+1)`)
+      commentPts = 2
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+2)`)
     } else {
       commentPts = 0
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족) (+0)`)
@@ -70,16 +70,16 @@ export function analyzePopularity(
   }
   score += commentPts
 
-  // === 평균 공감 수 (2점) ===
+  // === 평균 공감 수 (3점) ===
   let sympathyPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgSympathyCount !== null) {
     const avgSympathy = engagementData.avgSympathyCount
     if (avgSympathy >= 15) {
-      sympathyPts = 2
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+2)`)
+      sympathyPts = 3
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+3)`)
     } else if (avgSympathy >= 5) {
-      sympathyPts = 1
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+1)`)
+      sympathyPts = 2
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+2)`)
     } else {
       sympathyPts = 0
       details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족) (+0)`)
@@ -93,16 +93,16 @@ export function analyzePopularity(
   }
   score += sympathyPts
 
-  // === 이웃/구독자 수 (2점) ===
+  // === 이웃/구독자 수 (3점) ===
   let buddyPts = 0
   const buddyCount = blogProfileData?.buddyCount ?? blogProfileData?.subscriberCount ?? null
   if (buddyCount !== null) {
     if (buddyCount >= 1000) {
-      buddyPts = 2
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+2)`)
+      buddyPts = 3
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+3)`)
     } else if (buddyCount >= 300) {
-      buddyPts = 1
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+1)`)
+      buddyPts = 2
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+2)`)
     } else {
       buddyPts = 0
       details.push(`이웃: ${buddyCount.toLocaleString()}명 (부족) (+0)`)
@@ -114,7 +114,7 @@ export function analyzePopularity(
   }
   score += buddyPts
 
-  // === 예상 체류 시간 (3점) ===
+  // === 예상 체류 시간 (4점) ===
   let dwellPts = 0
   if (recentPosts && recentPosts.length > 0) {
     const withTime = recentPosts.filter(p => p.estimatedReadTimeSec != null)
@@ -123,11 +123,11 @@ export function analyzePopularity(
       const avgMin = avgSec / 60
 
       if (avgMin >= 5) {
-        dwellPts = 3
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수) (+3)`)
+        dwellPts = 4
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (우수) (+4)`)
       } else if (avgMin >= 3) {
-        dwellPts = 2
-        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호) (+2)`)
+        dwellPts = 3
+        details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (양호) (+3)`)
       } else if (avgMin >= 1) {
         dwellPts = 1
         details.push(`예상 체류 시간: 평균 ${avgMin.toFixed(1)}분 (보통) (+1)`)
@@ -180,7 +180,7 @@ export function analyzePopularity(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 8 ? 'S' : score >= 6 ? 'A' : score >= 4 ? 'B' : score >= 2 ? 'C' : 'D'
+  const grade = score >= 12 ? 'S' : score >= 9 ? 'A' : score >= 6 ? 'B' : score >= 3 ? 'C' : 'D'
 
   return { name: '사용자 반응', score, maxScore, grade, details, items }
 }

@@ -1,11 +1,11 @@
 /**
- * 블로그 지수 - 축1. 주제 전문성 (30점)
+ * 블로그 지수 - 축1. 주제 전문성 (25점)
  *
- * v11: C-Rank 알고리즘 핵심 축. content-quality에서 주제/일관성 코드를 이동 + 확장.
+ * v12: 30→25 재분배 (반응/검색 강화). C-Rank 알고리즘 핵심 축.
  *
- * 가점: 주제 일관성(10) + 카테고리 집중도(8) + 시리즈 연속성(5) + 전문 용어(4) + 품질 일관성(3) = 30
+ * 가점: 주제 일관성(8) + 카테고리 집중도(7) + 시리즈 연속성(4) + 전문 용어(3) + 품질 일관성(3) = 25
  * 감점: 제목 유사도(-3) + 콘텐츠 중복(-3) = -6
- * 최종: clamp(가점 + 감점, 0, 30)
+ * 최종: clamp(가점 + 감점, 0, 25)
  */
 
 import { stripHtml, extractKoreanKeywords, jaccardSimilarity, parsePostDate, daysBetween } from '@/lib/utils/text'
@@ -18,7 +18,7 @@ export function analyzeTopicAuthority(
   blogName?: string | null,
   blogId?: string | null,
 ): { category: AnalysisCategory; topicKeywords: string[] } {
-  const maxScore = 30
+  const maxScore = 25
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
@@ -61,7 +61,7 @@ export function analyzeTopicAuthority(
 
   sortedKeywords.slice(0, 5).forEach(([word]) => topicKeywords.push(word))
 
-  // === 주제 일관성 (10점) ===
+  // === 주제 일관성 (8점) ===
   // 최빈 키워드의 포스트 등장 비율로 주제 집중도 측정 (v11.1 기준 강화)
   let focusPts = 0
   if (sortedKeywords.length > 0) {
@@ -69,17 +69,17 @@ export function analyzeTopicAuthority(
     const topKeywordRate = topKeyword[1] / posts.length
 
     if (topKeywordRate >= 0.5 && topKeywordRate <= 0.7) {
-      focusPts = 10
-      details.push(`주제 일관성 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (최적 범위) (+10)`)
+      focusPts = 8
+      details.push(`주제 일관성 최우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (최적 범위) (+8)`)
     } else if (topKeywordRate >= 0.4 && topKeywordRate < 0.5) {
-      focusPts = 7
-      details.push(`주제 일관성 우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+7)`)
-    } else if (topKeywordRate > 0.7 && topKeywordRate <= 0.8) {
       focusPts = 6
-      details.push(`주제 일관성 양호: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (약간 높음) (+6)`)
+      details.push(`주제 일관성 우수: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+6)`)
+    } else if (topKeywordRate > 0.7 && topKeywordRate <= 0.8) {
+      focusPts = 5
+      details.push(`주제 일관성 양호: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (약간 높음) (+5)`)
     } else if (topKeywordRate >= 0.3 && topKeywordRate < 0.4) {
-      focusPts = 4
-      details.push(`주제 일관성 보통: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+4)`)
+      focusPts = 3
+      details.push(`주제 일관성 보통: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (+3)`)
     } else if (topKeywordRate > 0.8) {
       focusPts = 2
       details.push(`키워드 과집중: "${topKeyword[0]}" ${Math.round(topKeywordRate * 100)}% 등장 (스터핑 위험) (+2)`)
@@ -91,7 +91,7 @@ export function analyzeTopicAuthority(
   score += focusPts
   items.push({ label: `주제 일관성`, points: focusPts })
 
-  // === 카테고리 집중도 (8점) ===
+  // === 카테고리 집중도 (7점) ===
   // 상위 3개 키워드가 전체 포스트를 얼마나 커버하는지 (v11.1 기준 강화)
   let categoryPts = 0
   if (sortedKeywords.length >= 3) {
@@ -103,14 +103,14 @@ export function analyzeTopicAuthority(
     const coverRate = coveredPosts / posts.length
 
     if (coverRate >= 0.75) {
-      categoryPts = 8
-      details.push(`카테고리 집중도 최우수: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+8)`)
+      categoryPts = 7
+      details.push(`카테고리 집중도 최우수: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+7)`)
     } else if (coverRate >= 0.6) {
-      categoryPts = 6
-      details.push(`카테고리 집중도 우수: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+6)`)
+      categoryPts = 5
+      details.push(`카테고리 집중도 우수: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+5)`)
     } else if (coverRate >= 0.45) {
-      categoryPts = 4
-      details.push(`카테고리 집중도 양호: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+4)`)
+      categoryPts = 3
+      details.push(`카테고리 집중도 양호: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+3)`)
     } else if (coverRate >= 0.3) {
       categoryPts = 2
       details.push(`카테고리 집중도 보통: 상위 키워드가 ${Math.round(coverRate * 100)}% 포스트 커버 (+2)`)
@@ -125,7 +125,7 @@ export function analyzeTopicAuthority(
   score += categoryPts
   items.push({ label: '카테고리 집중도', points: categoryPts })
 
-  // === 시리즈 연속성 (5점) ===
+  // === 시리즈 연속성 (4점) ===
   // 7일 이내 연속 게시된 유사 주제 포스트 쌍 수 (v11.1 기준 강화)
   let seriesPts = 0
   if (posts.length >= 3) {
@@ -145,8 +145,8 @@ export function analyzeTopicAuthority(
     }
 
     if (seriesPairs >= 5) {
-      seriesPts = 5
-      details.push(`시리즈 연속성 최우수: ${seriesPairs}쌍의 연속 주제 포스트 (+5)`)
+      seriesPts = 4
+      details.push(`시리즈 연속성 최우수: ${seriesPairs}쌍의 연속 주제 포스트 (+4)`)
     } else if (seriesPairs >= 3) {
       seriesPts = 3
       details.push(`시리즈 연속성 우수: ${seriesPairs}쌍의 연속 주제 포스트 (+3)`)
@@ -163,7 +163,7 @@ export function analyzeTopicAuthority(
   score += seriesPts
   items.push({ label: '시리즈 연속성', points: seriesPts })
 
-  // === 전문 용어 (4점) ===
+  // === 전문 용어 (3점) ===
   // 4음절 이상 전문어/복합어가 포함된 포스트 비율
   let termPts = 0
   if (posts.length >= 3) {
@@ -177,8 +177,8 @@ export function analyzeTopicAuthority(
     const termRate = postsWithTerms / posts.length
 
     if (termRate >= 0.6) {
-      termPts = 4
-      details.push(`전문 용어 활용 우수: ${Math.round(termRate * 100)}% 포스트에 전문어 포함 (+4)`)
+      termPts = 3
+      details.push(`전문 용어 활용 우수: ${Math.round(termRate * 100)}% 포스트에 전문어 포함 (+3)`)
     } else if (termRate >= 0.4) {
       termPts = 2
       details.push(`전문 용어 활용 보통: ${Math.round(termRate * 100)}% 포스트에 전문어 포함 (+2)`)
@@ -308,7 +308,7 @@ export function analyzeTopicAuthority(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 24 ? 'S' : score >= 18 ? 'A' : score >= 12 ? 'B' : score >= 6 ? 'C' : 'D'
+  const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
   return {
     category: { name: '주제 전문성', score, maxScore, grade, details, items },

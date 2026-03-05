@@ -192,6 +192,13 @@ interface BlogIndexResult {
   categories: AnalysisCategory[]
   abusePenalty?: AbusePenalty
   aiAnalysis?: AiAnalysis
+  exposureVerification?: {
+    status: 'verified' | 'partial' | 'unverified'
+    discount: number
+    message: string
+    internalPct: number
+    searchPct: number
+  }
   searchBonus?: SearchBonus
   keywordResults: KeywordRankResult[]
   postAnalysis: {
@@ -1236,6 +1243,28 @@ export default function BlogIndexPage() {
                           </div>
                           <div className="mt-0.5 h-1.5 rounded-full bg-muted">
                             <div className={`h-full rounded-full ${getTierBarColor(result.level.tier)}`} style={{ width: `${Math.min(100, (result.totalScore / result.level.nextTierScore) * 100)}%` }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* v13: 노출 검증 보정 알림 */}
+                      {result.exposureVerification && result.exposureVerification.status !== 'verified' && (
+                        <div className={`mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                          result.exposureVerification.status === 'unverified'
+                            ? 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/30 dark:border-orange-800 dark:text-orange-300'
+                            : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300'
+                        }`}>
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold">
+                                {result.exposureVerification.status === 'unverified' ? '노출 미검증' : '노출 부분 검증'}
+                              </span>
+                              <span className="rounded bg-white/60 px-1 py-0.5 text-[9px] font-bold dark:bg-black/20">
+                                -{result.exposureVerification.discount}점 보정
+                              </span>
+                            </div>
+                            <p className="mt-0.5 opacity-80 leading-relaxed">{result.exposureVerification.message}</p>
                           </div>
                         </div>
                       )}
