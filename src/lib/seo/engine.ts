@@ -428,20 +428,23 @@ function analyzeContentLength(content: string): { category: SeoCategory; strengt
 
 /** 7. 멀티미디어 (7점) */
 function analyzeMultimedia(content: string): { category: SeoCategory; strength?: string; improvement?: string; imageCount: number } {
-  // [이미지: 설명] (직접 작성) 및 [이미지] (URL 스크래핑 시 위치 마커) 모두 감지
-  const imageMatches = content.match(/\[이미지[\]:\s]/g) || []
-  const imageCount = imageMatches.length
+  // [이미지: 설명] 마커 + 실제 마크다운 이미지 ![alt](url) + 📷 촬영 안내 모두 감지
+  const placeholderMatches = content.match(/\[이미지[\]:\s]/g) || []
+  const markdownImageMatches = content.match(/!\[[^\]]*\]\([^)]+\)/g) || []
+  const photoGuideMatches = content.match(/📷/g) || []
+  const imageCount = placeholderMatches.length + markdownImageMatches.length + photoGuideMatches.length
 
   let score = 0
   let improvement: string | undefined
 
-  if (imageCount >= 4) {
+  if (imageCount >= 5) {
     score = 7
-  } else if (imageCount >= 2) {
+  } else if (imageCount >= 3) {
     score = 5
+    improvement = '이미지를 5개 이상 추가하면 체류 시간이 더 증가합니다'
   } else if (imageCount >= 1) {
     score = 3
-    improvement = '이미지를 3개 이상 포함하면 체류 시간이 증가합니다'
+    improvement = '이미지를 5개 이상 포함하면 체류 시간이 증가합니다'
   } else {
     score = 0
     improvement = '이미지를 추가하여 콘텐츠의 시각적 매력을 높이세요'
@@ -1038,6 +1041,8 @@ export function analyzeReadability(content: string): ReadabilityResult {
   const listCount = (content.match(/^[-•]\s|^\d+\.\s/gm) || []).length
   const headingCount = (content.match(/^#{1,3}\s/gm) || []).length
   const imageCount = (content.match(/\[이미지[\]:\s]/g) || []).length
+    + (content.match(/!\[[^\]]*\]\([^)]+\)/g) || []).length
+    + (content.match(/📷/g) || []).length
 
   // 가독성 점수 계산
   let score = 0

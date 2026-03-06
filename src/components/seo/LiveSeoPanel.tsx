@@ -42,7 +42,7 @@ const CATEGORY_TIPS: Record<string, string> = {
   keyword_density: '본문에 키워드를 자연스럽게 반복하세요',
   keyword_distribution: '도입부·중간·마무리에 키워드를 배치하세요',
   content_length: '콘텐츠를 2,000자 이상으로 작성하세요',
-  multimedia: '[이미지: 설명] 태그를 4개 이상 추가하세요',
+  multimedia: '이미지를 4개 이상 추가하세요',
   readability_elements: '볼드(**), 리스트(-) 등 가독성 요소를 추가하세요',
   related_keywords: '관련 키워드를 본문에 더 포함하세요',
   tags_cta: '태그(#)와 댓글/공감 유도 문구를 추가하세요',

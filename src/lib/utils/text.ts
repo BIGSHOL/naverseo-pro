@@ -5,16 +5,17 @@
  * blog-index/engine, content/engine 등에서 중복되던 로직을 통합
  */
 
-/** HTML 태그 및 엔티티 제거 */
+/** HTML 태그 및 엔티티 제거 (태그 → 공백으로 치환하여 단어 합침 방지) */
 export function stripHtml(html: string): string {
   return html
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*>/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
 }
 
@@ -118,11 +119,30 @@ export const STOPWORDS = new Set([
 /**
  * 텍스트에서 의미 있는 키워드 추출
  * 한글 2글자 이상, 영문 3글자 이상 단어 + 불용어 제외
+ *
+ * 한글 후처리:
+ * - 말미 조사 제거 (은,는,을,를,에,의)
+ * - 최대 6글자 제한 (7자 이상 복합어/구절 필터)
  */
 export function extractKoreanKeywords(text: string, customStopwords?: Set<string>): string[] {
   const stops = customStopwords || STOPWORDS
   const words = text.match(/[가-힣]{2,}|[a-zA-Z]{3,}/g) || []
-  return words.map(w => w.toLowerCase()).filter(w => !stops.has(w))
+  return words
+    .map(w => w.toLowerCase())
+    .map(w => {
+      // 한글 3자 이상: 말미 조사 제거 (은,는,을,를,에,의)
+      if (/[가-힣]/.test(w) && w.length >= 3) {
+        const stripped = w.replace(/[은는을를에의]$/, '')
+        return stripped.length >= 2 ? stripped : w
+      }
+      return w
+    })
+    // 한글: 2~6자 제한 (7자 이상은 복합어/구절)
+    .filter(w => {
+      if (/[가-힣]/.test(w)) return w.length >= 2 && w.length <= 6
+      return true
+    })
+    .filter(w => !stops.has(w))
 }
 
 /** 두 배열의 Jaccard 유사도 계산 (0~1) */

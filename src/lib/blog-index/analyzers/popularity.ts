@@ -1,11 +1,10 @@
 /**
- * 블로그 지수 - 축4. 사용자 반응 (20점)
+ * 블로그 지수 - 축4. 사용자 반응 (25점)
  *
- * v15: 추정값(체류시간) 5→2점 축소, 실측 데이터(댓글/공감/이웃) 15→18점 보강.
- *      임계값 상향으로 점수 인플레이션 해소.
+ * v17: 활동 신뢰도에서 5점 이관 (20→25). 방문자 수를 점수에 반영.
+ *      실제 인기 있는 블로그(방문자/댓글/공감 높은)가 확실히 높은 점수를 받도록 개선.
  *
- * 댓글 참여(8) + 공감 참여(5) + 이웃/구독자(5) + 체류 시간(2) = 20점
- * 방문자 수 → 0점 (조회용으로만 표시)
+ * 댓글 참여(8) + 공감 참여(5) + 이웃/구독자(5) + 방문자 수(5) + 체류 시간(2) = 25점
  * 감점: 체류시간 저하 패턴(-1) + 광고성 콘텐츠 과다(-1) = -2
  *
  * 데이터 수집 실패 시 0점 (무상 점수 없음)
@@ -28,23 +27,47 @@ export function analyzePopularity(
   recentPosts?: PostDetail[] | null,
   scrapedData?: Map<string, ScrapedPostData> | null,
 ): AnalysisCategory {
-  const maxScore = 20
+  const maxScore = 25
   const details: string[] = []
   const items: ScoreItem[] = []
   let score = 0
 
-  // === 방문자 수 (점수 제외 - 참고 수치만 표시) ===
+  // === 일평균 방문자 수 (5점) === (v17: 신규 — 최근 30일 평균)
+  let visitorPts = 0
   if (visitorData && visitorData.isAvailable) {
     const avg = visitorData.avgDailyVisitors
     const src = visitorData.source || 'api'
     const visitorLabel = src === 'history'
       ? `일평균 방문자 (${visitorData.historyDays}일)`
       : src === 'today' ? '오늘 방문자' : '일평균 방문자'
-    details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (참고, 점수 미반영)`)
-    items.push({ label: `${visitorLabel} ${avg.toLocaleString()}명 (참고)`, points: 0 })
-  }
 
-  // === 평균 댓글 수 (8점) === (v15: 7→8, 핵심 소통 지표 보강)
+    if (avg >= 500) {
+      visitorPts = 5
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (최우수) (+5)`)
+    } else if (avg >= 200) {
+      visitorPts = 4
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (우수) (+4)`)
+    } else if (avg >= 80) {
+      visitorPts = 3
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (양호) (+3)`)
+    } else if (avg >= 30) {
+      visitorPts = 2
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (보통) (+2)`)
+    } else if (avg >= 10) {
+      visitorPts = 1
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (부족) (+1)`)
+    } else {
+      visitorPts = 0
+      details.push(`${visitorLabel}: ${avg.toLocaleString()}명 (+0)`)
+    }
+    items.push({ label: `${visitorLabel} (${avg.toLocaleString()}명)`, points: visitorPts })
+  } else {
+    details.push('방문자 데이터 미제공 (+0)')
+    items.push({ label: '방문자 데이터 미제공', points: 0 })
+  }
+  score += visitorPts
+
+  // === 평균 댓글 수 (8점) ===
   let commentPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgCommentCount !== null) {
     const avgComments = engagementData.avgCommentCount
@@ -72,7 +95,7 @@ export function analyzePopularity(
   }
   score += commentPts
 
-  // === 평균 공감 수 (5점) === (v15: 4→5, 실측 데이터 보강)
+  // === 평균 공감 수 (5점) ===
   let sympathyPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgSympathyCount !== null) {
     const avgSympathy = engagementData.avgSympathyCount
@@ -97,7 +120,7 @@ export function analyzePopularity(
   }
   score += sympathyPts
 
-  // === 이웃/구독자 수 (5점) === (v15: 4→5, 실측 데이터 보강)
+  // === 이웃/구독자 수 (5점) ===
   let buddyPts = 0
   const buddyCount = blogProfileData?.buddyCount ?? blogProfileData?.subscriberCount ?? null
   if (buddyCount !== null) {
@@ -121,7 +144,7 @@ export function analyzePopularity(
   }
   score += buddyPts
 
-  // === 예상 체류 시간 (2점) === (v15: 5→2, 추정값이므로 대폭 축소)
+  // === 예상 체류 시간 (2점) ===
   let dwellPts = 0
   if (recentPosts && recentPosts.length > 0) {
     const withTime = recentPosts.filter(p => p.estimatedReadTimeSec != null)
@@ -184,7 +207,7 @@ export function analyzePopularity(
 
   // 최종 clamp
   score = Math.max(0, Math.min(maxScore, score))
-  const grade = score >= 16 ? 'S' : score >= 12 ? 'A' : score >= 8 ? 'B' : score >= 4 ? 'C' : 'D'
+  const grade = score >= 20 ? 'S' : score >= 15 ? 'A' : score >= 10 ? 'B' : score >= 5 ? 'C' : 'D'
 
   return { name: '사용자 반응', score, maxScore, grade, details, items }
 }

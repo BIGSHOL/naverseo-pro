@@ -572,7 +572,7 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
   const opts = request.advancedOptions || {}
   const imageCountGuide = opts.imageCount && opts.imageCount !== 'auto'
     ? `정확히 ${opts.imageCount}개`
-    : '4~5개'
+    : '5~7개'
   const headingCountGuide = opts.headingCount && opts.headingCount !== 'auto'
     ? `H2 소제목을 정확히 ${opts.headingCount}개`
     : 'H2 3~5개'
@@ -814,7 +814,7 @@ ${fewShotExamples}
 □ 제목: 키워드("${request.keyword}")가 앞쪽 15자 이내, 전체 20~40자
 □ 소제목: ## (H2) 최소 3개
 □ 키워드: 최소 5회 자연스럽게 포함 (도입·중반·마무리 각 1회 이상)
-□ 이미지: [이미지: 설명] 최소 3개 (섹션마다 분산)
+□ 이미지: [이미지: 설명] 최소 5개, 권장 7개 (각 섹션마다 1~2개 분산)
 □ 내부 링크: [관련 글: 제목](./placeholder) 최소 3개 (본문 중간에 분산)
 □ 서식: **볼드** 3개 이상, 리스트(-) 또는 번호목록(1.) 1개 이상
 □ 문단: 8개 이상 (빈 줄로 구분), 각 2~4문장
@@ -1940,27 +1940,51 @@ export function postProcessContent(
   const typeName = CONTENT_TYPE_NAMES[contentType]
   const outline = generateOutline(request)
 
+  // 본문 끝의 #해시태그 줄을 추출하여 tags에 병합하고 본문에서 제거
+  let cleanedContent = aiResult.content
+  const extractedTags: string[] = []
+  const lines = cleanedContent.split('\n')
+  // 끝에서부터 연속된 해시태그 줄 탐지 (빈 줄 허용)
+  let cutIndex = lines.length
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim()
+    if (trimmed === '') { cutIndex = i; continue }
+    // #태그1 #태그2 ... 또는 #태그1, #태그2 형태
+    if (/^#[가-힣a-zA-Z0-9_]/.test(trimmed)) {
+      const found = trimmed.match(/#([가-힣a-zA-Z0-9_]+)/g)
+      if (found) {
+        extractedTags.push(...found.map(t => t.replace(/^#/, '')))
+      }
+      cutIndex = i
+    } else {
+      break
+    }
+  }
+  if (extractedTags.length > 0) {
+    cleanedContent = lines.slice(0, cutIndex).join('\n').trimEnd()
+  }
+
   // SEO 분석
   const seoAnalysis = analyzeSeo(
     request.keyword,
     aiResult.title,
-    aiResult.content,
+    cleanedContent,
     request.additionalKeywords
   )
 
   // 가독성 분석
-  const readabilityAnalysis = analyzeReadability(aiResult.content)
+  const readabilityAnalysis = analyzeReadability(cleanedContent)
 
-  // 태그 보강 (AI 태그 + 자동 태그 병합)
-  const autoTags = generateAutoTags(request.keyword, aiResult.content)
-  const mergedTags = Array.from(new Set([...aiResult.tags, ...autoTags])).slice(0, 10)
+  // 태그 보강 (AI JSON 태그 + 본문 추출 태그 + 자동 태그 병합)
+  const autoTags = generateAutoTags(request.keyword, cleanedContent)
+  const mergedTags = Array.from(new Set([...aiResult.tags, ...extractedTags, ...autoTags])).slice(0, 10)
 
   // 메타 설명 (AI가 생성했으면 사용, 없으면 자동 생성)
-  const metaDescription = aiResult.metaDescription || generateMetaDescription(request.keyword, aiResult.content)
+  const metaDescription = aiResult.metaDescription || generateMetaDescription(request.keyword, cleanedContent)
 
   return {
     title: aiResult.title,
-    content: aiResult.content,
+    content: cleanedContent,
     tags: mergedTags,
     metaDescription,
     contentType,
