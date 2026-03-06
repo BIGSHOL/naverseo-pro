@@ -5,23 +5,23 @@ export const dynamic = 'force-dynamic'
 
 // ─── SEO 등급 판정 (16단계 - 블로그 지수와 동일 체계) ───
 
-// v11.3: 상위 좁고 하위 넓은 커브 + Lv 제거
+// v16: grading.ts / seo/engine.ts SEO_GRADE_TABLE과 동기화
 const GRADE_THRESHOLDS = [
-  { minScore: 98, grade: '파워', label: '파워', color: '#f59e0b' },
-  { minScore: 95, grade: '최적화4+', label: '최적화4+', color: '#10b981' },
-  { minScore: 91, grade: '최적화3+', label: '최적화3+', color: '#10b981' },
-  { minScore: 86, grade: '최적화2+', label: '최적화2+', color: '#14b8a6' },
-  { minScore: 80, grade: '최적화1+', label: '최적화1+', color: '#14b8a6' },
-  { minScore: 73, grade: '최적화3', label: '최적화3', color: '#22c55e' },
-  { minScore: 65, grade: '최적화2', label: '최적화2', color: '#22c55e' },
-  { minScore: 57, grade: '최적화1', label: '최적화1', color: '#84cc16' },
-  { minScore: 48, grade: '준최적화7', label: '준최적화7', color: '#3b82f6' },
-  { minScore: 39, grade: '준최적화6', label: '준최적화6', color: '#3b82f6' },
-  { minScore: 30, grade: '준최적화5', label: '준최적화5', color: '#0ea5e9' },
-  { minScore: 22, grade: '준최적화4', label: '준최적화4', color: '#0ea5e9' },
-  { minScore: 15, grade: '준최적화3', label: '준최적화3', color: '#6366f1' },
+  { minScore: 99, grade: '파워', label: '파워', color: '#f59e0b' },
+  { minScore: 97, grade: '최적화4+', label: '최적화4+', color: '#10b981' },
+  { minScore: 94, grade: '최적화3+', label: '최적화3+', color: '#10b981' },
+  { minScore: 91, grade: '최적화2+', label: '최적화2+', color: '#14b8a6' },
+  { minScore: 86, grade: '최적화1+', label: '최적화1+', color: '#14b8a6' },
+  { minScore: 80, grade: '최적화3', label: '최적화3', color: '#22c55e' },
+  { minScore: 73, grade: '최적화2', label: '최적화2', color: '#22c55e' },
+  { minScore: 65, grade: '최적화1', label: '최적화1', color: '#84cc16' },
+  { minScore: 54, grade: '준최적화7', label: '준최적화7', color: '#3b82f6' },
+  { minScore: 43, grade: '준최적화6', label: '준최적화6', color: '#3b82f6' },
+  { minScore: 33, grade: '준최적화5', label: '준최적화5', color: '#0ea5e9' },
+  { minScore: 24, grade: '준최적화4', label: '준최적화4', color: '#0ea5e9' },
+  { minScore: 16, grade: '준최적화3', label: '준최적화3', color: '#6366f1' },
   { minScore: 9, grade: '준최적화2', label: '준최적화2', color: '#6366f1' },
-  { minScore: 4, grade: '준최적화1', label: '준최적화1', color: '#8b5cf6' },
+  { minScore: 3, grade: '준최적화1', label: '준최적화1', color: '#8b5cf6' },
   { minScore: 0, grade: '일반', label: '일반', color: '#94a3b8' },
 ]
 

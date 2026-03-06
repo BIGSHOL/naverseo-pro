@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const totalSteps = 6
+        const totalSteps = 7
 
         // 사용자 입력 키워드 파싱
         const userKeywords = (testKeywords as string[])
@@ -422,8 +422,42 @@ export async function POST(request: NextRequest) {
         result.benchmarkSource = categoryBenchmark.source
         result.benchmarkSampleCount = categoryBenchmark.sampleCount
 
-        // === Step 6: 저장 + 크레딧 차감 ===
-        send({ type: 'progress', step: 6, totalSteps, message: '결과 저장 중...' })
+        // === Step 6: 포스트 노출 체크 ===
+        if (result.recentPosts && result.recentPosts.length > 0 && blogId) {
+          send({ type: 'progress', step: 6, totalSteps, message: '포스트 노출 확인 중...' })
+
+          if (isDemo) {
+            // 데모: 80% 노출, 20% 누락
+            for (const post of result.recentPosts) {
+              post.indexed = Math.random() > 0.2
+            }
+          } else {
+            const { searchNaverBlog } = await import('@/lib/naver/blog-search')
+            const matchTarget = blogId.toLowerCase()
+
+            for (let pi = 0; pi < result.recentPosts.length; pi++) {
+              const post = result.recentPosts[pi]
+              try {
+                const searchResult = await searchNaverBlog(`"${post.title}"`, 10)
+                const pattern = new RegExp(`blog\\.naver\\.com/${matchTarget}(?:/|$)`, 'i')
+                post.indexed = searchResult.items.some(item =>
+                  pattern.test(item.link.toLowerCase()) || pattern.test(item.bloggerlink.toLowerCase())
+                )
+              } catch {
+                post.indexed = null
+              }
+              await new Promise(resolve => setTimeout(resolve, 200))
+            }
+          }
+
+          const indexedCount = result.recentPosts.filter((p: { indexed?: boolean | null }) => p.indexed === true).length
+          const checkedCount = result.recentPosts.filter((p: { indexed?: boolean | null }) => p.indexed !== null).length
+          send({ type: 'progress', step: 6, totalSteps, message: `노출 ${indexedCount}/${checkedCount}개 확인` })
+          console.log(`[BlogIndex] 노출 체크 완료: ${indexedCount}/${checkedCount}개 노출`)
+        }
+
+        // === Step 7: 저장 + 크레딧 차감 ===
+        send({ type: 'progress', step: 7, totalSteps, message: '결과 저장 중...' })
 
         await deductCredits(supabase, user.id, 'blog_index', { blogUrl: blogUrl.trim() })
 

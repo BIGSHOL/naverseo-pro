@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { BarChart3, Loader2, CheckCircle, AlertTriangle, XCircle, ArrowUp, ArrowDown, ExternalLink, Wand2, Sparkles, Brain, Star, Target, MessageSquare, Lightbulb, Image, Type, Bold, Heading, Palette, Highlighter, Underline, AlertCircle, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { CreditTooltip } from '@/components/credit-tooltip'
@@ -177,6 +177,38 @@ function getAxisColor(score: number) {
   return 'text-red-600'
 }
 
+/** 본문에서 불용어를 하이라이트 마크업으로 변환 */
+function highlightStopwords(text: string): React.ReactNode[] {
+  // 한글 단어(2글자+)를 기준으로 분리 → 불용어만 하이라이트
+  const parts: React.ReactNode[] = []
+  const regex = /[가-힣]{2,}/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    // 매치 이전 텍스트
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const word = match[0]
+    if (STOPWORDS.has(word)) {
+      parts.push(
+        <mark key={match.index} className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded px-0.5" title="불용어">
+          {word}
+        </mark>
+      )
+    } else {
+      parts.push(word)
+    }
+    lastIndex = match.index + word.length
+  }
+  // 나머지 텍스트
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts
+}
+
 function getAxisBg(score: number) {
   if (score >= 8) return 'bg-green-500'
   if (score >= 6) return 'bg-blue-500'
@@ -211,6 +243,8 @@ export default function SeoCheckPage() {
   const [manualTags, setManualTags] = useState('') // 직접 입력 모드 태그 (쉼표/공백 구분)
   // URL fetch 후 콘텐츠 미리보기 접기/펼치기
   const [showContentPreview, setShowContentPreview] = useState(false)
+  // 불용어 하이라이트 표시 토글
+  const [highlightStops, setHighlightStops] = useState(true)
   // 결과 나온 후 입력 폼 접기/펼치기
   const [formCollapsed, setFormCollapsed] = useState(false)
 
@@ -848,18 +882,39 @@ export default function SeoCheckPage() {
                       )}
 
                       {/* 본문 미리보기 토글 */}
-                      <button
-                        type="button"
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => setShowContentPreview(!showContentPreview)}
-                      >
-                        <Type className="h-3.5 w-3.5" />
-                        본문 미리보기
-                        <span className="text-primary">{showContentPreview ? '접기' : '펼치기'}</span>
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setShowContentPreview(!showContentPreview)}
+                        >
+                          <Type className="h-3.5 w-3.5" />
+                          본문 미리보기
+                          <span className="text-primary">{showContentPreview ? '접기' : '펼치기'}</span>
+                        </button>
+                        {showContentPreview && result && (
+                          <button
+                            type="button"
+                            className={cn(
+                              'flex items-center gap-1 text-xs font-medium transition-colors rounded px-1.5 py-0.5',
+                              highlightStops
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : 'text-muted-foreground hover:text-foreground'
+                            )}
+                            onClick={() => setHighlightStops(!highlightStops)}
+                          >
+                            <Highlighter className="h-3 w-3" />
+                            불용어 표시
+                          </button>
+                        )}
+                      </div>
                       {showContentPreview && (
                         <div className="max-h-[200px] overflow-y-auto rounded border bg-background p-3 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {content.slice(0, 2000)}{content.length > 2000 && '...'}
+                          {highlightStops && result
+                            ? highlightStopwords(content.slice(0, 2000))
+                            : content.slice(0, 2000)
+                          }
+                          {content.length > 2000 && '...'}
                         </div>
                       )}
                     </div>

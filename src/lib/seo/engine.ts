@@ -15,7 +15,7 @@
  * - 신규 3개: 내부 링크, 메타 설명, 모바일 최적화
  */
 
-import { detectStuffingPatterns } from '@/lib/utils/text'
+import { detectStuffingPatterns, STOPWORDS } from '@/lib/utils/text'
 
 // ===== 타입 정의 =====
 
@@ -107,23 +107,23 @@ import { GRADE_BADGES } from '@/lib/seo/grade-constants'
 
 // v11.2: 등급 구간 상향 — "최적화" 진입을 더 어렵게 (평균 +5~7점)
 const SEO_GRADE_TABLE: SeoGradeEntry[] = [
-  // v11.3: 상위 좁고 하위 넓은 커브 (상위권은 올라가기 어렵고, 하위권은 빠르게 성장)
-  { minScore: 98, info: { tier: 16, category: '파워', grade: '파워', label: '파워', shortLabel: '파워', color: 'amber', badgeColor: GRADE_BADGES[16], description: '네이버 SEO에 완벽히 최적화된 파워 콘텐츠입니다', nextTierScore: null } },
-  { minScore: 95, info: { tier: 15, category: '최적화+', grade: '최적화4+', label: '최적화4+', shortLabel: '최적화4+', color: 'emerald', badgeColor: GRADE_BADGES[15], description: '최상위 SEO 수준입니다. 파워 등급까지 한 걸음입니다', nextTierScore: 98 } },
-  { minScore: 91, info: { tier: 14, category: '최적화+', grade: '최적화3+', label: '최적화3+', shortLabel: '최적화3+', color: 'emerald', badgeColor: GRADE_BADGES[14], description: '매우 높은 SEO 최적화 수준입니다', nextTierScore: 95 } },
-  { minScore: 86, info: { tier: 13, category: '최적화+', grade: '최적화2+', label: '최적화2+', shortLabel: '최적화2+', color: 'teal', badgeColor: GRADE_BADGES[13], description: '경쟁 키워드에서도 우수한 검색 노출이 기대됩니다', nextTierScore: 91 } },
-  { minScore: 80, info: { tier: 12, category: '최적화+', grade: '최적화1+', label: '최적화1+', shortLabel: '최적화1+', color: 'teal', badgeColor: GRADE_BADGES[12], description: 'SEO 최적화가 우수합니다. 고급 키워드 전략을 시도하세요', nextTierScore: 86 } },
-  { minScore: 73, info: { tier: 11, category: '최적화', grade: '최적화3', label: '최적화3', shortLabel: '최적화3', color: 'green', badgeColor: GRADE_BADGES[11], description: '안정적인 SEO 최적화 상태입니다. 최적화+ 등급에 도전하세요', nextTierScore: 80 } },
-  { minScore: 65, info: { tier: 10, category: '최적화', grade: '최적화2', label: '최적화2', shortLabel: '최적화2', color: 'green', badgeColor: GRADE_BADGES[10], description: '양호한 SEO 상태입니다. 콘텐츠 깊이를 더 높여보세요', nextTierScore: 73 } },
-  { minScore: 57, info: { tier: 9, category: '최적화', grade: '최적화1', label: '최적화1', shortLabel: '최적화1', color: 'lime', badgeColor: GRADE_BADGES[9], description: '기본 SEO가 갖춰져 있습니다. 경쟁 키워드도 도전해보세요', nextTierScore: 65 } },
-  { minScore: 48, info: { tier: 8, category: '준최적화', grade: '준최적화7', label: '준최적화7', shortLabel: '준최적화7', color: 'blue', badgeColor: GRADE_BADGES[8], description: 'SEO 기본 요소를 보강하면 검색 노출이 향상됩니다', nextTierScore: 57 } },
-  { minScore: 39, info: { tier: 7, category: '준최적화', grade: '준최적화6', label: '준최적화6', shortLabel: '준최적화6', color: 'blue', badgeColor: GRADE_BADGES[7], description: 'SEO 개선 여지가 많습니다. 주요 항목부터 보완하세요', nextTierScore: 48 } },
-  { minScore: 30, info: { tier: 6, category: '준최적화', grade: '준최적화5', label: '준최적화5', shortLabel: '준최적화5', color: 'sky', badgeColor: GRADE_BADGES[6], description: '콘텐츠 구조와 키워드 배치를 개선하세요', nextTierScore: 39 } },
-  { minScore: 22, info: { tier: 5, category: '준최적화', grade: '준최적화4', label: '준최적화4', shortLabel: '준최적화4', color: 'sky', badgeColor: GRADE_BADGES[5], description: '키워드 전략과 콘텐츠 길이부터 개선이 필요합니다', nextTierScore: 30 } },
-  { minScore: 15, info: { tier: 4, category: '준최적화', grade: '준최적화3', label: '준최적화3', shortLabel: '준최적화3', color: 'indigo', badgeColor: GRADE_BADGES[4], description: 'SEO 기본기를 갖추는 단계입니다. 제목과 소제목부터 최적화하세요', nextTierScore: 22 } },
-  { minScore: 9,  info: { tier: 3, category: '준최적화', grade: '준최적화2', label: '준최적화2', shortLabel: '준최적화2', color: 'indigo', badgeColor: GRADE_BADGES[3], description: '기본적인 SEO 최적화를 시작해보세요', nextTierScore: 15 } },
-  { minScore: 4,  info: { tier: 2, category: '준최적화', grade: '준최적화1', label: '준최적화1', shortLabel: '준최적화1', color: 'violet', badgeColor: GRADE_BADGES[2], description: '콘텐츠 길이와 키워드 포함부터 시작하세요', nextTierScore: 9 } },
-  { minScore: 0,  info: { tier: 1, category: '일반', grade: '일반', label: '일반', shortLabel: '일반', color: 'slate', badgeColor: GRADE_BADGES[1], description: 'SEO 최적화가 거의 되어 있지 않습니다', nextTierScore: 4 } },
+  // v16: 준최적화 구간 확대 (grading.ts/scoring.ts와 동기화)
+  { minScore: 99, info: { tier: 16, category: '파워', grade: '파워', label: '파워', shortLabel: '파워', color: 'amber', badgeColor: GRADE_BADGES[16], description: '네이버 SEO에 완벽히 최적화된 파워 콘텐츠입니다', nextTierScore: null } },
+  { minScore: 97, info: { tier: 15, category: '최적화+', grade: '최적화4+', label: '최적화4+', shortLabel: '최적화4+', color: 'emerald', badgeColor: GRADE_BADGES[15], description: '최상위 SEO 수준입니다. 파워 등급까지 한 걸음입니다', nextTierScore: 99 } },
+  { minScore: 94, info: { tier: 14, category: '최적화+', grade: '최적화3+', label: '최적화3+', shortLabel: '최적화3+', color: 'emerald', badgeColor: GRADE_BADGES[14], description: '매우 높은 SEO 최적화 수준입니다', nextTierScore: 97 } },
+  { minScore: 91, info: { tier: 13, category: '최적화+', grade: '최적화2+', label: '최적화2+', shortLabel: '최적화2+', color: 'teal', badgeColor: GRADE_BADGES[13], description: '경쟁 키워드에서도 우수한 검색 노출이 기대됩니다', nextTierScore: 94 } },
+  { minScore: 86, info: { tier: 12, category: '최적화+', grade: '최적화1+', label: '최적화1+', shortLabel: '최적화1+', color: 'teal', badgeColor: GRADE_BADGES[12], description: 'SEO 최적화가 우수합니다. 고급 키워드 전략을 시도하세요', nextTierScore: 91 } },
+  { minScore: 80, info: { tier: 11, category: '최적화', grade: '최적화3', label: '최적화3', shortLabel: '최적화3', color: 'green', badgeColor: GRADE_BADGES[11], description: '안정적인 SEO 최적화 상태입니다. 최적화+ 등급에 도전하세요', nextTierScore: 86 } },
+  { minScore: 73, info: { tier: 10, category: '최적화', grade: '최적화2', label: '최적화2', shortLabel: '최적화2', color: 'green', badgeColor: GRADE_BADGES[10], description: '양호한 SEO 상태입니다. 콘텐츠 깊이를 더 높여보세요', nextTierScore: 80 } },
+  { minScore: 65, info: { tier: 9, category: '최적화', grade: '최적화1', label: '최적화1', shortLabel: '최적화1', color: 'lime', badgeColor: GRADE_BADGES[9], description: '기본 SEO가 갖춰져 있습니다. 경쟁 키워드도 도전해보세요', nextTierScore: 73 } },
+  { minScore: 54, info: { tier: 8, category: '준최적화', grade: '준최적화7', label: '준최적화7', shortLabel: '준최적화7', color: 'blue', badgeColor: GRADE_BADGES[8], description: 'SEO 기본 요소를 보강하면 검색 노출이 향상됩니다', nextTierScore: 65 } },
+  { minScore: 43, info: { tier: 7, category: '준최적화', grade: '준최적화6', label: '준최적화6', shortLabel: '준최적화6', color: 'blue', badgeColor: GRADE_BADGES[7], description: 'SEO 개선 여지가 많습니다. 주요 항목부터 보완하세요', nextTierScore: 54 } },
+  { minScore: 33, info: { tier: 6, category: '준최적화', grade: '준최적화5', label: '준최적화5', shortLabel: '준최적화5', color: 'sky', badgeColor: GRADE_BADGES[6], description: '콘텐츠 구조와 키워드 배치를 개선하세요', nextTierScore: 43 } },
+  { minScore: 24, info: { tier: 5, category: '준최적화', grade: '준최적화4', label: '준최적화4', shortLabel: '준최적화4', color: 'sky', badgeColor: GRADE_BADGES[5], description: '키워드 전략과 콘텐츠 길이부터 개선이 필요합니다', nextTierScore: 33 } },
+  { minScore: 16, info: { tier: 4, category: '준최적화', grade: '준최적화3', label: '준최적화3', shortLabel: '준최적화3', color: 'indigo', badgeColor: GRADE_BADGES[4], description: 'SEO 기본기를 갖추는 단계입니다. 제목과 소제목부터 최적화하세요', nextTierScore: 24 } },
+  { minScore: 9,  info: { tier: 3, category: '준최적화', grade: '준최적화2', label: '준최적화2', shortLabel: '준최적화2', color: 'indigo', badgeColor: GRADE_BADGES[3], description: '기본적인 SEO 최적화를 시작해보세요', nextTierScore: 16 } },
+  { minScore: 3,  info: { tier: 2, category: '준최적화', grade: '준최적화1', label: '준최적화1', shortLabel: '준최적화1', color: 'violet', badgeColor: GRADE_BADGES[2], description: '콘텐츠 길이와 키워드 포함부터 시작하세요', nextTierScore: 9 } },
+  { minScore: 0,  info: { tier: 1, category: '일반', grade: '일반', label: '일반', shortLabel: '일반', color: 'slate', badgeColor: GRADE_BADGES[1], description: 'SEO 최적화가 거의 되어 있지 않습니다', nextTierScore: 3 } },
 ]
 
 /** 점수로 등급 정보 조회 (내부용) */
@@ -584,20 +584,31 @@ function analyzeTagsAndCta(content: string, scrapedMeta?: SeoScrapedMeta): { cat
 
 /** 11. 내부 링크 (10점) - 신규 */
 function analyzeInternalLinks(content: string): { category: SeoCategory; strength?: string; improvement?: string; internalCount: number; externalCount: number } {
-  // 마크다운 링크 추출: [text](url)
-  const mdLinks = content.match(/\[([^\]]+)\]\(([^)]+)\)/g) || []
-  // HTML 링크 추출: <a href="url">
-  const htmlLinks = content.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi) || []
+  // 마크다운 링크에서 URL 추출: [text](url) → url
+  const mdLinkUrls: string[] = []
+  const mdLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
+  let mdMatch: RegExpExecArray | null
+  while ((mdMatch = mdLinkRegex.exec(content)) !== null) {
+    mdLinkUrls.push(mdMatch[2])  // URL 부분만 추출
+  }
 
-  const allLinks = [...mdLinks, ...htmlLinks]
+  // HTML 링크에서 URL 추출: <a href="url"> → url
+  const htmlLinkUrls: string[] = []
+  const htmlLinkRegex = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>/gi
+  let htmlMatch: RegExpExecArray | null
+  while ((htmlMatch = htmlLinkRegex.exec(content)) !== null) {
+    htmlLinkUrls.push(htmlMatch[1])
+  }
+
+  const allUrls = [...mdLinkUrls, ...htmlLinkUrls]
 
   // 내부/외부 분류
   let internalCount = 0
   let externalCount = 0
 
-  for (const link of allLinks) {
-    // 내부 링크: 상대 경로, #앵커, blog.naver.com
-    if (/blog\.naver\.com|^#|^\(#|^\(\/|href=["']#|href=["']\//i.test(link)) {
+  for (const url of allUrls) {
+    // 내부 링크: 상대 경로(./), 루트 경로(/), #앵커, blog.naver.com
+    if (/blog\.naver\.com/i.test(url) || /^(\.\/|\.\.\/|\/|#)/.test(url)) {
       internalCount++
     } else {
       externalCount++
@@ -797,6 +808,13 @@ export function analyzeSeo(
     improvements.unshift(repCheck.warning)
   }
 
+  // 불용어 과다 감점 (-4점 max)
+  const stopCheck = detectStopwordDensity(content)
+  penaltyScore += stopCheck.penalty
+  if (stopCheck.warning) {
+    improvements.unshift(stopCheck.warning)
+  }
+
   const totalScore = Math.max(0, baseScore + penaltyScore)
   if (adCheck.warning) {
     improvements.unshift(adCheck.warning)
@@ -938,6 +956,64 @@ function detectSentenceRepetition(content: string): { penalty: number; warning?:
     }
   }
   return { penalty: 0 }
+}
+
+// ===== 불용어 과다 감지 =====
+
+/**
+ * 불용어(의미 없는 단어) 비율 감지
+ * - 불용어가 전체 단어의 60% 이상이면 경고
+ * - 감점: 60%+ → -2점, 70%+ → -4점
+ * - 자주 사용된 불용어 Top 5를 구체적으로 안내
+ */
+function detectStopwordDensity(content: string): { penalty: number; warning?: string } {
+  // 마크다운/HTML 태그 제거 후 순수 텍스트 추출
+  const plain = content
+    .replace(/^#{1,3}\s+.+$/gm, '')
+    .replace(/\[이미지[:\]][^\]]*\]?/g, '')
+    .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/[#*_~`>]/g, '')
+    .trim()
+
+  // 한글 단어 추출 (2글자 이상)
+  const allWords = plain.match(/[가-힣]{2,}/g) || []
+  if (allWords.length < 20) return { penalty: 0 } // 너무 짧은 글은 제외
+
+  // 불용어 빈도 집계
+  const stopwordFreq: Record<string, number> = {}
+  let stopCount = 0
+
+  for (const word of allWords) {
+    if (STOPWORDS.has(word)) {
+      stopCount++
+      stopwordFreq[word] = (stopwordFreq[word] || 0) + 1
+    }
+  }
+
+  const ratio = stopCount / allWords.length
+
+  if (ratio < 0.6) return { penalty: 0 }
+
+  // Top 5 빈출 불용어
+  const topWords = Object.entries(stopwordFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([w, c]) => `${w}(${c}회)`)
+    .join(', ')
+
+  if (ratio >= 0.7) {
+    return {
+      penalty: -4,
+      warning: `불용어 과다 (${Math.round(ratio * 100)}%): ${topWords} — 의미 있는 정보 중심으로 문장을 다듬으세요`,
+    }
+  }
+
+  return {
+    penalty: -2,
+    warning: `불용어 비율 높음 (${Math.round(ratio * 100)}%): ${topWords} — 불필요한 수식어를 줄이고 핵심 내용에 집중하세요`,
+  }
 }
 
 // ===== 가독성 분석 =====

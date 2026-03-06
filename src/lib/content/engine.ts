@@ -572,7 +572,7 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
   const opts = request.advancedOptions || {}
   const imageCountGuide = opts.imageCount && opts.imageCount !== 'auto'
     ? `정확히 ${opts.imageCount}개`
-    : '3~5개'
+    : '4~5개'
   const headingCountGuide = opts.headingCount && opts.headingCount !== 'auto'
     ? `H2 소제목을 정확히 ${opts.headingCount}개`
     : 'H2 3~5개'
@@ -651,6 +651,11 @@ ${lengthGuide}
 - 클릭을 유도하는 수식어 활용: 완벽 가이드, 총정리, BEST, 실제 후기, ${new Date().getFullYear()}년 등
 - 숫자 활용: "5가지 방법", "TOP 7", "3분만에" 등
 
+### 도입부 최적화 (메타 설명 = 도입부 첫 문장)
+- **도입부 첫 문장에 반드시 핵심 키워드를 포함**하세요 (메타 설명으로 활용됨)
+- 첫 문장 길이: 50~120자 (이 범위가 검색 결과 미리보기에 최적)
+- 예: "침산동 수학학원을 찾고 계신다면, 이번 글에서 핵심 정보를 한눈에 정리해 드립니다."
+
 ### 키워드 배치 전략 (SEO 점수 핵심 요소)
 - **키워드 밀도 (필수)**: 핵심 키워드를 본문에 ${keywordDensityGuide} 반복 (2000자 기준 약 0.5~2% 밀도)
   - 너무 적으면(3회 이하): SEO 효과 없음
@@ -661,7 +666,7 @@ ${lengthGuide}
   - 중반부(중간 1/3): 중간 소제목 섹션들에 반드시 포함
   - 후반부(마지막 1/3): 마무리 섹션에 반드시 포함
   - 이 규칙을 어기면 SEO 점수 0점 처리됨
-- 관련 키워드: 동의어, 유사어를 골고루 사용하여 주제 전문성 표현
+- **관련 키워드 (필수)**: 사용자 메시지에 제공되는 관련 키워드 목록의 70% 이상을 본문에 자연스럽게 포함할 것 (SEO 점수 8점 배정)
 
 ### 키워드 스터핑 절대 금지 (매우 중요!)
 - 키워드는 반드시 자연스러운 문장 속에 녹여서 사용할 것
@@ -718,7 +723,7 @@ ${lengthGuide}
 - 관련 주제로 자연스럽게 연결되는 내용으로 작성
 
 ### 구조 최적화
-- 소제목(## H2, ### H3)으로 논리적 구조화 (${headingCountGuide}, 필요 시 H3 추가)
+- 소제목(## H2, ### H3)으로 논리적 구조화 (${headingCountGuide}, H3는 최소 2개 이상 필수)
 - ${structureRatioGuide}
 - 각 문단은 2~4문장으로 짧게 (모바일 가독성)
 - 문장 길이: 40자 이내 권장 (한국어 기준)${forcedSectionsGuide}${styleGuide ? `\n\n### 스타일 요구사항\n${styleGuide}` : ''}${audienceGuide}${ageGroupGuide}

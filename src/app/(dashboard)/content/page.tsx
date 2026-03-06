@@ -1250,7 +1250,7 @@ export default function ContentPage() {
     // 자동 발행: contentId가 있으면 상태를 'published'로 변경
     if (result.contentId) {
       await updateContentStatus(result.contentId, 'published')
-      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+      toast({ title: '복사완료', description: '콘텐츠가 복사되었고 상태가 "복사완료"로 변경되었습니다.' })
 
       // 순위 트래킹 다이얼로그 표시
       setTrackingKeyword(keyword)
@@ -1843,7 +1843,7 @@ export default function ContentPage() {
     // 자동 발행: draft 상태인 경우만 published로 전환
     if (c.status === 'draft') {
       await updateContentStatus(c.id, 'published')
-      toast({ title: '복사 완료', description: '콘텐츠가 복사되었고 상태가 "복사 완료"로 변경되었습니다.' })
+      toast({ title: '복사완료', description: '콘텐츠가 복사되었고 상태가 "복사완료"로 변경되었습니다.' })
     }
 
     // 순위 트래킹 다이얼로그 표시
@@ -1855,8 +1855,8 @@ export default function ContentPage() {
 
   const statusLabel: Record<string, { label: string; color: string }> = {
     draft: { label: '작성완료', color: 'bg-blue-100 text-blue-700' },
-    published: { label: '복사 완료', color: 'bg-green-100 text-green-700' },
-    archived: { label: '보관됨', color: 'bg-yellow-100 text-yellow-700' },
+    published: { label: '복사완료', color: 'bg-green-100 text-green-700' },
+    archived: { label: '보관', color: 'bg-yellow-100 text-yellow-700' },
   }
 
   return (

@@ -39,7 +39,7 @@ export function Sidebar() {
           {navGroups.map((group, gi) => (
             <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
               {gi > 0 && (
-                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   {group.label}
                 </p>
               )}
@@ -60,11 +60,11 @@ export function Sidebar() {
                             locked
                               ? 'cursor-default text-slate-600'
                               : isActive
-                                ? 'bg-primary/20 text-emerald-400 shadow-sm'
-                                : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'
+                                ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
+                                : 'text-slate-300 hover:bg-white/8 hover:text-white'
                           )}
                         >
-                          <item.icon className={cn('h-5 w-5', locked ? 'opacity-40' : isActive ? 'text-emerald-400' : 'group-hover:scale-110 transition-transform')} />
+                          <item.icon className={cn('h-5 w-5', locked ? 'opacity-40' : isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-white group-hover:scale-110 transition-all')} />
                           <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
                           {locked && <Lock className="h-4 w-4 text-slate-600" />}
                         </Link>
@@ -84,7 +84,7 @@ export function Sidebar() {
           {/* 관리자 메뉴 */}
           {role === 'admin' && (
             <div className="mt-6 pt-6 border-t border-slate-700/50">
-              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                 관리자
               </p>
               {adminNavItems.map((item) => {
@@ -96,11 +96,11 @@ export function Sidebar() {
                     className={cn(
                       'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
                       isActive
-                        ? 'bg-primary/20 text-emerald-400 shadow-sm'
-                        : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-100'
+                        ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
+                        : 'text-slate-300 hover:bg-white/8 hover:text-white'
                     )}
                   >
-                    <item.icon className={cn("h-5 w-5", isActive ? "text-emerald-400" : "group-hover:scale-110 transition-transform")} />
+                    <item.icon className={cn("h-5 w-5", isActive ? "text-emerald-400" : "text-slate-400 group-hover:text-white group-hover:scale-110 transition-all")} />
                     {item.label}
                   </Link>
                 )

@@ -522,7 +522,7 @@ export default function DashboardPage() {
                     <span className="h-2 w-2 rounded-full bg-amber-400" /> 작성완료 {contentStats.draft}
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-green-500" /> 복사 완료 {contentStats.published}
+                    <span className="h-2 w-2 rounded-full bg-green-500" /> 복사완료 {contentStats.published}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-gray-400" /> 보관 {contentStats.archived}
@@ -617,7 +617,7 @@ export default function DashboardPage() {
                         )}
                         {item.status && (
                           <Badge variant="secondary" className="text-[9px] px-1 sm:text-[10px] sm:px-1.5">
-                            {item.status === 'draft' ? '작성완료' : item.status === 'published' ? '복사 완료' : '보관'}
+                            {item.status === 'draft' ? '작성완료' : item.status === 'published' ? '복사완료' : '보관'}
                           </Badge>
                         )}
                         {item.type === 'content' && item.body ? (

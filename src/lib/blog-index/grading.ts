@@ -1,87 +1,88 @@
 /**
- * 블로그 지수 - 등급 체계 및 추천 (v14 업데이트)
+ * 블로그 지수 - 등급 체계 및 추천 (v16 업데이트)
  *
  * 16등급 블로그 지수 체계 (일반 / 준최적화 / 최적화 / 최적화+ / 파워)
  * v14: 4축(40:25:20:15) 배분 — 검색 노출력 축 폐지
+ * v16: 준최적화 구간 확대 (53pt→62pt), 최적화 이상 구간 축소
  */
 
 import type { BlogLevelInfo, AnalysisCategory, AbusePenalty, BenchmarkData, PostDetail, BlogProfile } from './types'
 
 import { GRADE_BADGES } from '@/lib/seo/grade-constants'
 
-// v11.3: 상위 좁고 하위 넓은 커브 + Lv 접두사 제거 — SEO_GRADE_TABLE과 동기화
+// v16: 준최적화 구간 확대 (3~64=62pt), 최적화 이상 축소 (65~100=36pt)
 export function determineLevelInfo(totalScore: number): BlogLevelInfo {
-  if (totalScore >= 98) return {
+  if (totalScore >= 99) return {
     tier: 16, category: '파워', label: '파워', shortLabel: '파워',
     description: '최상위 검색 노출력을 가진 파워 블로그입니다. 현재 전략을 유지하세요.',
     color: 'amber', badgeColor: GRADE_BADGES[16], nextTierScore: null,
   }
-  if (totalScore >= 95) return {
+  if (totalScore >= 97) return {
     tier: 15, category: '최적화+', label: '최적화4+', shortLabel: '최적화4+',
     description: '파워 블로그 직전 단계입니다. 꾸준함이 마지막 열쇠입니다.',
-    color: 'emerald', badgeColor: GRADE_BADGES[15], nextTierScore: 98,
+    color: 'emerald', badgeColor: GRADE_BADGES[15], nextTierScore: 99,
   }
-  if (totalScore >= 91) return {
+  if (totalScore >= 94) return {
     tier: 14, category: '최적화+', label: '최적화3+', shortLabel: '최적화3+',
     description: '매우 높은 검색 노출력을 갖추고 있습니다. 파워까지 한 걸음 남았습니다.',
-    color: 'emerald', badgeColor: GRADE_BADGES[14], nextTierScore: 95,
+    color: 'emerald', badgeColor: GRADE_BADGES[14], nextTierScore: 97,
   }
-  if (totalScore >= 86) return {
+  if (totalScore >= 91) return {
     tier: 13, category: '최적화+', label: '최적화2+', shortLabel: '최적화2+',
     description: '경쟁 키워드에서도 안정적으로 상위 노출됩니다. 전문성을 더 강화하세요.',
-    color: 'teal', badgeColor: GRADE_BADGES[13], nextTierScore: 91,
+    color: 'teal', badgeColor: GRADE_BADGES[13], nextTierScore: 94,
   }
-  if (totalScore >= 80) return {
+  if (totalScore >= 86) return {
     tier: 12, category: '최적화+', label: '최적화1+', shortLabel: '최적화1+',
     description: '검색 노출이 매우 우수합니다. 고급 키워드 전략으로 더 높은 등급에 도전하세요.',
-    color: 'teal', badgeColor: GRADE_BADGES[12], nextTierScore: 86,
+    color: 'teal', badgeColor: GRADE_BADGES[12], nextTierScore: 91,
   }
-  if (totalScore >= 73) return {
+  if (totalScore >= 80) return {
     tier: 11, category: '최적화', label: '최적화3', shortLabel: '최적화3',
     description: '안정적인 검색 노출력을 보유하고 있습니다. 최적화+ 등급을 향해 도전하세요.',
-    color: 'green', badgeColor: GRADE_BADGES[11], nextTierScore: 80,
+    color: 'green', badgeColor: GRADE_BADGES[11], nextTierScore: 86,
   }
-  if (totalScore >= 65) return {
+  if (totalScore >= 73) return {
     tier: 10, category: '최적화', label: '최적화2', shortLabel: '최적화2',
     description: '안정적인 검색 노출력을 보유하고 있습니다. 콘텐츠 깊이를 더 높여보세요.',
-    color: 'green', badgeColor: GRADE_BADGES[10], nextTierScore: 73,
+    color: 'green', badgeColor: GRADE_BADGES[10], nextTierScore: 80,
   }
-  if (totalScore >= 57) return {
+  if (totalScore >= 65) return {
     tier: 9, category: '최적화', label: '최적화1', shortLabel: '최적화1',
     description: '안정적인 검색 노출력을 보유하고 있습니다. 경쟁 키워드도 도전해보세요.',
-    color: 'lime', badgeColor: GRADE_BADGES[9], nextTierScore: 65,
+    color: 'lime', badgeColor: GRADE_BADGES[9], nextTierScore: 73,
   }
-  if (totalScore >= 48) return {
+  if (totalScore >= 54) return {
     tier: 8, category: '준최적화', label: '준최적화7', shortLabel: '준최적화7',
     description: '검색 노출이 시작되는 단계입니다. 콘텐츠 품질을 더 높여보세요.',
-    color: 'blue', badgeColor: GRADE_BADGES[8], nextTierScore: 57,
+    color: 'blue', badgeColor: GRADE_BADGES[8], nextTierScore: 65,
   }
-  if (totalScore >= 39) return {
+  if (totalScore >= 43) return {
     tier: 7, category: '준최적화', label: '준최적화6', shortLabel: '준최적화6',
     description: '검색 노출이 시작되는 단계입니다. 주제 전문성을 강화하세요.',
-    color: 'blue', badgeColor: GRADE_BADGES[7], nextTierScore: 48,
+    color: 'blue', badgeColor: GRADE_BADGES[7], nextTierScore: 54,
   }
-  if (totalScore >= 30) return {
+  if (totalScore >= 33) return {
     tier: 6, category: '준최적화', label: '준최적화5', shortLabel: '준최적화5',
     description: '검색 노출이 시작되는 단계입니다. 활동성을 강화하세요.',
-    color: 'sky', badgeColor: GRADE_BADGES[6], nextTierScore: 39,
+    color: 'sky', badgeColor: GRADE_BADGES[6], nextTierScore: 43,
   }
-  if (totalScore >= 22) return {
+  if (totalScore >= 24) return {
     tier: 5, category: '준최적화', label: '준최적화4', shortLabel: '준최적화4',
     description: '검색 노출이 시작되는 단계입니다. 키워드 전략을 세워보세요.',
-    color: 'sky', badgeColor: GRADE_BADGES[5], nextTierScore: 30,
+    color: 'sky', badgeColor: GRADE_BADGES[5], nextTierScore: 33,
   }
-  if (totalScore >= 15) return {
+  if (totalScore >= 16) return {
     tier: 4, category: '준최적화', label: '준최적화3', shortLabel: '준최적화3',
     description: 'SEO 기본기가 갖춰지고 있습니다. 꾸준한 포스팅이 중요합니다.',
-    color: 'indigo', badgeColor: GRADE_BADGES[4], nextTierScore: 22,
+    color: 'indigo', badgeColor: GRADE_BADGES[4], nextTierScore: 24,
   }
   if (totalScore >= 9) return {
     tier: 3, category: '준최적화', label: '준최적화2', shortLabel: '준최적화2',
     description: '기본적인 활동은 하고 있습니다. SEO 최적화를 시작해보세요.',
-    color: 'indigo', badgeColor: GRADE_BADGES[3], nextTierScore: 15,
+    color: 'indigo', badgeColor: GRADE_BADGES[3], nextTierScore: 16,
   }
-  if (totalScore >= 4) return {
+  if (totalScore >= 3) return {
     tier: 2, category: '준최적화', label: '준최적화1', shortLabel: '준최적화1',
     description: '블로그를 시작한 초기 단계입니다. 주 3회 이상 양질의 글을 발행하세요.',
     color: 'violet', badgeColor: GRADE_BADGES[2], nextTierScore: 9,
@@ -89,7 +90,7 @@ export function determineLevelInfo(totalScore: number): BlogLevelInfo {
   return {
     tier: 1, category: '일반', label: '일반', shortLabel: '일반',
     description: '블로그를 시작한 초기 단계입니다. 꾸준한 포스팅이 핵심입니다.',
-    color: 'slate', badgeColor: GRADE_BADGES[1], nextTierScore: 4,
+    color: 'slate', badgeColor: GRADE_BADGES[1], nextTierScore: 3,
   }
 }
 

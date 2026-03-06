@@ -102,8 +102,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '작성완료',
-  published: '발행됨',
-  archived: '보관됨',
+  published: '복사완료',
+  archived: '보관',
 }
 
 const STATUS_COLORS: Record<string, string> = {

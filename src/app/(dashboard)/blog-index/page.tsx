@@ -121,6 +121,7 @@ interface PostDetail {
   commentCount?: number | null   // v4: 댓글 수
   sympathyCount?: number | null  // v4: 공감 수
   readCount?: number | null      // v10: 조회수
+  indexed?: boolean | null       // v16: 검색 노출 여부
 }
 
 interface BlogProfile {
@@ -136,6 +137,8 @@ interface BlogProfile {
   postsPerWeek?: number | null
   totalPostCount?: number | null
   blogCreatedDate?: string | null
+  dayVisitorCount?: number | null
+  subscriberCount?: number | null
 }
 
 interface BenchmarkData {
@@ -1218,7 +1221,9 @@ export default function BlogIndexPage() {
                             return `${dateStr}${ageText}`
                           })(),
                         }] : []),
+                        ...(result.blogProfile?.dayVisitorCount != null ? [{ icon: <Eye className="h-3 w-3" />, label: '오늘 방문자', value: `${result.blogProfile.dayVisitorCount.toLocaleString()}명` }] : []),
                         ...(result.benchmark?.buddyCount ? [{ icon: <Users className="h-3 w-3" />, label: '이웃', value: `${result.benchmark.buddyCount.mine.toLocaleString()}명` }] : []),
+                        ...(result.blogProfile?.subscriberCount != null ? [{ icon: <Users className="h-3 w-3" />, label: '구독자', value: `${result.blogProfile.subscriberCount.toLocaleString()}명` }] : []),
                         { icon: <Target className="h-3 w-3" />, label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center justify-between rounded bg-muted/50 px-2.5 py-1.5">
@@ -1861,11 +1866,12 @@ export default function BlogIndexPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                    <table className="w-full min-w-[760px] text-sm">
+                    <table className="w-full min-w-[820px] text-sm">
                       <thead>
                         <tr className="border-b text-left">
                           <th className="pb-2 pr-2 font-medium text-muted-foreground min-w-[120px]">제목</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-20">지수</th>
+                          <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-14">노출</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground w-24 whitespace-nowrap">작성일</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16 whitespace-nowrap">경과</th>
                           <th className="pb-2 pr-2 font-medium text-muted-foreground text-center w-16">글자수</th>
@@ -1896,6 +1902,15 @@ export default function BlogIndexPage() {
                                 </Badge>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="py-2 pr-2 text-center">
+                              {post.indexed === true ? (
+                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-[10px]">노출</Badge>
+                              ) : post.indexed === false ? (
+                                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 text-[10px]">누락</Badge>
+                              ) : (
+                                <Minus className="mx-auto h-3.5 w-3.5 text-muted-foreground/40" />
                               )}
                             </td>
                             <td className="py-2 pr-2 text-[11px] text-muted-foreground whitespace-nowrap">{post.date}</td>
@@ -1951,7 +1966,7 @@ export default function BlogIndexPage() {
                   </div>
 
                   {/* 포스트 분석 서머리 */}
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-2.5 sm:grid-cols-5">
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-2.5 sm:grid-cols-6">
                     {(() => {
                       // 실제 본문 데이터가 있는지 확인
                       const hasActualContent = result.recentPosts.some(p => p.isScrapped)
@@ -1959,6 +1974,10 @@ export default function BlogIndexPage() {
                       const avgContentLength = scrappedPosts.length > 0
                         ? Math.round(scrappedPosts.reduce((s, p) => s + p.charCount, 0) / scrappedPosts.length)
                         : result.postAnalysis.avgDescLength
+
+                      // 노출 통계
+                      const checkedPosts = result.recentPosts.filter(p => p.indexed !== null && p.indexed !== undefined)
+                      const indexedPosts = result.recentPosts.filter(p => p.indexed === true)
 
                       return [
                         { label: '평균 제목', value: `${result.postAnalysis.avgTitleLength}자` },
@@ -1969,6 +1988,7 @@ export default function BlogIndexPage() {
                             : `~${avgContentLength}자`
                         },
                         { label: '이미지 포함률', value: `${result.recentPosts.length > 0 ? Math.round((result.recentPosts.filter(p => p.hasImage).length / result.recentPosts.length) * 100) : 0}%` },
+                        { label: '검색 노출률', value: checkedPosts.length > 0 ? `${Math.round((indexedPosts.length / checkedPosts.length) * 100)}%` : '-' },
                         { label: '최적 제목 비율', value: `${result.recentPosts.length > 0 ? Math.round((result.recentPosts.filter(p => p.titleLength >= 15 && p.titleLength <= 40).length / result.recentPosts.length) * 100) : 0}%` },
                         { label: '평균 품질', value: result.recentPosts.filter(p => p.quality).length > 0 ? `${(result.recentPosts.filter(p => p.quality).reduce((s, p) => s + (p.quality?.score || 0), 0) / result.recentPosts.filter(p => p.quality).length).toFixed(1)}/15` : '-' },
                       ].map((stat, i) => (

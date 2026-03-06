@@ -321,18 +321,31 @@ export function extractKeywordsFromPosts(posts: BlogPost[], maxKeywords = 5): st
   const wordFreq: Record<string, number> = {}
   const bigramFreq: Record<string, number> = {}
 
-  posts.forEach((p) => {
-    const title = stripHtml(p.title)
-    const words = extractKoreanKeywords(title, STOPWORDS)
+  // 단어 추가 헬퍼 (가중치 적용)
+  const addWords = (text: string, weight: number) => {
+    const words = extractKoreanKeywords(text, STOPWORDS)
+    // 3글자 이상 한글만 키워드로 인정 (2글자는 너무 모호: "수학", "강아" 등)
+    const filtered = words.filter(w => /[가-힣]/.test(w) ? w.length >= 3 : true)
 
-    words.forEach((w) => {
-      wordFreq[w] = (wordFreq[w] || 0) + 1
+    filtered.forEach((w) => {
+      wordFreq[w] = (wordFreq[w] || 0) + weight
     })
 
-    // 인접 단어 바이그램 생성 (더 구체적인 검색 키워드)
-    for (let i = 0; i < words.length - 1; i++) {
-      const bigram = `${words[i]} ${words[i + 1]}`
-      bigramFreq[bigram] = (bigramFreq[bigram] || 0) + 1
+    // 바이그램은 제목에서만 생성 (description은 문맥이 끊겨서 바이그램 품질이 낮음)
+    if (weight >= 2) {
+      for (let i = 0; i < filtered.length - 1; i++) {
+        const bigram = `${filtered[i]} ${filtered[i + 1]}`
+        bigramFreq[bigram] = (bigramFreq[bigram] || 0) + 1
+      }
+    }
+  }
+
+  posts.forEach((p) => {
+    // 제목: 가중치 2 (핵심 키워드 집중)
+    addWords(stripHtml(p.title), 2)
+    // 본문 요약(description): 가중치 1 (보충 신호)
+    if (p.description) {
+      addWords(stripHtml(p.description), 1)
     }
   })
 
@@ -346,14 +359,24 @@ export function extractKeywordsFromPosts(posts: BlogPost[], maxKeywords = 5): st
     .map(([phrase]) => phrase)
   keywords.push(...topBigrams)
 
-  // 2단계: 바이그램에 포함되지 않은 단일 키워드로 보충
+  // 2단계: 단일 키워드 보충 (가중 빈도 3 이상만 — 최소 2개 포스트에 등장)
   const usedWords = new Set(topBigrams.flatMap((b) => b.split(' ')))
   const topWords = Object.entries(wordFreq)
-    .filter(([word]) => !usedWords.has(word))
+    .filter(([word, count]) => !usedWords.has(word) && count >= 3)
     .sort((a, b) => b[1] - a[1])
     .slice(0, maxKeywords - keywords.length)
     .map(([word]) => word)
   keywords.push(...topWords)
+
+  // 3단계: 빈도 3 미만이라 부족하면 빈도 2 이상으로 완화하여 보충
+  if (keywords.length < maxKeywords) {
+    const remaining = Object.entries(wordFreq)
+      .filter(([word, count]) => !usedWords.has(word) && !keywords.includes(word) && count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, maxKeywords - keywords.length)
+      .map(([word]) => word)
+    keywords.push(...remaining)
+  }
 
   return keywords.slice(0, maxKeywords)
 }

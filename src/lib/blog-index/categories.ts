@@ -228,80 +228,91 @@ export interface CategoryBenchmarkValues {
 
 /**
  * 카테고리별 정적 벤치마크 테이블
- * 네이버 블로그 상위 노출 블로거 리서치 기반
+ *
+ * 출처 (2025~2026 리서치):
+ * - 제목 길이: 15~25자 최적 (brunch.co.kr, newmove.kr 블로그 SEO 가이드)
+ * - 본문 길이: 1,500~3,000자 (backlinkpro.kr 성공사례 평균 2,000자)
+ *   · 카테고리별: 음식 1,400~1,900자, 기술 1,600~2,000자, 여행 2,500~3,000자 (pagewriter.kr)
+ * - 이미지 수: 6~13개 (brunch.co.kr 상위노출 가이드라인)
+ * - 포스팅 주기: 주 2~4회 (월 16회+ 시 트래픽 3.5배, backlinkpro.kr)
+ * - 키워드 밀도: 1~2% (backlinkpro.kr), 3~5회 반복 (brunch.co.kr)
+ * - 주제 집중도: C-Rank 핵심 요소 — 한 분야 집중 블로그가 잡다 블로그 대비 노출률 5배 (interad.com)
+ *
+ * 주의: 자체 축적 데이터(category_benchmarks)는 점수 산정에 사용하지 않음.
+ * 축적 데이터는 향후 참고용으로만 보관.
  */
 export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkValues> = {
-  food: {
-    postingFrequency: { recommended: 4, topBlogger: 7 },
-    avgTitleLength: { optimal: 28 },
-    avgContentLength: { recommended: 1500 },
-    imageRate: { recommended: 95 },
-    topicFocus: { recommended: 55 },
-    avgImageCount: { recommended: 12 },
+  food: {  // 맛집/카페: 사진 중심, 짧은 후기형
+    postingFrequency: { recommended: 3, topBlogger: 5 },    // 주 3회 권장, 상위 주 5회
+    avgTitleLength: { optimal: 22 },                         // "강남 점심 맛집 추천 BEST 5" = 16자~22자
+    avgContentLength: { recommended: 1800 },                 // 음식 카테고리 1,400~1,900자 (pagewriter.kr)
+    imageRate: { recommended: 90 },                          // 맛집은 사진 필수
+    topicFocus: { recommended: 55 },                         // 다양한 지역/음식 커버 가능
+    avgImageCount: { recommended: 10 },                      // 6~13개 중 사진 중심 카테고리
     avgCommentCount: { recommended: 8 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 300, topBlogger: 1500 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 150 },
   },
-  beauty: {
-    postingFrequency: { recommended: 3, topBlogger: 6 },
-    avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 1800 },
+  beauty: {  // 뷰티/패션: 사진+리뷰형
+    postingFrequency: { recommended: 3, topBlogger: 5 },
+    avgTitleLength: { optimal: 22 },
+    avgContentLength: { recommended: 1800 },                 // 패션 리뷰 1,600~1,900자 (pagewriter.kr)
     imageRate: { recommended: 90 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 10 },
+    avgImageCount: { recommended: 8 },
     avgCommentCount: { recommended: 6 },
     avgSympathyCount: { recommended: 12 },
     dailyVisitors: { recommended: 250, topBlogger: 1200 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 120 },
   },
-  it_tech: {
-    postingFrequency: { recommended: 2, topBlogger: 4 },
-    avgTitleLength: { optimal: 32 },
-    avgContentLength: { recommended: 2500 },
-    imageRate: { recommended: 60 },
-    topicFocus: { recommended: 65 },
-    avgImageCount: { recommended: 5 },
+  it_tech: {  // IT/테크: 긴 텍스트, 스크린샷 위주
+    postingFrequency: { recommended: 2, topBlogger: 4 },    // IT는 글 하나에 공들이는 패턴
+    avgTitleLength: { optimal: 28 },                         // 기술 용어로 제목이 길어짐
+    avgContentLength: { recommended: 2000 },                 // 기술 콘텐츠 1,600~2,500자 (pagewriter.kr)
+    imageRate: { recommended: 60 },                          // 스크린샷/코드 위주
+    topicFocus: { recommended: 65 },                         // IT 전문성 중요
+    avgImageCount: { recommended: 5 },                       // 스크린샷 3~7개
     avgCommentCount: { recommended: 4 },
     avgSympathyCount: { recommended: 8 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 80 },
   },
-  parenting: {
+  parenting: {  // 육아/교육: 일상+정보 혼합
     postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 24 },
-    avgContentLength: { recommended: 1500 },
+    avgTitleLength: { optimal: 22 },
+    avgContentLength: { recommended: 1800 },                 // 육아 일상+정보 1,500~2,000자
     imageRate: { recommended: 85 },
     topicFocus: { recommended: 55 },
-    avgImageCount: { recommended: 8 },
+    avgImageCount: { recommended: 7 },
     avgCommentCount: { recommended: 7 },
     avgSympathyCount: { recommended: 12 },
     dailyVisitors: { recommended: 250, topBlogger: 1000 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 120 },
   },
-  travel: {
-    postingFrequency: { recommended: 2, topBlogger: 4 },
-    avgTitleLength: { optimal: 28 },
-    avgContentLength: { recommended: 2000 },
-    imageRate: { recommended: 95 },
-    topicFocus: { recommended: 50 },
-    avgImageCount: { recommended: 15 },
+  travel: {  // 여행/숙소: 긴 후기, 사진 많음
+    postingFrequency: { recommended: 2, topBlogger: 4 },    // 여행 후기는 작성 시간 김
+    avgTitleLength: { optimal: 24 },
+    avgContentLength: { recommended: 2500 },                 // 여행 후기 2,000~3,000자 (pagewriter.kr 1,850단어급)
+    imageRate: { recommended: 95 },                          // 여행 사진 필수
+    topicFocus: { recommended: 50 },                         // 다양한 장소 커버
+    avgImageCount: { recommended: 12 },                      // 여행은 사진 10~15장
     avgCommentCount: { recommended: 6 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 300, topBlogger: 1500 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 100 },
   },
-  health: {
+  health: {  // 건강/운동: 정보 중심, 전문성 중요
     postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 2000 },
+    avgTitleLength: { optimal: 25 },
+    avgContentLength: { recommended: 2000 },                 // 건강 정보 1,500~2,500자
     imageRate: { recommended: 70 },
-    topicFocus: { recommended: 65 },
+    topicFocus: { recommended: 65 },                         // 건강 전문성 중요
     avgImageCount: { recommended: 5 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
@@ -309,49 +320,49 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 100 },
   },
-  interior: {
-    postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 1500 },
+  interior: {  // 인테리어/살림: 비포/애프터 사진 중심
+    postingFrequency: { recommended: 2, topBlogger: 4 },
+    avgTitleLength: { optimal: 23 },
+    avgContentLength: { recommended: 1800 },
     imageRate: { recommended: 90 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 10 },
+    avgImageCount: { recommended: 8 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 200, topBlogger: 800 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 100 },
   },
-  finance: {
-    postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 2500 },
-    imageRate: { recommended: 50 },
-    topicFocus: { recommended: 70 },
-    avgImageCount: { recommended: 3 },
+  finance: {  // 재테크/경제: 긴 분석글, 차트/표 위주
+    postingFrequency: { recommended: 2, topBlogger: 4 },
+    avgTitleLength: { optimal: 27 },
+    avgContentLength: { recommended: 2500 },                 // 분석/해설형 2,000~3,000자
+    imageRate: { recommended: 50 },                          // 차트/캡처 위주
+    topicFocus: { recommended: 70 },                         // 재테크 전문성 매우 중요
+    avgImageCount: { recommended: 4 },
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 8 },
     dailyVisitors: { recommended: 250, topBlogger: 1000 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 100 },
   },
-  pet: {
-    postingFrequency: { recommended: 3, topBlogger: 6 },
-    avgTitleLength: { optimal: 24 },
-    avgContentLength: { recommended: 1200 },
-    imageRate: { recommended: 95 },
+  pet: {  // 반려동물: 사진 많은 일상형
+    postingFrequency: { recommended: 3, topBlogger: 5 },
+    avgTitleLength: { optimal: 22 },
+    avgContentLength: { recommended: 1500 },                 // 일상 공유형 1,200~1,800자
+    imageRate: { recommended: 95 },                          // 반려동물 사진 필수
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 10 },
+    avgImageCount: { recommended: 8 },
     avgCommentCount: { recommended: 8 },
     avgSympathyCount: { recommended: 15 },
     dailyVisitors: { recommended: 250, topBlogger: 1000 },
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 120 },
   },
-  hobby: {
+  hobby: {  // 취미/문화: 리뷰+감상형
     postingFrequency: { recommended: 2, topBlogger: 4 },
-    avgTitleLength: { optimal: 26 },
-    avgContentLength: { recommended: 1500 },
+    avgTitleLength: { optimal: 24 },
+    avgContentLength: { recommended: 1800 },
     imageRate: { recommended: 75 },
     topicFocus: { recommended: 55 },
     avgImageCount: { recommended: 6 },
@@ -361,12 +372,12 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 80 },
   },
-  business: {
+  business: {  // 비즈니스/마케팅: 긴 전문글
     postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 30 },
-    avgContentLength: { recommended: 2000 },
+    avgTitleLength: { optimal: 27 },
+    avgContentLength: { recommended: 2000 },                 // 마케팅/전략글 1,500~2,500자
     imageRate: { recommended: 60 },
-    topicFocus: { recommended: 70 },
+    topicFocus: { recommended: 70 },                         // 전문성 중요
     avgImageCount: { recommended: 4 },
     avgCommentCount: { recommended: 4 },
     avgSympathyCount: { recommended: 8 },
@@ -374,13 +385,13 @@ export const STATIC_CATEGORY_BENCHMARKS: Record<BlogCategory, CategoryBenchmarkV
     blogAge: { recommended: 365 },
     totalPostCount: { recommended: 100 },
   },
-  general: {
+  general: {  // 일반 (폴백): 중간값
     postingFrequency: { recommended: 3, topBlogger: 5 },
-    avgTitleLength: { optimal: 25 },
-    avgContentLength: { recommended: 1500 },
+    avgTitleLength: { optimal: 23 },                         // 15~25자 범위 중간값
+    avgContentLength: { recommended: 1800 },                 // 1,500~2,000자 중간값
     imageRate: { recommended: 80 },
     topicFocus: { recommended: 60 },
-    avgImageCount: { recommended: 5 },
+    avgImageCount: { recommended: 6 },                       // 6~13개 범위 하한
     avgCommentCount: { recommended: 5 },
     avgSympathyCount: { recommended: 10 },
     dailyVisitors: { recommended: 200, topBlogger: 1000 },

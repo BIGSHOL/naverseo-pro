@@ -54,12 +54,12 @@ function buildNotifications(data: {
     })
   }
 
-  // 2. 초안 콘텐츠 알림
+  // 2. 작성완료 콘텐츠 알림
   if (data.contentStats && data.contentStats.draft > 0) {
     notifications.push({
       icon: FileText,
-      title: '초안 콘텐츠 확인',
-      message: `초안 상태의 콘텐츠가 ${data.contentStats.draft}개 있습니다. SEO 체크 후 발행해보세요!`,
+      title: '작성완료 콘텐츠 확인',
+      message: `작성완료 상태의 콘텐츠가 ${data.contentStats.draft}개 있습니다. SEO 체크 후 복사해보세요!`,
       time: '콘텐츠',
       actionable: true,
       href: '/content',

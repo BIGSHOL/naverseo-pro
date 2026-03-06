@@ -574,7 +574,7 @@ export default function ReportPage() {
                         <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
                           <Badge variant="outline" className="text-[10px] max-w-[120px] truncate">{c.target_keyword}</Badge>
                           <Badge variant="secondary" className="text-[10px] shrink-0">
-                            {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사 완료' : '보관'}
+                            {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사완료' : '보관'}
                           </Badge>
                           <span className="shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
                         </div>
@@ -602,7 +602,7 @@ export default function ReportPage() {
                             <td className="py-2">{c.target_keyword}</td>
                             <td className="py-2 text-center">
                               <Badge variant="secondary" className="text-xs">
-                                {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사 완료' : '보관'}
+                                {c.status === 'draft' ? '작성완료' : c.status === 'published' ? '복사완료' : '보관'}
                               </Badge>
                             </td>
                             <td className="py-2 text-center">

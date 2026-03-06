@@ -151,6 +151,7 @@ export function analyzeBlogIndex(
         sympathyCount,
         readCount,
         estimatedReadTimeSec,
+        indexed: null,
       }
     })
     .filter((p) => p.daysAgo >= 0)
@@ -244,6 +245,8 @@ export function analyzeBlogIndex(
     postsPerWeek,
     totalPostCount: blogProfileData?.totalPostCount ?? null,
     blogCreatedDate: blogProfileData?.blogStartDate ?? null,
+    dayVisitorCount: blogProfileData?.dayVisitorCount ?? null,
+    subscriberCount: blogProfileData?.subscriberCount ?? null,
   }
 
   // 벤치마크 데이터 생성

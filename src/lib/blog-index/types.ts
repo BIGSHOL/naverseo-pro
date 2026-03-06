@@ -97,6 +97,7 @@ export interface PostDetail {
   sympathyCount?: number | null  // v4: 공감 수
   readCount?: number | null      // v10: 조회수
   estimatedReadTimeSec?: number  // v8: 예상 체류 시간 (초)
+  indexed?: boolean | null       // v16: 검색 노출 여부 (null=미확인, true=노출, false=누락)
 }
 
 export interface BlogProfile {
@@ -112,6 +113,8 @@ export interface BlogProfile {
   postsPerWeek: number | null   // 주간 포스팅 수
   totalPostCount?: number | null  // v4: 프로필에서 추출한 전체 포스트 수
   blogCreatedDate?: string | null // v4: 프로필에서 추출한 블로그 개설일
+  dayVisitorCount?: number | null  // v16: 오늘 방문자 수
+  subscriberCount?: number | null  // v16: 구독자 수
 }
 
 export interface BenchmarkData {

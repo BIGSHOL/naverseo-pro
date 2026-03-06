@@ -256,28 +256,28 @@ export function scorePost(
 
   total -= penalty
 
-  // ── 최종 clamp + 16등급 매핑 (v11.3: 상위 좁고 하위 넓은 커브, SEO_GRADE_TABLE/grading.ts와 동기화) ──
+  // ── 최종 clamp + 16등급 매핑 (v16: 준최적화 구간 확대, grading.ts와 동기화) ──
   const score = Math.max(0, Math.min(100, total))
 
   let tier: number
   let category: string
   let label: string
 
-  if (score >= 98) { tier = 16; category = '파워'; label = '파워' }
-  else if (score >= 95) { tier = 15; category = '최적화+'; label = '최적화4+' }
-  else if (score >= 91) { tier = 14; category = '최적화+'; label = '최적화3+' }
-  else if (score >= 86) { tier = 13; category = '최적화+'; label = '최적화2+' }
-  else if (score >= 80) { tier = 12; category = '최적화+'; label = '최적화1+' }
-  else if (score >= 73) { tier = 11; category = '최적화'; label = '최적화3' }
-  else if (score >= 65) { tier = 10; category = '최적화'; label = '최적화2' }
-  else if (score >= 57) { tier = 9; category = '최적화'; label = '최적화1' }
-  else if (score >= 48) { tier = 8; category = '준최적화'; label = '준최적화7' }
-  else if (score >= 39) { tier = 7; category = '준최적화'; label = '준최적화6' }
-  else if (score >= 30) { tier = 6; category = '준최적화'; label = '준최적화5' }
-  else if (score >= 22) { tier = 5; category = '준최적화'; label = '준최적화4' }
-  else if (score >= 15) { tier = 4; category = '준최적화'; label = '준최적화3' }
+  if (score >= 99) { tier = 16; category = '파워'; label = '파워' }
+  else if (score >= 97) { tier = 15; category = '최적화+'; label = '최적화4+' }
+  else if (score >= 94) { tier = 14; category = '최적화+'; label = '최적화3+' }
+  else if (score >= 91) { tier = 13; category = '최적화+'; label = '최적화2+' }
+  else if (score >= 86) { tier = 12; category = '최적화+'; label = '최적화1+' }
+  else if (score >= 80) { tier = 11; category = '최적화'; label = '최적화3' }
+  else if (score >= 73) { tier = 10; category = '최적화'; label = '최적화2' }
+  else if (score >= 65) { tier = 9; category = '최적화'; label = '최적화1' }
+  else if (score >= 54) { tier = 8; category = '준최적화'; label = '준최적화7' }
+  else if (score >= 43) { tier = 7; category = '준최적화'; label = '준최적화6' }
+  else if (score >= 33) { tier = 6; category = '준최적화'; label = '준최적화5' }
+  else if (score >= 24) { tier = 5; category = '준최적화'; label = '준최적화4' }
+  else if (score >= 16) { tier = 4; category = '준최적화'; label = '준최적화3' }
   else if (score >= 9) { tier = 3; category = '준최적화'; label = '준최적화2' }
-  else if (score >= 4) { tier = 2; category = '준최적화'; label = '준최적화1' }
+  else if (score >= 3) { tier = 2; category = '준최적화'; label = '준최적화1' }
   else { tier = 1; category = '일반'; label = '일반' }
 
   return { score, tier, label, category }
