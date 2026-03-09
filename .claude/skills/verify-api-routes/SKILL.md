@@ -80,6 +80,9 @@ description: API Route의 에러 처리, 입력 검증, 데모 데이터 폴백,
 | `src/lib/keyword-discovery/engine.ts` | 키워드 발굴 엔진 (Phase 1~3, onProgress 콜백) |
 | `src/app/api/util/parse-pdf/route.ts` | PDF 파싱 유틸리티 엔드포인트 (pdf-parse v2, 텍스트 추출) |
 | `src/lib/content/validators.ts` | 콘텐츠 첨부 자료 검증 유틸 (PDF/이미지/TXT/참고자료 사전 검증) |
+| `src/app/api/ai/instagram/route.ts` | 인스타그램 콘텐츠 변환 엔드포인트 (캡션/해시태그/캐러셀/릴스) |
+| `src/lib/ai/prompts/insights.ts` | AI 인사이트 프롬프트 (리포트/대시보드/키워드/트래킹) |
+| `src/lib/ai/prompts/instagram.ts` | 인스타그램 변환 프롬프트 (캡션/해시태그/캐러셀/릴스) |
 
 ## Workflow
 
