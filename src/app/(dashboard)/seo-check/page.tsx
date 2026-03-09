@@ -663,9 +663,8 @@ export default function SeoCheckPage() {
         </p>
       </div>
 
-      {/* 입력 폼 + 실시간 분석 2컬럼 */}
-      <div className={cn('grid gap-6', showLivePanel && 'lg:grid-cols-[1fr,380px]')}>
-        {/* 좌측: 입력 폼 */}
+      {/* 입력 폼 */}
+      <div className="space-y-6">
         <Card>
           <CardHeader
             className={cn(result ? 'cursor-pointer select-none hover:bg-muted/30 transition-colors' : '')}
@@ -1030,7 +1029,7 @@ export default function SeoCheckPage() {
 
               {showLivePanel && !result && (
                 <p className="text-center text-xs text-muted-foreground">
-                  우측에서 실시간 점수를 확인하세요. 분석을 실행하면 상세 결과를 볼 수 있습니다.
+                  아래에서 실시간 점수를 확인하세요. 분석을 실행하면 상세 결과를 볼 수 있습니다.
                 </p>
               )}
             </form>
@@ -1057,25 +1056,29 @@ export default function SeoCheckPage() {
           )}
         </Card>
 
-        {/* 우측: 실시간 SEO 분석 패널 (sticky로 스크롤 시 따라감) */}
+        {/* 실시간 SEO 분석 패널 (폼 아래에 표시) */}
         {showLivePanel && (
-          <div className="space-y-4 lg:self-start lg:sticky lg:top-20">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">실시간 분석</span>
-              <Badge variant="secondary" className="text-xs">LIVE</Badge>
-            </div>
-            <LiveSeoPanel
-              keyword={keyword}
-              title={title}
-              content={content}
-              scrapedMeta={scrapedStats ? {
-                tags: scrapedStats.tags,
-                formatting: scrapedStats.formatting,
-              } : undefined}
-              hideStrengths={!!result}
-            />
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                실시간 분석
+                <Badge variant="secondary" className="text-xs">LIVE</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LiveSeoPanel
+                keyword={keyword}
+                title={title}
+                content={content}
+                scrapedMeta={scrapedStats ? {
+                  tags: scrapedStats.tags,
+                  formatting: scrapedStats.formatting,
+                } : undefined}
+                hideStrengths={!!result}
+              />
+            </CardContent>
+          </Card>
         )}
       </div>
 

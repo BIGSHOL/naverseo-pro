@@ -39,7 +39,7 @@ export function Sidebar() {
           {navGroups.map((group, gi) => (
             <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
               {gi > 0 && (
-                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                   {group.label}
                 </p>
               )}
@@ -84,7 +84,7 @@ export function Sidebar() {
           {/* 관리자 메뉴 */}
           {role === 'admin' && (
             <div className="mt-6 pt-6 border-t border-slate-700/50">
-              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                 관리자
               </p>
               {adminNavItems.map((item) => {
@@ -139,23 +139,23 @@ export function Sidebar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    {userName && <p className="truncate text-xs font-medium">{userName}</p>}
-                    <p className="truncate text-[11px] text-muted-foreground">{userEmail}</p>
+                    {userName && <p className="truncate text-xs font-medium text-slate-100">{userName}</p>}
+                    <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
                   </div>
                 </div>
               )}
-              <div className="rounded-lg bg-muted p-3">
-                <p className="text-xs font-medium text-muted-foreground">현재 플랜</p>
-                <p className="text-sm font-semibold">{planInfo.name}</p>
+              <div className="rounded-lg bg-slate-800/60 p-3 border border-slate-700/40">
+                <p className="text-xs font-medium text-slate-400">현재 플랜</p>
+                <p className="text-sm font-semibold text-slate-100">{planInfo.name}</p>
                 <div className="mt-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="cursor-help">
-                        <div className="flex justify-between text-xs text-muted-foreground">
+                        <div className="flex justify-between text-xs text-slate-400">
                           <span>크레딧</span>
                           <span>{creditsBalance.toLocaleString()}/{creditsQuota.toLocaleString()}</span>
                         </div>
-                        <div className="mt-1 h-1.5 rounded-full bg-background">
+                        <div className="mt-1 h-1.5 rounded-full bg-slate-700/50">
                           <div
                             className={cn(
                               'h-full rounded-full transition-all',
