@@ -374,20 +374,28 @@ export function BlogIndexHistoryChart({ history, stats, mode = 'total' }: BlogIn
     <div className="space-y-3">
       {/* 상단 통계 */}
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        {/* 최근 변화 */}
+        {/* 최근 변화 (일별 중복 제거 기준으로 일관 계산) */}
         <div className="flex items-center gap-1.5">
-          {stats.latestChange > 0 ? (
-            <span className="font-bold text-green-600">▲ +{stats.latestChange}점</span>
-          ) : stats.latestChange < 0 ? (
-            <span className="font-bold text-red-600">▼ {stats.latestChange}점</span>
-          ) : (
-            <span className="font-medium text-muted-foreground">→ 변동 없음</span>
-          )}
-          {history.length >= 2 && (
-            <span className="text-muted-foreground">
-              ({sorted[sorted.length - 2]?.total_score ?? '-'} → {sorted[sorted.length - 1]?.total_score ?? '-'})
-            </span>
-          )}
+          {(() => {
+            if (sorted.length < 2) return <span className="font-medium text-muted-foreground">→ 첫 측정</span>
+            const prev = sorted[sorted.length - 2].total_score
+            const curr = sorted[sorted.length - 1].total_score
+            const diff = curr - prev
+            return (
+              <>
+                {diff > 0 ? (
+                  <span className="font-bold text-green-600">▲ +{diff}점</span>
+                ) : diff < 0 ? (
+                  <span className="font-bold text-red-600">▼ {diff}점</span>
+                ) : (
+                  <span className="font-medium text-muted-foreground">→ 변동 없음</span>
+                )}
+                <span className="text-muted-foreground">
+                  ({prev} → {curr})
+                </span>
+              </>
+            )
+          })()}
         </div>
 
         <span className="text-muted-foreground/40">|</span>
