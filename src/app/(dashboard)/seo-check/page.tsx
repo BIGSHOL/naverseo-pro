@@ -251,6 +251,7 @@ export default function SeoCheckPage() {
   // AI 심층 분석 로딩 상태
   const [aiLoading, setAiLoading] = useState(false)
   const [aiProgressLabel, setAiProgressLabel] = useState('')
+  const [aiScanPercent, setAiScanPercent] = useState(0)
 
   // AI 약점 개선
   const [improving, setImproving] = useState(false)
@@ -414,9 +415,27 @@ export default function SeoCheckPage() {
     if (aiLoading || !result || !content.trim()) return
 
     setAiLoading(true)
-    setAiProgressLabel('AI 심층 분석 시작...')
+    setAiScanPercent(0)
+    setAiProgressLabel('콘텐츠 구조 분석 중...')
     setError('')
     setPlanGate(null)
+
+    // 프로그레스 애니메이션: 0→85까지 점진적 증가
+    const progressSteps = [
+      { percent: 15, label: '키워드 배치 분석 중...', delay: 2000 },
+      { percent: 30, label: '경험 정보 탐색 중...', delay: 4000 },
+      { percent: 45, label: '콘텐츠 품질 평가 중...', delay: 8000 },
+      { percent: 60, label: '키워드 전략 분석 중...', delay: 15000 },
+      { percent: 75, label: '독자 참여 요소 분석 중...', delay: 25000 },
+      { percent: 85, label: 'AI 종합 평가 생성 중...', delay: 35000 },
+    ]
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (const step of progressSteps) {
+      timers.push(setTimeout(() => {
+        setAiScanPercent(step.percent)
+        setAiProgressLabel(step.label)
+      }, step.delay))
+    }
 
     // 직접 입력 모드: manualTags 파싱
     const parsedManualTags = inputMode === 'manual' && manualTags.trim()
@@ -457,6 +476,11 @@ export default function SeoCheckPage() {
         body: JSON.stringify(requestBody),
       })
 
+      // 응답 받으면 95%로
+      timers.forEach(t => clearTimeout(t))
+      setAiScanPercent(95)
+      setAiProgressLabel('결과 처리 중...')
+
       let aiData
       try {
         aiData = await aiRes.json()
@@ -476,6 +500,9 @@ export default function SeoCheckPage() {
         return
       }
 
+      setAiScanPercent(100)
+      setAiProgressLabel('분석 완료!')
+
       if (aiData.aiAnalysis) {
         setResult(prev => prev ? {
           ...prev,
@@ -490,8 +517,10 @@ export default function SeoCheckPage() {
     } catch {
       setError('AI 심층 분석 중 오류가 발생했습니다.')
     } finally {
+      timers.forEach(t => clearTimeout(t))
       setAiLoading(false)
       setAiProgressLabel('')
+      setAiScanPercent(0)
     }
   }
 
@@ -1088,7 +1117,7 @@ export default function SeoCheckPage() {
           content={content}
           title={title}
           keyword={keyword}
-          scanPercent={50}
+          scanPercent={aiScanPercent}
           progressLabel={aiProgressLabel || 'AI 심층 분석 중...'}
         />
       )}
