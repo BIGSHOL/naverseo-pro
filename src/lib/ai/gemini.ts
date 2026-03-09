@@ -453,6 +453,9 @@ export function hasAiApiKey(provider: AiProvider): boolean {
  * 잘린(truncated) JSON 복구
  * maxOutputTokens 초과로 응답이 중간에 잘린 경우,
  * 마지막 완성된 위치까지 자르고 미닫힌 [, { 를 닫아서 유효한 JSON으로 만듦
+ *
+ * v2: 문자열 중간 잘림 대응 — inStr 상태에서 끝나면 마지막 `"` 앞까지 자르고
+ *     불완전한 문자열 값을 닫은 뒤 구조를 복구
  */
 function repairTruncatedJson(s: string): string {
   // 1) 열린/닫힌 구조를 추적하며 마지막 완성된 위치를 찾기
@@ -477,25 +480,47 @@ function repairTruncatedJson(s: string): string {
   // 스택이 비었으면 완전한 JSON → 그대로 반환
   if (stack.length === 0) return s
 
-  // 2) 마지막 완성된 위치까지 자르고, 뒤의 trailing comma 제거
-  let repaired = s.substring(0, lastClosedPos).replace(/,\s*$/, '')
+  // 2) 문자열 중간에서 잘린 경우 (inStr이 true로 끝남)
+  //    → 잘린 문자열을 `"` 로 닫고, trailing 값/키를 정리
+  let base: string
+  if (inStr || lastClosedPos === 0) {
+    // 마지막 열린 `"` 이후의 미완성 문자열 제거 후 `"` 닫기
+    const lastQuote = s.lastIndexOf('"')
+    if (lastQuote > 0) {
+      // lastQuote가 문자열 시작 `"`인지 중간 `"`인지 판별
+      // 안전하게: lastQuote 위치의 문자열 값을 자르고 닫기
+      base = s.substring(0, lastQuote + 1)
+      // trailing 불완전 key-value 정리: `,"키": "값"` 뒤에 쉼표/공백 제거
+      base = base.replace(/,\s*$/, '')
+    } else {
+      base = s.substring(0, Math.max(lastClosedPos, 1))
+    }
+  } else {
+    base = s.substring(0, lastClosedPos).replace(/,\s*$/, '')
+  }
 
   // 3) 잘린 후의 스택 다시 계산
   const stack2: string[] = []
-  inStr = false
-  for (let i = 0; i < repaired.length; i++) {
-    const ch = repaired[i]
-    if (ch === '\\' && inStr) { i++; continue }
-    if (ch === '"') { inStr = !inStr; continue }
-    if (!inStr) {
+  let inStr2 = false
+  for (let i = 0; i < base.length; i++) {
+    const ch = base[i]
+    if (ch === '\\' && inStr2) { i++; continue }
+    if (ch === '"') { inStr2 = !inStr2; continue }
+    if (!inStr2) {
       if (ch === '{') stack2.push('}')
       else if (ch === '[') stack2.push(']')
       else if (ch === '}' || ch === ']') stack2.pop()
     }
   }
 
-  // 4) 미닫힌 구조를 역순으로 닫기
-  return repaired + stack2.reverse().join('')
+  // 4) 문자열이 열린 상태로 끝났으면 `"` 추가
+  if (inStr2) {
+    base += '"'
+  }
+
+  // 5) trailing comma 제거 후 미닫힌 구조를 역순으로 닫기
+  base = base.replace(/,\s*$/, '')
+  return base + stack2.reverse().join('')
 }
 
 /**

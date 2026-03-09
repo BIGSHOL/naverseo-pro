@@ -114,7 +114,7 @@ JSON 형식으로 응답:
   "summary": "${topic} 주제 전체 기회 분석 요약 (2~3문장)"
 }`
 
-  const aiResponse = await callGemini(OPPORTUNITY_DISCOVERY_PROMPT, userMessage, 4096, { jsonMode: true })
+  const aiResponse = await callGemini(OPPORTUNITY_DISCOVERY_PROMPT, userMessage, 1024, { jsonMode: true })
 
   let parsed: AiSeedResponse
   try {

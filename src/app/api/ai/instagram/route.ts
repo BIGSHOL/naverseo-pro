@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Instagram ${mode}] provider=gemini, content=${content?.length ?? 0}자, keyword=${keyword ?? '-'}`)
 
-    const response = await callGemini(systemPrompt, userMessage, 4096, { jsonMode: true })
+    const response = await callGemini(systemPrompt, userMessage, 2048, { jsonMode: true, thinkingBudget: 0 })
 
     if (!response || response.trim().length === 0) {
       console.error(`[Instagram ${mode}] AI가 빈 응답을 반환했습니다.`)

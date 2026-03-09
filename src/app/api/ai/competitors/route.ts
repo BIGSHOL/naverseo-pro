@@ -496,16 +496,18 @@ ${contentQualitySection}
 2. summary에서 경쟁 난이도 판정(${difficultyLabel})과 일관된 톤으로 분석하세요.
 3. 난이도가 "어려움" 이상이면 진입이 쉽지 않다는 점을 반영하되, 발견된 콘텐츠 기회가 있다면 구체적으로 제시하세요.
 
+**중요: 모든 텍스트 필드는 간결하게 작성하세요. 배열 항목은 각 40자 이내. 장황한 설명 금지.**
+
 다음 JSON 형식으로 응답해주세요:
 {
-  "summary": "전체 경쟁 상황 2-3문장 요약 (난이도 판정과 일관되게)",
-  "topPatterns": ["상위 노출 글들의 공통 패턴 1", "패턴 2", "패턴 3"],
-  "contentGaps": ["기존 글들이 놓치고 있는 콘텐츠 기회 1", "기회 2"],
-  "recommendedStrategy": "이 키워드로 상위 노출하기 위한 구체적 전략 (100-200자)",
-  "recommendedContentType": "비교/추천형|후기/리뷰형|방법/가이드형|리스트형|정보형|지역업종형 중 하나 (상위 글 분석 기반 최적 유형)",
+  "summary": "100자 이내 경쟁 상황 요약",
+  "topPatterns": ["40자 이내 패턴", "40자 이내 패턴", "40자 이내 패턴"],
+  "contentGaps": ["40자 이내 기회", "40자 이내 기회"],
+  "recommendedStrategy": "100자 이내 구체적 전략",
+  "recommendedContentType": "비교/추천형|후기/리뷰형|방법/가이드형|리스트형|정보형|지역업종형 중 하나",
   "recommendedTone": "친근하고 정보적인|전문적인|재미있는|솔직한 중 하나",
-  "relatedKeywords": ["상위 글 분석에서 추출한 관련 키워드 5~8개"],
-  "titleSuggestions": ["추천 제목 1", "추천 제목 2", "추천 제목 3"]
+  "relatedKeywords": ["관련 키워드 5~8개"],
+  "titleSuggestions": ["30자 이내 추천 제목", "30자 이내 추천 제목", "30자 이내 추천 제목"]
 }`
 
   const response = onChunk

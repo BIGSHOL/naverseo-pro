@@ -170,12 +170,12 @@ export async function POST(request: NextRequest) {
     {
       "keyword": "추천 키워드",
       "intent": "정보형|비교형|구매형|경험형",
-      "reason": "추천 이유 (1~2문장)"
+      "reason": "30자 이내 추천 이유"
     }
   ]
 }`
 
-    const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 4096, { jsonMode: true })
+    const response = await callGemini(KEYWORD_SYSTEM_PROMPT, userMessage, 1024, { jsonMode: true, thinkingBudget: 0 })
     const parsed = parseGeminiJson<{ recommendations: AiRecommendation[] }>(response)
 
     // AI 추천 키워드의 실제 검색량 데이터 병합

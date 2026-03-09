@@ -147,19 +147,22 @@ export async function analyzeWithAi(
 ${truncatedContent}
 
 위 글을 JSON 형식으로 분석해주세요.${scrapedMeta ? ' 스크래핑 메타 데이터(이미지 수, 서식, 댓글/공감/조회수, 태그)를 반드시 분석에 반영하세요.' : ''}
+
+**중요: 각 텍스트 필드는 반드시 80자 이내로 간결하게 작성하세요. 배열 항목은 각 40자 이내. 장황한 설명 금지.**
+
 {
   "experienceScore": 1~10,
-  "experienceDetails": "경험 정보 분석 상세",
+  "experienceDetails": "80자 이내 핵심 요약",
   "contentQualityScore": 1~10,
-  "contentQualityDetails": "콘텐츠 품질 분석 상세",
+  "contentQualityDetails": "80자 이내 핵심 요약",
   "keywordStrategyScore": 1~10,
-  "keywordStrategyDetails": "키워드 전략 분석 상세",
+  "keywordStrategyDetails": "80자 이내 핵심 요약",
   "engagementScore": 1~10,
-  "engagementDetails": "독자 참여 분석 상세",
-  "overallFeedback": "종합 피드백 (2~3문장)",
-  "strengths": ["강점1", "강점2", "강점3"],
-  "weaknesses": ["약점1", "약점2", "약점3"],
-  "recommendations": ["추천1", "추천2", "추천3", "추천4", "추천5"]
+  "engagementDetails": "80자 이내 핵심 요약",
+  "overallFeedback": "100자 이내 종합 피드백",
+  "strengths": ["40자 이내", "40자 이내", "40자 이내"],
+  "weaknesses": ["40자 이내", "40자 이내", "40자 이내"],
+  "recommendations": ["40자 이내", "40자 이내", "40자 이내"]
 }`
 
     console.log(`[SEO AI] 분석 요청 (${truncatedContent.length}자)`)
