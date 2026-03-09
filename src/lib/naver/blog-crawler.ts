@@ -380,3 +380,53 @@ export function extractKeywordsFromPosts(posts: BlogPost[], maxKeywords = 5): st
 
   return keywords.slice(0, maxKeywords)
 }
+
+/**
+ * Gemini AI를 활용한 고품질 키워드 추출
+ * 블로그 포스트 제목들을 분석하여 실제 검색에 사용될 만한 키워드를 추출
+ * 실패 시 기존 정규식 기반 extractKeywordsFromPosts로 폴백
+ */
+export async function extractKeywordsWithAI(posts: BlogPost[], maxKeywords = 5): Promise<string[]> {
+  try {
+    const { callGemini, parseGeminiJson } = await import('@/lib/ai/gemini')
+
+    if (!process.env.GEMINI_API_KEY) {
+      return extractKeywordsFromPosts(posts, maxKeywords)
+    }
+
+    const titles = posts.slice(0, 20).map(p => stripHtml(p.title)).join('\n')
+
+    const systemPrompt = `블로그 포스트 제목 목록을 분석하여 이 블로그의 핵심 검색 키워드를 추출하는 전문가입니다.
+반드시 JSON 배열만 반환하세요.`
+
+    const userMessage = `아래 블로그 포스트 제목들에서 네이버 검색에 실제로 사용될 만한 핵심 키워드를 ${maxKeywords}개 추출해주세요.
+
+규칙:
+- 사람들이 네이버에서 실제로 검색할 법한 키워드만 선택
+- 블로그의 주요 주제/분야를 대표하는 키워드 우선
+- 고유명사(브랜드, 프로그램명, 지역명 등)도 의미 있으면 포함
+- "어떻게", "강의하" 같은 동사/의문사는 제외
+- "~편", "~번째" 같은 순서 표기는 제외
+- 2~6글자의 구체적인 명사/복합명사 위주
+
+포스트 제목 목록:
+${titles}
+
+JSON 형식으로만 응답 (다른 텍스트 없이):
+["키워드1", "키워드2", ...]`
+
+    const response = await callGemini(systemPrompt, userMessage, 256, { jsonMode: true, thinkingBudget: 0 })
+    const keywords = parseGeminiJson<string[]>(response)
+
+    if (Array.isArray(keywords) && keywords.length > 0) {
+      return keywords
+        .filter(k => typeof k === 'string' && k.trim().length >= 2)
+        .slice(0, maxKeywords)
+    }
+
+    return extractKeywordsFromPosts(posts, maxKeywords)
+  } catch (e) {
+    console.warn('[BlogCrawler] AI 키워드 추출 실패, 정규식 폴백:', e)
+    return extractKeywordsFromPosts(posts, maxKeywords)
+  }
+}

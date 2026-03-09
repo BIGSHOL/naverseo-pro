@@ -6,6 +6,7 @@ import {
 } from '@/lib/naver/search-ad'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
+import { generateKeywordAnalysis } from '@/lib/ai/insights'
 
 // API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
 export const dynamic = 'force-dynamic'
@@ -349,11 +350,26 @@ export async function GET(request: NextRequest) {
           // DB에 저장
           await saveKeywordResearch(trimmed, keywordsWithTopResults)
 
+          // AI 키워드 분석 (Starter+)
+          let aiAnalysis: string | null = null
+          try {
+            aiAnalysis = await generateKeywordAnalysis(supabase, creditCheck.plan || 'free', {
+              seedKeyword: trimmed,
+              topKeywords: keywordsWithTopResults.slice(0, 10).map(kw => ({
+                keyword: kw.relKeyword,
+                totalSearch: kw.totalSearch,
+                compIdx: kw.compIdx,
+                blogCount: (kw.topResults || []).filter((r: TopSearchResult) => r.type === '블로그').length,
+              })),
+            })
+          } catch { /* AI 분석 실패 무시 */ }
+
           // 최종 결과 전송
           send({
             type: 'result',
             keywords: keywordsWithTopResults,
             isDemo: false,
+            ...(aiAnalysis && { aiAnalysis }),
             ...(hasSpaces && {
               searchedAs: trimmed.replace(/\s+/g, ''),
               spaceNotice: `네이버 API 제한으로 "${trimmed.replace(/\s+/g, '')}"(으)로 검색되었습니다.`,

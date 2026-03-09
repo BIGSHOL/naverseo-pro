@@ -2,7 +2,7 @@
  * 블로그 지수 - 축4. 사용자 반응 (25점)
  *
  * v17: 활동 신뢰도에서 5점 이관 (20→25). 방문자 수를 점수에 반영.
- *      실제 인기 있는 블로그(방문자/댓글/공감 높은)가 확실히 높은 점수를 받도록 개선.
+ * v18: 댓글/공감/이웃 중간 구간 세분화. 일반 블로그도 적정 점수 확보 가능.
  *
  * 댓글 참여(8) + 공감 참여(5) + 이웃/구독자(5) + 방문자 수(5) + 체류 시간(2) = 25점
  * 감점: 체류시간 저하 패턴(-1) + 광고성 콘텐츠 과다(-1) = -2
@@ -67,7 +67,7 @@ export function analyzePopularity(
   }
   score += visitorPts
 
-  // === 평균 댓글 수 (8점) ===
+  // === 평균 댓글 수 (8점) === (v18: 중간 구간 세분화)
   let commentPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgCommentCount !== null) {
     const avgComments = engagementData.avgCommentCount
@@ -75,14 +75,20 @@ export function analyzePopularity(
       commentPts = 8
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (최우수) (+8)`)
     } else if (avgComments >= 10) {
-      commentPts = 5
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+5)`)
+      commentPts = 6
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (우수) (+6)`)
     } else if (avgComments >= 5) {
+      commentPts = 4
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+4)`)
+    } else if (avgComments >= 3) {
       commentPts = 3
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (양호) (+3)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+3)`)
     } else if (avgComments >= 2) {
+      commentPts = 2
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+2)`)
+    } else if (avgComments >= 1) {
       commentPts = 1
-      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (보통) (+1)`)
+      details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족) (+1)`)
     } else {
       commentPts = 0
       details.push(`평균 댓글: ${avgComments.toFixed(1)}개 (부족) (+0)`)
@@ -95,7 +101,7 @@ export function analyzePopularity(
   }
   score += commentPts
 
-  // === 평균 공감 수 (5점) ===
+  // === 평균 공감 수 (5점) === (v18: 중간 구간 세분화)
   let sympathyPts = 0
   if (engagementData && engagementData.isAvailable && engagementData.avgSympathyCount !== null) {
     const avgSympathy = engagementData.avgSympathyCount
@@ -103,11 +109,17 @@ export function analyzePopularity(
       sympathyPts = 5
       details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (최우수) (+5)`)
     } else if (avgSympathy >= 15) {
+      sympathyPts = 4
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+4)`)
+    } else if (avgSympathy >= 8) {
       sympathyPts = 3
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (우수) (+3)`)
-    } else if (avgSympathy >= 5) {
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+3)`)
+    } else if (avgSympathy >= 3) {
+      sympathyPts = 2
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (보통) (+2)`)
+    } else if (avgSympathy >= 1) {
       sympathyPts = 1
-      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (양호) (+1)`)
+      details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족) (+1)`)
     } else {
       sympathyPts = 0
       details.push(`평균 공감: ${avgSympathy.toFixed(1)}개 (부족) (+0)`)
@@ -120,7 +132,7 @@ export function analyzePopularity(
   }
   score += sympathyPts
 
-  // === 이웃/구독자 수 (5점) ===
+  // === 이웃/구독자 수 (5점) === (v18: 중간 구간 세분화)
   let buddyPts = 0
   const buddyCount = blogProfileData?.buddyCount ?? blogProfileData?.subscriberCount ?? null
   if (buddyCount !== null) {
@@ -128,11 +140,17 @@ export function analyzePopularity(
       buddyPts = 5
       details.push(`이웃: ${buddyCount.toLocaleString()}명 (최우수) (+5)`)
     } else if (buddyCount >= 1000) {
+      buddyPts = 4
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+4)`)
+    } else if (buddyCount >= 500) {
       buddyPts = 3
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (우수) (+3)`)
-    } else if (buddyCount >= 300) {
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+3)`)
+    } else if (buddyCount >= 200) {
+      buddyPts = 2
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (보통) (+2)`)
+    } else if (buddyCount >= 50) {
       buddyPts = 1
-      details.push(`이웃: ${buddyCount.toLocaleString()}명 (양호) (+1)`)
+      details.push(`이웃: ${buddyCount.toLocaleString()}명 (부족) (+1)`)
     } else {
       buddyPts = 0
       details.push(`이웃: ${buddyCount.toLocaleString()}명 (부족) (+0)`)

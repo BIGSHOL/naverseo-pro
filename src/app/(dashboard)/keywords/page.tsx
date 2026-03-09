@@ -38,6 +38,7 @@ export default function KeywordsPage() {
   const [searched, setSearched] = useState(false)
   const [spaceNotice, setSpaceNotice] = useState('')
   const [expandedNotice, setExpandedNotice] = useState('')
+  const [aiAnalysis, setAiAnalysis] = useState('')
   const [searchedKeyword, setSearchedKeyword] = useState('')
   const [progress, setProgress] = useState<ProgressState>(null)
 
@@ -103,6 +104,7 @@ export default function KeywordsPage() {
                 setIsDemo(data.isDemo || false)
                 setSpaceNotice(data.spaceNotice || '')
                 setExpandedNotice(data.expandedNotice || '')
+                setAiAnalysis(data.aiAnalysis || '')
                 creditToast('keyword_research')
               } else if (data.type === 'error') {
                 setError(data.error || '키워드 조회에 실패했습니다.')
@@ -262,6 +264,16 @@ export default function KeywordsPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* AI 키워드 분석 카드 (Starter+) */}
+      {aiAnalysis && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardContent className="flex items-start gap-3 py-3 px-4">
+            <Sparkles className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-purple-900">{aiAnalysis}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* 결과 테이블 */}

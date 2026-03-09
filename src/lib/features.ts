@@ -87,6 +87,12 @@ export const TOGGLEABLE_FEATURES: FeatureConfig[] = [
     description: 'SEO 분석 PDF 리포트 생성',
     href: '/report',
   },
+  {
+    key: 'ai_insights',
+    label: 'AI 인사이트',
+    description: 'Lite 이상 플랜에서 리포트·대시보드·키워드·트래킹에 AI 분석 제공',
+    href: '',
+  },
 ]
 
 /** 경로(pathname)를 기능 키로 변환 */

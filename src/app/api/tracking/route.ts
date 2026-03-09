@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { scheduleCollection, collectFromSearchResults } from '@/lib/blog-learning'
+import { generateTrackingAnalysis } from '@/lib/ai/insights'
 
 // API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
 export const dynamic = 'force-dynamic'
@@ -79,7 +80,26 @@ export async function GET() {
 
     const keywords = Object.values(grouped)
 
-    return NextResponse.json({ keywords })
+    // AI 트래킹 분석 (Starter+)
+    let aiAnalysis: string | null = null
+    if (keywords.length > 0) {
+      try {
+        const { data: userProfile } = await supabase.from('profiles').select('plan').eq('id', user.id).single()
+        aiAnalysis = await generateTrackingAnalysis(supabase, userProfile?.plan || 'free', {
+          keywords: keywords.map(kw => ({
+            keyword: kw.keyword,
+            blogUrl: kw.blog_url,
+            currentRank: kw.latest.rank_position,
+            history: kw.history.slice(0, 7).map(h => ({
+              rank: h.rank_position,
+              date: h.checked_at,
+            })),
+          })),
+        })
+      } catch { /* AI 분석 실패 무시 */ }
+    }
+
+    return NextResponse.json({ keywords, ...(aiAnalysis && { aiAnalysis }) })
   } catch (error) {
     console.error('[Tracking] 오류:', error)
     return NextResponse.json({ error: '서버 오류' }, { status: 500 })

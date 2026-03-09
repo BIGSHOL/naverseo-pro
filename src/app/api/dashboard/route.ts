@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { generateDashboardRecommendations } from '@/lib/ai/insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -186,13 +187,18 @@ export async function GET() {
 
     // 개인화된 키워드 추천 (하루 1회 갱신)
     let recommendedKeywords: string[]
+    const userPlan = profile?.plan || 'free'
 
     if (!needsUpdate && profile?.recommended_keywords && Array.isArray(profile.recommended_keywords)) {
       // 캐시된 추천 사용 (오늘 이미 생성됨)
       recommendedKeywords = profile.recommended_keywords as string[]
     } else {
-      // 새로운 추천 생성
-      recommendedKeywords = generateRecommendedKeywords(allKeywords || [], recentContent || [])
+      // Lite+: AI 추천 시도, Free: 규칙 기반
+      const aiRecommendations = await generateDashboardRecommendations(supabase, userPlan, {
+        keywordHistory: (allKeywords || []).map(k => k.seed_keyword),
+        contentKeywords: (recentContent || []).map(c => c.target_keyword),
+      })
+      recommendedKeywords = aiRecommendations || generateRecommendedKeywords(allKeywords || [], recentContent || [])
 
       // DB에 비동기 저장 (응답 블로킹 방지)
       supabase

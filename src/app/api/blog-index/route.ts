@@ -17,7 +17,7 @@ import {
 import { analyzeWithAi, generateDemoAiAnalysis } from '@/lib/blog-index/ai-analyzer'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
 import { extractBlogId } from '@/lib/utils/text'
-import { fetchBlogPosts, extractKeywordsFromPosts } from '@/lib/naver/blog-crawler'
+import { fetchBlogPosts, extractKeywordsFromPosts, extractKeywordsWithAI } from '@/lib/naver/blog-crawler'
 import { scheduleCollection, collectFromSearchResults, collectFromScrapedPosts } from '@/lib/blog-learning'
 import { detectBlogCategory, BLOG_CATEGORY_LABELS } from '@/lib/blog-index/categories'
 import { getCategoryBenchmark } from '@/lib/blog-index/benchmark-provider'
@@ -138,13 +138,13 @@ export async function POST(request: NextRequest) {
               .replace(/^https?:\/\//, '')
               .replace(/\/$/, '')
 
-          // 키워드 결정
+          // 키워드 결정 (사용자 입력 우선, 없으면 AI 추출, AI 실패 시 정규식 폴백)
           const keywords = userKeywords.length > 0
             ? userKeywords
-            : extractKeywordsFromPosts(posts)
+            : await extractKeywordsWithAI(posts)
 
           if (userKeywords.length === 0 && keywords.length > 0) {
-            console.log(`[BlogIndex] 포스트에서 자동 추출 키워드: ${keywords.join(', ')}`)
+            console.log(`[BlogIndex] AI 자동 추출 키워드: ${keywords.join(', ')}`)
           }
 
           // === Step 2: 키워드 순위 체크 ===

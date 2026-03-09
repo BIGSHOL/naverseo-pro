@@ -5,7 +5,8 @@
  *      깊이 5→3점 축소, 구조 3→4점 보강, 경험 2→3점 보강.
  *
  * 가점: 콘텐츠 깊이(3) + 이미지 활용(3) + 구조/서식(4) + 내부 링크(2) + 경험 정보(3) = 15
- * 감점: 짧은 글 비율(-2) + 이미지 도배(-1) + 과도한 글 길이(-3) + 전체 이미지 과다(-1) + 문장 반복 스팸(-2) = -9
+ * 감점: 짧은 글 비율(-2) + 이미지 도배(-1) + 전체 이미지 과다(-1) + 문장 반복 스팸(-2) = -6
+ * (과도한 글 길이 감점은 콘텐츠 깊이 항목에 통합: 4000자↑ -1, 5000자↑ -2, 7000자↑ -3)
  * 최종: clamp(가점 + 감점, 0, 15)
  */
 
@@ -52,9 +53,18 @@ export function analyzeContentQuality(
     } else if (avgContentLen >= 1200 && avgContentLen < 1500) {
       depthPts = 1
       details.push(`콘텐츠 깊이 보통 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 2000자 이상) (+1)`)
-    } else if (avgContentLen > 3000) {
-      depthPts = 0
-      details.push(`콘텐츠가 깁니다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 2000~2500자) (+0)`)
+    } else if (avgContentLen > 3000 && avgContentLen < 4000) {
+      depthPts = 1
+      details.push(`콘텐츠 다소 김 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 권장: 2000~2500자) (+1)`)
+    } else if (avgContentLen >= 4000 && avgContentLen < 5000) {
+      depthPts = -1
+      details.push(`콘텐츠 과다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 핵심 위주로 압축 권장) (-1)`)
+    } else if (avgContentLen >= 5000 && avgContentLen < 7000) {
+      depthPts = -2
+      details.push(`콘텐츠 심각한 과다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 대폭 압축 필요) (-2)`)
+    } else if (avgContentLen >= 7000) {
+      depthPts = -3
+      details.push(`콘텐츠 극심한 과다 (본문 평균 ${Math.round(avgContentLen).toLocaleString()}자, 스팸/패딩 의심) (-3)`)
     } else {
       depthPts = 0
       details.push(`콘텐츠가 짧습니다 (본문 평균 ${Math.round(avgContentLen)}자, 권장: 2000자 이상) (+0)`)
@@ -291,21 +301,7 @@ export function analyzeContentQuality(
     }
   }
 
-  // === [감점] 과도한 콘텐츠 길이 (0 ~ -3) ===
-  // 최적: 1500~2500자, 권장 최대: 3000자
-  if (isActualContent && avgContentLen >= 7000) {
-    score -= 3
-    details.push(`극심한 콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 스팸/패딩 의심 (권장: 1500~2500자) (-3)`)
-    items.push({ label: `스팸 의심 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -3 })
-  } else if (isActualContent && avgContentLen >= 5000) {
-    score -= 2
-    details.push(`심각한 콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 대폭 압축 필요 (-2)`)
-    items.push({ label: `심각한 과다 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -2 })
-  } else if (isActualContent && avgContentLen >= 4000) {
-    score -= 1
-    details.push(`콘텐츠 과다: 평균 ${Math.round(avgContentLen).toLocaleString()}자 — 핵심 위주로 압축 권장 (-1)`)
-    items.push({ label: `콘텐츠 과다 (${Math.round(avgContentLen).toLocaleString()}자)`, points: -1 })
-  }
+  // 과도한 콘텐츠 길이 감점은 위 "콘텐츠 깊이" 항목에 통합됨
 
   // === [감점] 블로그 전체 이미지 과다 (0 ~ -1) === (v13: -2→-1)
   if (avgImageCount >= 20) {

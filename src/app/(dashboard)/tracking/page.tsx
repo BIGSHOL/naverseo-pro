@@ -12,6 +12,7 @@ import {
   Search,
   ExternalLink,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -89,6 +90,7 @@ export default function TrackingPage() {
   const [planGateMessage, setPlanGateMessage] = useState('')
   const [isDemo, setIsDemo] = useState(false)
   const [bulkChecking, setBulkChecking] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState('')
 
   async function loadTracking() {
     try {
@@ -96,6 +98,7 @@ export default function TrackingPage() {
       if (!res.ok) return
       const data = await res.json()
       setKeywords(data.keywords || [])
+      setAiAnalysis(data.aiAnalysis || '')
     } catch {
       // 로드 실패 시 무시
     } finally {
@@ -442,6 +445,16 @@ export default function TrackingPage() {
           <TooltipContent><p>순위권에 있는 키워드들의 평균 검색 순위입니다</p></TooltipContent>
         </Tooltip>
       </div>
+
+      {/* AI 트래킹 분석 카드 (Starter+) */}
+      {aiAnalysis && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardContent className="flex items-start gap-3 py-3 px-4">
+            <Sparkles className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-purple-900">{aiAnalysis}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 키워드 목록 */}
       {loading ? (

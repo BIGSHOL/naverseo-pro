@@ -257,8 +257,8 @@ export default function SeoCheckPage() {
   const [improveMessage, setImproveMessage] = useState('')
   const [guidanceItems, setGuidanceItems] = useState<Array<{ id: string; name: string; score: number; maxScore: number; guidance: string }>>([])
 
-  // 실시간 분석 패널 표시 여부
-  const showLivePanel = content.trim().length >= 50 && keyword.trim().length > 0
+  // 실시간 분석 패널 표시 여부 (결과 나오면 숨김 — 빈공간 방지)
+  const showLivePanel = content.trim().length >= 50 && keyword.trim().length > 0 && !result
 
   // URL param + sessionStorage에서 프리필
   useEffect(() => {
@@ -376,11 +376,13 @@ export default function SeoCheckPage() {
         tags: manualTags.split(/[,\s]+/).map(t => t.replace(/^#/, '').trim()).filter(Boolean),
       } : undefined
 
+      // 태그는 태그&CTA 항목에서 평가 → 관련 키워드에는 전달하지 않음
+      // 관련 키워드는 사용자가 직접 입력한 경우에만 사용
       const engineResult = analyzeSeo(
         effectiveKeyword,
         title.trim(),
         content.trim(),
-        seoScrapedMeta?.tags && seoScrapedMeta.tags.length > 0 ? seoScrapedMeta.tags : undefined,
+        undefined,
         seoScrapedMeta,
       )
 

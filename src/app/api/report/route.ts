@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { checkCredits, deductCredits } from '@/lib/credit-check'
+import { generateReportInsights } from '@/lib/ai/insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -269,11 +270,11 @@ export async function GET() {
       .filter(([, c]) => c > 0)
       .map(([s, c]) => ({ section: sectionLabels[s] || s, count: c }))
 
-    // ─── 인사이트 ───
+    // ─── 인사이트 (Lite+: AI, Free: 규칙 기반) ───
     const thisMonthAvg = avgScore(thisMonthContents)
     const lastMonthAvg = avgScore(lastMonthContents)
 
-    const insights = generateInsights({
+    const insightCtx = {
       thisMonthAvg,
       lastMonthAvg,
       thisMonthContent: thisMonthContents.length,
@@ -282,7 +283,12 @@ export async function GET() {
       top10Last,
       gradeDistribution,
       sectionDistribution,
-    })
+    }
+
+    // AI 인사이트 시도 → 실패 시 규칙 기반 폴백
+    const userPlan = profile?.plan || 'free'
+    const aiInsights = await generateReportInsights(supabase, userPlan, insightCtx)
+    const insights = aiInsights || generateInsights(insightCtx)
 
     // ─── 크레딧 차감 ───
     await deductCredits(supabase, user.id, 'seo_report')
