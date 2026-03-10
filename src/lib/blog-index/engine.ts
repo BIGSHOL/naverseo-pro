@@ -20,6 +20,9 @@
 
 import { stripHtml, countImageMarkers, daysBetween, parsePostDate, extractKoreanKeywords, extractBlogId } from '@/lib/utils/text'
 
+/** 엔진 버전 — 배점/등급 체계 변경 시 반드시 올릴 것 (캐시 무효화 기준) */
+export const BLOG_INDEX_ENGINE_VERSION = 17
+
 // 타입 re-export (기존 import 호환)
 export type {
   BlogPost,
@@ -408,6 +411,7 @@ export function analyzeBlogIndex(
     benchmark,
     recommendations,
     isDemo,
+    engineVersion: BLOG_INDEX_ENGINE_VERSION,
     checkedAt: new Date().toISOString(),
     diaScore,
     crankScore,

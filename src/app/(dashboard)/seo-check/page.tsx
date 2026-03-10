@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl, extractKoreanKeywords, STOPWORDS } from '@/lib/utils/text'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 import dynamic from 'next/dynamic'
 
 // TipTap 에디터는 클라이언트 전용 (SSR 방지)
@@ -304,6 +305,31 @@ export default function SeoCheckPage() {
     }
   }, [content, title]) // keyword, autoExtracted 의존성 제외 (무한루프 방지)
 
+  // 페이지 복귀 시 캐시 복원 (URL param/workflow 데이터가 없을 때만)
+  useEffect(() => {
+    const kwParam = searchParams.get('keyword')
+    const hasWorkflow = sessionStorage.getItem('naverseo-workflow:content-body')
+    if (kwParam || hasWorkflow) return
+
+    const cached = loadPageCache<{
+      result: SeoResult
+      keyword: string
+      title: string
+      content: string
+      blogUrl: string
+      inputMode: 'url' | 'manual'
+    }>('seo-check')
+    if (cached) {
+      setResult(cached.result)
+      setKeyword(cached.keyword)
+      setTitle(cached.title)
+      setContent(cached.content)
+      setBlogUrl(cached.blogUrl)
+      setInputMode(cached.inputMode)
+      setFormCollapsed(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleFetchBlog = async () => {
     if (!blogUrl.trim() || fetchingUrl) return
 
@@ -388,7 +414,7 @@ export default function SeoCheckPage() {
         seoScrapedMeta,
       )
 
-      setResult({
+      const newResult: SeoResult = {
         totalScore: engineResult.totalScore,
         grade: engineResult.grade,
         categories: engineResult.categories.map(cat => ({
@@ -402,7 +428,9 @@ export default function SeoCheckPage() {
         strengths: engineResult.strengths,
         isDemo: false,
         aiAnalysis: null,
-      })
+      }
+      setResult(newResult)
+      savePageCache('seo-check', { result: newResult, keyword: effectiveKeyword, title, content, blogUrl, inputMode })
       setFormCollapsed(true)
     } catch {
       setError('분석 중 오류가 발생했습니다.')
@@ -505,14 +533,19 @@ export default function SeoCheckPage() {
       setAiProgressLabel('분석 완료!')
 
       if (aiData.aiAnalysis) {
-        setResult(prev => prev ? {
-          ...prev,
-          aiAnalysis: aiData.aiAnalysis,
-          isDemo: aiData.isDemo ?? prev.isDemo,
-          demoReason: aiData.demoReason ?? prev.demoReason,
-          ...(aiData.totalScore != null ? { totalScore: aiData.totalScore } : {}),
-          ...(aiData.grade != null ? { grade: aiData.grade } : {}),
-        } : prev)
+        setResult(prev => {
+          if (!prev) return prev
+          const updated: SeoResult = {
+            ...prev,
+            aiAnalysis: aiData.aiAnalysis,
+            isDemo: aiData.isDemo ?? prev.isDemo,
+            demoReason: aiData.demoReason ?? prev.demoReason,
+            ...(aiData.totalScore != null ? { totalScore: aiData.totalScore } : {}),
+            ...(aiData.grade != null ? { grade: aiData.grade } : {}),
+          }
+          savePageCache('seo-check', { result: updated, keyword, title, content, blogUrl, inputMode })
+          return updated
+        })
         creditToast('seo_check')
       }
     } catch {

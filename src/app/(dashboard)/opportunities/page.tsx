@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Lightbulb, Loader2, Search, Wand2, Info, ArrowUpDown, ArrowUp, ArrowDown, Target, Clock, Sparkles, Database } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { getCompBadge, getCategoryBadge, getScoreColor, getScoreTooltip, formatNumber, COMP_ORDER } from '@/components/keywords/keyword-utils'
 import Link from 'next/link'
 import { creditToast } from '@/lib/credit-toast'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 import { useKeywordHistory } from '@/hooks/use-keyword-history'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import type { ProgressState } from '@/lib/progress'
@@ -67,6 +68,15 @@ export default function OpportunitiesPage() {
 
   // 키워드 발굴 히스토리
   const { history, addKeyword } = useKeywordHistory('keyword-discovery-history')
+
+  // sessionStorage 캐시 복원
+  useEffect(() => {
+    const cached = loadPageCache<{ result: OpportunityResult; topic: string }>('opportunities')
+    if (cached) {
+      setResult(cached.result)
+      setTopic(cached.topic)
+    }
+  }, [])
 
   const handleSearch = async (searchTopic?: string) => {
     const t = (searchTopic || topic).trim()
@@ -126,6 +136,7 @@ export default function OpportunitiesPage() {
                 setProgress(event)
               } else if (event.type === 'result') {
                 setResult(event)
+                savePageCache('opportunities', { result: event, topic: t })
                 creditToast('keyword_discovery')
               } else if (event.type === 'error') {
                 setError(event.error || '키워드 발굴 분석에 실패했습니다.')
@@ -139,6 +150,7 @@ export default function OpportunitiesPage() {
         // 폴백: 일반 JSON 응답
         const data = await res.json()
         setResult(data)
+        savePageCache('opportunities', { result: data, topic: t })
         creditToast('keyword_discovery')
       }
     } catch {

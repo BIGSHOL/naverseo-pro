@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   FileSearch,
   Loader2,
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { ensureUrl } from '@/lib/utils/text'
 import { creditToast } from '@/lib/credit-toast'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 
 interface PostCheckResult {
   title: string
@@ -47,6 +48,14 @@ export default function PostCheckPage() {
   const [result, setResult] = useState<PostCheckResponse | null>(null)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    const cached = loadPageCache<{ result: PostCheckResponse; blogId: string }>('post-check')
+    if (cached) {
+      setResult(cached.result)
+      setBlogId(cached.blogId)
+    }
+  }, [])
+
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!blogUrl.trim()) return
@@ -70,6 +79,7 @@ export default function PostCheckPage() {
       }
 
       setResult(data)
+      savePageCache('post-check', { result: data, blogId })
       creditToast('post_check')
     } catch {
       setError('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')

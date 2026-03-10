@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users, Loader2, BarChart3, Clock, Type, Sparkles, ExternalLink, Lightbulb, Target, BookOpen, Wand2, Shield, Hash, CalendarDays, ImageIcon, FileText, MessageCircle, Heart, Eye, CheckCircle2, Circle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { InlineMarkdown } from '@/components/ui/inline-markdown'
 import { ensureUrl } from '@/lib/utils/text'
 import type { ProgressState } from '@/lib/progress'
 import { createStepProgress, CardProgress } from '@/lib/progress'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 
 // === 타입 ===
 
@@ -163,6 +164,29 @@ export default function CompetitorsPage() {
   // 프로그레스 상태
   const [progress, setProgress] = useState<ProgressState>(null)
 
+  // sessionStorage 캐시 복원
+  useEffect(() => {
+    const cached = loadPageCache<{
+      competitors: CompetitorItem[]
+      patterns: PatternAnalysis
+      difficulty: DifficultyAssessment | null
+      titlePatterns: TitlePatternWord[]
+      aiInsights: AiInsights | null
+      searchedKeyword: string
+      isDemo: boolean
+    }>('competitors')
+    if (cached) {
+      setCompetitors(cached.competitors)
+      setPatterns(cached.patterns)
+      setDifficulty(cached.difficulty)
+      setTitlePatterns(cached.titlePatterns)
+      setAiInsights(cached.aiInsights)
+      setSearchedKeyword(cached.searchedKeyword)
+      setIsDemo(cached.isDemo)
+      setSearched(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 날짜 필터 적용
   const filteredCompetitors = competitors.filter(comp => {
     if (dateFilter === 'all') return true
@@ -251,12 +275,18 @@ export default function CompetitorsPage() {
             setProgress(createStepProgress(step, total, message))
           },
           onData: (data) => {
-            setCompetitors(data.competitors as CompetitorItem[])
-            setPatterns(data.patterns as PatternAnalysis)
-            setDifficulty((data.difficulty as DifficultyAssessment) || null)
-            setTitlePatterns((data.titlePatterns as TitlePatternWord[]) || [])
-            setIsDemo((data.isDemo as boolean) || false)
+            const c = data.competitors as CompetitorItem[]
+            const p = data.patterns as PatternAnalysis
+            const d = (data.difficulty as DifficultyAssessment) || null
+            const tp = (data.titlePatterns as TitlePatternWord[]) || []
+            const demo = (data.isDemo as boolean) || false
+            setCompetitors(c)
+            setPatterns(p)
+            setDifficulty(d)
+            setTitlePatterns(tp)
+            setIsDemo(demo)
             creditToast('competitor_analysis')
+            savePageCache('competitors', { competitors: c, patterns: p, difficulty: d, titlePatterns: tp, aiInsights: null, searchedKeyword: keyword, isDemo: demo })
           },
           onError: (err) => setError(err),
         })
@@ -269,6 +299,7 @@ export default function CompetitorsPage() {
         setTitlePatterns(data.titlePatterns || [])
         setIsDemo(data.isDemo || false)
         creditToast('competitor_analysis')
+        savePageCache('competitors', { competitors: data.competitors, patterns: data.patterns, difficulty: data.difficulty || null, titlePatterns: data.titlePatterns || [], aiInsights: null, searchedKeyword: keyword, isDemo: data.isDemo || false })
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -307,9 +338,10 @@ export default function CompetitorsPage() {
           onStream: (delta) => {
             setAiStreamingText(prev => prev + delta)
           },
-          onAiResult: (aiInsights) => {
+          onAiResult: (ai) => {
             setAiStreamingText('')
-            setAiInsights(aiInsights)
+            setAiInsights(ai)
+            savePageCache('competitors', { competitors, patterns, difficulty, titlePatterns, aiInsights: ai, searchedKeyword, isDemo })
           },
           onError: (err) => {
             setAiStreamingText('')
@@ -319,7 +351,9 @@ export default function CompetitorsPage() {
       } else {
         // JSON 폴백
         const data = await res.json()
-        setAiInsights(data.aiInsights || null)
+        const ai = data.aiInsights || null
+        setAiInsights(ai)
+        savePageCache('competitors', { competitors, patterns, difficulty, titlePatterns, aiInsights: ai, searchedKeyword, isDemo })
       }
     } catch {
       setAiStreamingText('')

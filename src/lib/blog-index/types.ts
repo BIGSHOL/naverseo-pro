@@ -203,6 +203,7 @@ export interface BlogIndexResult {
   benchmark: BenchmarkData
   recommendations: string[]
   isDemo: boolean
+  engineVersion?: number              // v17+: 캐시 무효화 기준
   checkedAt: string
   // v6 추가: 카테고리별 벤치마크
   blogCategory?: string              // 감지된 블로그 카테고리 (food, it_tech 등)

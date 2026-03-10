@@ -10,6 +10,7 @@ import type { BlogCategory } from '@/lib/blog-index/categories'
 import type { ProgressState } from '@/lib/progress'
 import { createCountProgress, CardProgress } from '@/lib/progress'
 import { creditToast } from '@/lib/credit-toast'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 
 export default function KeywordsBulkPage() {
     const [results, setResults] = useState<BulkKeywordData[]>([])
@@ -42,6 +43,16 @@ export default function KeywordsBulkPage() {
             }
         }
         fetchBlogCategory()
+    }, [])
+
+    // 마운트 시 sessionStorage 캐시 복원
+    useEffect(() => {
+        const cached = loadPageCache<{ results: BulkKeywordData[]; isDemo: boolean }>('keywords-bulk')
+        if (cached) {
+            setResults(cached.results)
+            setIsDemo(cached.isDemo)
+            setSearched(true)
+        }
     }, [])
 
     const handleSubmit = useCallback(async (keywords: string[]) => {
@@ -113,6 +124,7 @@ export default function KeywordsBulkPage() {
             }))
 
             setResults(mergedResults)
+            savePageCache('keywords-bulk', { results: mergedResults, isDemo: bulkData.isDemo || false })
             creditToast('keyword_bulk')
         } catch (err) {
             setError(err instanceof Error ? err.message : '네트워크 오류가 발생했습니다.')

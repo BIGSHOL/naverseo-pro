@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, Copy, Check, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import { CreditTooltip } from '@/components/credit-tooltip'
 import { creditToast } from '@/lib/credit-toast'
+import { savePageCache, loadPageCache } from '@/lib/session-cache'
 import type { Plan } from '@/types/database'
 
 interface CaptionResult {
@@ -28,6 +29,15 @@ export function InstagramTabCaption({ userPlan }: Props) {
   const [planGate, setPlanGate] = useState<string | null>(null)
   const [result, setResult] = useState<CaptionResult | null>(null)
   const [copied, setCopied] = useState(false)
+
+  // 페이지 복귀 시 캐시 복원
+  useEffect(() => {
+    const cached = loadPageCache<{ result: CaptionResult; content: string }>('instagram-caption')
+    if (cached) {
+      setResult(cached.result)
+      setContent(cached.content)
+    }
+  }, [])
 
   const handleGenerate = async () => {
     if (content.trim().length < 200) {
@@ -59,6 +69,7 @@ export function InstagramTabCaption({ userPlan }: Props) {
       }
 
       setResult(data)
+      savePageCache('instagram-caption', { result: data, content: content.trim() })
       creditToast('instagram_convert')
     } catch {
       setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')

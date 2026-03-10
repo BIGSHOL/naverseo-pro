@@ -65,6 +65,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ cached: null })
       }
 
+      // v17+: 엔진 버전 불일치 시 캐시 무효화 (배점/등급 체계가 달라 의미 없음)
+      const { BLOG_INDEX_ENGINE_VERSION } = await import('@/lib/blog-index/engine')
+      const cachedVersion = (result.engineVersion as number) ?? 0
+      if (cachedVersion < BLOG_INDEX_ENGINE_VERSION) {
+        return NextResponse.json({ cached: null, outdatedVersion: cachedVersion })
+      }
+
       return NextResponse.json({
         cached: latestEntry.full_result,
         checkedAt: latestEntry.checked_at,
