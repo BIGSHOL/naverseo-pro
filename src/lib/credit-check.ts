@@ -160,6 +160,8 @@ export async function deductCredits(
       .single()
 
     if (!error && data?.success) {
+      // 결제 이력 없는 유저: 리셋일을 마지막 사용 + 1달로 갱신
+      await resetDateForFreeUser(supabase, userId)
       return { success: true, remaining: data.remaining }
     }
 
@@ -173,14 +175,26 @@ export async function deductCredits(
   // 폴백: 수동 차감 (RPC 없는 환경)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('credits_balance, role')
+    .select('credits_balance, role, plan')
     .eq('id', userId)
     .single()
 
   const newBalance = Math.max(0, (profile?.credits_balance ?? 0) - cost)
+
+  // 결제 이력 없는 유저: 리셋일을 마지막 사용 + 1달로 갱신
+  const updateData: Record<string, unknown> = {
+    credits_balance: newBalance,
+    updated_at: new Date().toISOString(),
+  }
+  if (profile?.plan === 'free') {
+    const nextReset = new Date()
+    nextReset.setMonth(nextReset.getMonth() + 1)
+    updateData.credits_reset_at = nextReset.toISOString()
+  }
+
   await supabase
     .from('profiles')
-    .update({ credits_balance: newBalance, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq('id', userId)
 
   // 폴백에서도 로그 기록
@@ -196,6 +210,24 @@ export async function deductCredits(
     })
 
   return { success: true, remaining: newBalance }
+}
+
+/** 결제 이력 없는 유저(Free)의 리셋일을 마지막 사용 + 1달로 갱신 */
+async function resetDateForFreeUser(supabase: SupabaseClient, userId: string) {
+  try {
+    const nextReset = new Date()
+    nextReset.setMonth(nextReset.getMonth() + 1)
+    await supabase
+      .from('profiles')
+      .update({
+        credits_reset_at: nextReset.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .eq('plan', 'free')
+  } catch {
+    // 리셋일 갱신 실패는 무시 (핵심 차감은 이미 완료)
+  }
 }
 
 /** 유료 플랜: 다음 달 1일 리셋 */

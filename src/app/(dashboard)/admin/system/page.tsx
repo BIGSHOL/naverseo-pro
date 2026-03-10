@@ -31,6 +31,10 @@ const FEATURE_LABELS: Record<string, string> = {
   tracking_per_keyword: '순위 트래킹',
   seo_report: 'SEO 리포트',
   content_improve: '콘텐츠 개선',
+  keyword_bulk: '키워드 대량조회',
+  post_check: '검색 누락 조회',
+  instagram_convert: '인스타그램 변환',
+  image_generation: 'AI 이미지 생성',
 }
 
 export default function AdminSystemPage() {
@@ -173,7 +177,6 @@ export default function AdminSystemPage() {
                   <tr key={feature} className="border-b last:border-0">
                     <td className="py-3">
                       <span className="font-medium">{FEATURE_LABELS[feature] || feature}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{feature}</span>
                     </td>
                     <td className="py-3 text-center">
                       <Badge variant="secondary">{cost}</Badge>

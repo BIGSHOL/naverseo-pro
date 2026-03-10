@@ -1,28 +1,44 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Logo } from '@/components/layout/logo'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PLANS } from '@/types/database'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { pathToFeatureKey } from '@/lib/features'
-import { Lock } from 'lucide-react'
+import { Bell, Lock, Settings, LogOut } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
+import { useNotifications } from '@/hooks/use-notifications'
+import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import { Switch } from '@/components/ui/switch'
 import { useDesignV2 } from '@/contexts/design-v2'
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const {
     plan, role, creditsBalance, creditsQuota,
     avatarUrl, userName, userEmail, loaded, disabledFeatures,
   } = useUserProfile()
+  const { notifications, hasActionable } = useNotifications()
 
   const planInfo = PLANS[plan]
   const creditPercent = creditsQuota > 0 ? Math.min(100, (creditsBalance / creditsQuota) * 100) : 0
+
+  const handleLogout = async () => {
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut()
+      } catch { /* ignore */ }
+    }
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <aside className="hidden w-[260px] shrink-0 lg:block rounded-[1.5rem] bg-[#272e3f] text-slate-100 shadow-xl overflow-hidden border border-slate-700/50 relative">
@@ -30,7 +46,7 @@ export function Sidebar() {
         {/* 로고 */}
         <div className="flex h-[72px] items-center border-b border-slate-700/50 px-6 bg-[#212736]">
           <Link href="/dashboard" className="text-white hover:opacity-90 transition-opacity">
-            <Logo size="md" />
+            <Logo size="md" theme="dark" />
           </Link>
         </div>
 
@@ -109,44 +125,100 @@ export function Sidebar() {
           )}
         </nav>
 
-        {/* 하단 프로필 + 크레딧 표시 */}
-        <div className="border-t border-slate-700/50 p-5 bg-[#212736]">
-          {/* 로딩 중 스켈레톤 */}
+        {/* 하단 프로필 + 크레딧 + 액션 */}
+        <div className="border-t border-slate-700/50 p-4 bg-[#212736]">
           {!loaded ? (
-            <div className="space-y-4 animate-pulse">
+            <div className="space-y-3 animate-pulse">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-slate-700" />
-                <div className="flex-1 space-y-2">
+                <div className="h-8 w-8 rounded-full bg-slate-700" />
+                <div className="flex-1 space-y-1.5">
                   <div className="h-3 w-20 rounded bg-slate-700" />
                   <div className="h-3 w-32 rounded bg-slate-700/50" />
                 </div>
               </div>
-              <div className="rounded-xl bg-[#1d2331] p-4 border border-slate-700/50 space-y-3">
-                <div className="h-3 w-16 rounded bg-slate-700" />
-                <div className="h-4 w-24 rounded bg-slate-700" />
-                <div className="h-1.5 w-full rounded-full bg-slate-700/50" />
-              </div>
+              <div className="h-1.5 w-full rounded-full bg-slate-700/50" />
             </div>
           ) : (
             <>
-              {/* 사용자 프로필 */}
-              {(avatarUrl || userEmail) && (
-                <div className="mb-3 flex items-center gap-2.5">
-                  <Avatar className="h-8 w-8">
-                    {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
-                    <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                      {(userName || userEmail).charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    {userName && <p className="truncate text-xs font-medium text-slate-100">{userName}</p>}
-                    <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
-                  </div>
+              {/* 사용자 프로필 + 액션 */}
+              <div className="mb-3 flex items-center gap-2.5">
+                <Avatar className="h-8 w-8 shrink-0">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
+                  <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                    {(userName || userEmail).charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  {userName && <p className="truncate text-xs font-medium text-slate-100">{userName}</p>}
+                  <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
                 </div>
-              )}
+                {/* 액션 아이콘 */}
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {/* 알림 */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="relative rounded-lg p-1.5 text-slate-400 hover:bg-white/8 hover:text-white transition-colors">
+                        <Bell className="h-4 w-4" />
+                        {hasActionable && (
+                          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-emerald-400" />
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" align="end" className="w-80 p-0" collisionPadding={16}>
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-sm font-semibold">알림</h3>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.map((item, i) => (
+                          <div
+                            key={i}
+                            className={`flex gap-3 border-b px-4 py-3 last:border-0 hover:bg-muted/50 ${item.href ? 'cursor-pointer' : ''}`}
+                            onClick={() => item.href && router.push(item.href)}
+                          >
+                            <item.icon className={`mt-0.5 h-4 w-4 shrink-0 ${item.actionable ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{item.title}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{item.message}</p>
+                              <p className="mt-1 text-xs text-muted-foreground/60">{item.time}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {/* 설정 */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => router.push('/settings')}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-white/8 hover:text-white transition-colors"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>설정</p></TooltipContent>
+                  </Tooltip>
+                  {/* 로그아웃 */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleLogout}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-white/8 hover:text-red-400 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p>로그아웃</p></TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+
+              {/* 크레딧 바 */}
               <div className="rounded-lg bg-slate-800/60 p-3 border border-slate-700/40">
-                <p className="text-xs font-medium text-slate-400">현재 플랜</p>
-                <p className="text-sm font-semibold text-slate-100">{planInfo.name}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-400">현재 플랜</p>
+                  <p className="text-xs font-semibold text-slate-100">{planInfo.name}</p>
+                </div>
                 <div className="mt-2">
                   <Tooltip>
                     <TooltipTrigger asChild>

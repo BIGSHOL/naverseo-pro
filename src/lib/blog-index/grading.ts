@@ -1,8 +1,8 @@
 /**
- * 블로그 지수 - 등급 체계 및 추천 (v16 업데이트)
+ * 블로그 지수 - 등급 체계 및 추천 (v17 업데이트)
  *
  * 16등급 블로그 지수 체계 (일반 / 준최적화 / 최적화 / 최적화+ / 파워)
- * v14: 4축(40:25:20:15) 배분 — 검색 노출력 축 폐지
+ * v17: 4축(40:20:25:15) 배분 — 주제 전문성(40) + 활동 신뢰도(20) + 사용자 반응(25) + 콘텐츠 품질(15)
  * v16: 준최적화 구간 확대 (53pt→62pt), 최적화 이상 구간 축소
  */
 
@@ -39,37 +39,37 @@ export function determineLevelInfo(totalScore: number): BlogLevelInfo {
   }
   if (totalScore >= 80) return {
     tier: 11, category: '최적화', label: '최적화3', shortLabel: '최적화3',
-    description: '안정적인 검색 노출력을 보유하고 있습니다. 최적화+ 등급을 향해 도전하세요.',
+    description: '대부분의 키워드에서 상위 노출됩니다. 최적화+ 등급을 향해 도전하세요.',
     color: 'green', badgeColor: GRADE_BADGES[11], nextTierScore: 86,
   }
   if (totalScore >= 73) return {
     tier: 10, category: '최적화', label: '최적화2', shortLabel: '최적화2',
-    description: '안정적인 검색 노출력을 보유하고 있습니다. 콘텐츠 깊이를 더 높여보세요.',
+    description: '중간 난이도 키워드에서도 노출이 가능합니다. 콘텐츠 깊이를 더 높여보세요.',
     color: 'green', badgeColor: GRADE_BADGES[10], nextTierScore: 80,
   }
   if (totalScore >= 65) return {
     tier: 9, category: '최적화', label: '최적화1', shortLabel: '최적화1',
-    description: '안정적인 검색 노출력을 보유하고 있습니다. 경쟁 키워드도 도전해보세요.',
+    description: '검색 노출이 안정적으로 이루어지고 있습니다. 경쟁 키워드에도 도전해보세요.',
     color: 'lime', badgeColor: GRADE_BADGES[9], nextTierScore: 73,
   }
   if (totalScore >= 54) return {
     tier: 8, category: '준최적화', label: '준최적화7', shortLabel: '준최적화7',
-    description: '검색 노출이 시작되는 단계입니다. 콘텐츠 품질을 더 높여보세요.',
+    description: '최적화 등급 진입이 가까워졌습니다. 방문자 참여도와 콘텐츠 품질을 함께 높이세요.',
     color: 'blue', badgeColor: GRADE_BADGES[8], nextTierScore: 65,
   }
   if (totalScore >= 43) return {
     tier: 7, category: '준최적화', label: '준최적화6', shortLabel: '준최적화6',
-    description: '검색 노출이 시작되는 단계입니다. 주제 전문성을 강화하세요.',
+    description: '검색 알고리즘이 블로그를 인식하기 시작합니다. 주제 전문성을 더 강화하세요.',
     color: 'blue', badgeColor: GRADE_BADGES[7], nextTierScore: 54,
   }
   if (totalScore >= 33) return {
     tier: 6, category: '준최적화', label: '준최적화5', shortLabel: '준최적화5',
-    description: '검색 노출이 시작되는 단계입니다. 활동성을 강화하세요.',
+    description: '검색 노출 가능성이 높아지고 있습니다. 독자 소통(댓글/공감)을 늘려보세요.',
     color: 'sky', badgeColor: GRADE_BADGES[6], nextTierScore: 43,
   }
   if (totalScore >= 24) return {
     tier: 5, category: '준최적화', label: '준최적화4', shortLabel: '준최적화4',
-    description: '검색 노출이 시작되는 단계입니다. 키워드 전략을 세워보세요.',
+    description: '검색에 노출되기 시작하는 구간입니다. 경험 기반 콘텐츠와 키워드 전략을 세워보세요.',
     color: 'sky', badgeColor: GRADE_BADGES[5], nextTierScore: 33,
   }
   if (totalScore >= 16) return {

@@ -77,8 +77,31 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
+    // 마지막 크레딧 소모일 조회
+    const userIds = (users || []).map(u => u.id)
+    const lastUsageMap = new Map<string, string>()
+
+    if (userIds.length > 0) {
+      const { data: usageLogs } = await adminDb
+        .from('credit_usage_log')
+        .select('user_id, created_at')
+        .in('user_id', userIds)
+        .order('created_at', { ascending: false })
+
+      for (const log of (usageLogs || [])) {
+        if (!lastUsageMap.has(log.user_id)) {
+          lastUsageMap.set(log.user_id, log.created_at)
+        }
+      }
+    }
+
+    const usersWithLastUsage = (users || []).map(u => ({
+      ...u,
+      last_credit_used_at: lastUsageMap.get(u.id) || null,
+    }))
+
     return NextResponse.json({
-      users: users || [],
+      users: usersWithLastUsage,
       total: count || 0,
       page,
       limit,

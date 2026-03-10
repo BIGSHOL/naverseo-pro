@@ -27,6 +27,7 @@ interface UserItem {
   keywords_used_this_month: number
   content_generated_this_month: number
   analysis_used_today: number
+  last_credit_used_at: string | null
   created_at: string
 }
 
@@ -157,12 +158,13 @@ export default function AdminUsersPage() {
           <CardContent>
             <div className="space-y-2">
               {/* 헤더 (데스크톱) */}
-              <div className="hidden rounded-lg bg-muted p-3 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-7 sm:gap-4">
+              <div className="hidden rounded-lg bg-muted p-3 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-8 sm:gap-4">
                 <span className="col-span-2">이메일</span>
                 <span>플랜</span>
                 <span>역할</span>
                 <span>크레딧</span>
                 <span>리셋일</span>
+                <span>마지막 사용</span>
                 <span>가입일</span>
               </div>
 
@@ -170,7 +172,7 @@ export default function AdminUsersPage() {
                 <div
                   key={user.id}
                   onClick={() => router.push(`/admin/users/${user.id}`)}
-                  className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent sm:grid sm:grid-cols-7 sm:items-center sm:gap-4"
+                  className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent sm:grid sm:grid-cols-8 sm:items-center sm:gap-4"
                 >
                   <div className="col-span-2 min-w-0">
                     <p className="truncate text-sm font-medium">{user.email}</p>
@@ -191,6 +193,11 @@ export default function AdminUsersPage() {
                   <div className="text-xs text-muted-foreground">
                     {user.credits_reset_at
                       ? new Date(user.credits_reset_at).toLocaleDateString('ko-KR')
+                      : '-'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {user.last_credit_used_at
+                      ? new Date(user.last_credit_used_at).toLocaleDateString('ko-KR')
                       : '-'}
                   </div>
                   <div className="text-xs text-muted-foreground">

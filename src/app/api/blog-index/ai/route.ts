@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
     const plan = profile?.plan || 'free'
     if (plan === 'free') {
       return NextResponse.json(
-        { error: 'AI 심층 분석은 Starter 플랜 이상에서 사용할 수 있습니다.' },
+        { error: 'AI 심층 분석은 유료 플랜에서 사용할 수 있습니다.' },
         { status: 403 }
       )
     }
 
-    const { blogUrl } = await request.json()
+    const { blogUrl, categories, totalScore } = await request.json()
 
     if (!blogUrl?.trim()) {
       return NextResponse.json(
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           const aiAnalysis = await analyzeWithAi(posts, false, {
             onProgress: (message) => send({ type: 'progress', message }),
             onChunk: (delta) => send({ type: 'stream', delta }),
-          }, provider)
+          }, provider, categories && totalScore != null ? { categories, totalScore } : undefined)
 
           if (!aiAnalysis) {
             send({ type: 'error', error: 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.' })

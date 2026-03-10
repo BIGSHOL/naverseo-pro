@@ -247,6 +247,8 @@ export default function SeoCheckPage() {
   const [highlightStops, setHighlightStops] = useState(true)
   // 결과 나온 후 입력 폼 접기/펼치기
   const [formCollapsed, setFormCollapsed] = useState(false)
+  // 결과 영역 내 본문 미리보기 (분석 후 원문 확인용)
+  const [showResultPreview, setShowResultPreview] = useState(false)
 
   // AI 심층 분석 로딩 상태
   const [aiLoading, setAiLoading] = useState(false)
@@ -337,8 +339,7 @@ export default function SeoCheckPage() {
           tags: data.detailedAnalysis?.tags ?? [],
           formatting: sd.formatting,
         })
-        // 이미지가 있으면 갤러리 자동 표시
-        if (sd.imageUrls?.length > 0) setShowImageGallery(true)
+        // 이미지·본문 미리보기는 기본 접힘 유지
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.')
@@ -1177,6 +1178,46 @@ export default function SeoCheckPage() {
             </CardContent>
           </Card>
 
+          {/* 결과 영역 본문 미리보기 — 분석 후 원문 확인용 */}
+          {formCollapsed && content.trim() && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowResultPreview(!showResultPreview)}
+              >
+                <Type className="h-3.5 w-3.5" />
+                본문 원문 보기
+                <span className="text-primary">{showResultPreview ? '접기' : '펼치기'}</span>
+                {showResultPreview && (
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex items-center gap-1 text-xs font-medium transition-colors rounded px-1.5 py-0.5 ml-2',
+                      highlightStops
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={(e) => { e.stopPropagation(); setHighlightStops(!highlightStops) }}
+                  >
+                    <Highlighter className="h-3 w-3" />
+                    불용어
+                  </button>
+                )}
+              </button>
+              {showResultPreview && (
+                <div className="max-h-[300px] overflow-y-auto rounded-lg border bg-muted/20 p-4 text-xs text-muted-foreground whitespace-pre-wrap">
+                  {title && <p className="mb-2 text-sm font-semibold text-foreground">{title}</p>}
+                  {highlightStops
+                    ? highlightStopwords(content.slice(0, 3000))
+                    : content.slice(0, 3000)
+                  }
+                  {content.length > 3000 && '...'}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* AI 약점 개선 버튼 */}
           {content.trim() && keyword.trim() && (
             <Card className="border-purple-200 bg-purple-50/30 dark:border-purple-800 dark:bg-purple-950/20">
@@ -1273,152 +1314,95 @@ export default function SeoCheckPage() {
           )}
           {ai && (
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Brain className="h-5 w-5 text-purple-500" />
-                  AI 심층 분석
+                  AI 심층 분석 결과
                   {result.isDemo && <Badge variant="outline" className="text-xs">데모</Badge>}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* 4축 점수 카드 */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {/* 경험 정보 */}
-                  <div className="rounded-lg border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
+              <CardContent className="space-y-5">
+                {/* 4축 점수 — 콤팩트 인라인 */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { icon: Star, color: 'text-amber-500', label: '경험 정보', score: ai.experienceScore, detail: ai.experienceDetails },
+                    { icon: CheckCircle, color: 'text-green-500', label: '콘텐츠 품질', score: ai.contentQualityScore, detail: ai.contentQualityDetails },
+                    { icon: Target, color: 'text-blue-500', label: '키워드 전략', score: ai.keywordStrategyScore, detail: ai.keywordStrategyDetails },
+                    { icon: MessageSquare, color: 'text-pink-500', label: '독자 참여', score: ai.engagementScore, detail: ai.engagementDetails },
+                  ].map(({ icon: Icon, color, label, score, detail }) => (
+                    <div key={label} className="rounded-lg border p-3 space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-medium">경험 정보</span>
+                        <Icon className={cn('h-3.5 w-3.5', color)} />
+                        <span className="text-xs font-medium flex-1">{label}</span>
+                        <span className={cn('text-sm font-bold tabular-nums', getAxisColor(score))}>{score}/10</span>
                       </div>
-                      <span className={cn('text-lg font-bold', getAxisColor(ai.experienceScore))}>
-                        {ai.experienceScore}/10
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.experienceScore))}
-                        style={{ width: `${ai.experienceScore * 10}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.experienceDetails}</InlineMarkdown></div>
-                  </div>
-
-                  {/* 콘텐츠 품질 */}
-                  <div className="rounded-lg border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span className="text-sm font-medium">콘텐츠 품질</span>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div className={cn('h-1.5 rounded-full transition-all', getAxisBg(score))} style={{ width: `${score * 10}%` }} />
                       </div>
-                      <span className={cn('text-lg font-bold', getAxisColor(ai.contentQualityScore))}>
-                        {ai.contentQualityScore}/10
-                      </span>
+                      <p className="text-[11px] text-muted-foreground leading-tight"><InlineMarkdown>{detail}</InlineMarkdown></p>
                     </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.contentQualityScore))}
-                        style={{ width: `${ai.contentQualityScore * 10}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.contentQualityDetails}</InlineMarkdown></div>
-                  </div>
-
-                  {/* 키워드 전략 */}
-                  <div className="rounded-lg border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm font-medium">키워드 전략</span>
-                      </div>
-                      <span className={cn('text-lg font-bold', getAxisColor(ai.keywordStrategyScore))}>
-                        {ai.keywordStrategyScore}/10
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.keywordStrategyScore))}
-                        style={{ width: `${ai.keywordStrategyScore * 10}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.keywordStrategyDetails}</InlineMarkdown></div>
-                  </div>
-
-                  {/* 독자 참여 */}
-                  <div className="rounded-lg border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-pink-500" />
-                        <span className="text-sm font-medium">독자 참여</span>
-                      </div>
-                      <span className={cn('text-lg font-bold', getAxisColor(ai.engagementScore))}>
-                        {ai.engagementScore}/10
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className={cn('h-2 rounded-full transition-all', getAxisBg(ai.engagementScore))}
-                        style={{ width: `${ai.engagementScore * 10}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-muted-foreground"><InlineMarkdown>{ai.engagementDetails}</InlineMarkdown></div>
-                  </div>
+                  ))}
                 </div>
 
                 {/* 종합 피드백 */}
                 {ai.overallFeedback && (
-                  <div className="rounded-lg border bg-muted/30 p-4 prose prose-sm max-w-none dark:prose-invert">
+                  <div className="rounded-lg bg-muted/30 p-3 prose prose-sm max-w-none dark:prose-invert text-xs">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{ai.overallFeedback}</ReactMarkdown>
                   </div>
                 )}
 
-                {/* AI 강점/약점 */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {ai.strengths.length > 0 && (
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-                      <p className="mb-2 text-sm font-medium text-green-700 flex items-center gap-1.5">
-                        <ArrowUp className="h-4 w-4" />
-                        AI 분석 강점
-                      </p>
-                      <ul className="space-y-1.5">
-                        {ai.strengths.map((s, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-green-700">
-                            <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            <InlineMarkdown>{s}</InlineMarkdown>
-                          </li>
-                        ))}
-                      </ul>
+                {/* 강점/약점 — 나란히 콤팩트 */}
+                {(ai.strengths.length > 0 || ai.weaknesses.length > 0) && (
+                  <>
+                    <div className="border-t" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {ai.strengths.length > 0 && (
+                        <div className="rounded-lg border border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800 p-3">
+                          <p className="mb-1.5 text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
+                            <ArrowUp className="h-3.5 w-3.5" />
+                            강점
+                          </p>
+                          <ul className="space-y-1">
+                            {ai.strengths.map((s, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-xs text-green-700 dark:text-green-400">
+                                <CheckCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                <InlineMarkdown>{s}</InlineMarkdown>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {ai.weaknesses.length > 0 && (
+                        <div className="rounded-lg border border-red-200 bg-red-50/50 dark:bg-red-950/20 dark:border-red-800 p-3">
+                          <p className="mb-1.5 text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
+                            <ArrowDown className="h-3.5 w-3.5" />
+                            약점
+                          </p>
+                          <ul className="space-y-1">
+                            {ai.weaknesses.map((w, i) => (
+                              <li key={i} className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-400">
+                                <XCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                                <InlineMarkdown>{w}</InlineMarkdown>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {ai.weaknesses.length > 0 && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                      <p className="mb-2 text-sm font-medium text-red-700 flex items-center gap-1.5">
-                        <ArrowDown className="h-4 w-4" />
-                        AI 분석 약점
-                      </p>
-                      <ul className="space-y-1.5">
-                        {ai.weaknesses.map((w, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-red-700">
-                            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            <InlineMarkdown>{w}</InlineMarkdown>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                  </>
+                )}
 
                 {/* AI 맞춤 추천 */}
                 {ai.recommendations.length > 0 && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <p className="mb-3 text-sm font-medium text-blue-700 flex items-center gap-1.5">
-                      <Lightbulb className="h-4 w-4" />
-                      AI 맞춤 추천
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 p-3">
+                    <p className="mb-2 text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                      <Lightbulb className="h-3.5 w-3.5" />
+                      맞춤 추천
                     </p>
-                    <ul className="space-y-2">
+                    <ul className="space-y-1.5">
                       {ai.recommendations.map((rec, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-blue-700">
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-bold">
+                        <li key={i} className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-400">
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-200 dark:bg-blue-800 text-[10px] font-bold">
                             {i + 1}
                           </span>
                           <InlineMarkdown>{rec}</InlineMarkdown>
@@ -1427,75 +1411,115 @@ export default function SeoCheckPage() {
                     </ul>
                   </div>
                 )}
+
+                {/* 항목별 점수 — 구분선 후 통합 */}
+                <div className="border-t" />
+                <div>
+                  <p className="mb-2 text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    항목별 점수 ({result.categories.length}개)
+                  </p>
+                  <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                    {result.categories.map((cat) => {
+                      const pct = (cat.score / cat.maxScore) * 100
+                      return (
+                        <div key={cat.name} className="py-1 border-b border-muted/40 last:border-b-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium flex-1 truncate">{cat.name}</span>
+                            <div className="h-1 w-16 shrink-0 rounded-full bg-muted">
+                              <div
+                                className={cn('h-1 rounded-full transition-all', getScoreBarBg(pct))}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className={cn('text-[11px] font-bold w-9 text-right tabular-nums', getCategoryScoreColor(cat.score, cat.maxScore))}>
+                              {cat.score}/{cat.maxScore}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight"><InlineMarkdown>{cat.feedback}</InlineMarkdown></p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* 카테고리별 점수 (13개 항목) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">항목별 분석 ({result.categories.length}개 항목)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {result.categories.map((cat) => (
-                <div key={cat.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{cat.name}</span>
-                    <span className={`text-sm font-bold ${getCategoryScoreColor(cat.score, cat.maxScore)}`}>
-                      {cat.score}/{cat.maxScore}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div
-                      className={`h-2 rounded-full transition-all ${getScoreBarBg(cat.score * (100 / cat.maxScore))}`}
-                      style={{ width: `${(cat.score / cat.maxScore) * 100}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-muted-foreground"><InlineMarkdown>{cat.feedback}</InlineMarkdown></div>
+          {/* 카테고리별 점수 (13개 항목) — AI 분석 없을 때만 별도 카드 */}
+          {!ai && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">항목별 분석 ({result.categories.length}개 항목)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  {result.categories.map((cat) => {
+                    const pct = (cat.score / cat.maxScore) * 100
+                    return (
+                      <div key={cat.name} className="group py-1.5 border-b border-muted/50 last:border-b-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium flex-1 truncate">{cat.name}</span>
+                          <div className="h-1.5 w-20 shrink-0 rounded-full bg-muted">
+                            <div
+                              className={cn('h-1.5 rounded-full transition-all', getScoreBarBg(pct))}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className={cn('text-xs font-bold w-10 text-right tabular-nums', getCategoryScoreColor(cat.score, cat.maxScore))}>
+                            {cat.score}/{cat.maxScore}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight"><InlineMarkdown>{cat.feedback}</InlineMarkdown></p>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* 강점 & 개선사항 (엔진 기반) */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg text-green-600">
-                  <ArrowUp className="h-4 w-4" />
-                  강점
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {result.strengths.map((s, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                      <InlineMarkdown>{s}</InlineMarkdown>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg text-yellow-600">
-                  <ArrowDown className="h-4 w-4" />
-                  개선 사항
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {result.improvements.map((imp, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-                      <InlineMarkdown>{imp}</InlineMarkdown>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
+          {/* 강점 & 개선사항 — AI 분석이 있으면 숨김 (AI 강점/약점/추천으로 대체) */}
+          {!ai && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg text-green-600">
+                    <ArrowUp className="h-4 w-4" />
+                    강점
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {result.strengths.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                        <InlineMarkdown>{s}</InlineMarkdown>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg text-yellow-600">
+                    <ArrowDown className="h-4 w-4" />
+                    개선 사항
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {result.improvements.map((imp, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                        <InlineMarkdown>{imp}</InlineMarkdown>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* 워크플로우 액션 */}
           {keyword && (

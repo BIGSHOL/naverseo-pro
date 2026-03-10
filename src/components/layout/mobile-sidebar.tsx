@@ -1,24 +1,39 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Menu, Lock } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Menu, Lock, Settings, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Logo } from '@/components/layout/logo'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { pathToFeatureKey } from '@/lib/features'
 import { useUserProfile } from '@/contexts/user-profile'
+import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
 import { Switch } from '@/components/ui/switch'
 import { useDesignV2 } from '@/contexts/design-v2'
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false)
-  const { plan, role, disabledFeatures } = useUserProfile()
+  const { plan, role, disabledFeatures, avatarUrl, userName, userEmail, loaded } = useUserProfile()
   const { isV2, toggleV2 } = useDesignV2()
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    setOpen(false)
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient()
+        await supabase.auth.signOut()
+      } catch { /* ignore */ }
+    }
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -71,14 +86,14 @@ export function MobileSidebar() {
               </div>
             ))}
 
-            {/* 愿由ъ옄 硫붾돱 */}
+            {/* 관리자 메뉴 */}
             {role === 'admin' && (
               <>
                 <div className="my-2">
                   <div className="border-t" />
                   <div className="flex items-center justify-between mt-2 px-3">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      愿由ъ옄
+                      관리자
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted-foreground">V2 Design (Beta)</span>
@@ -112,6 +127,41 @@ export function MobileSidebar() {
               </>
             )}
           </nav>
+
+          {/* 하단: 프로필 + 설정 + 로그아웃 */}
+          {loaded && (
+            <div className="border-t p-4">
+              <div className="mb-3 flex items-center gap-2.5">
+                <Avatar className="h-8 w-8 shrink-0">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" referrerPolicy="no-referrer" />}
+                  <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                    {(userName || userEmail || 'U').charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  {userName && <p className="truncate text-sm font-medium">{userName}</p>}
+                  <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+                </div>
+              </div>
+              <div className="space-y-0.5">
+                <Link
+                  href="/settings"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                  설정
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-red-600 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  로그아웃
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

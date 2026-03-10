@@ -854,7 +854,11 @@ export default function BlogIndexPage() {
       const res = await fetch('/api/blog-index/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blogUrl: result.blogUrl }),
+        body: JSON.stringify({
+          blogUrl: result.blogUrl,
+          categories: result.categories.map(c => ({ name: c.name, score: c.score, maxScore: c.maxScore })),
+          totalScore: result.totalScore,
+        }),
       })
 
       if (!res.ok) {
@@ -1645,8 +1649,11 @@ export default function BlogIndexPage() {
                       <p className="mt-1 text-xs text-muted-foreground">
                         {canUseAi
                           ? 'AI가 최근 20개 포스트를 분석하여 경험 정보, 콘텐츠 품질, 어뷰징 위험도를 평가합니다.'
-                          : 'AI 심층 분석은 Starter 플랜 이상에서 사용할 수 있습니다.'}
+                          : 'AI 심층 분석은 유료 플랜에서 사용할 수 있습니다.'}
                       </p>
+                      {canUseAi && (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground/70">추가 크레딧 소모 없음 (블로그 지수 5크레딧에 포함)</p>
+                      )}
                     </div>
                     <Button
                       onClick={handleAiAnalysis}
@@ -1659,7 +1666,7 @@ export default function BlogIndexPage() {
                       ) : canUseAi ? (
                         <><Brain className="h-4 w-4" />AI 심층 분석 실행</>
                       ) : (
-                        <><Brain className="h-4 w-4" />Starter 플랜 이상 전용</>
+                        <><Brain className="h-4 w-4" />유료 플랜 전용</>
                       )}
                     </Button>
                   </div>

@@ -326,6 +326,12 @@ function selectRepresentativePosts(posts: BlogPost[], maxCount: number = 20): Bl
  * @param provider - AI 제공자 (기본값: gemini)
  * @returns AI 분석 결과 (실패 시 null)
  */
+/** 4축 점수 데이터 (프론트엔드에서 전달) */
+interface AxisScoreData {
+  categories: { name: string; score: number; maxScore: number }[]
+  totalScore: number
+}
+
 export async function analyzeWithAi(
   posts: BlogPost[],
   isDemo: boolean,
@@ -333,7 +339,8 @@ export async function analyzeWithAi(
     onProgress?: (message: string) => void
     onChunk?: (delta: string) => void
   },
-  provider: AiProvider = 'gemini'
+  provider: AiProvider = 'gemini',
+  axisScores?: AxisScoreData,
 ): Promise<AiAnalysis | null> {
   // AI API 키 확인
   if (!hasAiApiKey(provider)) {
@@ -377,11 +384,11 @@ export async function analyzeWithAi(
             }
             const content = await fetchPostContent(parsed.blogId, parsed.postNo)
             if (content && content.length >= 50) {
-              // 20개 분석이므로 본문을 1000자로 축약 (토큰 절약)
+              // 20개 분석이므로 본문을 1500자로 축약 (v4: 상세 분석 위해 상향)
               let truncated: string
-              if (content.length > 1200) {
-                const head = content.substring(0, 800)
-                const tail = content.substring(content.length - 400)
+              if (content.length > 1500) {
+                const head = content.substring(0, 1000)
+                const tail = content.substring(content.length - 500)
                 truncated = head + '\n...\n' + tail
               } else {
                 truncated = content
@@ -418,10 +425,24 @@ export async function analyzeWithAi(
       }
     }
 
+    // 4축 점수 컨텍스트 생성
+    let axisContext = ''
+    if (axisScores && axisScores.categories.length > 0) {
+      const lines = axisScores.categories.map(c => {
+        const pct = Math.round((c.score / c.maxScore) * 100)
+        const status = pct < 40 ? '⚠️ 매우 낮음' : pct < 60 ? '낮음' : ''
+        return `- ${c.name}: ${c.score}/${c.maxScore}점 (${pct}%)${status ? ` ${status}` : ''}`
+      })
+      axisContext = `\n## 현재 블로그 지수 점수
+총점: ${axisScores.totalScore}/100점
+${lines.join('\n')}
+위 점수가 낮은 축에 대해, 포스트 내용을 근거로 왜 낮은지 구체적 원인을 분석하고 개선 방안을 추천에 포함하세요.\n`
+    }
+
     // Gemini 단일 모드 (비용 최적화: 구조화된 JSON 분석은 Gemini로 충분)
     const userMessage = `아래는 하나의 네이버 블로그에서 가져온 ${postContents.length}개 포스트입니다. 이 블로그의 전체적인 콘텐츠 품질을 분석해주세요.
 참고: 긴 본문은 앞부분과 뒷부분만 발췌되었을 수 있습니다. 본문이 잘렸다는 언급 없이 제공된 내용만으로 분석해주세요.
-
+${axisContext}
 ${postContents.map((p, i) => `--- 포스트 ${i + 1} ---
 제목: ${p.title}
 작성일: ${p.date || '불명'}
@@ -435,12 +456,12 @@ ${p.content}
     let response: string
     if (callbacks?.onChunk) {
       if (provider === 'claude') {
-        response = await callClaudeStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+        response = await callClaudeStream(BLOG_INDEX_AI_PROMPT, userMessage, 6144, { jsonMode: true }, callbacks.onChunk)
       } else {
-        response = await callGeminiStream(BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true }, callbacks.onChunk)
+        response = await callGeminiStream(BLOG_INDEX_AI_PROMPT, userMessage, 6144, { jsonMode: true }, callbacks.onChunk)
       }
     } else {
-      response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 4096, { jsonMode: true })
+      response = await callAI(provider, BLOG_INDEX_AI_PROMPT, userMessage, 6144, { jsonMode: true })
     }
 
     const rawOriginal = parseGeminiJson<AiAnalysisRaw>(response)
