@@ -27,7 +27,7 @@ export function Footer() {
               업데이트 내역
             </Link>
             <a
-              href="mailto:soseon203@gmail.com"
+              href="mailto:st2000423@gmail.com"
               className="whitespace-nowrap text-sm text-muted-foreground hover:text-foreground"
             >
               문의하기

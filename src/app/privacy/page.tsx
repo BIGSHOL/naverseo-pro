@@ -292,7 +292,7 @@ export default function PrivacyPage() {
                   <p className="font-medium text-foreground">개인정보 보호책임자</p>
                   <ul className="mt-2 space-y-1">
                     <li>담당: NaverSEO Pro 운영팀</li>
-                    <li>이메일: soseon203@gmail.com</li>
+                    <li>이메일: st2000423@gmail.com</li>
                   </ul>
                 </div>
               </li>
@@ -312,7 +312,7 @@ export default function PrivacyPage() {
               <p className="font-medium text-foreground">개인정보 열람청구 접수·처리 부서</p>
               <ul className="mt-2 space-y-1">
                 <li>담당: NaverSEO Pro 운영팀</li>
-                <li>이메일: soseon203@gmail.com</li>
+                <li>이메일: st2000423@gmail.com</li>
               </ul>
             </div>
           </section>
