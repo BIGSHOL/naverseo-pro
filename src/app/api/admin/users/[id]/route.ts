@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/admin-check'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { PLAN_CREDITS, type Plan } from '@/types/database'
+import { PLAN_CREDITS, type Plan, type AccountStatus } from '@/types/database'
+import { TOGGLEABLE_FEATURES } from '@/lib/features'
 
 // API Route는 항상 동적으로 실행 (cookies 사용으로 인한 정적 빌드 방지)
 export const dynamic = 'force-dynamic'
@@ -116,6 +117,14 @@ export async function PATCH(
       )
     }
 
+    // 자기 자신 차단/정지 방지
+    if (id === auth.userId && body.account_status && body.account_status !== 'active') {
+      return NextResponse.json(
+        { error: '자신의 계정을 차단하거나 정지할 수 없습니다.' },
+        { status: 400 }
+      )
+    }
+
     // 허용된 필드만 업데이트
     const allowedFields: Record<string, unknown> = {}
 
@@ -190,6 +199,27 @@ export async function PATCH(
 
     if (body.ai_provider && ['gemini', 'claude'].includes(body.ai_provider)) {
       allowedFields.ai_provider = body.ai_provider
+    }
+
+    // 계정 상태 (차단/정지)
+    const validStatuses: AccountStatus[] = ['active', 'banned', 'suspended']
+    if (body.account_status && validStatuses.includes(body.account_status)) {
+      allowedFields.account_status = body.account_status
+      // 활성화로 변경 시 사유 초기화
+      if (body.account_status === 'active') {
+        allowedFields.account_status_reason = null
+      }
+    }
+
+    if (typeof body.account_status_reason === 'string') {
+      allowedFields.account_status_reason = body.account_status_reason || null
+    }
+
+    // 개별 기능 비활성화
+    if (Array.isArray(body.disabled_features)) {
+      const validKeys = new Set(TOGGLEABLE_FEATURES.map(f => f.key))
+      const filtered = (body.disabled_features as string[]).filter(k => validKeys.has(k))
+      allowedFields.disabled_features = filtered
     }
 
     if (Object.keys(allowedFields).length === 0) {

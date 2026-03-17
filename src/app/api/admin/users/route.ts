@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') || '20')))
     const search = searchParams.get('search') || ''
     const planFilter = searchParams.get('plan') || ''
+    const statusFilter = searchParams.get('status') || ''
     const offset = (page - 1) * limit
 
     const adminDb = createAdminClient()
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     let query = adminDb
       .from('profiles')
-      .select('id, email, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, created_at', { count: 'exact' })
+      .select('id, email, plan, role, credits_balance, credits_monthly_quota, credits_reset_at, keywords_used_this_month, content_generated_this_month, analysis_used_today, account_status, created_at', { count: 'exact' })
 
     if (search) {
       query = query.ilike('email', `%${search}%`)
@@ -71,6 +72,10 @@ export async function GET(request: NextRequest) {
 
     if (planFilter && ['free', 'lite', 'starter', 'pro', 'enterprise'].includes(planFilter)) {
       query = query.eq('plan', planFilter)
+    }
+
+    if (statusFilter && ['active', 'banned', 'suspended'].includes(statusFilter)) {
+      query = query.eq('account_status', statusFilter)
     }
 
     const { data: users, count } = await query

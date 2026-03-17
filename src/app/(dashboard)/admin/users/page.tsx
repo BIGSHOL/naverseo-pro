@@ -21,6 +21,7 @@ interface UserItem {
   email: string
   plan: string
   role: string
+  account_status: string
   credits_balance: number
   credits_monthly_quota: number
   credits_reset_at: string | null
@@ -54,6 +55,7 @@ export default function AdminUsersPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [planFilter, setPlanFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -64,6 +66,7 @@ export default function AdminUsersPage() {
       const params = new URLSearchParams({ page: String(page), limit: String(pageSize) })
       if (search) params.set('search', search)
       if (planFilter !== 'all') params.set('plan', planFilter)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
 
       const res = await fetch(`/api/admin/users?${params}`)
       if (!res.ok) {
@@ -77,7 +80,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, search, planFilter])
+  }, [page, pageSize, search, planFilter, statusFilter])
 
   useEffect(() => {
     loadUsers()
@@ -127,6 +130,20 @@ export default function AdminUsersPage() {
                 <SelectItem value="enterprise">Enterprise</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => { setStatusFilter(v); setPage(1) }}
+            >
+              <SelectTrigger className="w-full sm:w-36">
+                <SelectValue placeholder="상태 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 상태</SelectItem>
+                <SelectItem value="active">활성</SelectItem>
+                <SelectItem value="banned">차단</SelectItem>
+                <SelectItem value="suspended">정지</SelectItem>
+              </SelectContent>
+            </Select>
             <Button onClick={handleSearch}>검색</Button>
           </div>
         </CardContent>
@@ -158,10 +175,11 @@ export default function AdminUsersPage() {
           <CardContent>
             <div className="space-y-2">
               {/* 헤더 (데스크톱) */}
-              <div className="hidden rounded-lg bg-muted p-3 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-8 sm:gap-4">
+              <div className="hidden rounded-lg bg-muted p-3 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-9 sm:gap-4">
                 <span className="col-span-2">이메일</span>
                 <span>플랜</span>
                 <span>역할</span>
+                <span>상태</span>
                 <span>크레딧</span>
                 <span>리셋일</span>
                 <span>마지막 사용</span>
@@ -172,7 +190,7 @@ export default function AdminUsersPage() {
                 <div
                   key={user.id}
                   onClick={() => router.push(`/admin/users/${user.id}`)}
-                  className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent sm:grid sm:grid-cols-8 sm:items-center sm:gap-4"
+                  className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent sm:grid sm:grid-cols-9 sm:items-center sm:gap-4"
                 >
                   <div className="col-span-2 min-w-0">
                     <p className="truncate text-sm font-medium">{user.email}</p>
@@ -185,6 +203,14 @@ export default function AdminUsersPage() {
                       <Badge variant="destructive">관리자</Badge>
                     ) : (
                       <Badge variant="outline">사용자</Badge>
+                    )}
+                  </div>
+                  <div>
+                    {user.account_status === 'banned' && (
+                      <Badge className="bg-red-100 text-red-700">차단</Badge>
+                    )}
+                    {user.account_status === 'suspended' && (
+                      <Badge className="bg-yellow-100 text-yellow-700">정지</Badge>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">

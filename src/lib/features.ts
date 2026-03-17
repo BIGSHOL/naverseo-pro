@@ -103,3 +103,23 @@ export function pathToFeatureKey(pathname: string): string | null {
   const feature = TOGGLEABLE_FEATURES.find((f) => f.href === pathname)
   return feature?.key || null
 }
+
+/**
+ * CreditFeature 키 → TOGGLEABLE_FEATURES 키 매핑
+ * checkCredits()에서 개별 사용자 disabled_features 확인 시 사용
+ */
+export const CREDIT_TO_TOGGLE_KEY: Record<string, string> = {
+  keyword_research: 'keywords',
+  keyword_discovery: 'opportunities',
+  content_generation: 'content',
+  seo_check: 'seo-check',
+  competitor_analysis: 'competitors',
+  blog_index: 'blog-index',
+  tracking_per_keyword: 'tracking',
+  seo_report: 'report',
+  content_improve: 'content',
+  keyword_bulk: 'keywords-bulk',
+  post_check: 'post-check',
+  instagram_convert: 'instagram',
+  image_generation: 'content',
+}

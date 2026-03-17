@@ -1,5 +1,6 @@
 export type Plan = 'free' | 'lite' | 'starter' | 'pro' | 'enterprise' | 'admin'
 export type UserRole = 'user' | 'admin'
+export type AccountStatus = 'active' | 'banned' | 'suspended'
 export type ContentStatus = 'draft' | 'published' | 'archived'
 export type SearchSection = 'blog' | 'smartblock' | 'view'
 
@@ -20,6 +21,10 @@ export interface Profile {
   // 추천인 시스템
   referral_code: string
   referred_by: string | null
+  // 계정 상태 관리
+  account_status: AccountStatus
+  account_status_reason: string | null
+  disabled_features: string[]
   // DEPRECATED (마이그레이션 기간 유지)
   keywords_used_this_month: number
   content_generated_this_month: number

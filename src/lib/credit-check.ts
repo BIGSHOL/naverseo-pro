@@ -21,6 +21,7 @@ import {
   type CreditFeature,
   type Plan,
 } from '@/types/database'
+import { CREDIT_TO_TOGGLE_KEY } from '@/lib/features'
 
 export { CREDIT_COSTS, CREDIT_FEATURE_LABELS }
 
@@ -53,7 +54,7 @@ export async function checkCredits(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, role, created_at')
+    .select('credits_balance, credits_monthly_quota, credits_reset_at, plan, role, created_at, account_status, disabled_features')
     .eq('id', userId)
     .single()
 
@@ -63,7 +64,28 @@ export async function checkCredits(
 
   const plan = (profile?.plan || 'free') as Plan
 
-  // Admin도 동일하게 크레딧 체크 (바이패스 없음)
+  // 정지 상태: 모든 기능 차단
+  if (profile?.account_status === 'suspended') {
+    return {
+      allowed: false,
+      balance: profile?.credits_balance ?? 0,
+      cost,
+      plan,
+      message: '계정이 정지되었습니다. 관리자에게 문의하세요.',
+    }
+  }
+
+  // 개별 기능 비활성화 체크
+  const toggleKey = CREDIT_TO_TOGGLE_KEY[feature]
+  if (toggleKey && Array.isArray(profile?.disabled_features) && profile.disabled_features.includes(toggleKey)) {
+    return {
+      allowed: false,
+      balance: profile?.credits_balance ?? 0,
+      cost,
+      plan,
+      message: `이 기능은 관리자에 의해 비활성화되었습니다.`,
+    }
+  }
 
   // Free 플랜 기능 게이트 (4기능만 허용)
   if (plan === 'free' && !FREE_ALLOWED_FEATURES.includes(feature)) {

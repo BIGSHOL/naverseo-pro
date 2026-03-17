@@ -27,8 +27,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ArrowLeft, Bot, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, Image as ImageIcon, Link2, Loader2, Save, Shield, ShieldOff, Trash2, User } from 'lucide-react'
+import { ArrowLeft, Ban, Bot, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, Image as ImageIcon, Link2, Loader2, PauseCircle, Save, Shield, ShieldOff, Trash2, User } from 'lucide-react'
 import { CREDIT_FEATURE_LABELS, type CreditFeature } from '@/types/database'
+import { TOGGLEABLE_FEATURES } from '@/lib/features'
 
 interface UserProfile {
   id: string
@@ -45,6 +46,9 @@ interface UserProfile {
   ai_provider: string
   lemonsqueezy_subscription_id: string | null
   subscription_status: string | null
+  account_status: 'active' | 'banned' | 'suspended'
+  account_status_reason: string | null
+  disabled_features: string[]
   blog_verification_blocked: boolean | null
   blog_verification_attempts: number | null
   blog_verification_last_attempt_at: string | null
@@ -112,6 +116,18 @@ const STATUS_COLORS: Record<string, string> = {
   archived: 'bg-gray-100 text-gray-700',
 }
 
+const ACCOUNT_STATUS_LABELS: Record<string, string> = {
+  active: '활성',
+  banned: '차단',
+  suspended: '정지',
+}
+
+const ACCOUNT_STATUS_COLORS: Record<string, string> = {
+  active: 'bg-green-100 text-green-700',
+  banned: 'bg-red-100 text-red-700',
+  suspended: 'bg-yellow-100 text-yellow-700',
+}
+
 const SUBSCRIPTION_LABELS: Record<string, string> = {
   none: '없음',
   on_trial: '체험 중',
@@ -143,6 +159,9 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
   const [editAiProvider, setEditAiProvider] = useState('')
   const [addCreditsAmount, setAddCreditsAmount] = useState('')
   const [subtractCreditsAmount, setSubtractCreditsAmount] = useState('')
+  const [editAccountStatus, setEditAccountStatus] = useState('active')
+  const [editStatusReason, setEditStatusReason] = useState('')
+  const [editDisabledFeatures, setEditDisabledFeatures] = useState<string[]>([])
   const [kwPage, setKwPage] = useState(1)
   const [ctPage, setCtPage] = useState(1)
 
@@ -159,6 +178,9 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       setEditPlan(userData.profile.plan)
       setEditRole(userData.profile.role)
       setEditAiProvider(userData.profile.ai_provider || 'gemini')
+      setEditAccountStatus(userData.profile.account_status || 'active')
+      setEditStatusReason(userData.profile.account_status_reason || '')
+      setEditDisabledFeatures(userData.profile.disabled_features || [])
       setKwPage(userData.kwPage)
       setCtPage(userData.ctPage)
     } catch {
@@ -411,6 +433,75 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       setSuccess(`${amount} 크레딧이 차감되었습니다.`)
     } catch {
       setError('크레딧 차감 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSaveAccountStatus() {
+    if (!data) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const updates: Record<string, unknown> = {
+        account_status: editAccountStatus,
+      }
+      if (editAccountStatus !== 'active') {
+        updates.account_status_reason = editStatusReason || null
+      }
+
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '계정 상태 변경 중 오류가 발생했습니다.')
+        setEditAccountStatus(data.profile.account_status || 'active')
+        setEditStatusReason(data.profile.account_status_reason || '')
+        return
+      }
+
+      setData({ ...data, profile: result.profile })
+      setEditAccountStatus(result.profile.account_status || 'active')
+      setEditStatusReason(result.profile.account_status_reason || '')
+      const statusLabel = ACCOUNT_STATUS_LABELS[result.profile.account_status] || result.profile.account_status
+      setSuccess(`계정 상태가 "${statusLabel}"(으)로 변경되었습니다.`)
+    } catch {
+      setError('계정 상태 변경 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSaveDisabledFeatures() {
+    if (!data) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled_features: editDisabledFeatures }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result.error || '기능 비활성화 설정 중 오류가 발생했습니다.')
+        return
+      }
+
+      setData({ ...data, profile: result.profile })
+      setEditDisabledFeatures(result.profile.disabled_features || [])
+      setSuccess('기능 비활성화 설정이 저장되었습니다.')
+    } catch {
+      setError('기능 비활성화 설정 중 오류가 발생했습니다.')
     } finally {
       setSaving(false)
     }
@@ -766,6 +857,138 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <span className="text-lg font-semibold">{totalKeywords}</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 계정 상태 관리 + 개별 기능 비활성화 */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* 계정 상태 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Ban className="h-5 w-5" />
+              계정 상태
+              <Badge className={ACCOUNT_STATUS_COLORS[profile.account_status || 'active']}>
+                {ACCOUNT_STATUS_LABELS[profile.account_status || 'active']}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">상태 변경</span>
+                <Select value={editAccountStatus} onValueChange={setEditAccountStatus}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">활성</SelectItem>
+                    <SelectItem value="banned">
+                      <span className="flex items-center gap-1 text-red-600">
+                        <Ban className="h-3 w-3" /> 차단
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="suspended">
+                      <span className="flex items-center gap-1 text-yellow-600">
+                        <PauseCircle className="h-3 w-3" /> 정지
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editAccountStatus !== 'active' && (
+                <div className="space-y-1">
+                  <label className="text-sm text-muted-foreground">사유</label>
+                  <Input
+                    placeholder="차단/정지 사유를 입력하세요"
+                    value={editStatusReason}
+                    onChange={(e) => setEditStatusReason(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={saving || editAccountStatus === (profile.account_status || 'active')}
+                  variant={editAccountStatus !== 'active' ? 'destructive' : 'default'}
+                  size="sm"
+                  className="gap-1"
+                >
+                  <Save className="h-4 w-4" />
+                  상태 저장
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>계정 상태 변경</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    이 사용자의 계정 상태를 &quot;{ACCOUNT_STATUS_LABELS[editAccountStatus]}&quot;(으)로 변경합니다.
+                    {editAccountStatus === 'banned' && ' 차단된 사용자는 서비스에 접근할 수 없습니다.'}
+                    {editAccountStatus === 'suspended' && ' 정지된 사용자는 대시보드/설정만 접근 가능하며 기능 사용이 제한됩니다.'}
+                    {editAccountStatus === 'active' && ' 모든 기능이 정상적으로 복원됩니다.'}
+                    <br />계속하시겠습니까?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleSaveAccountStatus}>확인</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {profile.account_status_reason && (
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">현재 사유</p>
+                <p className="text-sm mt-1">{profile.account_status_reason}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 개별 기능 비활성화 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldOff className="h-5 w-5" />
+              개별 기능 비활성화
+              {editDisabledFeatures.length > 0 && (
+                <Badge variant="secondary">{editDisabledFeatures.length}개 비활성</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              {TOGGLEABLE_FEATURES.filter(f => f.href).map((feature) => (
+                <label
+                  key={feature.key}
+                  className="flex items-center gap-2 rounded-lg border p-2 hover:bg-muted/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={editDisabledFeatures.includes(feature.key)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setEditDisabledFeatures([...editDisabledFeatures, feature.key])
+                      } else {
+                        setEditDisabledFeatures(editDisabledFeatures.filter(k => k !== feature.key))
+                      }
+                    }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{feature.label}</p>
+                    <p className="text-xs text-muted-foreground">{feature.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <Button onClick={handleSaveDisabledFeatures} disabled={saving} size="sm" className="gap-1">
+              <Save className="h-4 w-4" />
+              기능 설정 저장
+            </Button>
           </CardContent>
         </Card>
       </div>
