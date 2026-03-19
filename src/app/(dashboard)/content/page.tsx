@@ -1472,13 +1472,16 @@ export default function ContentPage() {
               // 개선 내역 저장 (어떤 항목이 개선되었는지)
               if (applied > 0) {
                 setImproveDetails(weakCategories.map(c => c.name))
+                // 상단 SEO 점수를 현재 콘텐츠 기준으로 재계산하여 갱신
+                const updatedSeo = analyzeSeo(activeKeyword.trim(), data.title || activeTitle, currentContent, editTags.length > 0 ? editTags : undefined)
+                setResult(prev => prev ? { ...prev, seoScore: updatedSeo.totalScore } : prev)
               }
 
               const messages: string[] = []
               if (applied > 0) messages.push(`${applied}개 수정 적용 완료!`)
               if (skipped > 0) messages.push(`${skipped}개 건너뜀`)
               if (data.guidance?.length > 0) messages.push(`${data.guidance.length}개 항목은 아래 가이드 확인`)
-              setImproveMessage(messages.join(', ') + (applied > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
+              setImproveMessage(messages.join(', ') + (applied > 0 ? ' SEO 점수가 갱신되었습니다.' : ''))
               setTimeout(() => setImproveMessage(''), 5000)
             },
           }
@@ -1512,6 +1515,9 @@ export default function ContentPage() {
         // 개선 내역 저장
         if (appliedCount > 0) {
           setImproveDetails(weakCategories.map(c => c.name))
+          // 상단 SEO 점수를 현재 콘텐츠 기준으로 재계산하여 갱신
+          const updatedSeo = analyzeSeo(activeKeyword.trim(), data.title || activeTitle, updatedContent, editTags.length > 0 ? editTags : undefined)
+          setResult(prev => prev ? { ...prev, seoScore: updatedSeo.totalScore } : prev)
         }
 
         const messages: string[] = []
@@ -1521,7 +1527,7 @@ export default function ContentPage() {
         if (appliedCount === 0 && skippedCount > 0 && !data.guidance?.length) {
           setImproveMessage('패치 적용에 실패했습니다. 다시 시도해주세요.')
         } else {
-          setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' LIVE SEO에서 점수를 확인하세요.' : ''))
+          setImproveMessage(messages.join(', ') + (appliedCount > 0 ? ' SEO 점수가 갱신되었습니다.' : ''))
         }
         setTimeout(() => setImproveMessage(''), 5000)
         creditToast('content_improve')
@@ -3400,10 +3406,10 @@ export default function ContentPage() {
 
           {/* SEO 분석 + 가독성 + DIA 카드 */}
           {result.seoAnalysis && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
               {/* SEO 분석 요약 */}
-              <Card className="order-1">
-                <CardContent className="p-4">
+              <Card className="order-1 flex flex-col">
+                <CardContent className="p-4 flex-1 flex flex-col">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-blue-600" />
@@ -3425,6 +3431,7 @@ export default function ContentPage() {
                       style={{ width: `${result.seoAnalysis.totalScore}%` }}
                     />
                   </div>
+                  <div className="flex-1" />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -3507,8 +3514,8 @@ export default function ContentPage() {
 
               {/* 가독성 분석 */}
               {result.readabilityAnalysis && (
-                <Card className="order-3 sm:order-2">
-                  <CardContent className="p-4">
+                <Card className="order-3 sm:order-2 flex flex-col">
+                  <CardContent className="p-4 flex-1 flex flex-col">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Eye className="h-4 w-4 text-purple-600" />
@@ -3524,6 +3531,7 @@ export default function ContentPage() {
                       </span>
                       <span className="mb-1 text-sm text-muted-foreground">/ 100</span>
                     </div>
+                    <div className="flex-1" />
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                       <div>
                         <span className="font-medium">{result.readabilityAnalysis.totalCharacters.toLocaleString()}</span>자
@@ -3543,7 +3551,7 @@ export default function ContentPage() {
               )}
 
               {/* DIA 품질 분석 */}
-              <div className="order-4 sm:order-3">
+              <div className="order-4 sm:order-3 flex">
                 <DiaScoreCard keyword={keyword} title={result.title} content={result.content} />
               </div>
             </div>
@@ -4172,8 +4180,8 @@ function DiaScoreCard({ keyword, title, content }: { keyword: string; title: str
     .slice(0, 2)
 
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className="flex flex-col h-full">
+      <CardContent className="p-4 flex-1 flex flex-col">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-emerald-600" />
@@ -4195,6 +4203,7 @@ function DiaScoreCard({ keyword, title, content }: { keyword: string; title: str
             style={{ width: `${dia.totalScore}%` }}
           />
         </div>
+        <div className="flex-1" />
         {weakest.length > 0 && (
           <div className="mt-3 space-y-1 text-xs text-muted-foreground">
             {weakest.map(cat => (
