@@ -3,6 +3,8 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Vercel 서버리스에서 네이티브/대형 패키지를 번들에서 제외 (동적 import 호환)
+  serverExternalPackages: ['pdf-parse', 'mammoth', 'jszip'],
   // 보안 헤더
   async headers() {
     return [
