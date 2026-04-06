@@ -715,7 +715,9 @@ export default function ContentPage() {
   // === 문서 파일 첨부 (TXT/PDF/DOCX/PPTX) ===
   const handleAttachDocs = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return
+    if (!files || files.length === 0) return
+    // FileList를 배열로 복사한 뒤 input 초기화 (순서 중요: value='' 하면 FileList가 비워짐)
+    const fileArray = Array.from(files)
     e.target.value = ''
 
     const remaining = MAX_ATTACHED_DOCS - attachedDocs.length
@@ -724,7 +726,7 @@ export default function ContentPage() {
       return
     }
 
-    const filesToProcess = Array.from(files).slice(0, remaining)
+    const filesToProcess = fileArray.slice(0, remaining)
     for (const file of filesToProcess) {
       const check = validateDocFile(file)
       if (!check.valid) {
