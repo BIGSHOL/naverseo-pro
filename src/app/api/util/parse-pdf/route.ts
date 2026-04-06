@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PDFParse } from 'pdf-parse'
 import { validatePdfText } from '@/lib/content/validators'
 
 export const dynamic = 'force-dynamic'
@@ -36,18 +35,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // pdf-parse v2: 클래스 기반 API
+    // pdf-parse v2: 동적 import (빌드 타임 번들링 크래시 방지)
+    const { PDFParse } = await import('pdf-parse')
     const buffer = Buffer.from(await file.arrayBuffer())
     const parser = new PDFParse({ data: new Uint8Array(buffer) })
-    const textResult = await parser.getText()
 
-    // 전체 페이지 텍스트 합치기
-    const rawText = textResult.pages
-      .map(page => page.text)
-      .join('\n')
-      .trim()
-
-    await parser.destroy()
+    let rawText: string
+    try {
+      const textResult = await parser.getText()
+      rawText = textResult.pages
+        .map((page: { text: string }) => page.text)
+        .join('\n')
+        .trim()
+    } finally {
+      await parser.destroy()
+    }
 
     // OCR 미처리 / 깨진 문자 검증
     const validation = validatePdfText(rawText)
@@ -69,6 +71,14 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('[PDF Parse] 오류:', error)
+    const message = error instanceof Error ? error.message : ''
+    // 사용자에게 구체적인 에러 메시지 전달
+    if (message.includes('Invalid PDF') || message.includes('structure')) {
+      return NextResponse.json({ error: '유효하지 않은 PDF 파일입니다. 다른 파일을 시도해주세요.' }, { status: 400 })
+    }
+    if (message.includes('password') || message.includes('Password')) {
+      return NextResponse.json({ error: '암호가 설정된 PDF는 지원하지 않습니다.' }, { status: 400 })
+    }
     return NextResponse.json(
       { error: 'PDF 파싱 중 오류가 발생했습니다. 다른 파일을 시도해주세요.' },
       { status: 500 }

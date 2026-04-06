@@ -41,8 +41,8 @@ import { useToast } from '@/hooks/use-toast'
 import { PlanGateAlert } from '@/components/plan-gate-alert'
 import {
   validateReferenceText, validateImageDescription, validateImageFile,
-  validateTxtFile, validatePdfFile,
-  REF_MATERIAL_MAX_CHARS, MAX_ATTACHED_IMAGES,
+  validateDocFile,
+  REF_MATERIAL_MAX_CHARS, MAX_ATTACHED_IMAGES, MAX_ATTACHED_DOCS, SUPPORTED_DOC_ACCEPT,
 } from '@/lib/content/validators'
 
 interface SeoCategory {
@@ -508,10 +508,20 @@ export default function ContentPage() {
   const [showImageConfirm, setShowImageConfirm] = useState(false)
   const [imageMarkers, setImageMarkers] = useState<ParsedImageMarker[]>([])
 
-  // 참고 자료 첨부
+  // 참고 자료 첨부 (직접 입력)
   const [refMaterialText, setRefMaterialText] = useState('')
-  const [refMaterialSource, setRefMaterialSource] = useState('')
-  const [refMaterialLoading, setRefMaterialLoading] = useState(false)
+
+  // 문서 파일 첨부 (최대 5개)
+  interface AttachedDoc {
+    id: string
+    fileName: string
+    text: string
+    charCount: number
+    loading: boolean
+    error?: string
+  }
+  const [attachedDocs, setAttachedDocs] = useState<AttachedDoc[]>([])
+  const docFileInputRef = useRef<HTMLInputElement>(null)
 
   // 이미지 첨부 + 설명
   interface AttachedImage {
@@ -702,61 +712,76 @@ export default function ContentPage() {
     }
   }
 
-  // === 참고 자료 TXT 파일 로드 ===
-  const handleRefFileTxt = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const fileCheck = validateTxtFile(file)
-    if (!fileCheck.valid) {
-      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
-      e.target.value = ''
-      return
-    }
-    const text = await file.text()
-    const trimmed = text.substring(0, REF_MATERIAL_MAX_CHARS)
-    const validation = validateReferenceText(trimmed)
-    if (!validation.valid) {
-      toast({ title: '내용 오류', description: validation.error, variant: 'destructive' })
-      e.target.value = ''
-      return
-    }
-    setRefMaterialText(trimmed)
-    setRefMaterialSource(file.name)
-    if (text.length > REF_MATERIAL_MAX_CHARS) {
-      toast({ title: '텍스트 잘림', description: `${REF_MATERIAL_MAX_CHARS.toLocaleString()}자까지만 사용됩니다.` })
-    }
+  // === 문서 파일 첨부 (TXT/PDF/DOCX/PPTX) ===
+  const handleAttachDocs = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
     e.target.value = ''
+
+    const remaining = MAX_ATTACHED_DOCS - attachedDocs.length
+    if (remaining <= 0) {
+      toast({ title: '문서 최대 개수', description: `최대 ${MAX_ATTACHED_DOCS}개까지 첨부할 수 있습니다.`, variant: 'destructive' })
+      return
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remaining)
+    for (const file of filesToProcess) {
+      const check = validateDocFile(file)
+      if (!check.valid) {
+        toast({ title: '파일 오류', description: check.error, variant: 'destructive' })
+        continue
+      }
+
+      const docId = `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+      // 로딩 상태로 먼저 추가
+      setAttachedDocs(prev => [...prev, {
+        id: docId, fileName: file.name, text: '', charCount: 0, loading: true,
+      }])
+
+      // 비동기 파싱
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/util/parse-document', { method: 'POST', body: formData })
+        const ct = res.headers.get('content-type') || ''
+        if (!ct.includes('application/json')) throw new Error('서버 오류가 발생했습니다.')
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || '문서 파싱 실패')
+
+        setAttachedDocs(prev => prev.map(d =>
+          d.id === docId ? { ...d, text: data.text, charCount: data.charCount, loading: false } : d
+        ))
+        if (data.truncated) {
+          toast({ title: '텍스트 잘림', description: `${file.name}: ${data.originalLength.toLocaleString()}자 중 ${data.charCount.toLocaleString()}자만 사용됩니다.` })
+        }
+      } catch (err) {
+        setAttachedDocs(prev => prev.map(d =>
+          d.id === docId ? { ...d, loading: false, error: err instanceof Error ? err.message : '파싱 실패' } : d
+        ))
+      }
+    }
   }
 
-  // === 참고 자료 PDF 파일 로드 ===
-  const handleRefFilePdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const fileCheck = validatePdfFile(file)
-    if (!fileCheck.valid) {
-      toast({ title: '파일 오류', description: fileCheck.error, variant: 'destructive' })
-      e.target.value = ''
-      return
-    }
-    setRefMaterialLoading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/util/parse-pdf', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'PDF 파싱 실패')
-      setRefMaterialText(data.text)
-      setRefMaterialSource(data.fileName)
-      if (data.truncated) {
-        toast({ title: '텍스트 잘림', description: `원본 ${data.originalLength.toLocaleString()}자 중 ${REF_MATERIAL_MAX_CHARS.toLocaleString()}자만 사용됩니다.` })
-      }
-    } catch (err) {
-      toast({ title: 'PDF 파싱 실패', description: err instanceof Error ? err.message : 'PDF 텍스트 추출에 실패했습니다.', variant: 'destructive' })
-    } finally {
-      setRefMaterialLoading(false)
-      e.target.value = ''
-    }
+  const removeAttachedDoc = (id: string) => {
+    setAttachedDocs(prev => prev.filter(d => d.id !== id))
   }
+
+  // 참고 자료 합산 (직접 입력 + 첨부 문서)
+  const totalRefCharCount = useMemo(() => {
+    let count = refMaterialText.length
+    attachedDocs.forEach(d => { if (d.text && !d.error) count += d.text.length })
+    return count
+  }, [refMaterialText, attachedDocs])
+
+  const buildCombinedRef = useCallback(() => {
+    const parts: string[] = []
+    if (refMaterialText.trim()) parts.push(refMaterialText.trim())
+    attachedDocs.forEach(d => {
+      if (d.text && !d.error) parts.push(`[${d.fileName}]\n${d.text}`)
+    })
+    return parts.join('\n\n---\n\n')
+  }, [refMaterialText, attachedDocs])
 
   // === 이미지 리사이징 (Canvas, 클라이언트 전용 — API 비용 0) ===
   const MAX_IMAGE_WIDTH = 1200
@@ -874,13 +899,18 @@ export default function ContentPage() {
   const generateContent = async (overrides?: { tone?: string; targetLength?: string; contentType?: string }) => {
     if (!keyword.trim() || loading) return
 
-    // 참고 자료 사전 검증
+    // 참고 자료 사전 검증 (직접 입력)
     if (refMaterialText.trim()) {
       const refValidation = validateReferenceText(refMaterialText)
       if (!refValidation.valid) {
         setError(`참고 자료 오류: ${refValidation.error}`)
         return
       }
+    }
+    // 문서 파싱 중인 게 있으면 차단
+    if (attachedDocs.some(d => d.loading)) {
+      setError('문서 파싱이 아직 진행 중입니다. 완료 후 다시 시도해주세요.')
+      return
     }
 
     // 이미지 설명 사전 검증
@@ -953,10 +983,14 @@ export default function ContentPage() {
             targetAudience,
             ageGroup,
           } : undefined,
-          referenceMaterial: refMaterialText.trim() ? {
-            text: refMaterialText.trim().substring(0, REF_MATERIAL_MAX_CHARS),
-            source: refMaterialSource || '직접 입력',
-          } : undefined,
+          referenceMaterial: (() => {
+            const combined = buildCombinedRef()
+            if (!combined) return undefined
+            const sources: string[] = []
+            if (refMaterialText.trim()) sources.push('직접 입력')
+            attachedDocs.forEach(d => { if (d.text && !d.error) sources.push(d.fileName) })
+            return { text: combined, source: sources.join(', ') }
+          })(),
           attachedImages: validAttachedImages.length > 0 ? validAttachedImages : undefined,
         }),
       })
@@ -2420,46 +2454,88 @@ export default function ContentPage() {
                 placeholder="AI가 참고할 자료를 붙여넣으세요 (보도자료, 논문 요약, 제품 스펙 등). AI가 관련 부분만 선별하여 활용합니다."
                 value={refMaterialText}
                 onChange={(e) => {
-                  const val = e.target.value.substring(0, REF_MATERIAL_MAX_CHARS)
-                  setRefMaterialText(val)
-                  if (!refMaterialSource || refMaterialSource === '직접 입력') {
-                    setRefMaterialSource(val ? '직접 입력' : '')
-                  }
+                  setRefMaterialText(e.target.value)
                 }}
-                disabled={loading || refMaterialLoading}
+                disabled={loading || attachedDocs.some(d => d.loading)}
                 rows={3}
                 className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
               />
+
+              {/* 첨부 문서 목록 */}
+              {attachedDocs.length > 0 && (
+                <div className="space-y-1.5">
+                  {attachedDocs.map((doc) => (
+                    <div key={doc.id} className={`flex items-center gap-2 rounded-lg border p-2 text-sm ${doc.error ? 'border-red-200 bg-red-50/50' : 'border-amber-200 bg-amber-50/50'}`}>
+                      <FileText className={`h-4 w-4 shrink-0 ${doc.error ? 'text-red-400' : 'text-amber-500'}`} />
+                      <span className="truncate flex-1">{doc.fileName}</span>
+                      {doc.loading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500 shrink-0" />
+                      ) : doc.error ? (
+                        <span className="text-xs text-red-500 shrink-0 max-w-[200px] truncate">{doc.error}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground shrink-0">{doc.charCount.toLocaleString()}자</span>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 h-6 w-6 p-0 text-muted-foreground hover:text-red-500"
+                        onClick={() => removeAttachedDoc(doc.id)}
+                        disabled={loading}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 문서 추가 버튼 */}
               <div className="flex items-center gap-2">
-                <label className="cursor-pointer">
-                  <input type="file" accept=".txt" className="hidden" onChange={handleRefFileTxt} disabled={loading || refMaterialLoading} />
-                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
-                    <FileText className="h-3 w-3" /> TXT
-                  </Badge>
-                </label>
-                <label className="cursor-pointer">
-                  <input type="file" accept=".pdf" className="hidden" onChange={handleRefFilePdf} disabled={loading || refMaterialLoading} />
-                  <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
-                    {refMaterialLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />} PDF
-                  </Badge>
-                </label>
-                {refMaterialText && (
+                {attachedDocs.length < MAX_ATTACHED_DOCS && (
+                  <label className="cursor-pointer">
+                    <input
+                      ref={docFileInputRef}
+                      type="file"
+                      accept={SUPPORTED_DOC_ACCEPT}
+                      multiple
+                      className="hidden"
+                      onChange={handleAttachDocs}
+                      disabled={loading || attachedDocs.some(d => d.loading)}
+                    />
+                    <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
+                      <FileText className="h-3 w-3" /> 문서 추가 ({attachedDocs.length}/{MAX_ATTACHED_DOCS})
+                    </Badge>
+                  </label>
+                )}
+                {(refMaterialText || attachedDocs.length > 0) && (
                   <button
                     type="button"
                     className="text-xs text-amber-500 hover:text-amber-700 underline"
-                    onClick={() => { setRefMaterialText(''); setRefMaterialSource('') }}
+                    onClick={() => { setRefMaterialText(''); setAttachedDocs([]) }}
                   >
-                    삭제
+                    전체 삭제
                   </button>
                 )}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {refMaterialText.length.toLocaleString()} / {REF_MATERIAL_MAX_CHARS.toLocaleString()}자
-                  {refMaterialSource && <span className="ml-1 text-amber-600">({refMaterialSource})</span>}
+                  총 {totalRefCharCount.toLocaleString()}자
+                  {totalRefCharCount > REF_MATERIAL_MAX_CHARS && (
+                    <span className="ml-1 text-amber-600 font-medium">
+                      (+{Math.ceil((totalRefCharCount - REF_MATERIAL_MAX_CHARS) / REF_MATERIAL_MAX_CHARS) * 3}크레딧)
+                    </span>
+                  )}
                 </span>
               </div>
-              <p className="text-xs text-amber-600/80">
-                AI가 키워드와 관련된 부분만 선별 활용하며, 활용/미사용 부분을 리포트합니다
-              </p>
+
+              <div className="space-y-1">
+                <p className="text-xs text-amber-600/80">
+                  지원 형식: TXT, PDF, DOCX, PPTX (최대 10MB, {MAX_ATTACHED_DOCS}개)
+                </p>
+                <p className="flex items-start gap-1 text-xs text-amber-600/80">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  이미지 기반 문서(스캔 PDF 등)는 텍스트 추출이 불가합니다. OCR 처리된 파일을 사용해주세요.
+                </p>
+              </div>
             </div>
 
             {/* 이미지 첨부 + 설명 (선택) */}

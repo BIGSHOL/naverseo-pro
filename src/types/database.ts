@@ -139,6 +139,7 @@ export const CREDIT_COSTS = {
   keyword_research: 1,       // 키워드 검색
   keyword_discovery: 3,      // 키워드 발굴
   content_generation: 7,     // AI 콘텐츠 생성 (AI + 네이버 API 5개 + 스크래핑)
+  content_generation_ref_extra: 3,  // 참고자료 5000자 초과 시 5000자당 추가
   seo_check: 2,              // SEO 점수 체크
   competitor_analysis: 5,    // 상위노출 분석 (10건 스크래핑 + AI 2회)
   blog_index: 5,             // 블로그 지수 분석 (100건 크롤링 + 20건 스크래핑)
@@ -158,6 +159,7 @@ export const CREDIT_FEATURE_LABELS: Record<CreditFeature, string> = {
   keyword_research: '키워드 검색',
   keyword_discovery: '키워드 발굴',
   content_generation: 'AI 콘텐츠 생성',
+  content_generation_ref_extra: '참고자료 추가 (5000자당)',
   seo_check: 'SEO 점수 체크',
   competitor_analysis: '상위노출 분석',
   blog_index: '블로그 지수 분석',
@@ -196,6 +198,7 @@ export const FREE_ALLOWED_FEATURES: CreditFeature[] = [
 export const LITE_ALLOWED_FEATURES: CreditFeature[] = [
   ...FREE_ALLOWED_FEATURES,
   'content_generation',
+  'content_generation_ref_extra',
   'seo_report',
   'image_generation',
 ]

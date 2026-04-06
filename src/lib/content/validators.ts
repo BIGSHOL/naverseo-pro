@@ -14,6 +14,10 @@ export const IMAGE_MAX_SIZE = 5 * 1024 * 1024 // 5MB
 export const IMAGE_MIN_SIZE = 1024 // 1KB
 export const MAX_ATTACHED_IMAGES = 5
 export const IMAGE_DESC_MIN_LENGTH = 2
+export const MAX_ATTACHED_DOCS = 5
+export const DOC_MAX_SIZE = 10 * 1024 * 1024 // 10MB
+export const SUPPORTED_DOC_EXTENSIONS = ['.txt', '.pdf', '.docx', '.pptx'] as const
+export const SUPPORTED_DOC_ACCEPT = '.txt,.pdf,.docx,.pptx'
 
 // ===== 타입 =====
 
@@ -183,6 +187,52 @@ export function validatePdfFile(file: File): ValidationResult {
 
   if (file.size > PDF_MAX_SIZE) {
     return { valid: false, error: `PDF 파일은 ${Math.round(PDF_MAX_SIZE / 1024 / 1024)}MB 이하만 가능합니다.` }
+  }
+
+  return { valid: true }
+}
+
+// ===== 문서 파일 검증 (통합) =====
+
+export function validateDocFile(file: File): ValidationResult {
+  const name = file.name.toLowerCase()
+  const ext = '.' + name.split('.').pop()
+
+  // 구형 Office 형식 안내
+  if (ext === '.doc' || ext === '.ppt') {
+    return { valid: false, error: `${ext.toUpperCase()} 파일은 지원하지 않습니다. Microsoft Office에서 '다른 이름으로 저장' → ${ext}x 형식으로 변환 후 다시 시도해주세요.` }
+  }
+
+  if (!SUPPORTED_DOC_EXTENSIONS.includes(ext as typeof SUPPORTED_DOC_EXTENSIONS[number])) {
+    return { valid: false, error: `지원하지 않는 파일 형식입니다. (${SUPPORTED_DOC_EXTENSIONS.join(', ')})` }
+  }
+
+  if (file.size > DOC_MAX_SIZE) {
+    return { valid: false, error: `문서 파일은 ${Math.round(DOC_MAX_SIZE / 1024 / 1024)}MB 이하만 가능합니다.` }
+  }
+
+  if (file.size < 10) {
+    return { valid: false, error: '빈 파일입니다.' }
+  }
+
+  return { valid: true }
+}
+
+// ===== 추출 텍스트 검증 (PDF/DOCX/PPTX 공통) =====
+
+export function validateExtractedText(text: string, fileName: string): ValidationResult {
+  const trimmed = text.trim()
+
+  if (!trimmed) {
+    return { valid: false, error: `${fileName}에서 텍스트를 추출할 수 없습니다. 이미지 기반 문서일 수 있습니다.` }
+  }
+
+  if (trimmed.length < REF_MATERIAL_MIN_CHARS) {
+    return { valid: false, error: `${fileName}에서 추출된 텍스트가 너무 적습니다 (${trimmed.length}자). 이미지 기반 문서일 수 있습니다.` }
+  }
+
+  if (getReadableRatio(trimmed) < 0.3) {
+    return { valid: false, error: `${fileName}의 텍스트를 인식할 수 없습니다. 다른 파일을 시도해주세요.` }
   }
 
   return { valid: true }

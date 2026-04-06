@@ -461,6 +461,7 @@ interface SaveContentMetadata {
   optimizations?: string[]
   referenceUsageReport?: unknown
   imagePlacementReport?: unknown
+  refTextLength?: number  // 참고자료 합산 글자수 (5000자 초과 시 추가 크레딧)
 }
 
 async function saveGeneratedContent(keyword: string, title: string, content: string, additionalKeywords?: string[], tags?: string[], metadata?: SaveContentMetadata) {
@@ -501,8 +502,15 @@ async function saveGeneratedContent(keyword: string, title: string, content: str
       seo_feedback: Object.keys(seoFeedback).length > 0 ? seoFeedback : null,
     }).select('id').single()
 
-    // 크레딧 차감
+    // 크레딧 차감 (기본 7 + 참고자료 5000자 초과 시 5000자당 3크레딧 추가)
+    const refLen = metadata?.refTextLength || 0
     await deductCredits(supabase, user.id, 'content_generation', { keyword })
+    if (refLen > 5000) {
+      const extraBlocks = Math.ceil((refLen - 5000) / 5000)
+      for (let i = 0; i < extraBlocks; i++) {
+        await deductCredits(supabase, user.id, 'content_generation_ref_extra', { keyword, block: i + 1 })
+      }
+    }
 
     return { id: data?.id || null, seoScore }
   } catch {
@@ -558,7 +566,7 @@ export async function POST(request: NextRequest) {
       customDomain: domainCategory === 'other' && typeof customDomain === 'string' ? customDomain.trim() || undefined : undefined,
       advancedOptions: advancedOptions || undefined,
       referenceMaterial: referenceMaterial?.text?.trim() ? {
-        text: referenceMaterial.text.trim().substring(0, 5000),
+        text: referenceMaterial.text.trim(),
         source: referenceMaterial.source || '직접 입력',
       } : undefined,
       attachedImages: Array.isArray(attachedImages) && attachedImages.length > 0
@@ -570,6 +578,19 @@ export async function POST(request: NextRequest) {
             }))
             .filter(img => img.description)
         : undefined,
+    }
+
+    // 참고자료 5000자 초과 시 추가 크레딧 잔액 체크
+    const refLen = contentRequest.referenceMaterial?.text?.length || 0
+    if (refLen > 5000) {
+      const extraCost = Math.ceil((refLen - 5000) / 5000) * 3
+      const totalCost = 7 + extraCost
+      if (creditCheck.balance !== undefined && creditCheck.balance < totalCost) {
+        return NextResponse.json(
+          { error: `참고자료가 ${refLen.toLocaleString()}자로, 총 ${totalCost}크레딧이 필요합니다. (기본 7 + 추가 ${extraCost})`, creditLimit: true, balance: creditCheck.balance, cost: totalCost },
+          { status: 403 }
+        )
+      }
     }
 
     // API 키가 없으면 데모 콘텐츠 (엔진 활용)
@@ -1001,6 +1022,7 @@ ${imageList}
               optimizations: optimizeResult.optimizations,
               referenceUsageReport: parsed.referenceUsageReport,
               imagePlacementReport: parsed.imagePlacementReport,
+              refTextLength: contentRequest.referenceMaterial?.text?.length || 0,
             })
               .then(saved => { if (saved?.id) send({ type: 'saved', contentId: saved.id }) })
               .catch(err => console.error('[Content] DB 저장 실패 (result는 전송됨):', err))
