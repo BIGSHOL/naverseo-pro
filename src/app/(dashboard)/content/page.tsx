@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { TiptapEditor, getEditorHtml } from '@/components/content/TiptapEditor'
-import { htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
+import { copyForNaver } from '@/lib/utils/markdown-convert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProgressState } from '@/lib/progress'
 import { CardProgress } from '@/lib/progress'
@@ -1229,21 +1229,10 @@ export default function ContentPage() {
     const contentSource = editContent || result.content
     const titleSource = editTitle || result.title
     const rawHtml = `<h1>${titleSource}</h1>${getEditorHtml(contentSource)}`
-    const html = htmlForNaverClipboard(rawHtml)
     const text = `${titleSource}\n\n${contentSource}`
 
-    try {
-      // HTML + 텍스트 동시 클립보드 저장 (네이버 블로그 서식 유지)
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([text], { type: 'text/plain' }),
-        }),
-      ])
-    } catch {
-      // ClipboardItem 미지원 브라우저 폴백
-      await navigator.clipboard.writeText(text)
-    }
+    // 3단계 서식 복사 (DOM렌더링 → ClipboardItem → 텍스트)
+    await copyForNaver(rawHtml, text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
 

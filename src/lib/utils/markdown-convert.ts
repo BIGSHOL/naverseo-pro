@@ -118,25 +118,123 @@ export function htmlToMarkdown(html: string): string {
 }
 
 /**
- * 네이버 블로그 클립보드용 HTML 변환
- * 시맨틱 태그(h1~h3)를 인라인 스타일로 변환하여
+ * 네이버 블로그 클립보드용 HTML 변환 (SmartEditor ONE 호환)
+ * 시맨틱 태그를 인라인 스타일로 변환하여
  * 네이버 스마트에디터 붙여넣기 시 서식이 유지되도록 함
+ *
+ * 참고: mathlab 프로젝트의 prepareForNaver() 패턴을 이식
  */
 export function htmlForNaverClipboard(html: string): string {
-  return html
-    // h1 → 볼드 + 28px
-    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '<p><b><span style="font-size: 28px;">$1</span></b></p>')
-    // h2 → 볼드 + 22px
-    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '<p><b><span style="font-size: 22px;">$1</span></b></p>')
-    // h3 → 볼드 + 18px
-    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '<p><b><span style="font-size: 18px;">$1</span></b></p>')
-    // blockquote → 좌측 테두리 스타일
-    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '<div style="border-left: 3px solid #ccc; padding-left: 12px; color: #666;">$1</div>')
-    // hr → 구분선
-    .replace(/<hr\s*\/?>/gi, '<p style="text-align: center; color: #ccc;">━━━━━━━━━━━━━━━━</p>')
-    // mark (형광펜) → background-color 인라인 스타일
-    .replace(/<mark(?:\s+style="([^"]*)")?>(.*?)<\/mark>/gi, (_m, style, content) => {
-      const bg = style?.match(/background-color:\s*([^;]+)/)?.[1] || '#fef08a'
-      return `<span style="background-color: ${bg};">${content}</span>`
+  let result = html
+
+  // 1. text-align: left 제거 (기본값이므로 불필요)
+  result = result.replace(/\s*text-align:\s*left\s*;?/gi, '')
+
+  // 2. h1 → 볼드 + 28px
+  result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '<p><b><span style="font-size: 28px;">$1</span></b></p>')
+
+  // 3. h2 → 볼드 + 24px + <hr> 구분선 (네이버 블로그 소제목 패턴)
+  result = result.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '<p><b><span style="font-size: 24px;">$1</span></b></p><hr>')
+
+  // 4. h3 → 볼드 + 18px
+  result = result.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '<p><b><span style="font-size: 18px;">$1</span></b></p>')
+
+  // 5. 리스트 항목 → <p>로 변환 (네이버 리스트 렌더링 깨짐 방지)
+  //    <li><p>내용</p></li> → <p>내용</p> (속성 보존)
+  result = result.replace(/<li[^>]*>(<p\s[^>]*>[\s\S]*?<\/p>)<\/li>/gi, '$1')
+  result = result.replace(/<li[^>]*><p>([\s\S]*?)<\/p><\/li>/gi, '<p>$1</p>')
+  result = result.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '<p>• $1</p>')
+
+  // 6. ul/ol 래퍼 제거
+  result = result.replace(/<\/?[uo]l[^>]*>/gi, '')
+
+  // 7. blockquote 유지 (네이버가 인용구로 인식)
+  // 변환 안함 — 네이버 SmartEditor가 blockquote를 인용구 블록으로 처리
+
+  // 8. hr → 구분선
+  result = result.replace(/<hr\s*\/?>/gi, '<p style="text-align: center; color: #ccc;">━━━━━━━━━━━━━━━━</p>')
+
+  // 9. <strong> → <b> (네이버 SmartEditor 기본 태그)
+  result = result.replace(/<strong([^>]*)>/gi, '<b$1>')
+  result = result.replace(/<\/strong>/gi, '</b>')
+
+  // 10. mark (형광펜) → background-color 인라인 스타일 보장
+  //     data-color 속성이 있으면 style로 변환
+  result = result.replace(/<mark(?=[^>]*data-color="([^"]*)")(?![^>]*style)[^>]*>/gi,
+    '<mark style="background-color: $1">')
+  result = result.replace(/<mark(?:\s+style="([^"]*)")?>(.*?)<\/mark>/gi, (_m, style, content) => {
+    const bg = style?.match(/background-color:\s*([^;]+)/)?.[1] || '#fef08a'
+    return `<span style="background-color: ${bg};">${content}</span>`
+  })
+
+  // 11. 빈 <p> 제거
+  result = result.replace(/<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>/gi, '')
+
+  return result
+}
+
+/**
+ * 네이버 블로그 서식 복사 (3단계 폴백)
+ *
+ * 1차: DOM 렌더링 + execCommand('copy') — 서식 유지율 최고
+ * 2차: ClipboardItem (HTML + 텍스트 Blob) — 최신 API
+ * 3차: writeText (순수 텍스트) — 최후 수단
+ *
+ * 참고: mathlab 프로젝트의 handleCopyRichText() 패턴을 이식
+ */
+export async function copyForNaver(html: string, plainText: string): Promise<'rich' | 'html' | 'text'> {
+  const prepared = htmlForNaverClipboard(html)
+
+  // 1차: DOM 렌더링 + execCommand('copy') — 브라우저가 계산된 스타일을 복사하므로 서식 유지율 최고
+  try {
+    const container = document.createElement('div')
+    container.innerHTML = prepared
+    // 화면 밖에 렌더링 (display:none은 선택 불가)
+    container.style.position = 'fixed'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.opacity = '0'
+    container.style.width = '600px'          // 네이버 블로그 본문 폭
+    container.style.fontFamily = '"NanumGothic", "나눔고딕", sans-serif'
+    container.style.fontSize = '15px'
+    container.style.lineHeight = '1.7'
+    container.style.color = '#333'
+    document.body.appendChild(container)
+
+    // mark 배경색 강제 적용 (브라우저가 누락할 수 있음)
+    container.querySelectorAll('mark, span[style*="background-color"]').forEach((el) => {
+      const elem = el as HTMLElement
+      if (!elem.style.backgroundColor) {
+        elem.style.backgroundColor = elem.getAttribute('data-color') || '#fef08a'
+      }
     })
+
+    // Range + Selection API로 전체 선택 → 복사
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+
+    document.execCommand('copy')
+
+    selection?.removeAllRanges()
+    document.body.removeChild(container)
+    return 'rich'
+  } catch {
+    // 2차: ClipboardItem (HTML + 텍스트 Blob)
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([prepared], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        }),
+      ])
+      return 'html'
+    } catch {
+      // 3차: 순수 텍스트 (최후 수단)
+      await navigator.clipboard.writeText(plainText)
+      return 'text'
+    }
+  }
 }

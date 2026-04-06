@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
-import { markdownToHtml, htmlForNaverClipboard } from '@/lib/utils/markdown-convert'
+import { markdownToHtml, copyForNaver } from '@/lib/utils/markdown-convert'
 
 // 콘텐츠 아이템 (본문 보기용)
 interface ContentItem {
@@ -166,19 +166,10 @@ export default function ContentCalendarPage() {
   const handleCopy = async (title: string, markdown: string) => {
     try {
       const rawHtml = `<h1>${title}</h1>${markdownToHtml(markdown)}`
-      const html = htmlForNaverClipboard(rawHtml)
       const text = `${title}\n\n${markdownToPlainText(markdown)}`
 
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': new Blob([html], { type: 'text/html' }),
-            'text/plain': new Blob([text], { type: 'text/plain' }),
-          }),
-        ])
-      } catch {
-        await navigator.clipboard.writeText(text)
-      }
+      // 3단계 서식 복사 (DOM렌더링 → ClipboardItem → 텍스트)
+      await copyForNaver(rawHtml, text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
