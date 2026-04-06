@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '손상된 파일입니다. 다른 파일을 시도해주세요.' }, { status: 400 })
     }
     return NextResponse.json(
-      { error: '문서 파싱 중 오류가 발생했습니다. 다른 파일을 시도해주세요.' },
+      { error: `문서 파싱 중 오류가 발생했습니다. ${message || '다른 파일을 시도해주세요.'}` },
       { status: 500 }
     )
   }
@@ -109,20 +109,12 @@ async function parseTxt(file: File): Promise<string> {
   return (await file.text()).trim()
 }
 
-// === PDF 파싱 (pdf-parse v2) ===
+// === PDF 파싱 (pdf-parse v1 — Vercel 서버리스 호환) ===
 async function parsePdf(file: File): Promise<string> {
-  const { PDFParse } = await import('pdf-parse')
+  const pdfParse = (await import('pdf-parse')).default
   const buffer = Buffer.from(await file.arrayBuffer())
-  const parser = new PDFParse({ data: new Uint8Array(buffer) })
-  try {
-    const textResult = await parser.getText()
-    return textResult.pages
-      .map((page: { text: string }) => page.text)
-      .join('\n')
-      .trim()
-  } finally {
-    await parser.destroy()
-  }
+  const result = await pdfParse(buffer)
+  return (result.text || '').trim()
 }
 
 // === DOCX 파싱 (mammoth) ===

@@ -35,21 +35,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // pdf-parse v2: 동적 import (빌드 타임 번들링 크래시 방지)
-    const { PDFParse } = await import('pdf-parse')
+    // pdf-parse v1: 동적 import (Vercel 서버리스 호환)
+    const pdfParse = (await import('pdf-parse')).default
     const buffer = Buffer.from(await file.arrayBuffer())
-    const parser = new PDFParse({ data: new Uint8Array(buffer) })
-
-    let rawText: string
-    try {
-      const textResult = await parser.getText()
-      rawText = textResult.pages
-        .map((page: { text: string }) => page.text)
-        .join('\n')
-        .trim()
-    } finally {
-      await parser.destroy()
-    }
+    const result = await pdfParse(buffer)
+    const rawText = (result.text || '').trim()
 
     // OCR 미처리 / 깨진 문자 검증
     const validation = validatePdfText(rawText)
@@ -72,7 +62,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[PDF Parse] 오류:', error)
     const message = error instanceof Error ? error.message : ''
-    // 사용자에게 구체적인 에러 메시지 전달
     if (message.includes('Invalid PDF') || message.includes('structure')) {
       return NextResponse.json({ error: '유효하지 않은 PDF 파일입니다. 다른 파일을 시도해주세요.' }, { status: 400 })
     }
