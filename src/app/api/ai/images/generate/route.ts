@@ -63,22 +63,185 @@ const REAL_PHOTO_PATTERNS = [
 ]
 
 /**
- * 텍스트/글자가 필수인 이미지 유형 판별
- * AI 이미지 모델은 한글 텍스트를 정확히 렌더링할 수 없으므로 사전 차단
+ * 이미지 스타일 자동 분류 시스템
+ * 설명 키워드를 분석하여 최적의 시각 스타일을 결정
  */
-const TEXT_HEAVY_PATTERNS = [
-  /인포그래픽/, /로드맵/, /타임라인/, /플로우\s*차트/, /순서도/,
-  /마인드\s*맵/, /조직도/, /계통도/, /분류\s*(표|도)/,
-  /비교\s*(표|차트)/, /장단점\s*(표|비교)/, /체크\s*리스트/,
-  /단계\s*(표|도|별)/, /과정\s*(표|도)/, /절차\s*(표|도)/,
-  /일정\s*(표|계획)/, /시간\s*(표|계획)/, /커리큘럼/,
-  /가격\s*(표|비교)/, /견적/, /요금\s*(표|비교)/,
-  /성분\s*(표|비교)/, /영양\s*(표|성분|정보)/,
-  /스펙\s*(표|비교)/, /사양\s*(표|비교)/,
+type ImageStyle =
+  | 'photorealistic'   // 실사풍 (음식, 인테리어, 자연, 여행)
+  | 'infographic'      // 인포그래픽 (단계, 과정, 비교, 통계)
+  | 'illustration'     // 일러스트 (개념, 팁, 가이드, 추상)
+  | 'icon_flat'        // 플랫 아이콘 (기능, 특징, 카테고리)
+  | 'chart_data'       // 데이터 시각화 (그래프, 차트, 성장)
+  | 'thumbnail'        // 블로그 썸네일 (제목 강조, 배너)
+  | 'product'          // 제품 사진풍 (제품, 패키지, 언박싱)
+  | 'scene'            // 장면 연출 (라이프스타일, 분위기)
+
+interface StyleRule {
+  style: ImageStyle
+  patterns: RegExp[]
+}
+
+const STYLE_RULES: StyleRule[] = [
+  // 1. 썸네일/배너 — 제목이 들어가는 대표 이미지
+  {
+    style: 'thumbnail',
+    patterns: [
+      /썸네일/, /대표\s*이미지/, /배너/, /커버/, /타이틀/,
+      /헤더\s*이미지/, /메인\s*이미지/, /대문/, /표지/,
+      /TOP\s*\d/i, /BEST\s*\d/i, /추천\s*\d/i, /순위/,
+    ],
+  },
+  // 2. 인포그래픽 — 단계, 과정, 비교, 구조화된 정보
+  {
+    style: 'infographic',
+    patterns: [
+      /인포그래픽/, /로드맵/, /타임라인/, /플로우\s*차트/, /순서도/,
+      /마인드\s*맵/, /조직도/, /계통도/, /분류\s*(표|도)/,
+      /비교\s*(표|차트|이미지)/, /장단점/, /체크\s*리스트/,
+      /단계\s*(표|도|별|이미지)/, /과정\s*(표|도|이미지)/, /절차/,
+      /일정\s*(표|계획)/, /시간\s*(표|계획)/, /커리큘럼/,
+      /가격\s*(표|비교)/, /견적/, /요금\s*(표|비교)/,
+      /성분\s*(표|비교)/, /영양\s*(표|성분|정보)/,
+      /스펙\s*(표|비교)/, /사양\s*(표|비교)/,
+      /vs\b/i, /대\s/, /차이점/, /비교/,
+      /\d+단계/, /\d+가지/, /\d+종류/,
+    ],
+  },
+  // 3. 차트/데이터 — 수치, 통계, 그래프
+  {
+    style: 'chart_data',
+    patterns: [
+      /그래프/, /차트/, /통계/, /데이터/, /분석\s*결과/,
+      /성장\s*(률|율|추이|그래프)/, /매출/, /수익/, /트렌드/,
+      /증가/, /감소/, /추이/, /변화\s*(그래프|추이)/,
+      /시장\s*(규모|점유|분석)/, /비율/, /퍼센트/, /점유율/,
+    ],
+  },
+  // 4. 제품 사진풍 — 제품, 패키지, 소재
+  {
+    style: 'product',
+    patterns: [
+      /제품\s*(사진|이미지|모습)/, /패키지/, /언박싱/, /구성품/,
+      /상품/, /디자인\s*(이미지|사진)/, /외형/, /디테일\s*컷/,
+      /클로즈\s*업/, /확대/, /텍스처/, /소재\s*(사진|이미지)/,
+      /착용\s*(사진|샷|이미지)/, /사용\s*(모습|장면|사진)/,
+    ],
+  },
+  // 5. 실사풍 — 음식, 공간, 자연, 여행
+  {
+    style: 'photorealistic',
+    patterns: [
+      /음식/, /요리/, /맛집/, /레시피/, /식단/, /식재료/,
+      /카페/, /레스토랑/, /식당/, /베이커리/, /디저트/,
+      /인테리어/, /공간/, /거실/, /침실/, /욕실/, /주방/,
+      /풍경/, /자연/, /바다/, /산/, /숲/, /하늘/, /일출/, /일몰/,
+      /여행/, /관광/, /호텔/, /리조트/, /수영장/,
+      /운동/, /헬스/, /요가/, /필라테스/, /스트레칭/,
+      /반려\s*(동물|견|묘)/, /강아지/, /고양이/, /펫/,
+      /꽃/, /식물/, /정원/, /화분/, /플라워/,
+    ],
+  },
+  // 6. 플랫 아이콘 — 기능, 특징, 카테고리 나열
+  {
+    style: 'icon_flat',
+    patterns: [
+      /아이콘/, /기능\s*(소개|설명|이미지)/, /특징\s*(소개|설명|이미지)/,
+      /장점\s*(아이콘|이미지)/, /서비스\s*(소개|설명)/,
+      /카테고리/, /분류\s*아이콘/, /메뉴\s*(아이콘|이미지)/,
+      /심볼/, /픽토그램/, /로고\s*(디자인|이미지)/,
+    ],
+  },
+  // 7. 장면 연출 — 라이프스타일, 일상, 분위기
+  {
+    style: 'scene',
+    patterns: [
+      /일상/, /라이프/, /모닝\s*루틴/, /루틴/, /하루/,
+      /분위기/, /감성/, /무드/, /바이브/, /힐링/,
+      /독서/, /공부/, /작업/, /재택/, /홈\s*오피스/,
+      /데이트/, /모임/, /파티/, /축하/, /기념/,
+      /쇼핑/, /선물/, /포장/, /기프트/,
+    ],
+  },
 ]
 
-function isTextHeavyImage(description: string): boolean {
-  return TEXT_HEAVY_PATTERNS.some(pattern => pattern.test(description))
+/** 스타일별 프롬프트 지시어 */
+const STYLE_PROMPTS: Record<ImageStyle, string> = {
+  photorealistic: [
+    'Style: PHOTOREALISTIC, high-resolution photograph',
+    '- Shot with professional DSLR camera, shallow depth of field',
+    '- Natural lighting with soft shadows, warm color temperature',
+    '- Vivid colors, crisp details, magazine-quality composition',
+    '- Realistic textures and materials, no cartoon or illustrated elements',
+  ].join('\n'),
+  infographic: [
+    'Style: INFOGRAPHIC / DIAGRAM',
+    '- Clean, structured layout with clear visual hierarchy',
+    '- Use numbered sections, arrows, and connecting lines to show flow',
+    '- Flat design with bold colors, rounded shapes, and simple icons',
+    '- Korean text labels should be large, bold, and clearly readable',
+    '- Professional data visualization aesthetic, balanced whitespace',
+  ].join('\n'),
+  illustration: [
+    'Style: MODERN ILLUSTRATION',
+    '- Friendly, approachable digital illustration style',
+    '- Soft pastel or vibrant color palette, clean vector-like shapes',
+    '- Slightly stylized characters and objects (not hyper-realistic)',
+    '- Warm, inviting atmosphere suitable for blog content',
+    '- Consistent line weight and smooth gradients',
+  ].join('\n'),
+  icon_flat: [
+    'Style: FLAT ICON / VECTOR',
+    '- Minimalist flat design with geometric shapes',
+    '- Limited color palette (3-5 colors), no gradients or shadows',
+    '- Clean outlines, uniform stroke weight, centered composition',
+    '- Simple symbolic representation, easily recognizable at small sizes',
+    '- Grid-aligned, symmetrical layout',
+  ].join('\n'),
+  chart_data: [
+    'Style: DATA VISUALIZATION / CHART',
+    '- Professional chart or graph illustration',
+    '- Clear axes, data points, and trend lines with vibrant accent colors',
+    '- Clean grid background, subtle gradients on data bars/areas',
+    '- Modern dashboard aesthetic with rounded corners',
+    '- Upward-trending data to convey positive growth narrative',
+  ].join('\n'),
+  thumbnail: [
+    'Style: BLOG THUMBNAIL / BANNER',
+    '- Eye-catching, bold composition designed for small preview sizes',
+    '- Strong focal point with vibrant, contrasting colors',
+    '- Dynamic layout with visual depth (layered elements, gradients)',
+    '- Korean text should be LARGE, BOLD, and highly legible as the main focus',
+    '- Professional typography feel, magazine cover composition',
+  ].join('\n'),
+  product: [
+    'Style: PRODUCT PHOTOGRAPHY',
+    '- Clean, professional product shot on neutral or lifestyle background',
+    '- Studio lighting with soft reflections, crisp product details',
+    '- Slightly elevated angle (15-30 degrees) for dimensional view',
+    '- Subtle shadow for grounding, sharp focus on product',
+    '- E-commerce quality, aspirational lifestyle context',
+  ].join('\n'),
+  scene: [
+    'Style: LIFESTYLE SCENE',
+    '- Warm, atmospheric scene with natural lighting (golden hour feel)',
+    '- Candid, relaxed composition showing everyday life moments',
+    '- Soft bokeh background, muted earth tones with warm accents',
+    '- Cozy, aspirational mood — inviting the viewer into the scene',
+    '- Slightly desaturated with warm color grading (film-like look)',
+  ].join('\n'),
+}
+
+/**
+ * 이미지 설명에서 최적 스타일을 자동 판별
+ * 매칭되는 규칙이 없으면 기본값 'illustration' 반환
+ */
+function detectImageStyle(description: string): ImageStyle {
+  for (const rule of STYLE_RULES) {
+    if (rule.patterns.some(p => p.test(description))) {
+      return rule.style
+    }
+  }
+  return 'illustration' // 기본값: 일러스트
 }
 
 function isRealPhotoRequired(description: string): boolean {
@@ -124,12 +287,6 @@ export async function POST(request: NextRequest) {
           index: marker.index,
           description: marker.description,
           reason: '실제 사진이 필요한 이미지 (AI 생성 불가)',
-        })
-      } else if (isTextHeavyImage(marker.description)) {
-        skipped.push({
-          index: marker.index,
-          description: marker.description,
-          reason: '텍스트/글자가 필요한 이미지 (AI가 글자를 정확히 생성할 수 없음)',
         })
       } else {
         generatable.push(marker)
@@ -204,19 +361,25 @@ export async function POST(request: NextRequest) {
 
           for (let i = 0; i < generatable.length; i++) {
             const marker = generatable[i]
+            // 이미지 설명에서 최적 스타일 자동 판별
+              const style = detectImageStyle(marker.description)
+
             send({
               type: 'progress',
               current: i + 1,
               total: generatable.length,
-              message: `이미지 생성 중... (${i + 1}/${generatable.length})`,
+              style,
+              message: `이미지 생성 중... (${i + 1}/${generatable.length}) [${style}]`,
             })
 
             try {
-              // Gemini 이미지 생성 호출 (학습 데이터 힌트 포함)
+
+              // Gemini 이미지 생성 호출 (스타일 + 학습 데이터 힌트 포함)
               const imageData = await generateImageWithGemini(
                 apiKey,
                 keyword,
                 marker.description,
+                style,
                 imagePatternHint
               )
 
@@ -327,38 +490,60 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Gemini 이미지 생성 (gemini-2.5-flash-image, responseModalities: IMAGE)
+ * Gemini 이미지 생성 (gemini-3.1-flash-image-preview / Nano Banana 2, responseModalities: IMAGE)
  * 30초 타임아웃
  */
 async function generateImageWithGemini(
   apiKey: string,
   keyword: string,
   description: string,
+  style: ImageStyle,
   patternHint: string | null = null
 ): Promise<{ base64: string; mimeType: string } | null> {
-  const url = `${GEMINI_API_BASE}/gemini-2.5-flash-image:generateContent?key=${apiKey}`
+  const url = `${GEMINI_API_BASE}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`
+
+  // 텍스트 포함이 의미 있는 스타일 판별
+  const textAllowedStyles: ImageStyle[] = ['thumbnail', 'infographic', 'chart_data']
+  const allowText = textAllowedStyles.includes(style)
 
   const promptParts = [
-    `Generate a blog illustration image about: ${description}`,
+    `Generate a blog image about: ${description}`,
+    `Blog keyword context: "${keyword}"`,
   ]
+
+  // 스타일별 전문 프롬프트 주입
+  promptParts.push('', STYLE_PROMPTS[style])
 
   // 학습 데이터 기반 힌트 주입
   if (patternHint) {
     promptParts.push('', 'Visual reference hints:', patternHint)
   }
 
+  // 공통 품질 규칙
   promptParts.push(
     '',
     'ABSOLUTE REQUIREMENTS:',
-    '- Clean, professional, bright-toned blog illustration',
-    '- NEVER use a plain white, solid white, or blank white background. Use colorful, gradient, textured, or contextual scene backgrounds instead',
-    '- Use rich, vivid backgrounds that complement the subject (e.g., soft gradients, blurred environments, natural settings, abstract patterns)',
-    '- ZERO TEXT in the image. No letters, words, numbers, characters, labels, captions, watermarks, logos, signs, or any written content whatsoever',
-    '- No text in any language (Korean, English, Chinese, Japanese, or any other)',
-    '- No UI elements, buttons, menus, or interface components',
-    '- Pure visual content only: objects, scenes, shapes, colors, illustrations, photographs',
-    '- If text would normally appear (signs, labels, screens), make those areas blank, blurred, or filled with abstract patterns',
+    '- NEVER use a plain white, solid white, or blank white background',
+    '- Use rich, vivid backgrounds that complement the subject',
+    '- High quality, professional composition with visual depth',
+    '- No watermarks, logos, or branding elements',
   )
+
+  // 텍스트 허용 여부에 따른 규칙 분기
+  if (allowText) {
+    promptParts.push(
+      '- Korean text (한글) should be ACCURATE, BOLD, and clearly legible',
+      '- Use clean sans-serif fonts for Korean text',
+      '- Text should be a natural, integrated part of the design',
+      '- Numbers and English text should also be accurate',
+    )
+  } else {
+    promptParts.push(
+      '- ZERO TEXT in the image. No letters, words, numbers, labels, captions, or any written content',
+      '- No text in any language (Korean, English, Chinese, Japanese, or any other)',
+      '- If text would normally appear (signs, labels, screens), make those areas blank or filled with abstract patterns',
+    )
+  }
 
   const prompt = promptParts.join('\n')
 

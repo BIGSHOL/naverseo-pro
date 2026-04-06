@@ -47,3 +47,7 @@ next-env.d.ts
 # misc files
 nul
 naverseo-pro/
+
+# test files
+test-images/
+test-image-gen.mjs
