@@ -274,8 +274,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이미지 마커가 없습니다.' }, { status: 400 })
     }
 
-    // 최대 10장 제한 (Vercel 60초 타임아웃 고려)
-    const safeMarkers = markers.slice(0, 10)
+    // 최대 3장 제한 (Nano Banana 2: 이미지당 ~15-20초, Vercel 60초 타임아웃)
+    const safeMarkers = markers.slice(0, 3)
 
     // 실사 이미지 + 텍스트 필수 이미지 사전 차단 (서버 안전장치)
     const generatable: ImageMarker[] = []
@@ -337,6 +337,9 @@ export async function POST(request: NextRequest) {
     }
 
     // NDJSON 스트리밍 응답
+    const fnStart = Date.now()
+    const TIMEOUT_BUDGET = 50_000 // 50초 (Vercel 60초 중 10초 여유)
+
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
@@ -360,9 +363,20 @@ export async function POST(request: NextRequest) {
           const results: Array<{ index: number; url: string; description: string }> = []
 
           for (let i = 0; i < generatable.length; i++) {
+            // 남은 시간 체크 — 부족하면 조기 종료
+            const elapsed = Date.now() - fnStart
+            if (elapsed > TIMEOUT_BUDGET) {
+              send({
+                type: 'timeout_partial',
+                message: `시간 초과로 ${i}장까지만 생성 (${generatable.length - i}장 미생성)`,
+                generated: successCount,
+                remaining: generatable.length - i,
+              })
+              break
+            }
+
             const marker = generatable[i]
-            // 이미지 설명에서 최적 스타일 자동 판별
-              const style = detectImageStyle(marker.description)
+            const style = detectImageStyle(marker.description)
 
             send({
               type: 'progress',
@@ -373,7 +387,6 @@ export async function POST(request: NextRequest) {
             })
 
             try {
-
               // Gemini 이미지 생성 호출 (스타일 + 학습 데이터 힌트 포함)
               const imageData = await generateImageWithGemini(
                 apiKey,
@@ -556,7 +569,7 @@ async function generateImageWithGemini(
   }
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 30000)
+  const timer = setTimeout(() => controller.abort(), 25000) // 25초 (Vercel 60초 타임아웃 내 여유 확보)
 
   try {
     const res = await fetch(url, {
