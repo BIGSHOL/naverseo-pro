@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Info, Sparkles, AlertTriangle, FileText, Globe, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
 
@@ -14,20 +14,6 @@ export interface Notification {
   href?: string
 }
 
-const LS_READ_KEY = 'nsp_notif_read'
-const LS_DISMISSED_KEY = 'nsp_notif_dismissed'
-
-function getStoredSet(key: string): Set<string> {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? new Set(JSON.parse(raw)) : new Set()
-  } catch { return new Set() }
-}
-
-function storeSet(key: string, set: Set<string>) {
-  localStorage.setItem(key, JSON.stringify([...set]))
-}
-
 function buildNotifications(data: {
   profile?: { credits_balance?: number; credits_monthly_quota?: number }
   blogProfile?: { blogUrl: string } | null
@@ -36,7 +22,6 @@ function buildNotifications(data: {
 }): Notification[] {
   const notifications: Notification[] = []
 
-  // 1. 크레딧 한도 임박 (잔여 20% 이하)
   const balance = data.profile?.credits_balance ?? 0
   const quota = data.profile?.credits_monthly_quota ?? 30
   if (quota > 0 && balance / quota <= 0.2) {
@@ -53,7 +38,6 @@ function buildNotifications(data: {
     })
   }
 
-  // 2. 작성완료 콘텐츠 알림
   if (data.contentStats && data.contentStats.draft > 0) {
     notifications.push({
       id: 'content_draft',
@@ -66,7 +50,6 @@ function buildNotifications(data: {
     })
   }
 
-  // 3. 블로그 미등록
   if (!data.blogProfile) {
     notifications.push({
       id: 'blog_unregistered',
@@ -79,7 +62,6 @@ function buildNotifications(data: {
     })
   }
 
-  // 4. 평균 SEO 점수 낮음
   if (data.contentStats && data.contentStats.total > 0 && data.contentStats.avgSeoScore < 60) {
     notifications.push({
       id: 'seo_low',
@@ -92,7 +74,6 @@ function buildNotifications(data: {
     })
   }
 
-  // 5. 7일 활동 없음
   if (data.dailyActivity && data.dailyActivity.length > 0 && data.dailyActivity.every(d => d.keywords === 0 && d.content === 0)) {
     notifications.push({
       id: 'no_activity',
@@ -105,9 +86,7 @@ function buildNotifications(data: {
     })
   }
 
-  // 정적 알림 (하단에 항상 표시)
   notifications.push(...staticNotifications())
-
   return notifications
 }
 
@@ -124,16 +103,14 @@ const TIPS: { title: string; message: string }[] = [
 function staticNotifications(): Notification[] {
   const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) % TIPS.length
   const tip = TIPS[dayIndex]
-  return [
-    {
-      id: `tip_${dayIndex}`,
-      icon: Sparkles,
-      title: tip.title,
-      message: tip.message,
-      time: '팁',
-      actionable: false,
-    },
-  ]
+  return [{
+    id: `tip_${dayIndex}`,
+    icon: Sparkles,
+    title: tip.title,
+    message: tip.message,
+    time: '팁',
+    actionable: false,
+  }]
 }
 
 export function useNotifications() {
@@ -141,11 +118,17 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>(staticNotifications())
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // localStorage에서 복원
+  // Supabase에서 알림 상태 복원
   useEffect(() => {
-    setReadIds(getStoredSet(LS_READ_KEY))
-    setDismissedIds(getStoredSet(LS_DISMISSED_KEY))
+    fetch('/api/notifications')
+      .then(r => r.json())
+      .then((prefs: { read?: string[]; dismissed?: string[] }) => {
+        if (prefs.read) setReadIds(new Set(prefs.read))
+        if (prefs.dismissed) setDismissedIds(new Set(prefs.dismissed))
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -154,29 +137,38 @@ export function useNotifications() {
     }
   }, [loaded, dashboardData])
 
-  // 삭제된 알림 필터링
+  // 변경 사항을 Supabase에 디바운스 동기화 (500ms)
+  const syncToServer = useCallback((read: Set<string>, dismissed: Set<string>) => {
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => {
+      fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ read: [...read], dismissed: [...dismissed] }),
+      }).catch(() => {})
+    }, 500)
+  }, [])
+
   const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id))
   const hasActionable = visibleNotifications.some(n => n.actionable && !readIds.has(n.id))
 
-  // 알림 읽음 처리
   const markRead = useCallback((id: string) => {
     setReadIds(prev => {
       const next = new Set(prev)
       next.add(id)
-      storeSet(LS_READ_KEY, next)
+      syncToServer(next, dismissedIds)
       return next
     })
-  }, [])
+  }, [dismissedIds, syncToServer])
 
-  // 알림 삭제
   const dismiss = useCallback((id: string) => {
     setDismissedIds(prev => {
       const next = new Set(prev)
       next.add(id)
-      storeSet(LS_DISMISSED_KEY, next)
+      syncToServer(readIds, next)
       return next
     })
-  }, [])
+  }, [readIds, syncToServer])
 
   return { notifications: visibleNotifications, readIds, hasActionable, markRead, dismiss }
 }
