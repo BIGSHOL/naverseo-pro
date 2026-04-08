@@ -1,16 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Info, Sparkles, AlertTriangle, FileText, Globe, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
 
 export interface Notification {
+  id: string
   icon: LucideIcon
   title: string
   message: string
   time: string
   actionable: boolean
   href?: string
+}
+
+const LS_READ_KEY = 'nsp_notif_read'
+const LS_DISMISSED_KEY = 'nsp_notif_dismissed'
+
+function getStoredSet(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+function storeSet(key: string, set: Set<string>) {
+  localStorage.setItem(key, JSON.stringify([...set]))
 }
 
 function buildNotifications(data: {
@@ -26,6 +41,7 @@ function buildNotifications(data: {
   const quota = data.profile?.credits_monthly_quota ?? 30
   if (quota > 0 && balance / quota <= 0.2) {
     notifications.push({
+      id: 'credit_low',
       icon: AlertTriangle,
       title: balance === 0 ? '크레딧 소진' : '크레딧 부족',
       message: balance === 0
@@ -40,6 +56,7 @@ function buildNotifications(data: {
   // 2. 작성완료 콘텐츠 알림
   if (data.contentStats && data.contentStats.draft > 0) {
     notifications.push({
+      id: 'content_draft',
       icon: FileText,
       title: '작성완료 콘텐츠 확인',
       message: `작성완료 상태의 콘텐츠가 ${data.contentStats.draft}개 있습니다. SEO 체크 후 복사해보세요!`,
@@ -52,6 +69,7 @@ function buildNotifications(data: {
   // 3. 블로그 미등록
   if (!data.blogProfile) {
     notifications.push({
+      id: 'blog_unregistered',
       icon: Globe,
       title: '블로그 등록하기',
       message: '블로그를 등록하면 블로그 지수 분석과 순위 트래킹을 이용할 수 있습니다.',
@@ -64,6 +82,7 @@ function buildNotifications(data: {
   // 4. 평균 SEO 점수 낮음
   if (data.contentStats && data.contentStats.total > 0 && data.contentStats.avgSeoScore < 60) {
     notifications.push({
+      id: 'seo_low',
       icon: TrendingUp,
       title: 'SEO 점수 개선 필요',
       message: `평균 SEO 점수가 ${data.contentStats.avgSeoScore}점입니다. SEO 체크 기능으로 점수를 높여보세요.`,
@@ -76,6 +95,7 @@ function buildNotifications(data: {
   // 5. 7일 활동 없음
   if (data.dailyActivity && data.dailyActivity.length > 0 && data.dailyActivity.every(d => d.keywords === 0 && d.content === 0)) {
     notifications.push({
+      id: 'no_activity',
       icon: Info,
       title: '활동을 시작해보세요',
       message: '최근 7일간 활동이 없습니다. 키워드 검색부터 시작해보세요!',
@@ -106,6 +126,7 @@ function staticNotifications(): Notification[] {
   const tip = TIPS[dayIndex]
   return [
     {
+      id: `tip_${dayIndex}`,
       icon: Sparkles,
       title: tip.title,
       message: tip.message,
@@ -118,6 +139,14 @@ function staticNotifications(): Notification[] {
 export function useNotifications() {
   const { dashboardData, loaded } = useUserProfile()
   const [notifications, setNotifications] = useState<Notification[]>(staticNotifications())
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+
+  // localStorage에서 복원
+  useEffect(() => {
+    setReadIds(getStoredSet(LS_READ_KEY))
+    setDismissedIds(getStoredSet(LS_DISMISSED_KEY))
+  }, [])
 
   useEffect(() => {
     if (loaded && dashboardData) {
@@ -125,6 +154,29 @@ export function useNotifications() {
     }
   }, [loaded, dashboardData])
 
-  const hasActionable = notifications.some(n => n.actionable)
-  return { notifications, hasActionable }
+  // 삭제된 알림 필터링
+  const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id))
+  const hasActionable = visibleNotifications.some(n => n.actionable && !readIds.has(n.id))
+
+  // 알림 읽음 처리
+  const markRead = useCallback((id: string) => {
+    setReadIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      storeSet(LS_READ_KEY, next)
+      return next
+    })
+  }, [])
+
+  // 알림 삭제
+  const dismiss = useCallback((id: string) => {
+    setDismissedIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      storeSet(LS_DISMISSED_KEY, next)
+      return next
+    })
+  }, [])
+
+  return { notifications: visibleNotifications, readIds, hasActionable, markRead, dismiss }
 }

@@ -521,6 +521,7 @@ const LOCAL_PROMO_STRUCTURE_GUIDE = `구조:
 
 /** 톤앤매너 가이드 */
 function getToneGuide(tone: string): string {
+  const DEFAULT_TONE = '친근하고 정보적인'
   const toneMap: Record<string, string> = {
     '친근하고 정보적인': '친구에게 설명하듯 편안하면서도 전문적인 정보를 전달하는 톤. "~해요", "~인데요" 체를 사용.',
     '전문적인': '전문가의 관점에서 깊이 있게 분석하는 톤. "~입니다", "~됩니다" 체를 사용. 데이터와 근거 중심.',
@@ -528,28 +529,65 @@ function getToneGuide(tone: string): string {
     '솔직한': '개인적 경험을 솔직하게 공유하는 톤. 장점과 단점을 균형 있게 서술.',
   }
 
-  return toneMap[tone] || toneMap['친근하고 정보적인']
+  // 프리셋 매칭
+  if (toneMap[tone]) return toneMap[tone]
+
+  // 커스텀 톤 검증: 한국어 2글자 이상이면 유효한 커스텀 톤으로 사용
+  const trimmed = tone.trim()
+  const koreanChars = (trimmed.match(/[가-힣]/g) || []).length
+  if (trimmed.length >= 2 && koreanChars >= 2) {
+    return `사용자 지정 톤: "${trimmed}". 이 톤앤매너에 맞춰 글을 작성하세요.`
+  }
+
+  // 알 수 없는 입력 → 기본값
+  return toneMap[DEFAULT_TONE]
 }
 
 /** 콘텐츠 길이별 가이드 */
 function getLengthGuide(length: 'short' | 'medium' | 'long'): string {
   switch (length) {
     case 'short': return `**[엄격 제한] 본문 1,200~1,500자 (절대 1,500자 초과 금지)**
-- 핵심만 간결하게. 모바일 최적화.
-- 소제목 2~3개로 압축. 불필요한 부연 설명 생략.
-- ⚠️ 1,500자를 넘기면 사용자 설정 위반입니다. 글자수를 세면서 작성하세요.`
+
+| 구간 | 분량 | 내용 |
+|------|------|------|
+| 도입부 | 150~200자 (1문단) | 키워드 포함 첫 문장 + 글의 목적 1줄 |
+| 본문 | 800~1,000자 (H2 2~3개, 각 2~3문장) | 핵심 정보만 압축. 부연 설명 생략 |
+| 마무리 | 150~200자 (1문단) | 요약 1줄 + CTA + 태그 |
+
+- ⚠️ 1,500자를 넘기면 사용자 설정 위반입니다.`
+
     case 'medium': return `**[엄격 제한] 본문 2,000~2,500자 (절대 2,800자 초과 금지)**
+
+| 구간 | 분량 | 내용 |
+|------|------|------|
+| 도입부 | 200~300자 (1~2문단) | 키워드 포함 첫 문장 + 공감/문제 제기 + 글 미리보기 |
+| 본문 | 1,400~1,800자 (H2 3~4개, 각 3~5문장) | 각 섹션에 핵심 정보 + 예시 1개. H3으로 세부 분류 |
+| 마무리 | 200~300자 (1~2문단) | 핵심 요약 + 독자 행동 유도 + CTA + 태그 |
+
 - 네이버 검색 알고리즘 최적 길이 (상위 노출에 가장 유리한 범위).
-- 소제목 3~4개. 각 섹션 3~5문장.
-- ⚠️ 2,800자를 넘기면 사용자 설정 위반입니다. 글자수를 세면서 작성하세요.`
+- ⚠️ 2,800자를 넘기면 사용자 설정 위반입니다.`
+
     case 'long': return `**[엄격 제한] 본문 3,500~4,000자 (절대 4,500자 초과 금지)**
+
+| 구간 | 분량 | 내용 |
+|------|------|------|
+| 도입부 | 300~400자 (2문단) | 키워드 포함 첫 문장 + 배경/문제 제기 + 이 글에서 다룰 내용 요약 |
+| 본문 | 2,500~3,000자 (H2 5~7개, 각 4~6문장) | 각 섹션에 구체적 데이터·예시·비교. H3 적극 활용 |
+| 마무리 | 300~400자 (2문단) | 전체 핵심 요약 표 + FAQ 1~2개 + CTA + 태그 |
+
 - 심도 있는 전문 콘텐츠. 과도하게 길면 이탈률 증가 주의.
-- 소제목 5~7개. 각 섹션에 구체적 예시·데이터 포함.
-- ⚠️ 4,500자를 넘기면 사용자 설정 위반입니다. 글자수를 세면서 작성하세요.`
+- ⚠️ 4,500자를 넘기면 사용자 설정 위반입니다.`
+
     default: return `**[엄격 제한] 본문 2,000~2,500자 (절대 2,800자 초과 금지)**
+
+| 구간 | 분량 | 내용 |
+|------|------|------|
+| 도입부 | 200~300자 (1~2문단) | 키워드 포함 첫 문장 + 공감/문제 제기 + 글 미리보기 |
+| 본문 | 1,400~1,800자 (H2 3~4개, 각 3~5문장) | 각 섹션에 핵심 정보 + 예시 1개. H3으로 세부 분류 |
+| 마무리 | 200~300자 (1~2문단) | 핵심 요약 + 독자 행동 유도 + CTA + 태그 |
+
 - 네이버 검색 알고리즘 최적 길이 (상위 노출에 가장 유리한 범위).
-- 소제목 3~4개. 각 섹션 3~5문장.
-- ⚠️ 2,800자를 넘기면 사용자 설정 위반입니다. 글자수를 세면서 작성하세요.`
+- ⚠️ 2,800자를 넘기면 사용자 설정 위반입니다.`
   }
 }
 
@@ -583,9 +621,6 @@ export function buildSystemPrompt(request: ContentGenerationRequest): string {
       ? '8~12회 (적극적으로)'
       : '5~8회 (권장)'
 
-  const internalLinkGuide = opts.internalLinkCount && opts.internalLinkCount !== 'auto'
-    ? `정확히 ${opts.internalLinkCount}개`
-    : '2~3개'
 
   const structureRatioGuide = opts.structureRatio === 'intro-heavy'
     ? '도입부를 풍부하게 (30% 이상) 작성하여 독자의 관심을 끌어주세요.'
@@ -660,11 +695,9 @@ ${lengthGuide}
 | 8 | 가독성 요소 | 8점 | 볼드·리스트·인용구 등 서식 요소 활용 |
 | 9 | 관련 키워드 | 8점 | 제공된 관련 키워드의 70% 이상 본문에 포함 |
 | 10 | 태그 & CTA | 7점 | 해시태그 7~10개 + 댓글/공감 유도 문구 |
-| 11 | 내부 링크 | 10점 | [관련 글: 제목](./link) 형태 2~3개 |
-| 12 | 메타 설명 | 8점 | 도입부 첫 문장에 키워드 포함 (50~120자) |
-| 13 | 모바일 최적화 | 7점 | 문단 2~4문장, 문장 40자 이내 |
+| 11 | 메타 설명 | 8점 | 도입부 첫 문장에 키워드 포함 (50~120자) |
+| 12 | 모바일 최적화 | 7점 | 문단 2~4문장, 문장 40자 이내 |
 
-**내부 링크(10점)가 가장 배점이 높습니다. 반드시 2~3개 포함하세요.**
 **관련 키워드(8점)는 제공된 목록의 70% 이상을 자연스럽게 본문에 녹여야 합니다.**
 
 ### 제목 최적화
@@ -734,15 +767,6 @@ ${lengthGuide}
 - **중요 문장 강조**: 핵심 팁, 주의사항, 결론은 **볼드** 처리
 - **인용구 활용**: 특별히 강조할 팁이나 전문가 조언은 > 인용구로 표현
 - **단락 호흡 짧게**: 각 문단은 2~4문장, 문장 길이는 40자 이내 (모바일 최적화)
-
-### 내부 링크 (필수)
-- 본문에 **반드시 ${internalLinkGuide}의 내부 링크** 플레이스홀더를 포함하세요
-- 마크다운 링크 형식 사용: [관련 글: 제목](./placeholder)
-- 예시:
-  - [관련 글: 네이버 블로그 SEO 최적화 완벽 가이드](./naver-blog-seo-guide)
-  - [이전 포스팅: 초보자를 위한 블로그 시작하기](./blog-start-guide)
-- 링크는 본문 중간에 자연스럽게 배치 (마지막에만 몰지 말 것)
-- 관련 주제로 자연스럽게 연결되는 내용으로 작성
 
 ### 구조 최적화
 - 소제목(## H2, ### H3)으로 논리적 구조화 (${headingCountGuide}, H3는 최소 2개 이상 필수)
@@ -837,7 +861,6 @@ ${fewShotExamples}
 □ 소제목: ## (H2) 최소 3개
 □ 키워드: 최소 5회 자연스럽게 포함 (도입·중반·마무리 각 1회 이상)
 □ 이미지: [이미지: 설명] 최소 5개, 권장 7개 (각 섹션마다 1~2개 분산)
-□ 내부 링크: [관련 글: 제목](./placeholder) 최소 3개 (본문 중간에 분산)
 □ 서식: **볼드** 3개 이상, 리스트(-) 또는 번호목록(1.) 1개 이상
 □ 문단: 8개 이상 (빈 줄로 구분), 각 2~4문장
 □ CTA: 마무리에 댓글·공감·구독 유도 문구
@@ -2097,52 +2120,7 @@ export function autoOptimizeContent(
     }
   }
 
-  // --- Fixer 1: 내부 링크 (max 10pts) ---
-  const contentBeforeLinks = optContent
-  const linkCat = catMap.get('internal_links')
-  if (linkCat && linkCat.score < linkCat.maxScore * 0.85) {
-    const internalLinkPattern = /\[([^\]]+)\]\((\.[^)]*|#[^)]*|\/[^)]*)\)/g
-    const existingCount = (optContent.match(internalLinkPattern) || []).length
-
-    if (existingCount < 3) {
-      const needed = 3 - existingCount
-      const h2Sections = optContent.split(/^(## .+)$/m)
-      const linkTemplates = [
-        `\n\n[관련 글: ${keyword} 핵심 정리](./related-post-1)\n`,
-        `\n\n[관련 글: ${keyword} 활용 가이드](./related-post-2)\n`,
-        `\n\n[관련 글: ${keyword} 자주 묻는 질문](./related-post-3)\n`,
-      ]
-
-      if (h2Sections.length >= 5) {
-        // H2 섹션이 충분할 때: 초반/중반/후반에 분산 삽입
-        const sectionIndices = [2, Math.floor(h2Sections.length / 2), h2Sections.length - 2]
-        let inserted = 0
-        for (const idx of sectionIndices) {
-          if (inserted >= needed) break
-          if (idx >= 0 && idx < h2Sections.length && !h2Sections[idx].startsWith('## ')) {
-            h2Sections[idx] = h2Sections[idx] + linkTemplates[inserted]
-            inserted++
-          }
-        }
-        optContent = h2Sections.join('')
-      } else {
-        // H2 섹션 부족: 본문 끝에서 2번째 단락 앞에 삽입
-        const paragraphs = optContent.split('\n\n')
-        if (paragraphs.length >= 3) {
-          const insertIdx = Math.max(1, paragraphs.length - 2)
-          const linksToInsert = linkTemplates.slice(0, needed).join('\n')
-          paragraphs.splice(insertIdx, 0, linksToInsert)
-          optContent = paragraphs.join('\n\n')
-        } else {
-          optContent += '\n' + linkTemplates.slice(0, needed).join('\n')
-        }
-      }
-      optimizations.push(`내부 링크 ${needed}개 추가 (+${linkCat.maxScore - linkCat.score}점 예상)`)
-    }
-  }
-  captureContentPatch(contentBeforeLinks, optContent, '내부 링크 삽입')
-
-  // --- Fixer 2: 제목 키워드 위치 (max 8pts) ---
+  // --- Fixer 2 (구 Fixer 1: 내부 링크 제거됨): 제목 키워드 위치 (max 8pts) ---
   const titleBeforeKw = optTitle
   const titleKwCat = catMap.get('title_keyword')
   if (titleKwCat && titleKwCat.score < titleKwCat.maxScore * 0.85) {
@@ -2344,7 +2322,7 @@ export interface ExtractionResult {
 // --- 카테고리 분류 ---
 
 /** 자동 패치 불가 카테고리 (사용자 수동 작업 필요) */
-const GUIDANCE_ONLY_CATEGORIES = new Set(['internal_links'])
+const GUIDANCE_ONLY_CATEGORIES = new Set<string>([])
 
 /** 카테고리별 필요 섹션 타입 */
 type SectionSelector =
@@ -2538,11 +2516,6 @@ export function buildGuidanceText(categories: WeakCategory[]): GuidanceItem[] {
 
 /** 카테고리 ID별 AI 개선 지시사항 */
 const IMPROVEMENT_INSTRUCTIONS: Record<string, string> = {
-  internal_links: `내부 링크를 3개 이상 추가하세요:
-- 본문 중간에 "[관련 글: 제목](https://blog.naver.com/blogid/postid)" 형태로 삽입
-- 글의 맥락과 자연스럽게 연결되는 위치에 배치
-- "이전에 작성한 글에서 더 자세히 다뤘는데요" 같은 연결 문구 사용`,
-
   keyword_density: `타겟 키워드 사용 빈도를 높이세요:
 - 본문 전체에서 키워드 밀도 1~2%가 되도록 자연스럽게 키워드를 추가
 - 동의어나 유사 표현도 함께 활용 (키워드 스터핑은 절대 금지)

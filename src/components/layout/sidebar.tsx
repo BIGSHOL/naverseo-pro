@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PLANS } from '@/types/database'
 import { navGroups, adminNavItems, canAccessFeature } from '@/lib/navigation'
 import { pathToFeatureKey } from '@/lib/features'
-import { Bell, Lock, Settings, LogOut } from 'lucide-react'
+import { Bell, Lock, Settings, LogOut, X } from 'lucide-react'
 import { useUserProfile } from '@/contexts/user-profile'
 import { useNotifications } from '@/hooks/use-notifications'
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client'
@@ -24,7 +24,7 @@ export function Sidebar() {
     plan, role, creditsBalance, creditsQuota,
     avatarUrl, userName, userEmail, loaded, disabledFeatures,
   } = useUserProfile()
-  const { notifications, hasActionable } = useNotifications()
+  const { notifications, readIds, hasActionable, markRead, dismiss } = useNotifications()
 
   const planInfo = PLANS[plan]
   const creditPercent = creditsQuota > 0 ? Math.min(100, (creditsBalance / creditsQuota) * 100) : 0
@@ -52,76 +52,97 @@ export function Sidebar() {
 
         {/* 네비게이션 */}
         <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-          {navGroups.map((group, gi) => (
-            <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
-              {gi > 0 && (
-                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                  {group.label}
-                </p>
-              )}
-              <div className="space-y-1">
-                {group.items.filter((item) => {
-                  const fk = pathToFeatureKey(item.href)
-                  return !fk || !disabledFeatures.includes(fk)
-                }).map((item) => {
-                  const isActive = pathname === item.href
-                  const locked = !canAccessFeature(plan, item.minPlan)
-                  return (
-                    <Tooltip key={item.href}>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={locked ? '/billing' : item.href}
-                          className={cn(
-                            'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
-                            locked
-                              ? 'cursor-default text-slate-600'
-                              : isActive
-                                ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
-                                : 'text-slate-300 hover:bg-white/8 hover:text-white'
+          {!loaded ? (
+            /* 스켈레톤: 프로필 로딩 전 */
+            <div className="animate-pulse space-y-6">
+              {[6, 6, 4].map((count, gi) => (
+                <div key={gi}>
+                  {gi > 0 && <div className="mb-2 ml-3 h-2.5 w-14 rounded bg-slate-700/60" />}
+                  <div className="space-y-1">
+                    {Array.from({ length: count }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+                        <div className="h-5 w-5 rounded bg-slate-700/50" />
+                        <div className="h-3.5 rounded bg-slate-700/50" style={{ width: `${60 + (i * 13) % 40}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {navGroups.map((group, gi) => (
+                <div key={group.label} className={gi > 0 ? 'mt-6' : ''}>
+                  {gi > 0 && (
+                    <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      {group.label}
+                    </p>
+                  )}
+                  <div className="space-y-1">
+                    {group.items.filter((item) => {
+                      const fk = pathToFeatureKey(item.href)
+                      return !fk || !disabledFeatures.includes(fk)
+                    }).map((item) => {
+                      const isActive = pathname === item.href
+                      const locked = !canAccessFeature(plan, item.minPlan)
+                      return (
+                        <Tooltip key={item.href}>
+                          <TooltipTrigger asChild>
+                            <Link
+                              href={locked ? '/billing' : item.href}
+                              className={cn(
+                                'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
+                                locked
+                                  ? 'cursor-default text-slate-600'
+                                  : isActive
+                                    ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
+                                    : 'text-slate-300 hover:bg-white/8 hover:text-white'
+                              )}
+                            >
+                              <item.icon className={cn('h-5 w-5', locked ? 'opacity-40' : isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-white group-hover:scale-110 transition-all')} />
+                              <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
+                              {locked && <Lock className="h-4 w-4 text-slate-600" />}
+                            </Link>
+                          </TooltipTrigger>
+                          {locked && (
+                            <TooltipContent side="right">
+                              <p>{item.minPlan === 'lite' ? 'Lite' : 'Starter'} 이상 플랜 필요</p>
+                            </TooltipContent>
                           )}
-                        >
-                          <item.icon className={cn('h-5 w-5', locked ? 'opacity-40' : isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-white group-hover:scale-110 transition-all')} />
-                          <span className={cn('flex-1', locked && 'opacity-60')}>{item.label}</span>
-                          {locked && <Lock className="h-4 w-4 text-slate-600" />}
-                        </Link>
-                      </TooltipTrigger>
-                      {locked && (
-                        <TooltipContent side="right">
-                          <p>{item.minPlan === 'lite' ? 'Lite' : 'Starter'} 이상 플랜 필요</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+                        </Tooltip>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
 
-          {/* 관리자 메뉴 */}
-          {role === 'admin' && (
-            <div className="mt-6 pt-6 border-t border-slate-700/50">
-              <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                관리자
-              </p>
-              {adminNavItems.map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
-                      isActive
-                        ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
-                        : 'text-slate-300 hover:bg-white/8 hover:text-white'
-                    )}
-                  >
-                    <item.icon className={cn("h-5 w-5", isActive ? "text-emerald-400" : "text-slate-400 group-hover:text-white group-hover:scale-110 transition-all")} />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
+              {/* 관리자 메뉴 */}
+              {role === 'admin' && (
+                <div className="mt-6 pt-6 border-t border-slate-700/50">
+                  <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    관리자
+                  </p>
+                  {adminNavItems.map((item) => {
+                    const isActive = pathname === item.href
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-all duration-200',
+                          isActive
+                            ? 'bg-emerald-500/15 text-emerald-400 shadow-sm ring-1 ring-emerald-500/20'
+                            : 'text-slate-300 hover:bg-white/8 hover:text-white'
+                        )}
+                      >
+                        <item.icon className={cn("h-5 w-5", isActive ? "text-emerald-400" : "text-slate-400 group-hover:text-white group-hover:scale-110 transition-all")} />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
         </nav>
 
@@ -169,20 +190,33 @@ export function Sidebar() {
                         <h3 className="text-sm font-semibold">알림</h3>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
-                        {notifications.map((item, i) => (
-                          <div
-                            key={i}
-                            className={`flex gap-3 border-b px-4 py-3 last:border-0 hover:bg-muted/50 ${item.href ? 'cursor-pointer' : ''}`}
-                            onClick={() => item.href && router.push(item.href)}
-                          >
-                            <item.icon className={`mt-0.5 h-4 w-4 shrink-0 ${item.actionable ? 'text-primary' : 'text-muted-foreground'}`} />
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">{item.title}</p>
-                              <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{item.message}</p>
-                              <p className="mt-1 text-xs text-muted-foreground/60">{item.time}</p>
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-6 text-center text-sm text-muted-foreground">알림이 없습니다</div>
+                        ) : notifications.map((item) => {
+                          const isRead = readIds.has(item.id)
+                          return (
+                            <div
+                              key={item.id}
+                              className={`group flex gap-3 border-b px-4 py-3 last:border-0 transition-colors ${isRead ? 'opacity-50' : 'hover:bg-muted/50'} ${item.href ? 'cursor-pointer' : ''}`}
+                              onClick={() => { markRead(item.id); if (item.href) router.push(item.href) }}
+                            >
+                              <item.icon className={`mt-0.5 h-4 w-4 shrink-0 ${item.actionable && !isRead ? 'text-primary' : 'text-muted-foreground'}`} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium">{item.title}</p>
+                                <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{item.message}</p>
+                                <p className="mt-1 text-xs text-muted-foreground/60">{item.time}</p>
+                              </div>
+                              <button
+                                type="button"
+                                className="shrink-0 mt-0.5 p-0.5 rounded-sm text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+                                onClick={(e) => { e.stopPropagation(); dismiss(item.id) }}
+                                title="알림 삭제"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </PopoverContent>
                   </Popover>

@@ -133,11 +133,19 @@ export function htmlForNaverClipboard(html: string): string {
   // 2. h1 → 볼드 + 28px
   result = result.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '<p><b><span style="font-size: 28px;">$1</span></b></p>')
 
-  // 3. h2 → 볼드 + 24px + <hr> 구분선 (네이버 블로그 소제목 패턴)
-  result = result.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '<p><b><span style="font-size: 24px;">$1</span></b></p><hr>')
+  // 3. h2 → 볼드 + 24px + <hr> 구분선 (네이버 블로그 소제목 패턴, style 속성 보존)
+  result = result.replace(/<h2(\s[^>]*)?>(([\s\S]*?))<\/h2>/gi, (_m, attrs, inner) => {
+    const styleMatch = (attrs || '').match(/style="([^"]*)"/)
+    const style = styleMatch ? ` style="${styleMatch[1]}"` : ''
+    return `<p${style}><span style="font-size: 24px;"><b>${inner}</b></span></p><hr>`
+  })
 
-  // 4. h3 → 볼드 + 18px
-  result = result.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '<p><b><span style="font-size: 18px;">$1</span></b></p>')
+  // 4. h3 → 볼드 + 18px (style 속성 보존)
+  result = result.replace(/<h3(\s[^>]*)?>(([\s\S]*?))<\/h3>/gi, (_m, attrs, inner) => {
+    const styleMatch = (attrs || '').match(/style="([^"]*)"/)
+    const style = styleMatch ? ` style="${styleMatch[1]}"` : ''
+    return `<p${style}><span style="font-size: 18px;"><b>${inner}</b></span></p>`
+  })
 
   // 5. 리스트 항목 → <p>로 변환 (네이버 리스트 렌더링 깨짐 방지)
   //    <li><p>내용</p></li> → <p>내용</p> (속성 보존)
@@ -148,8 +156,12 @@ export function htmlForNaverClipboard(html: string): string {
   // 6. ul/ol 래퍼 제거
   result = result.replace(/<\/?[uo]l[^>]*>/gi, '')
 
-  // 7. blockquote 유지 (네이버가 인용구로 인식)
-  // 변환 안함 — 네이버 SmartEditor가 blockquote를 인용구 블록으로 처리
+  // 7. blockquote의 배경색/border 인라인 스타일 제거 (네이버가 자체 스타일 적용)
+  result = result.replace(/<blockquote([^>]*)>/gi, (_m, attrs) => {
+    // style 속성에서 background 관련 제거
+    const cleaned = (attrs || '').replace(/style="[^"]*"/gi, '')
+    return `<blockquote${cleaned}>`
+  })
 
   // 8. hr → 구분선
   result = result.replace(/<hr\s*\/?>/gi, '<p style="text-align: center; color: #ccc;">━━━━━━━━━━━━━━━━</p>')
@@ -197,9 +209,24 @@ export async function copyForNaver(html: string, plainText: string): Promise<'ri
     container.style.width = '600px'          // 네이버 블로그 본문 폭
     container.style.fontFamily = '"NanumGothic", "나눔고딕", sans-serif'
     container.style.fontSize = '15px'
+    container.style.fontWeight = 'normal'
     container.style.lineHeight = '1.7'
     container.style.color = '#333'
+    container.style.textAlign = 'left'
     document.body.appendChild(container)
+
+    // 개별 블록에 text-align 강제 부여 (네이버가 컨테이너 스타일을 무시하므로 개별 지정)
+    // + 블록 요소의 background 제거 (에디터 배경색이 네이버에 복사되는 것 방지)
+    container.querySelectorAll('p, h2, h3, blockquote, li, div').forEach((el) => {
+      const blockEl = el as HTMLElement
+      if (!blockEl.style.textAlign) {
+        blockEl.style.textAlign = 'left'
+      }
+      // blockquote 등의 배경색 제거 (형광펜 span은 건드리지 않음)
+      if (blockEl.style.backgroundColor && blockEl.tagName !== 'SPAN') {
+        blockEl.style.backgroundColor = 'transparent'
+      }
+    })
 
     // mark 배경색 강제 적용 (브라우저가 누락할 수 있음)
     container.querySelectorAll('mark, span[style*="background-color"]').forEach((el) => {

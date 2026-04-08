@@ -2450,18 +2450,8 @@ export default function ContentPage() {
               <Label className="flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-amber-500" />
                 참고 자료 첨부
-                <span className="text-xs font-normal text-muted-foreground">(선택)</span>
+                <span className="text-xs font-normal text-muted-foreground">(선택, 최대 {MAX_ATTACHED_DOCS}개)</span>
               </Label>
-              <Textarea
-                placeholder="AI가 참고할 자료를 붙여넣으세요 (보도자료, 논문 요약, 제품 스펙 등). AI가 관련 부분만 선별하여 활용합니다."
-                value={refMaterialText}
-                onChange={(e) => {
-                  setRefMaterialText(e.target.value)
-                }}
-                disabled={loading || attachedDocs.some(d => d.loading)}
-                rows={3}
-                className="border-amber-200 focus:border-amber-400 focus:ring-amber-400"
-              />
 
               {/* 첨부 문서 목록 */}
               {attachedDocs.length > 0 && (
@@ -2492,25 +2482,27 @@ export default function ContentPage() {
                 </div>
               )}
 
-              {/* 문서 추가 버튼 */}
-              <div className="flex items-center gap-2">
-                {attachedDocs.length < MAX_ATTACHED_DOCS && (
-                  <label className="cursor-pointer">
-                    <input
-                      ref={docFileInputRef}
-                      type="file"
-                      accept={SUPPORTED_DOC_ACCEPT}
-                      multiple
-                      className="hidden"
-                      onChange={handleAttachDocs}
-                      disabled={loading || attachedDocs.some(d => d.loading)}
-                    />
-                    <Badge variant="outline" className="cursor-pointer hover:bg-amber-50 gap-1">
-                      <FileText className="h-3 w-3" /> 문서 추가 ({attachedDocs.length}/{MAX_ATTACHED_DOCS})
-                    </Badge>
-                  </label>
-                )}
-                {(refMaterialText || attachedDocs.length > 0) && (
+              {/* 문서 추가 영역 */}
+              {attachedDocs.length < MAX_ATTACHED_DOCS && (
+                <label className="cursor-pointer">
+                  <input
+                    ref={docFileInputRef}
+                    type="file"
+                    accept={SUPPORTED_DOC_ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={handleAttachDocs}
+                    disabled={loading || attachedDocs.some(d => d.loading)}
+                  />
+                  <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-amber-200 p-3 text-sm text-amber-600 hover:bg-amber-50 transition-colors">
+                    <FileText className="h-4 w-4" />
+                    문서 추가 ({attachedDocs.length}/{MAX_ATTACHED_DOCS})
+                  </div>
+                </label>
+              )}
+
+              {attachedDocs.length > 0 && (
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     className="text-xs text-amber-500 hover:text-amber-700 underline"
@@ -2518,26 +2510,20 @@ export default function ContentPage() {
                   >
                     전체 삭제
                   </button>
-                )}
-                <span className="ml-auto text-xs text-muted-foreground">
-                  총 {totalRefCharCount.toLocaleString()}자
-                  {totalRefCharCount > REF_MATERIAL_MAX_CHARS && (
-                    <span className="ml-1 text-amber-600 font-medium">
-                      (+{Math.ceil((totalRefCharCount - REF_MATERIAL_MAX_CHARS) / REF_MATERIAL_MAX_CHARS) * 3}크레딧)
-                    </span>
-                  )}
-                </span>
-              </div>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    총 {totalRefCharCount.toLocaleString()}자
+                    {totalRefCharCount > REF_MATERIAL_MAX_CHARS && (
+                      <span className="ml-1 text-amber-600 font-medium">
+                        (+{Math.ceil((totalRefCharCount - REF_MATERIAL_MAX_CHARS) / REF_MATERIAL_MAX_CHARS) * 3}크레딧)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
 
-              <div className="space-y-1">
-                <p className="text-xs text-amber-600/80">
-                  지원 형식: TXT, PDF, DOCX, PPTX (최대 10MB, {MAX_ATTACHED_DOCS}개)
-                </p>
-                <p className="flex items-start gap-1 text-xs text-amber-600/80">
-                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  이미지 기반 문서(스캔 PDF 등)는 텍스트 추출이 불가합니다. OCR 처리된 파일을 사용해주세요.
-                </p>
-              </div>
+              <p className="text-xs text-amber-600/80">
+                TXT, PDF, DOCX, PPTX (최대 10MB). AI가 관련 부분만 선별하여 활용합니다.
+              </p>
             </div>
 
             {/* 이미지 첨부 + 설명 (선택) */}
@@ -2785,7 +2771,25 @@ export default function ContentPage() {
                     {t}
                   </Badge>
                 ))}
+                <Badge
+                  variant={!toneOptions.includes(tone) ? 'default' : 'outline'}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    if (toneOptions.includes(tone)) setTone('')
+                  }}
+                >
+                  직접 입력
+                </Badge>
               </div>
+              {!toneOptions.includes(tone) && (
+                <Input
+                  placeholder="원하는 톤앤매너를 입력하세요 (예: 따뜻하고 공감가는, 유머러스한, 격식체)"
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  disabled={loading}
+                  className="text-sm"
+                />
+              )}
             </div>
 
             {/* FAQ 포함 토글 */}
@@ -3870,7 +3874,8 @@ export default function ContentPage() {
                             )}
                           </Tooltip>
                         </TooltipProvider>
-                        <TooltipProvider delayDuration={200}>
+                        {/* AI 이미지 생성 버튼 — 임시 숨김 (Vercel Pro 전환 후 활성화) */}
+                        {/* <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span>
@@ -3892,8 +3897,8 @@ export default function ContentPage() {
                               <TooltipContent>다른 AI 작업이 진행 중입니다</TooltipContent>
                             )}
                           </Tooltip>
-                        </TooltipProvider>
-                        {!result.contentId && (
+                        </TooltipProvider> */}
+                        {!result.contentId && result.isDemo && (
                           <span className="text-xs text-muted-foreground">데모 콘텐츠는 저장할 수 없습니다</span>
                         )}
                         {saveMessage && (
